@@ -132,7 +132,7 @@
 | 测试 - 单元 | Vitest | ^2.0 | 与 Vite 一致 |
 | 测试 - 组件 | @testing-library/react | ^16 | 标准做法 |
 | 测试 - E2E | Playwright | ^1.47 | Chromium 内核够用，支持 fixture / trace |
-| HTTP 拦截 | msw | ^2.4 | 真实模式测试不真联网 |
+| HTTP 拦截 | msw | ^2.4 | APP 真实模式 E2E / integration 测试不真联网；开发者提交前 `test:ai-smoke` 例外，见 §9.7 |
 | 代码风格 | eslint + prettier | eslint ^9 / prettier ^3 | 统一风格，减少 code review 摩擦 |
 
 **不引入**：任何 UI 组件库（Ant Design / MUI / Chakra 等）、任何动画库、任何 CSS-in-JS、任何状态机库（状态机用纯函数 reducer 描述）。
@@ -160,7 +160,9 @@
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "test:evaluation": "vitest run -c vitest.evaluation.config.ts",
-    "verify": "npm run typecheck && npm run lint && npm test && npm run test:integration && npm run test:e2e && npm run test:evaluation"
+    "test:ai-smoke": "node tests/developer-ai-smoke.mjs",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run test:integration && npm run test:e2e && npm run test:evaluation",
+    "verify:precommit": "npm run verify && npm run test:ai-smoke"
   }
 }
 ```
@@ -760,6 +762,7 @@ export type ProviderId = "kimi" | "glm" | "minimax" | "mimo";
 export interface ProviderConnection {
   providerId: ProviderId;
   baseUrl?: string;                   // 可覆盖默认
+  protocol?: "openai-compatible" | "anthropic-compatible"; // MiMo / Token Plan 默认 openai-compatible
   apiKeyRef: string;                  // 指向 keystore 中的别名，前端不直接拿 key
   modelIds: string[];
   enabled: boolean;
@@ -769,6 +772,7 @@ export interface AgentAssignment {
   agent: "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat";
   providerOrder: ProviderId[];        // fallback 顺序
   modelId: string;
+  modelFallbacks?: string[];          // MiMo 默认见 §8.9.3；按顺序覆盖 modelId
   reasoningLevel?: "low" | "medium" | "high";
   maxTokens: number;
 }
@@ -1460,7 +1464,16 @@ v0.1.0 实现四家的**非流式** chat completions：
 | Kimi（Moonshot） | `https://api.moonshot.cn/v1` | OpenAI-like |
 | GLM（智谱） | `https://open.bigmodel.cn/api/paas/v4` | OpenAI-like |
 | Minimax | `https://api.minimax.chat/v1` | 自有 schema，在 adapter 内转换 |
-| MiMo（小米） | 由用户填写 | OpenAI-like（默认假设） |
+| MiMo（Token Plan 默认） | `https://token-plan-cn.xiaomimimo.com/v1` | OpenAI-compatible |
+
+Token Plan 兼容协议是 v0.1.0 真实模式测试的默认 usage method：
+
+| 协议 | Base URL | 用途 |
+|---|---|---|
+| OpenAI Compatibility Protocol | `https://token-plan-cn.xiaomimimo.com/v1` | MiMo 默认 chat completions 通道；adapter 追加 `/chat/completions` |
+| Anthropic Compatibility Protocol | `https://token-plan-cn.xiaomimimo.com/anthropic` | Anthropic-like adapter / 开发者兼容性 smoke；adapter 追加 `/messages` |
+
+API Key 格式必须为 `tp-xxxxx`。APP 用户真实模式测试与开发者提交前自动测试都默认走 Token Plan，但两类 Key 来源必须隔离：APP 用户 Key 只由用户在 APP 设置页配置；开发者自动测试 Key 只来自环境变量或仓库根目录 `.env`（见 §8.10.5 / §9.7）。
 
 实现要点：
 - 所有 adapter 返回统一 `{ text, tokenUsage }`；不暴露 Provider 特有字段。
@@ -1470,11 +1483,20 @@ v0.1.0 实现四家的**非流式** chat completions：
 
 | 错误类别 | 行为 |
 |---|---|
-| `429 / quota` | 立即切换下一个 Provider；记录 `attempts` |
+| `429 / quota` | 非 MiMo Provider 立即切换下一个 Provider；MiMo / Token Plan 先执行本节模型级 fallback；记录 `attempts` |
 | `5xx / 网络错误` | 指数退避 `[500ms, 1500ms, 3000ms]`，最多 2 次；仍失败 → 下一个 Provider |
 | `401 / 鉴权失败` | **不**重试，不切换；返回 `retryable=false`，提示用户检查 API Key |
 | `400 / schema 校验失败（Provider 拒绝）` | 尝试一次"修复为 JSON"调用（附带上次输出）；仍失败 → 原错误返回 |
 | 超时（> 60s） | AbortController 取消；按网络错误处理 |
+
+MiMo / Token Plan 的模型级 fallback 在单个 Provider 内先执行，顺序固定为：
+
+1. `MiMo-V2.5-Pro`（最高优先级）
+2. `MiMo-V2.5`
+3. `MiMo-V2-Pro`
+4. `MiMo-V2-Omni`（最低优先级）
+
+当错误为 `429 / quota`、`5xx / 网络错误`、超时时，先按上述模型顺序切换；所有模型失败后才进入 `providerPreference` 的下一个 Provider。`401 / 鉴权失败` 不做模型 fallback，直接返回并提示检查 `tp-` Key。
 
 #### 8.9.4 Token 估算（`client/src/agent/tokenEstimate.ts`）
 
@@ -1541,6 +1563,13 @@ v0.1.0 实现四家的**非流式** chat completions：
 5. 完整明细（折叠展开）。
 6. 可选：应用脱敏规则 checkbox（显示哪些规则会生效）。
 7. 底部按钮：`取消` / `确认发送`；`确认发送` 需 checkbox "我确认已审阅上述内容"勾选后才可点击。
+
+#### 8.10.5 Token Plan Key 来源边界
+
+- **APP 用户真实模式 / APP 用户测试**：默认 usage method 为 Token Plan。用户在 APP `设置 → 模型连接` 中自行配置 `tp-xxxxx` Key；该 Key 只进入 §8.10.1 的 server 内存 / 可选加密 keystore，不读取 `.env`。
+- **开发者提交前自动测试**：默认 usage method 同样为 Token Plan，但 Key 只由 `TOKEN_PLAN_API_KEY` 环境变量或仓库根目录 `.env` 注入。该脚本不得读取 APP 设置、IndexedDB、`data/keystore.enc` 或浏览器状态。
+- `.env` 仅允许本地开发使用，必须被 `.gitignore` 忽略；可提交 `.env.example`，但不得包含真实 Key。
+- 日志只允许输出脱敏后的 Key 标识（例如 `tp-...abcd`），不得打印完整 Key、Authorization header 或请求体中的敏感文本。
 
 ### 8.11 Mock 演示模式
 
@@ -1703,6 +1732,7 @@ function fileNameSanitize(raw: string, maxLen = 40): string {
 
 ```text
 tests/
+├── developer-ai-smoke.mjs             # 提交前 Token Plan 真实 API smoke（非 APP 用户测试）
 ├── unit/
 │   ├── dateRules.test.ts
 │   ├── dateParse.test.ts
@@ -1806,8 +1836,384 @@ tests/
 
 v0.1.0 不强制 GitHub Actions。执行者必须：
 
-- 提交前运行 `npm run verify`，结果全绿才能 commit。
+- 提交前运行 `npm run verify:precommit`，结果全绿才能 commit。
+- `npm run verify` 保持本地 / MSW / Mock 路径，不调用真实外部 AI API；`npm run test:ai-smoke` 是唯一默认允许真实调用 Token Plan 的提交前自动测试入口。
 - 可选启用 `husky + lint-staged`（若引入需走 §2.4 依赖确认）。
+
+### 9.7 开发者提交前真实 AI API Smoke（非 APP 用户测试）
+
+参考 `/Users/wukun/Documents/tmp/resumeTailor/vscCCOpus/test-e2e.mjs` 的 `loadEnvFile()`、fallback 模型列表、限速等待、`RESULTS` 汇总与 exit code 设计，新增 `tests/developer-ai-smoke.mjs`。该脚本只验证开发者提交前的 Provider / 协议 / fallback / schema 基线，不模拟 APP 用户操作，也不读取 APP 用户配置。
+
+#### 9.7.1 脚本结构与入口
+
+```js
+// tests/developer-ai-smoke.mjs
+// 运行: TOKEN_PLAN_API_KEY=tp-xxxxx node tests/developer-ai-smoke.mjs
+// 或:   npm run test:ai-smoke  (需先配置 .env)
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.join(__dirname, '..');
+const RESULTS = [];
+
+function log(test, pass, detail = '') {
+  const icon = pass ? 'PASS' : 'FAIL';
+  console.log(`[${icon}] ${test}${detail ? ' - ' + detail : ''}`);
+  RESULTS.push({ test, pass, detail });
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+```
+
+#### 9.7.2 环境变量加载（`loadEnvFile`）
+
+沿用参考脚本的模式：先查环境变量，不存在再读 `.env`，不引入 `dotenv`。
+
+```js
+function loadEnvFile() {
+  if (process.env.TOKEN_PLAN_API_KEY) return; // 已设置
+
+  try {
+    const envPath = path.join(PROJECT_ROOT, '.env');
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const [key, ...valueParts] = trimmed.split('=');
+      let value = valueParts.join('=');
+      // 去除单双引号
+      if ((value.startsWith('”') && value.endsWith('”')) ||
+          (value.startsWith(“'”) && value.endsWith(“'”))) {
+        value = value.slice(1, -1);
+      }
+      if (key === 'TOKEN_PLAN_API_KEY') process.env.TOKEN_PLAN_API_KEY = value;
+      if (key === 'TOKEN_PLAN_OPENAI_BASE_URL') process.env.TOKEN_PLAN_OPENAI_BASE_URL = value;
+      if (key === 'TOKEN_PLAN_ANTHROPIC_BASE_URL') process.env.TOKEN_PLAN_ANTHROPIC_BASE_URL = value;
+      if (key === 'TOKEN_PLAN_RATE_LIMIT_DELAY_MS') process.env.TOKEN_PLAN_RATE_LIMIT_DELAY_MS = value;
+      if (key === 'TOKEN_PLAN_MODEL_FALLBACKS') process.env.TOKEN_PLAN_MODEL_FALLBACKS = value;
+    }
+  } catch { /* .env 不存在，继续用现有环境变量 */ }
+}
+loadEnvFile();
+```
+
+#### 9.7.3 配置与 Key 校验
+
+```js
+const API_KEY = process.env.TOKEN_PLAN_API_KEY;
+const OPENAI_BASE = process.env.TOKEN_PLAN_OPENAI_BASE_URL
+  || 'https://token-plan-cn.xiaomimimo.com/v1';
+const ANTHROPIC_BASE = process.env.TOKEN_PLAN_ANTHROPIC_BASE_URL
+  || 'https://token-plan-cn.xiaomimimo.com/anthropic';
+const RATE_LIMIT_DELAY = Number(process.env.TOKEN_PLAN_RATE_LIMIT_DELAY_MS) || 8000;
+
+// MiMo 模型 fallback 顺序（优先级从高到低）
+const FALLBACK_MODELS = process.env.TOKEN_PLAN_MODEL_FALLBACKS
+  ? process.env.TOKEN_PLAN_MODEL_FALLBACKS.split(',').map(s => s.trim())
+  : ['MiMo-V2.5-Pro', 'MiMo-V2.5', 'MiMo-V2-Pro', 'MiMo-V2-Omni'];
+
+const KEY_PATTERN = /^tp-[A-Za-z0-9_-]+$/;
+
+function validateKey() {
+  if (!API_KEY) {
+    log('TOKEN_PLAN_API_KEY 存在', false, '请设置环境变量 TOKEN_PLAN_API_KEY 或在 .env 中配置');
+    return false;
+  }
+  if (!KEY_PATTERN.test(API_KEY)) {
+    log('TOKEN_PLAN_API_KEY 格式', false, `期望 tp-xxxxx，实际 ${API_KEY.slice(0, 6)}...`);
+    return false;
+  }
+  log('TOKEN_PLAN_API_KEY 格式', true, `tp-...${API_KEY.slice(-4)}`);
+  return true;
+}
+
+// 脱敏日志：只显示末 4 位
+function maskKey(key) {
+  return key ? `...${key.slice(-4)}` : '(empty)';
+}
+```
+
+#### 9.7.4 Fallback 模型选择器
+
+沿用参考脚本的 `getFallbackModel()` + `currentModelIndex` 模式。
+
+```js
+let currentModelIndex = 0;
+
+function getFallbackModel() {
+  if (currentModelIndex >= FALLBACK_MODELS.length) {
+    throw new Error('所有 MiMo fallback 模型均失败');
+  }
+  const model = FALLBACK_MODELS[currentModelIndex];
+  console.log(`  [Fallback] 模型: ${model} (${currentModelIndex + 1}/${FALLBACK_MODELS.length})`);
+  return model;
+}
+
+function isRetryableError(status, text = '') {
+  const lower = String(text).toLowerCase();
+  return status === 429
+    || status === 503
+    || lower.includes('quota')
+    || lower.includes('unavailable')
+    || lower.includes('timeout')
+    || lower.includes('rate limit');
+}
+
+function isAuthError(status) {
+  return status === 401 || status === 403;
+}
+```
+
+#### 9.7.5 OpenAI-Compatible Smoke 测试
+
+```js
+async function testOpenAICompatible() {
+  console.log('\n--- OpenAI-Compatible Smoke ---');
+  const url = `${OPENAI_BASE}/chat/completions`;
+
+  for (let attempt = 0; attempt < FALLBACK_MODELS.length; attempt++) {
+    const model = getFallbackModel();
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          max_tokens: 64,
+          messages: [
+            {
+              role: 'user',
+              content: '请返回 JSON：{“ok”:true,”purpose”:”developer-ai-smoke”}',
+            },
+          ],
+        }),
+      });
+
+      if (isAuthError(res.status)) {
+        log('OpenAI auth (401)', false, `检查 ${maskKey(API_KEY)} 是否有效`);
+        return; // 不 fallback，直接退出
+      }
+
+      if (isRetryableError(res.status, await res.text().catch(() => ''))) {
+        currentModelIndex++;
+        console.log(`  [429/503] 切换到下一个模型...`);
+        if (currentModelIndex < FALLBACK_MODELS.length) {
+          await delay(5000);
+          continue;
+        }
+        log('OpenAI fallback 全部失败', false, '所有模型 quota/unavailable');
+        return;
+      }
+
+      if (!res.ok) {
+        log(`OpenAI HTTP ${res.status}`, false, `model=${model}`);
+        return;
+      }
+
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content || '';
+
+      // 断言：返回文本包含约定 JSON
+      let parsed;
+      try {
+        // 尝试从文本中提取 JSON
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+      } catch {
+        log('OpenAI 返回可解析 JSON', false, `原始: ${text.slice(0, 80)}`);
+        return;
+      }
+
+      log('OpenAI HTTP 200', true, `model=${model}`);
+      log('OpenAI JSON 含 ok=true', parsed.ok === true, JSON.stringify(parsed));
+      log('OpenAI usage 有 token 统计',
+        typeof data.usage?.total_tokens === 'number',
+        `total_tokens=${data.usage?.total_tokens ?? 'N/A'}`);
+      return;
+    } catch (err) {
+      if (attempt < FALLBACK_MODELS.length - 1) {
+        currentModelIndex++;
+        console.log(`  [Exception] ${err.message}，重试下一个模型...`);
+        await delay(5000);
+        continue;
+      }
+      log('OpenAI 请求异常', false, err.message);
+    }
+  }
+}
+```
+
+#### 9.7.6 Anthropic-Compatible Smoke 测试
+
+```js
+async function testAnthropicCompatible() {
+  console.log('\n--- Anthropic-Compatible Smoke ---');
+  const url = `${ANTHROPIC_BASE}/messages`;
+  currentModelIndex = 0; // 重置 fallback
+
+  for (let attempt = 0; attempt < FALLBACK_MODELS.length; attempt++) {
+    const model = getFallbackModel();
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 64,
+          messages: [
+            {
+              role: 'user',
+              content: '请返回 JSON：{“ok”:true,”purpose”:”developer-ai-smoke”}',
+            },
+          ],
+        }),
+      });
+
+      if (isAuthError(res.status)) {
+        log('Anthropic auth (401)', false, `检查 ${maskKey(API_KEY)} 是否有效`);
+        return;
+      }
+
+      if (isRetryableError(res.status, await res.text().catch(() => ''))) {
+        currentModelIndex++;
+        console.log(`  [429/503] 切换到下一个模型...`);
+        if (currentModelIndex < FALLBACK_MODELS.length) {
+          await delay(5000);
+          continue;
+        }
+        log('Anthropic fallback 全部失败', false, '所有模型 quota/unavailable');
+        return;
+      }
+
+      if (!res.ok) {
+        log(`Anthropic HTTP ${res.status}`, false, `model=${model}`);
+        return;
+      }
+
+      const data = await res.json();
+
+      // 归一化为统一格式 { text, model, usage? }
+      const text = data.content?.map(b => b.text).join('') || '';
+      const normalized = {
+        text,
+        model: data.model || model,
+        usage: data.usage
+          ? { input: data.usage.input_tokens, output: data.usage.output_tokens }
+          : undefined,
+      };
+
+      log('Anthropic HTTP 200', true, `model=${model}`);
+      log('Anthropic 返回非空内容', text.length > 0, `length=${text.length}`);
+      log('Anthropic 归一化 usage 有 input_tokens',
+        typeof normalized.usage?.input === 'number',
+        `input=${normalized.usage?.input ?? 'N/A'}`);
+      return;
+    } catch (err) {
+      if (attempt < FALLBACK_MODELS.length - 1) {
+        currentModelIndex++;
+        console.log(`  [Exception] ${err.message}，重试下一个模型...`);
+        await delay(5000);
+        continue;
+      }
+      log('Anthropic 请求异常', false, err.message);
+    }
+  }
+}
+```
+
+#### 9.7.7 汇总与退出码（`main`）
+
+沿用参考脚本的 `RESULTS` 数组 + `process.exit(failed > 0 ? 1 : 0)` 模式。
+
+```js
+async function main() {
+  console.log('\n=== Developer AI Smoke Tests ===');
+  console.log(`OpenAI base: ${OPENAI_BASE}`);
+  console.log(`Anthropic base: ${ANTHROPIC_BASE}`);
+  console.log(`Fallback: ${FALLBACK_MODELS.join(' → ')}`);
+  console.log(`Rate limit: ${RATE_LIMIT_DELAY}ms between tests\n`);
+
+  if (!validateKey()) {
+    process.exit(1);
+  }
+
+  try {
+    await testOpenAICompatible();
+    await delay(RATE_LIMIT_DELAY);
+    await testAnthropicCompatible();
+  } catch (err) {
+    console.error('\nFATAL:', err.message);
+    RESULTS.push({ test: 'FATAL', pass: false, detail: err.message });
+  }
+
+  console.log('\n=== Summary ===');
+  const passed = RESULTS.filter(r => r.pass).length;
+  const failed = RESULTS.filter(r => !r.pass).length;
+  console.log(`Total: ${RESULTS.length} | Passed: ${passed} | Failed: ${failed}`);
+
+  if (failed > 0) {
+    console.log('\nFailed tests:');
+    for (const r of RESULTS.filter(r => !r.pass)) {
+      console.log(`  - ${r.test}: ${r.detail}`);
+    }
+  }
+
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+main();
+```
+
+#### 9.7.8 实现要求汇总
+
+- 启动时先读环境变量；若 `TOKEN_PLAN_API_KEY` 不存在，再读取仓库根目录 `.env`。`.env` 解析用 Node 内置 `fs` 实现，只支持 `KEY=value` 与单双引号，不引入 `dotenv` 依赖。
+- 必填变量：`TOKEN_PLAN_API_KEY=tp-xxxxx`。格式不匹配 `^tp-[A-Za-z0-9_-]+$` 时立即失败。
+- 可选变量：
+  - `TOKEN_PLAN_OPENAI_BASE_URL`，默认 `https://token-plan-cn.xiaomimimo.com/v1`。
+  - `TOKEN_PLAN_ANTHROPIC_BASE_URL`，默认 `https://token-plan-cn.xiaomimimo.com/anthropic`。
+  - `TOKEN_PLAN_RATE_LIMIT_DELAY_MS`，默认 `8000`，每个真实 API 用例之间等待，避免误伤额度。
+  - `TOKEN_PLAN_MODEL_FALLBACKS`，逗号分隔；未设置时使用 §8.9.3 的 MiMo 顺序。
+- OpenAI-compatible smoke：`POST {base}/chat/completions`，`Authorization: Bearer ${TOKEN_PLAN_API_KEY}`，使用 fallback 当前模型、`temperature=0`、小 `max_tokens`、确定性 JSON 输出 prompt；断言 HTTP 2xx、返回文本可解析为 JSON，且包含约定字段。
+- Anthropic-compatible smoke：`POST {base}/messages`，使用 `x-api-key` 与 `anthropic-version` header，复用同一 fallback 模型和小 token 预算；断言返回内容非空，并能归一化为统一 `{ text, model, usage? }`。
+- fallback 逻辑：按 `MiMo-V2.5-Pro` → `MiMo-V2.5` → `MiMo-V2-Pro` → `MiMo-V2-Omni` 依次尝试；`429 / quota`、`503 / unavailable`、网络超时进入下一个模型；`401` 立即失败；每次尝试记录脱敏摘要（Key 只显示末 4 位）。
+- 结果汇总沿用参考脚本风格：`RESULTS.push({ test, pass, detail })`，最后输出 `Total / Passed / Failed`；任一失败 `process.exit(1)`。
+- 该脚本不得发送真实申请文件、用户上传文档或 APP 状态，只使用内置最小 fixture，例如”请返回 JSON：`{\”ok\”:true,\”purpose\”:\”developer-ai-smoke\”}`”。
+- 该脚本**不得**读取 APP 的 IndexedDB、`data/keystore.enc`、浏览器状态或 APP 设置页配置；Key 只来源于 `TOKEN_PLAN_API_KEY` 环境变量或 `.env`。
+- 日志只允许输出脱敏后的 Key 标识（例如 `tp-...abcd`），不得打印完整 Key 或 Authorization header。
+
+#### 9.7.9 .env.example（提交到仓库）
+
+```env
+# 开发者提交前 AI Smoke 测试配置
+# 复制为 .env 并填入真实 Key（.env 已被 .gitignore 忽略）
+
+# 必填：Token Plan API Key（tp- 前缀）
+TOKEN_PLAN_API_KEY=tp-your-key-here
+
+# 可选：自定义 base URL（不设置则使用默认值）
+# TOKEN_PLAN_OPENAI_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
+# TOKEN_PLAN_ANTHROPIC_BASE_URL=https://token-plan-cn.xiaomimimo.com/anthropic
+
+# 可选：API 调用间限速延迟（毫秒），默认 8000
+# TOKEN_PLAN_RATE_LIMIT_DELAY_MS=8000
+
+# 可选：自定义 fallback 模型顺序（逗号分隔），默认 MiMo-V2.5-Pro → MiMo-V2.5 → MiMo-V2-Pro → MiMo-V2-Omni
+# TOKEN_PLAN_MODEL_FALLBACKS=MiMo-V2.5-Pro,MiMo-V2.5,MiMo-V2-Pro,MiMo-V2-Omni
+```
 
 ---
 
@@ -1921,6 +2327,18 @@ v0.1.0 不强制 GitHub Actions。执行者必须：
 | T-GW-003 | MSW：Kimi 401 | 同上 | 立即返回 401；**不**切换到 GLM；`retryable=false` |
 | T-GW-004 | MSW：所有 Provider 全部失败 | `["kimi","glm"]` | `AiRunResponse.ok=false`；`error.code` 为最后一个错误 |
 | T-GW-005 | MSW：Kimi 返回 JSON 解析失败 | 同上 | 触发"修复为 JSON"重试一次；若仍失败 → 返回 `schema-invalid` |
+| T-GW-006 | MSW：MiMo Token Plan 模型 429 → 下一模型正常 | `["MiMo-V2.5-Pro","MiMo-V2.5"]` | 先尝试 Pro，记录 429；再尝试 V2.5；最终 `modelId="MiMo-V2.5"` |
+
+#### 10.8.1 开发者真实 AI Smoke（`tests/developer-ai-smoke.mjs`）
+
+| 编号 | Setup | Inputs | Assertions |
+|---|---|---|---|
+| T-DAI-001 | `TOKEN_PLAN_API_KEY=tp-xxxxx` | `.env` 或环境变量 | 脚本能读取 Key；日志不出现完整 Key |
+| T-DAI-002 | Key 缺失或不是 `tp-` 前缀 | 无 | 立即失败，提示设置 `TOKEN_PLAN_API_KEY`，不得 silent skip |
+| T-DAI-003 | OpenAI-compatible endpoint 可用 | 最小 JSON prompt | 返回 HTTP 2xx；输出 JSON 可解析；含 `ok=true` |
+| T-DAI-004 | Anthropic-compatible endpoint 可用 | 最小 messages 请求 | 返回内容非空；可归一化为统一文本 |
+| T-DAI-005 | 高优先级模型返回 429 / 503 | mock fetch 或真实错误 | 按 MiMo fallback 顺序切换并记录 attempts |
+| T-DAI-006 | 任一 smoke 失败 | 无 | Summary 标记 failed，进程 exit 1，阻断 `verify:precommit` |
 
 ### 10.9 导出（`tests/unit/fileNameSanitize.test.ts`、`tests/integration/exportHtml.test.ts`）
 
@@ -2150,7 +2568,7 @@ v0.1.0 不强制 GitHub Actions。执行者必须：
 | §7.2 性能 | 进度提示 / 禁并发 / OCR 缓存 | §7.1 / §8.1.5 | `components/ProgressBar.tsx`、`features/documents/OcrProgressPanel.tsx`、`ocrCacheRepo` | T-DOC-007 |
 | §7.3 部署 | 本地单机 / 内网 / `npm start` 一键 | §3 | `server/src/index.ts` 托管 `client/dist` | M0 离开门槛（手工） |
 | §7.4 UI | 中文朴素 / 各模块独立对话 / Token 预估 | §7.1 / §8.8 / §8.9.4 | `features/chat/*`、`agent/tokenEstimate.ts`、`components/ModeBanner.tsx` | §10.7 相关 E2E |
-| §7.5 两级配置 | Provider + Agent 分配 + Fallback | §6.3 / §8.9 | `features/settings/*`、`server/src/providers/*` | T-GW-001..005 |
+| §7.5 两级配置 | Provider + Agent 分配 + Fallback | §6.3 / §8.9 | `features/settings/*`、`server/src/providers/*` | T-GW-001..006 / T-DAI-001..006 |
 | §7.6 资源库优化 | MD5 去重 / maxTokens 路由 | §8.1.5 / §8.9.5 | `lib/fileHash.ts`、`agent/contracts.ts` | T-DOC-007 / Mock 中 maxTokens 校验（单元） |
 
 ### 12.3 PRD §8 成功指标
@@ -2192,6 +2610,9 @@ v0.1.0 不强制 GitHub Actions。执行者必须：
 ```bash
 npm run verify
 # = typecheck + lint + test(unit) + test:integration + test:e2e + test:evaluation
+
+npm run verify:precommit
+# = verify + test:ai-smoke（Token Plan 真实 API smoke）
 ```
 
 各子命令在 §2.2 已定义。推荐本地跑全量之前先跑快速闭环：
@@ -2200,7 +2621,7 @@ npm run verify
 npm run typecheck && npm run lint && npm test
 ```
 
-### 13.2 提交前必满足的 13 条（Pre-commit Checklist）
+### 13.2 提交前必满足的 14 条（Pre-commit Checklist）
 
 执行者（或后续 AI）在 `git commit` 之前必须**逐条自检**；任一未满足 → 不得提交。
 
@@ -2210,13 +2631,14 @@ npm run typecheck && npm run lint && npm test
 4. **集成测试**：`npm run test:integration` 全绿；如改动 pipeline / gateway / keystore → 对应 integration 用例必须更新。
 5. **E2E 测试**：改动触达 UI / Router / Agent → `npm run test:e2e` 全绿，至少跑受影响的 spec。
 6. **评测集**：改动触达 MockProvider / fixture / schema / 评分公式 → `npm run test:evaluation` 全绿。
-7. **Mock 零外发**：本次改动不破坏 Mock 模式网络隔离（T-SEC-006 + 单元层 `fetch` spy 断言）。
-8. **API Key 零明文落盘**：本次改动不向 `localStorage` / 明文文件写入任何可能是 key 的字符串（T-SEC-009 + 人工 `grep -RE 'localStorage\.setItem.*(apiKey|Bearer|sk-)' client/src` 结果为空）。
-9. **法律结论零泄漏**：本次改动不在 UI / 模板 / prompt 出现 "不具备新颖性" / "具备创造性" 等法律结论措辞（`grep -RE '不具备创造性|具备创造性|不具有新颖性|具有新颖性' client/src shared/src` 结果为空，除非明确在"禁用词"说明中引用）。
-10. **依赖控制**：本次改动未新增未经 §2.4 流程确认的运行时依赖（`git diff package.json` 与 §2.1 清单核对）。
-11. **文档同步**：行为 / 接口 / 架构 / 使用方式变更 → `README.md` / `DESIGN.md` / `CHANGELOG.md` 已同步（§15）。
-12. **测试未跳过**：`grep -RE '\b(test|it|describe)\.(skip|todo)\b' tests client/src server/src shared/src` 结果为空；E2E `test.fixme` 仅在有 issue 链接的注释下允许。
-13. **脚手架干净**：`git status` 不含 `tests/evaluation/report.json`、`data/keystore.enc`、`data/keystore.salt`、`client/public/tessdata/*.traineddata` 等需忽略文件（`.gitignore` 必须列入，见 §15.4）。
+7. **开发者真实 AI Smoke**：`npm run test:ai-smoke` 全绿；使用 `TOKEN_PLAN_API_KEY` / `.env` 注入 `tp-` Key，不读取 APP 用户 Key；缺 Key 或 smoke 失败不得 silent skip。
+8. **Mock 零外发**：本次改动不破坏 Mock 模式网络隔离（T-SEC-006 + 单元层 `fetch` spy 断言）。
+9. **API Key 零明文落盘**：本次改动不向 `localStorage` / 明文文件写入任何可能是 key 的字符串（T-SEC-009 + 人工 `grep -RE 'localStorage\.setItem.*(apiKey|Bearer|sk-|tp-)' client/src server/src tests` 结果为空，`.env.example` 中占位符除外）。
+10. **法律结论零泄漏**：本次改动不在 UI / 模板 / prompt 出现 "不具备新颖性" / "具备创造性" 等法律结论措辞（`grep -RE '不具备创造性|具备创造性|不具有新颖性|具有新颖性' client/src shared/src` 结果为空，除非明确在"禁用词"说明中引用）。
+11. **依赖控制**：本次改动未新增未经 §2.4 流程确认的运行时依赖（`git diff package.json` 与 §2.1 清单核对）。
+12. **文档同步**：行为 / 接口 / 架构 / 使用方式变更 → `README.md` / `DESIGN.md` / `CHANGELOG.md` 已同步（§15）。
+13. **测试未跳过**：`grep -RE '\b(test|it|describe)\.(skip|todo)\b' tests client/src server/src shared/src` 结果为空；E2E `test.fixme` 仅在有 issue 链接的注释下允许。
+14. **脚手架干净**：`git status` 不含 `.env`、`tests/evaluation/report.json`、`data/keystore.enc`、`data/keystore.salt`、`client/public/tessdata/*.traineddata` 等需忽略文件（`.gitignore` 必须列入，见 §15.4）。
 
 ### 13.3 关键自检脚本示例
 
@@ -2228,13 +2650,16 @@ npm run typecheck && npm run lint && npm test
   --include="*.ts" --include="*.tsx" --include="*.md"
 
 # 2. API Key 明文扫描
-! grep -RInE 'localStorage\.setItem\([^)]*(apiKey|Bearer|sk-[A-Za-z0-9]{6})' client/src
+! grep -RInE 'localStorage\.setItem\([^)]*(apiKey|Bearer|sk-[A-Za-z0-9]{6}|tp-[A-Za-z0-9_-]{6})' client/src server/src tests
 
 # 3. 跳过测试扫描
 ! grep -RInE '\b(test|it|describe)\.(skip|todo)\b' tests client/src server/src shared/src
 
 # 4. Mock 模式外发扫描（基于 spy 机制，在单元测试内断言；这里仅做源代码层面的安全网）
 ! grep -RInE 'fetch\(.*http' client/src/features/mock
+
+# 5. 开发者 Token Plan 真实 API smoke（使用环境变量或本地 .env 注入 Key）
+npm run test:ai-smoke
 ```
 
 ### 13.4 CI（可选）
@@ -2285,7 +2710,7 @@ v0.1.0 **不强制** GitHub Actions。若后续开启：
   - UI 顶部固定显示 `legalCaution` 横幅（§8.6.4、§8.7.4）。
   - 措辞白名单：禁止输出 "新颖 / 不新颖 / 具备创造性 / 不具备创造性"；只允许 "候选 / 待审查员确认 / 可能 / 建议核对"（§8.7.1、M7 离开门槛）。
   - 素材草稿 `四分区模板` 明确区分"正文草稿 / AI 备注 / 分析策略 / 待确认事项"（§8.7.5），不让 AI 产出直接进入正文草稿区。
-- **验证方式**：M7 离开门槛的正则扫描；§13.2 第 9 条 Pre-commit 检查。
+- **验证方式**：M7 离开门槛的正则扫描；§13.2 第 10 条 Pre-commit 检查。
 
 ### 14.5 新颖性 / 创造性维度混淆（PRD §10 风险 5）
 
@@ -2348,7 +2773,7 @@ v0.1.0 **不强制** GitHub Actions。若后续开启：
 | AI 幻觉错 Citation | 中 / 高 | `citationMatch.ts`、schema `confidence` 必填 | T-CHART-003 / T-NOV-004 / Eval G1 |
 | 未公开文件外发 | 低 / 极高 | Mock 默认 + ExternalSendConfirm + KeyStore | T-SEC-001..009 |
 | 时间轴误判 | 中 / 高 | `dateRules.ts` + 低置信降级 | T-DATE-* / Eval A2/A3 |
-| 过度依赖 AI | 中 / 高 | legalCaution + 措辞白名单 + 四分区 | M7 离开门槛 / §13.2 第 9 条 |
+| 过度依赖 AI | 中 / 高 | legalCaution + 措辞白名单 + 四分区 | M7 离开门槛 / §13.2 第 10 条 |
 | 新颖性 / 创造性混淆 | 低 / 高 | 独立页面 + 单篇/多篇约束 | T-NOV-002 / E2E-G2-001 |
 | OCR 质量差 | 中 / 中 | 质量评分 + 确认门 | T-DOC-005/006 / E2E-E2-001 |
 | 机器性能不足 | 中 / 中 | Worker + 禁并发 + TextIndex 拆分 | M4 / M6 离开门槛 |
@@ -2373,9 +2798,9 @@ v0.1.0 **不强制** GitHub Actions。若后续开启：
 4. **启动**：开发 `npm run dev`；生产 `npm run build && npm start`。
 5. **默认模式**：Mock，零联网；如何切换真实模式。
 6. **目录总览**：贴 §5.1 顶层目录（缩略版）。
-7. **测试**：`npm run verify` 说明 + 子命令（§2.2、§13.1）。
+7. **测试**：`npm run verify`、`npm run verify:precommit`、`npm run test:ai-smoke` 说明 + 子命令（§2.2、§13.1）；明确开发者 Token Plan Key 通过 `TOKEN_PLAN_API_KEY` / `.env` 注入。
 8. **安全声明**：引用 §4.3 与 §8.10 要点；强调 API Key 不进浏览器、申请文件不默认外发。
-9. **常见问题（FAQ）**：至少覆盖 "OCR 语言包从哪下载？" / "如何配置 Provider？" / "误切真实模式如何回退？"。
+9. **常见问题（FAQ）**：至少覆盖 "OCR 语言包从哪下载？" / "如何配置 Provider？" / "误切真实模式如何回退？" / "APP 用户 Key 与开发者 `.env` Key 有何区别？"。
 10. **Change Log 指向**：`CHANGELOG.md`。
 
 ### 15.2 DESIGN.md 必写内容
@@ -2392,7 +2817,7 @@ v0.1.0 **不强制** GitHub Actions。若后续开启：
    - 影响：
    - 关联章节：DEVELOPMENT_PLAN §X.Y
    ```
-   v0.1.0 至少登记：ADR-001 Orchestrator 落地为 `AgentClient`+`Gateway`；ADR-002 包管理选 npm workspaces；ADR-003 API Key 默认仅内存；ADR-004 Mock 模式默认开启；ADR-005 Provider fallback 策略；ADR-006 OCR 本地执行（不上云）。
+   v0.1.0 至少登记：ADR-001 Orchestrator 落地为 `AgentClient`+`Gateway`；ADR-002 包管理选 npm workspaces；ADR-003 API Key 默认仅内存；ADR-004 Mock 模式默认开启；ADR-005 Provider fallback 策略；ADR-006 OCR 本地执行（不上云）；ADR-007 Token Plan 作为默认真实模式测试 usage method，且 APP 用户 Key 与开发者 `.env` Key 隔离。
 3. **领域模型一览**（引用 §6）。
 4. **IndexedDB schema 版本表**：当前 v1；迁移记录。
 5. **测试耗时基线**：`npm run verify` 在参考机器（如 MBP M2 Pro）上的耗时。
@@ -2413,7 +2838,8 @@ v0.1.0 **不强制** GitHub Actions。若后续开启：
 ## [0.1.0] - YYYY-MM-DD
 ### Added
 - 案件基线、文档导入、OCR、Claim Chart、新颖性对照、Mock 演示、导出 HTML/Markdown。
-- 真实模式 Provider Gateway（Kimi / GLM / Minimax / MiMo）+ fallback。
+- 真实模式 Provider Gateway（Kimi / GLM / Minimax / MiMo Token Plan）+ provider fallback / MiMo 模型 fallback。
+- 开发者提交前 `test:ai-smoke`：Token Plan OpenAI / Anthropic compatibility smoke。
 - 安全模块：外发确认、AES-256-GCM KeyStore。
 - Evaluation Set 9 条自动评测。
 
@@ -2435,6 +2861,9 @@ shared/dist/
 *.tsbuildinfo
 
 # 数据与本地运行文件
+.env
+.env.*
+!.env.example
 data/keystore.enc
 data/keystore.salt
 data/ocr-cache/
@@ -2505,6 +2934,7 @@ PR 描述必须包含以下小节，缺失视为不可合并：
 - [ ] `npm run test:integration`
 - [ ] `npm run test:e2e`（新增 / 修改：...）
 - [ ] `npm run test:evaluation`（若触达 fixture / schema）
+- [ ] `npm run test:ai-smoke`（开发者提交前 Token Plan 真实 API smoke；不得使用 APP 用户 Key）
 
 ## 文档
 - [ ] `README.md` 已同步（若行为 / 接口变更）
@@ -2512,7 +2942,7 @@ PR 描述必须包含以下小节，缺失视为不可合并：
 - [ ] `CHANGELOG.md` 已追加条目
 
 ## Pre-commit Checklist（§13.2）
-- [ ] 类型安全 / Lint / 测试未跳过 / 无 API Key 明文 / 无法律结论措辞 / 依赖受控 / .gitignore 干净
+- [ ] 类型安全 / Lint / 开发者 AI smoke / 测试未跳过 / 无 API Key 明文 / 无法律结论措辞 / 依赖受控 / .gitignore 干净
 ```
 
 ### 15.8 文件 / 标识符 / data-testid 命名统一表
@@ -2558,7 +2988,8 @@ PR 描述必须包含以下小节，缺失视为不可合并：
 - [ ] C1 切换真实模式弹出 §8.10.3 安全确认；未配置 Provider 时切换按钮禁用。
 - [ ] C2 每次 AI 调用前弹 `ExternalSendConfirm`；取消按钮立即中止调用。
 - [ ] C3 API Key 不进 `localStorage`（T-SEC-009 通过）。
-- [ ] C4 Provider fallback（429 / 5xx / 401）符合 §8.9.3（T-GW-001..005 通过）。
+- [ ] C4 Provider fallback（429 / 5xx / 401）符合 §8.9.3（T-GW-001..006 通过）。
+- [ ] C5 APP 用户真实模式默认 Token Plan；用户 Key 只从 APP 设置配置，不读取开发者 `.env`。
 
 **D. 壳子模块（PRD §1.2 / §6.6–6.9）**
 
@@ -2588,6 +3019,7 @@ PR 描述必须包含以下小节，缺失视为不可合并：
 - [ ] F2 `npm run dev` 并发启动 Vite + Express，浏览器 `http://localhost:5173/` 正常。
 - [ ] F3 `npm run build && npm start` 生产模式可用，浏览器 `http://localhost:3000/` 正常。
 - [ ] F4 `npm run verify` 全绿；耗时记录写入 `DESIGN.md`。
+- [ ] F5 `TOKEN_PLAN_API_KEY=tp-xxxxx npm run test:ai-smoke` 全绿；验证 OpenAI / Anthropic compatibility 与 MiMo 模型 fallback，不使用 APP 用户 Key。
 
 **G. 代码质量**
 
@@ -2630,5 +3062,3 @@ PR 描述必须包含以下小节，缺失视为不可合并：
 ---
 
 <p align="center"><em>— 本文件到此结束。如与 <code>PRD-v0.1.0.md</code> 有任何冲突，以 PRD 为准；执行过程中发现本文件自相矛盾，必须先发起澄清，不得自行推测。 —</em></p>
-
-
