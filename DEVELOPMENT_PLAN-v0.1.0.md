@@ -147,7 +147,7 @@
   "engines": { "node": ">=20.11", "npm": ">=10" },
   "workspaces": ["client", "server", "shared"],
   "scripts": {
-    "dev": "npm run -ws --include-workspace-root --if-present dev",
+    "dev": "npm run -ws --include-workspace-root --if-present dev",  // --if-present: shared 无 dev script 时静默跳过，不报错
     "dev:client": "npm run dev -w client",
     "dev:server": "npm run dev -w server",
     "build": "npm run build -w shared && npm run build -w client && npm run build -w server",
@@ -611,6 +611,23 @@ export type ISODateString = string;
 export type ISODateTimeString = string;
 export type AppMode = "mock" | "real";
 
+export type CaseWorkflowState =
+  | "empty"
+  | "case-ready"
+  | "application-uploaded"
+  | "text-extracted"
+  | "ocr-running"
+  | "ocr-failed"
+  | "ocr-review"
+  | "text-confirmed"
+  | "references-ready"
+  | "timeline-checked"
+  | "claim-chart-ready"
+  | "claim-chart-reviewed"
+  | "novelty-ready"
+  | "inventive-ready"
+  | "export-ready";
+
 export interface PatentCase {
   id: string;
   applicationNumber: string | null;
@@ -623,6 +640,7 @@ export interface PatentCase {
   targetClaimNumber: number;
   guidelineVersion: string;           // 默认 "2023"
   examinerNotes?: string;
+  workflowState: CaseWorkflowState;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }
@@ -701,13 +719,13 @@ export interface NoveltyComparison {
   referenceId: string;
   claimNumber: number;
   rows: NoveltyComparisonRow[];
-  differenceFeatureIds: string[];
+  differenceFeatureCodes: string[];
   pendingSearchQuestions: string[];
-  status: "draft" | "user-reviewed";
+  status: "draft" | "user-reviewed" | "stale";
   legalCaution: string;               // UI 顶部提示
 }
 export interface NoveltyComparisonRow {
-  featureId: string;
+  featureCode: string;
   disclosureStatus: "clearly-disclosed" | "possibly-disclosed" | "not-found" | "not-applicable";
   citations: Citation[];
   mismatchNotes?: string;
@@ -718,8 +736,9 @@ export interface InventiveStepAnalysis {
   id: string;
   caseId: string;
   closestPriorArtId?: string;
-  sharedFeatureIds: string[];
-  distinguishingFeatureIds: string[];
+  sharedFeatureCodes: string[];
+  distinguishingFeatureCodes: string[];
+  status: "draft" | "user-reviewed" | "stale";
   objectiveTechnicalProblem?: string;
   motivationEvidence: Citation[];
   candidateAssessment:
@@ -728,6 +747,7 @@ export interface InventiveStepAnalysis {
     | "insufficient-evidence"
     | "not-analyzed";
   cautions: string[];
+  legalCaution: string;        // schema 中有默认值，映射时注入
 }
 
 export interface Citation {
@@ -807,6 +827,8 @@ export interface AppSettings {
 
 **迁移策略**：`open(db, version, { upgrade(db, oldV, newV, tx) { ... } })`；v0.1.0 初版 = v1，升级时按 `oldV → v` 分支处理；禁止破坏性清库（除非版本 major 变更并在 UI 提示）。
 
+**QuotaExceededError 处理**：所有写入 IndexedDB 的操作（特别是 `extractedText`、`ocrCache`、`textIndex` 等大对象）必须 catch `QuotaExceededError`，提示用户"存储空间不足，请导出并清理旧案件"。Safari quota 较小，需特别关注。
+
 ### 6.5 日期与时间轴规则（明确表）
 
 - 基准日：`baselineDate = priorityDate ?? applicationDate`。
@@ -867,18 +889,29 @@ stateDiagram-v2
     ApplicationUploaded --> TextExtracted: 有文字层直接抽取
     ApplicationUploaded --> OcrRunning: 无文字层 → 启动 OCR
     OcrRunning --> OcrReview: OCR 完成
+    OcrRunning --> OcrFailed: OCR 失败（WASM 崩溃 / 内存不足）
+    OcrFailed --> CaseReady: 重新上传
     OcrReview --> TextConfirmed: 用户确认
     TextExtracted --> TextConfirmed
     TextConfirmed --> ReferencesReady: 上传 / 添加对比文件
+    TextConfirmed --> ClaimChartReady: 零对比文件（跳过文献清单+时间轴）
     ReferencesReady --> TimelineChecked: 时间轴校验完成
     TimelineChecked --> ClaimChartReady: 生成 Claim Chart
     ClaimChartReady --> ClaimChartReviewed: 用户编辑确认
     ClaimChartReviewed --> NoveltyReady: 新颖性对照
-    NoveltyReady --> ExportReady: 用户审核
+    NoveltyReady --> InventiveReady: 创造性分析（可选）
+    NoveltyReady --> ExportReady: 跳过创造性
+    InventiveReady --> ExportReady: 用户审核
     ExportReady --> [*]
 ```
 
 状态机实现为 reducer，纯函数 + 严格联合类型；状态持久化到 IndexedDB（`cases` store 附字段 `workflowState`）。
+
+**硬约束（门禁）：**
+
+- `canRunNovelty(selector)`：仅当 `ClaimChartReviewed` 状态且目标权要的所有特征 `citationStatus !== "not-found"` 时返回 `true`，否则 Novelty 触发按钮 `disabled`。
+- `citationStatus` 自动提升规则：当 ClaimFeature 的某条 `Citation.confidence === "high"` 时，自动将 `citationStatus` 提升为 `"confirmed"`。`"confirmed"` / `"high"` 是不同层级的值——`citationStatus` 只接受 `"confirmed" | "needs-review" | "not-found"`，`Citation.confidence` 只接受 `"high" | "medium" | "low"`。
+- `canRunInventive(selector)`：仅当 `NoveltyReady` 状态且对应 NoveltyComparison `status === "user-reviewed"` 时返回 `true`。
 
 ### 7.3 模式切换
 
@@ -905,6 +938,7 @@ Mock 模式（默认）：
 | `cell-<field>-<rowKey>` | `cell-citation-A` | 表格单元格 |
 | `banner-mode` | — | 顶部模式横幅（`aria-label="演示模式"` / `"真实模式"`） |
 | `modal-external-send` | — | 外发确认弹窗 |
+| `modal-mode-switch` | — | 切换真实/演示模式弹窗 |
 | `badge-timeline-<refId>` | — | 时间轴状态徽标 |
 | `chat-<moduleScope>` | `chat-claim-chart` | 对话面板 |
 | `feedback-<subjectType>-<subjectId>` | — | 反馈按钮容器 |
@@ -1007,7 +1041,7 @@ UI 映射：
 1. `§\s*(\d{4})` → paragraphNumber = 匹配组，例：`§0023`
 2. `\[(\d{3,4})\]` → 例 `[0023]`
 3. `【(\d{3,4})】` → 例 `【0023】`
-4. `(?:第)?\s*(\d{1,4})\s*段` → 例 `第3段`、`003段`
+4. `(?:第)?\s*(\d{1,4})\s*段` → 例 `第3段`、`003段`；`paragraphStyle = "第N段"`
 
 若同一文本多种共存，按首次出现的模式作为主样式；其它模式记录为 `paragraphNumberAlt`（仅调试）。
 
@@ -1043,7 +1077,7 @@ UI 映射：
 
 #### 8.2.2 自动提取字段
 
-在上传申请文件 + OCR 完成后，运行 `extractCaseHints(text)`：
+在上传申请文件 + OCR 完成后，运行 `extractCaseHints(text)`（扫描前 3 页，覆盖 OCR PDF 扉页信息常见位置）：
 
 - 申请号：正则 `CN\s*\d{4,12}[A-Z]?` / 扉页"申请号"附近文字。
 - 发明名称：扉页"发明名称"行 / 大号标题启发式。
@@ -1147,7 +1181,7 @@ interface ClaimChartInput {
   }>;
   specificationExcerpt: string;             // 相关说明书片段，按 token 预算裁剪
   textIndexDigest: {                        // 供 AI 理解段落号
-    paragraphStyle: "§0023" | "[0023]" | "【0023】" | "auto";
+    paragraphStyle: "§0023" | "[0023]" | "【0023】" | "第N段" | "auto";
     samplePairs: Array<{ paragraphNumber: string; firstWords: string }>;
   };
 }
@@ -1191,7 +1225,7 @@ export const claimChartSchema = z.object({
       confidence: z.enum(["high", "medium", "low"])
     })),
     citationStatus: z.enum(["confirmed", "needs-review", "not-found"]),
-    notes: z.string().optional()
+    userNotes: z.string().optional()  // 映射到 ClaimFeature.userNotes
   })).min(1),
   warnings: z.array(z.object({
     type: z.enum(["functional-language", "ambiguous-claim-type",
@@ -1257,7 +1291,8 @@ export const noveltySchema = z.object({
       quote: z.string().optional(),
       confidence: z.enum(["high", "medium", "low"])
     })),
-    mismatchNotes: z.string().optional()
+    mismatchNotes: z.string().optional(),
+    reviewerNotes: z.string().optional()
   })).min(1),
   differenceFeatureCodes: z.array(z.string()),
   pendingSearchQuestions: z.array(z.string()).max(5),
@@ -1308,6 +1343,7 @@ export const inventiveSchema = z.object({
   sharedFeatureCodes: z.array(z.string()),
   distinguishingFeatureCodes: z.array(z.string()),
   objectiveTechnicalProblem: z.string().optional(),
+  // documentId 由业务层从 InventiveInput.availableReferences 注入，referenceId 为同义字段
   motivationEvidence: z.array(z.object({
     referenceId: z.string(),
     label: z.string(),
@@ -1340,7 +1376,7 @@ export const inventiveSchema = z.object({
 - **素材草稿**：不做 AI 生成，直接由以下片段拼装：
   - 案件基线摘要
   - Claim Chart（仅 `citationStatus != "not-found"` 的特征）
-  - 新颖性对照（仅 `status = "user-reviewed"` 的行）
+  - 新颖性对照（仅 `NoveltyComparison.status === "user-reviewed"` 的记录）
   - 区别特征候选 + 待检索问题清单
   - 四分区模板：`正文草稿 / AI 备注 / 分析策略 / 待确认事项`
 - **答复审查** (`features/office-action-response/` 视作 `documents.role = "office-action-response"`)：仅提供"上传 + 展示"占位，不做分析。
@@ -1400,6 +1436,17 @@ export interface ChatMessage {
 
 - 写入 `chatMessages` store，按 `caseId + moduleScope + createdAt` 查询。
 - 支持"清空本模块对话"；清空需二次确认。
+
+#### 8.8.4 操作类型
+
+用户在 AI 对话框中可执行两种操作：
+
+| 操作 | 行为 | Prompt 构建 |
+|------|------|------------|
+| **追问** | 基于当前上下文继续提问 | 拼接本 scope 消息历史 + 上下文快照 + 用户新输入 |
+| **请求重新分析** | 用编辑后的数据重新触发 Agent | 清空本 scope 消息历史；以当前模块最新数据快照作为输入重新构建 prompt；结果替换原有分析 |
+
+UI 上提供两个按钮："发送问题"（追问）和"重新分析"（用最新数据重跑）。"重新分析"需二次确认（因会消耗额外 Token）。
 
 ### 8.9 AI Gateway & Provider Adapter
 
@@ -1658,21 +1705,43 @@ A1–A3、E1–E3 也提供 fixture（case + application + references），但 M
 
 #### 8.13.1 导出模板（HTML）
 
-文件名：`fileNameSanitize(applicationNumber ?? "NA") + "_" + sanitize(title, 40) + "_" + type + "_" + YYYYMMDD + ".html"`。
+文件名：`buildExportFilename({ applicationNumber, title, type, date })`，拼接后总字符数 ≤ `TOTAL_FILENAME_LIMIT`（默认 200，UTF-8 编码 ≤ 255 字节，适配 ext4/HFS+/NTFS）。
 
 清理函数 `fileNameSanitize(raw, maxLen)`：
 
 ```ts
+const TOTAL_FILENAME_LIMIT = 200; // 字符数上限，UTF-8 ≤ 255 字节
+
 function fileNameSanitize(raw: string, maxLen = 40): string {
   const illegal = /[\/\\:\*\?"<>\|\u0000-\u001F]/g;
   const trimmed = raw.replace(illegal, "_").replace(/\s+/g, "_").trim();
   if (countCjkAwareLength(trimmed) <= maxLen) return trimmed;
   return truncateCjkAware(trimmed, maxLen - 1) + "…";
 }
+
+/** 组装导出文件名，超出 TOTAL_FILENAME_LIMIT 时从末尾截断 title 段 */
+function buildExportFilename(parts: {
+  applicationNumber: string;
+  title: string;
+  type: string;
+  date: string; // YYYYMMDD
+}): string {
+  const base = fileNameSanitize(parts.applicationNumber || "NA");
+  let titlePart = fileNameSanitize(parts.title, 40);
+  const suffix = `_${parts.type}_${parts.date}.html`;
+  let name = `${base}_${titlePart}${suffix}`;
+  if (name.length > TOTAL_FILENAME_LIMIT) {
+    const overflow = name.length - TOTAL_FILENAME_LIMIT;
+    titlePart = truncateCjkAware(titlePart, Math.max(1, titlePart.length - overflow - 1)) + "…";
+    name = `${base}_${titlePart}${suffix}`;
+  }
+  return name;
+}
 ```
 
 - 中文字符计 2 宽度或按字符数均可，**本项目按字符数**；`maxLen` 默认 40。
 - 非法字符替换为 `_`；空白折叠为 `_`。
+- 总长度超限时优先缩短 `titlePart`（信息量最低），保留 `applicationNumber` 和 `date` 可辨识。
 
 #### 8.13.2 HTML 模板骨架
 
@@ -2638,7 +2707,7 @@ npm run typecheck && npm run lint && npm test
 11. **依赖控制**：本次改动未新增未经 §2.4 流程确认的运行时依赖（`git diff package.json` 与 §2.1 清单核对）。
 12. **文档同步**：行为 / 接口 / 架构 / 使用方式变更 → `README.md` / `DESIGN.md` / `CHANGELOG.md` 已同步（§15）。
 13. **测试未跳过**：`grep -RE '\b(test|it|describe)\.(skip|todo)\b' tests client/src server/src shared/src` 结果为空；E2E `test.fixme` 仅在有 issue 链接的注释下允许。
-14. **脚手架干净**：`git status` 不含 `.env`、`tests/evaluation/report.json`、`data/keystore.enc`、`data/keystore.salt`、`client/public/tessdata/*.traineddata` 等需忽略文件（`.gitignore` 必须列入，见 §15.4）。
+14. **脚手架干净**：`git status` 不含 `.env`、`tests/evaluation/report.json`、`data/keystore.enc`、`data/keystore.salt`、`client/public/tessdata/*.traineddata`、`client/public/tesseract/*.js`、`client/public/tesseract/*.wasm.js` 等需忽略文件（`.gitignore` 必须列入，见 §15.4）。
 
 ### 13.3 关键自检脚本示例
 
@@ -2876,6 +2945,8 @@ coverage/
 
 # 大体积本地资源
 client/public/tessdata/*.traineddata
+client/public/tesseract/*.js
+client/public/tesseract/*.wasm.js
 
 # 操作系统
 .DS_Store
