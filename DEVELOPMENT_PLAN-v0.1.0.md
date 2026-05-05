@@ -314,6 +314,8 @@ flowchart TD
 
 ### 4.2 部署架构
 
+**当前（本地验证阶段）：**
+
 ```text
 内网 / 本地机器（单台）
   app/ (打包产物)
@@ -329,6 +331,49 @@ flowchart TD
 ```
 
 浏览器端 IndexedDB 保存所有案件 / 文档 / 文本 / 分析结果 / OCR 结果；不需要独立数据库。
+
+**后续（国内云部署阶段，本地验证通过后启动）：**
+
+```text
+国内云服务器（阿里云/腾讯云/华为云 轻量 ECS）
+  ├── nginx（反向代理，推荐）
+  │    ├── HTTPS 终止 + 域名绑定（推荐，涉及 API Key 传输时应使用加密连接）
+  │    ├── HTTP Basic Auth 或 IP 白名单认证（必选，防止未授权访问和 API Key 盗用）
+  │    └── 代理 → localhost:3000
+  └── app/ (同一打包产物，PM2 或 systemd 进程管理)
+       ├── server/dist/index.js    Node Express HTTP 服务（端口 3000）
+       │   ├── 静态托管：client/dist/*
+       │   ├── POST /api/ai/run
+       │   ├── POST /api/export/save
+       │   ├── GET  /api/health
+       │   └── /api/settings/*
+       ├── OCR 服务（服务端 Tesseract，可选）
+       └── data/
+            ├── keystore.enc
+            └── ocr-cache/
+  域名：https://your-domain.cn（需 ICP 备案）
+```
+
+**关键决策：不采用 Vercel + Supabase 方案。** 原因：
+- Vercel（`*.vercel.app`）和 Supabase 均为海外服务，在 PRD §7.1 "仅可访问国内 URL"的网络约束下不可用
+- 当前架构（Node Express 静态托管 + API）本身就是自包含的，无需 Supabase 的 BaaS 能力（v0.1.0 无服务端数据库需求）
+- 从 localhost 迁移到国内云服务器的成本低：应用代码无需改动（仅部署配置），前提是已完成认证需求
+
+**多用户：** 云部署 v0.1.0 仍为单用户部署，每位审查员部署独立实例。多用户隔离（URL path 区分用户、`data/{userId}/` 隔离等）留到 v1.0.0。
+
+**迁移步骤（本地验证通过后执行）：**
+1. 购买国内轻量应用服务器（新用户首年约 50-100 元，2C2G 足够）
+2. 完成 ICP 备案（需中国大陆身份证明，域名需实名认证；免费，约 1-2 周，以管局审核时间为准）
+3. 服务器上安装 Node.js 20+，配置 PM2 或 systemd 进程管理：
+   ```bash
+   npm install && npm run build
+   pm2 start server/dist/index.js --name patent-examiner
+   pm2 save && pm2 startup
+   ```
+4. 推荐：配置 nginx 反向代理 + HTTPS（Let's Encrypt 免费证书）
+5. 配置访问认证（HTTP Basic Auth 或 IP 白名单）
+6. 绑定域名，对外提供 `https://your-domain.cn` 访问
+7. 建议定期备份 `data/` 目录（含 keystore.enc）；可使用云服务商提供的快照功能
 
 ### 4.3 安全架构
 
