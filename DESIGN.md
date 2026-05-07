@@ -1,8 +1,8 @@
 # 专利审查助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r4 · 2026-05-06</p>
+<p align="right">版本 v0.1.0-r9 · 2026-05-07</p>
 
-> 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD-v0.1.0.md`（做什么）和 `DEVELOPMENT_PLAN-v0.1.0.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
+> 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
 ### 文档变更记录
 
@@ -10,9 +10,14 @@
 |------|------|---------|
 | v0.1.0 | 2026-05-05 | 初稿 |
 | v0.1.0-r1 | 2026-05-05 | 23 项修复：ocr-failed 状态、ProviderAdapter 接口、两级配置、6 条 ADR、Prompt 注入、错误处理、脱敏、Token 校准、导出、浏览器兼容、Zustand Slice、fixture 清单、Vite 代理、Pre-commit 门禁 |
-| v0.1.0-r2 | 2026-05-05 | 12 项修复：ChatMessage 类型、脱敏单向过滤 ADR-014、答复审查路由、mockDelay、ocrQualityThresholds、citationStatus OR 语义、数据流图、draft/chat 无模板说明、localStorage 边界、defectHints、自检清单移至附录、追溯矩阵领域模型列 |
+| v0.1.0-r2 | 2026-05-05 | 12 项修复：ChatMessage 类型、脱敏 ADR-014（初为单向过滤，后恢复双向流程）、答复审查路由、mockDelay、ocrQualityThresholds、citationStatus OR 语义、数据流图、draft/chat 无模板说明、localStorage 边界、defectHints、自检清单移至附录、追溯矩阵领域模型列 |
 | v0.1.0-r3 | 2026-05-05 | 6 项修复：数据流图 Gateway→IndexedDB 经 AgentClient 中转、ClaimNode 类型定义、targetClaimNumber 下拉行为、ocr-failed 恢复路径、头部变更记录表补全、ocr-failed 措辞修正 |
 | v0.1.0-r4 | 2026-05-06 | 2 项修复：TOC 目录编号与章节标题统一（附录无编号）、删除 §8.2 孤立代码围栏 |
+| v0.1.0-r5 | 2026-05-06 | 3 项修复：ADR-014 增加默认不启用说明、§7.2 状态名统一为 kebab-case、needs-review 特征高亮提醒说明 |
+| v0.1.0-r6 | 2026-05-06 | 3 项修复：§11 ocrCache 增加 7 天过期策略 + 一键清除本地数据说明、§12 追溯矩阵 §6.7 行补充领域模型（复用 ClaimFeature[] + Citation） |
+| v0.1.0-r7 | 2026-05-06 | 用户需求补充（3 项）：①文档解读模块 ②Firefox 兼容（降至 ≥100 + 浏览器检测）③案件历史壳子；MVP 8→9 步 |
+| v0.1.0-r8 | 2026-05-07 | 三文档一致性审查修复（4 项）：§4.3.5 新颖性对照四档枚举补充、§5.4 Provider 上下文窗口 ≥128K 约束补充、§6.4 interpret Agent 上下文注入补充 textIndexDigest、版本号更新 |
+| v0.1.0-r9 | 2026-05-07 | 三文档一致性审查第二轮修复（2 项）：§4.3.1 补充 textVersion 切换 stale 行为、§3.4 补充零对比文件待检索问题清单说明 |
 
 ---
 
@@ -47,11 +52,14 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                     React Workbench UI (浏览器)                      │
 │  ┌──────────┐  ┌───────────────┐  ┌─────────────┐  ┌────────────┐  │
-│  │ 案件基线  │  │ 文档导入/OCR  │  │ Claim Chart  │  │ 新颖性对照  │  │
+│  │ 案件基线  │  │ 文档导入/OCR  │  │ 文档解读     │  │ Claim Chart  │  │
 │  └──────────┘  └───────────────┘  └─────────────┘  └────────────┘  │
 │  ┌──────────┐  ┌───────────────┐  ┌─────────────┐  ┌────────────┐  │
-│  │ 创造性   │  │ 形式缺陷      │  │ 素材草稿     │  │ 导出       │  │
+│  │ 新颖性对照│  │ 创造性       │  │ 形式缺陷     │  │ 素材草稿    │  │
 │  └──────────┘  └───────────────┘  └─────────────┘  └────────────┘  │
+│  ┌──────────┐  ┌───────────────┐                                     │
+│  │ 导出     │  │ 案件历史      │                                     │
+│  └──────────┘  └───────────────┘                                     │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │ AgentClient (Orchestrator 角色)                              │   │
@@ -88,8 +96,7 @@
 │                                                                     │
 │  data/                                                               │
 │  ├── keystore.enc        (API Key 加密存储)                         │
-│  ├── keystore.salt       (PBKDF2 salt)                              │
-│  └── ocr-cache/          (服务端 OCR 缓存，可选)                    │
+│  └── keystore.salt       (PBKDF2 salt)                              │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -114,6 +121,7 @@ flowchart LR
     PA --> EXT["外部 AI API"]
     MP --> IDB
     GW -->|"返回分析结果 + tokenUsage"| AC
+    AC -->|"restore 还原脱敏内容"| AC
     AC -->|"写入分析结果 + tokenUsage + calibrationFactor"| IDB
 ```
 
@@ -278,12 +286,16 @@ Vite `server.proxy` 配置（`client/vite.config.ts`）：
 - **影响：** 统一错误处理框架；用户始终得到可操作的反馈；系统在部分失败时优雅降级。
 - **关联章节：** DEVELOPMENT_PLAN §8.9.3 / §14
 
-### ADR-014: 脱敏为单向外发过滤（无 restore）
+### ADR-014: 脱敏为双向过滤（sanitize → AI → restore）
 
-- **背景 / 问题：** 脱敏层设计需要决定是否在 AI 返回结果后反向还原（sanitize → AI → restore）。DESIGN.md 初稿描述了 restore 机制，但 DEVELOPMENT_PLAN 中仅设计了单向外发过滤。
+- **背景 / 问题：** 脱敏层设计需要决定是否在 AI 返回结果后反向还原（sanitize → AI → restore）。
 - **备选方案：** (a) 完整的 sanitize → AI → restore 往返流程（需解决 LLM 改写占位符、递归遍历 JSON 还原等复杂度）；(b) 单向外发过滤，AI 输出中保留替换后的文本。
-- **决策：** 采用方案 (b)。单向外发过滤保持实现简单；避免 LLM 改写占位符格式（如将 `__REDACTED_0__` 重写为其他形式）导致还原失败的不可控风险；v0.1.0 场景下用户可通过 IndexedDB 原始数据人工对照。
-- **影响：** 脱敏后 AI 输出中引用替换后的文本，无法自动还原；但实现复杂度大幅降低，无需测试还原正确性。
+- **决策：** 采用方案 (a)。脱敏为双向流程：外发前用占位符替换敏感文本（sanitize），AI 返回后将占位符还原为原始文本（restore）。此方案确保 AI 输出中的 Citation、特征描述等引用原始文本，审查员无需人工对照还原。该能力内置于系统中，用户可在 ExternalSendConfirm 弹窗中选择是否启用（默认不启用）。
+- **实现要点：**
+  - sanitize 阶段：使用确定性占位符（如 `__REDACTED_0__`、`__REDACTED_1__`），维护 `Map<placeholder, originalText>` 映射表。
+  - restore 阶段：对 AI 输出的 JSON 递归遍历所有 string 字段，精确匹配占位符并替换回原始文本。
+  - 风险缓解：若 LLM 改写占位符格式导致精确匹配失败，降级为"AI 备注区提示部分脱敏内容未还原"，不丢失分析结果。
+- **影响：** 实现复杂度略高于单向方案，但用户体验更好（AI 输出可直接阅读，无需手动对照）。
 - **关联章节：** DEVELOPMENT_PLAN §8.11
 
 ---
@@ -322,7 +334,7 @@ erDiagram
 
 **PatentCase（案件）：** 包含申请号、发明名称、申请人、申请日、优先权日、目标权利要求编号、工作流状态等字段。`workflowState` 驱动主流程状态机。
 
-**SourceDocument（源文档）：** 申请文件与对比文件的基础记录，包含文件类型、文字层状态、OCR 状态、抽取文本、文本索引。
+**SourceDocument（源文档）：** 申请文件与对比文件的基础记录，包含文件类型、文字层状态（`textLayerStatus`：`"present"` / `"absent"` / `"unknown"`，`"unknown"` 为文档尚未处理时的初始值）、OCR 状态、抽取文本、文本索引。
 
 **ReferenceDocument（引用文献）：** 继承 SourceDocument，扩展公开日、公开日置信度、时间轴状态等字段。
 
@@ -362,7 +374,7 @@ interface ChatMessage {
 }
 ```
 
-> `moduleScope` 的 8 个联合值覆盖了所有可对话的 UI 模块，比 `AgentAssignment.agent` 的 6 个值多出 `defects`、`case`、`documents` 三个（壳子模块和案件级对话）。`externalSendMeta` 仅在真实模式外发后填充，用于审计日志和 token 统计。
+> `moduleScope` 的 8 个联合值覆盖了所有可对话的 UI 模块，比 `AgentAssignment.agent` 的 7 个值多出 `defects`、`case`、`documents` 三个。其中 `"case"` 用于文档解读模块（§4.3.4.5）的案件级对话；`"documents"` 在 v0.1.0 中暂未使用（文档导入模块无独立聊天 UI），为后续扩展预留。`externalSendMeta` 仅在真实模式外发后填充，用于审计日志和 token 统计。
 
 ### 3.3 两级配置模型
 
@@ -387,7 +399,7 @@ interface ProviderConnection {
 
 ```typescript
 interface AgentAssignment {
-  agent: "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat";
+  agent: "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat";
   providerOrder: ProviderId[];        // Provider fallback 优先级顺序
   modelId: string;
   modelFallbacks?: string[];          // 模型级 fallback 链（MiMo 默认：MiMo-V2.5-Pro → MiMo-V2.5 → MiMo-V2-Pro → MiMo-V2-Omni）
@@ -406,7 +418,7 @@ interface AppSettings {
   agents: AgentAssignment[];
   sanitizeRules?: Array<{ pattern: string; replace: string; note?: string }>;
   ocrQualityThresholds?: { good: number; poor: number };  // 默认 { good: 0.70, poor: 0.40 }
-  persistKeysInSession: boolean;      // v0.1.0 默认 false = 仅内存
+  persistKeysEncrypted: boolean;      // v0.1.0 默认 false = 仅内存
 }
 ```
 
@@ -432,7 +444,7 @@ empty → case-ready → application-uploaded
   application-uploaded → ocr-running          （无文字层，启动 OCR）
   ocr-running → ocr-review                    （OCR 完成，用户确认质量）
   ocr-running → ocr-failed                    （OCR 失败：WASM 崩溃/内存不足/PDF 损坏）
-  ocr-failed → case-ready                     （恢复路径：用户重新上传文件，再经 case-ready → application-uploaded 回到正常流程）
+  ocr-failed → case-ready                     （恢复路径：用户重新上传文件，再经 case-ready → application-uploaded 回到正常流程；同时提供"手动粘贴文本"入口，允许用户绕过 OCR 直接输入权利要求文字，与 PRD §6.3 一致）
   ocr-review → text-confirmed                 （用户确认 OCR 质量）
   text-extracted → text-confirmed             （有文字层直接确认）
   text-confirmed → references-ready           （上传/添加对比文件）
@@ -447,9 +459,9 @@ empty → case-ready → application-uploaded
 ```
 
 **状态门禁规则：**
-- `canRunNovelty`：仅当 `ClaimChartReviewed` 且目标权要所有特征 `citationStatus !== "not-found"`。
-- `canRunInventive`：仅当 `NoveltyReady` 且对应 NoveltyComparison `status === "user-reviewed"`。
-- 零对比文件路径：`text-confirmed` 可直接跳到 `claim-chart-ready`，跳过文献清单和时间轴。
+- `canRunNovelty`：仅当 `claim-chart-reviewed` 且目标权要所有特征 `citationStatus !== "not-found"`。`needs-review` 特征不阻塞新颖性对照，但 UI 应高亮提醒存在待确认引用。
+- `canRunInventive`：仅当 `novelty-ready` 且对应 NoveltyComparison `status === "user-reviewed"`。
+- 零对比文件路径：`text-confirmed` 可直接跳到 `claim-chart-ready`，跳过文献清单和时间轴。新颖性/创造性面板显示"未上传对比文件，跳过对照"。v0.1.0 零对比文件时由 Claim Chart Agent 生成待检索问题清单（`claimChartSchema.pendingSearchQuestions`）；后续补充对比文件并触发新颖性对照后，由 Novelty Agent 补充/覆盖该清单。
 - OCR 失败恢复：`ocr-failed` 状态下 UI 显示"无法识别文字，请提供含文字层的 PDF 或手动粘贴文本"，允许用户重新上传文件回到 `case-ready`。
 
 **citationStatus 自动提升规则：**
@@ -493,9 +505,11 @@ empty → case-ready → application-uploaded
 | 浏览器 | 支持度 | 说明 |
 |--------|--------|------|
 | Chrome / Edge ≥ 116 | 一等公民 | File System Access API、OPFS、Tesseract.js 5 全部可用 |
-| Firefox ≥ 128 | 次等 | 无 File System Access API → 文件夹导入降级为"多文件选择" |
+| Firefox ≥ 100 | 次等 | 无 File System Access API → 文件夹导入降级为"多文件选择"；版本可能非最新，需覆盖旧版测试 |
 | Safari ≥ 17 | 次等 | 同 Firefox；IndexedDB 配额较小，需提示用户 |
 | 其他 | 不保证 | UI 给出"建议使用 Chrome/Edge"提示 |
+
+**浏览器检测通知：** 首次访问时通过 `navigator.userAgent` 检测浏览器类型。Firefox 用户显示非阻断性提示条："检测到 Firefox 浏览器，部分功能（文件夹导入、文件保存对话框）不可用，您可通过多文件选择和下载方式替代。"不强制升级、不弹窗阻断。
 
 **能力降级矩阵：**
 
@@ -516,6 +530,7 @@ empty → case-ready → application-uploaded
 │ 左侧导航      │ 中央工作区                       │ 右侧 AI 对话 │
 │ - 案件基线    │ 当前模块表单 / 表格 / 预览         │ 独立上下文   │
 │ - 申请文件    │                                │             │
+│ - 文档解读    │                                │             │
 │ - 文献清单    │                                │             │
 │ - Claim Chart │                                │             │
 │ - 新颖性对照  │                                │             │
@@ -523,6 +538,7 @@ empty → case-ready → application-uploaded
 │ - 形式缺陷    │                                │             │
 │ - 素材草稿    │                                │             │
 │ - 答复审查    │                                │             │
+│ - 案件历史    │                                │             │
 └──────────────┴────────────────────────────────┴─────────────┘
 ```
 
@@ -544,7 +560,7 @@ empty → case-ready → application-uploaded
 
 | 字段 | 必填 | 校验规则 | 备注 |
 |------|------|---------|------|
-| `applicationNumber` | 否 | `^CN\d{9,12}[A-Z]?$` / `^\d{9,12}$` | 自动提取若匹配则预填，置信度低标"待确认" |
+| `applicationNumber` | 否 | `^(CN)?\d{9,13}[A-Z]?$`（旧格式9位、新格式12–13位） | 自动提取若匹配则预填，置信度低标"待确认" |
 | `title` | 是 | 1–120 字 | — |
 | `applicant` | 否 | 0–120 字 | — |
 | `applicationDate` | 是 | `YYYY-MM-DD`，不晚于今日 | 通过 `dateParse.ts` 校验格式 |
@@ -556,6 +572,7 @@ empty → case-ready → application-uploaded
 - **校验策略：** 实时校验（react-hook-form `mode: "onChange"`）+ 保存前二次校验。`applicationDate` / `priorityDate` 格式由 `dateParse.ts` 解析，解析失败标红提示。
 - **自动提取：** 上传申请文件 + OCR 完成后，扫描前 3 页提取申请号/名称/申请人/申请日，按置信度自动填入或标"待确认"。同时 `claimParser.ts` 解析权利要求结构，`targetClaimNumber` 下拉动态列出所有独权编号供用户选择。
 - **保存策略：** 防抖 400ms 保存到 IndexedDB；申请日/优先权日变更触发所有文献时间轴重算。
+- **textVersion 切换行为：** 切换 `textVersion` 时，已生成的 `NoveltyComparison` 和 `InventiveStepAnalysis` 的 `status` 自动标记为 `"stale"`，UI 弹提示"审查文本版本已变更，建议重新生成对照/分析结果"。Claim Feature 本身不依赖 textVersion，不标记 stale。
 
 #### 4.3.2 文档导入模块
 
@@ -571,6 +588,7 @@ empty → case-ready → application-uploaded
 - **组件：** `ReferenceLibraryPanel.tsx`、`ReferenceEditForm.tsx`
 - **Slice：** `referencesSlice.ts`
 - **导入方式：** 单文件 / 多文件 / 文件夹（File System Access API，Chrome/Edge）/ 手动添加。
+- **对比文件数量上限：** 10 篇。超出时 UI 提示"超出数量上限，请合并或分批分析"，阻止继续添加。
 - **自动提取：** 文献号（正则）、标题、公开日（`dateParse.ts`）。
 - **时间轴校验：** 纯函数 `classifyReferenceDate(baselineDate, pubDate, pubConfidence) → TimelineStatus`，批量 O(n)。
 - **UI：** `TimelineStatusBadge` 绿/黄/红/灰 + tooltip 法律依据。
@@ -584,12 +602,23 @@ empty → case-ready → application-uploaded
 - **Citation 映射：** `citationMatch.ts` 四级容错：段落号精确匹配 → ±1 近邻容错 → 引文片段搜索 → not-found。
 - **可编辑：** 用户可直接编辑特征描述、Citation、备注；编辑后 source 标记为 "user"。
 
+#### 4.3.4.5 文档解读模块
+
+- **组件：** `InterpretPanel.tsx`（解读输出展示 + 追问输入框）
+- **Slice：** 复用 `chatSlice.ts`（`moduleScope: "case"`）
+- **触发时机：** 文字提取/OCR 确认后，权利要求拆解之前。用户可跳过。
+- **Agent 调用：** AgentClient 调用 `interpret` agent，输入为申请文件全文（经 TextIndex 按 token 预算裁剪后）。首次调用输出通俗语言的专利解读。
+- **交互模式：** 首次解读输出后，用户可在同一对话框中自由追问（不限轮数），上下文持续累积。复用 `AgentChatPanel.tsx` 的通用对话组件。
+- **解读输出结构（AI 自由文本，非 JSON）：** 技术方案概述 → 发明要解决的问题 → 关键技术手段 → 独立权利要求保护范围解读 → 初步创新点观察（标注"仅供参考"）。
+- **与后续模块的关系：** 此模块是"理解阶段"，Claim Chart 是"拆解阶段"。两者独立——解读不影响拆解结果，拆解也不依赖解读。解读对话记录持久化到 IndexedDB。
+- **Mock 模式：** G1/G2/G3 各有预置解读响应。
+
 #### 4.3.5 新颖性对照模块
 
 - **组件：** `NoveltyComparisonTable.tsx`、`NoveltyAgentTrigger.tsx`
 - **Slice：** `noveltySlice.ts`
 - **触发条件：** 目标权要所有特征 `citationStatus !== "not-found"` 且选中对比文件 `timelineStatus === "available"`。
-- **输出：** 逐特征公开状态（四档）+ Citation + 区别特征候选 + 待检索问题清单（最多 5 条）。
+- **输出：** 逐特征公开状态（四档：`clearly-disclosed` 已明确公开 / `possibly-disclosed` 可能公开·待确认 / `not-found` 未找到对应公开 / `not-applicable` 不适用）+ Citation + 区别特征候选 + 待检索问题清单（最多 5 条）。
 - **UI 交互：** 对比文件下拉仅列出可用文献；不可用文献灰色展示，hover 显示原因；结果表可编辑 reviewerNotes。
 
 #### 4.3.6 创造性三步法模块（壳子）
@@ -599,6 +628,7 @@ empty → case-ready → application-uploaded
 - **UI 三列布局：** Step 1（最接近现有技术选择）/ Step 2（区别特征 + 技术问题）/ Step 3（技术启示证据）。
 - **Mock 模式：** G2 完整演示（结论："可能缺乏创造性（待确认）"）。
 - **真实模式：** 允许输出结构化骨架，所有结论字段必须"候选/待确认"措辞。
+- **硬约束：** 仅基于上传的对比文件内容判断技术启示，不使用模型训练知识中的外部技术信息（与 PRD §6.5.2 Step 3 一致）。
 
 #### 4.3.7 AI 对话框（每模块独立上下文）
 
@@ -607,6 +637,18 @@ empty → case-ready → application-uploaded
 - **上下文隔离：** 每个 `moduleScope` 的消息列表互不共享，禁止在提示词里拼接其它 scope 的消息。
 - **两种操作：** 追问（基于当前上下文提问）和请求重新分析（用编辑后的数据重新触发 Agent）。
 - **持久化：** 写入 IndexedDB `chatMessages` store，按 `caseId + moduleScope + createdAt` 查询。
+
+#### 4.3.7.5 案件历史与交互记录模块
+
+- **组件：** `CaseHistoryPanel.tsx`（壳子）、`CaseListView.tsx`（壳子）
+- **Slice：** `historySlice.ts`（壳子，v0.1.0 仅占位）
+- **数据已就绪：** v0.1.0 所有 ChatMessage 已写入 IndexedDB `chatMessages` store（按 `caseId + moduleScope + createdAt` 索引），PatentCase 已写入 `cases` store——数据层完整，缺的是浏览 UI。
+- **v0.1.0（壳子）：** 左侧导航显示"案件历史"入口，点击后展示已有案件列表（从 `cases` store 读取），可点击载入任一案件继续工作。
+- **v0.2.0（完整实现）：**
+  - 按案件查看完整 AI 交互历史（从 `chatMessages` store 按 `caseId` 聚合）
+  - 按 `moduleScope` 分组展示（文档解读 / 权利要求拆解 / 新颖性对照 / 创造性分析等）
+  - 关键词搜索（遍历 `chatMessages.content` 字段）
+  - 导出交互历史：HTML 导出附"AI 交互记录"章节，包含完整的问答记录
 
 #### 4.3.8 导出模块
 
@@ -650,7 +692,9 @@ empty → case-ready → application-uploaded
 | `/cases/:caseId/defects` | 形式缺陷 |
 | `/cases/:caseId/draft` | 素材草稿 |
 | `/cases/:caseId/response` | 答复审查（壳子，复用 `DocumentUploadPanel.tsx`，通过 `documents.role="office-action-response"` 区分） |
+| `/cases/:caseId/interpret` | 文档解读（AI 交互式理解） |
 | `/cases/:caseId/export` | 导出 |
+| `/cases` | 案件历史列表（壳子） |
 | `/settings` | 设置 |
 
 ### 4.5 data-testid 约定
@@ -668,7 +712,11 @@ empty → case-ready → application-uploaded
 | `modal-external-send` | — | 外发确认弹窗 |
 | `modal-mode-switch` | — | 模式切换弹窗 |
 | `badge-timeline-<refId>` | — | 时间轴状态徽标 |
-| `chat-<moduleScope>` | `chat-claim-chart` | 对话面板 |
+| `chat-<moduleScope>` | `chat-claim-chart`, `chat-case` | 对话面板 |
+| `page-interpret` | — | 文档解读页面 |
+| `btn-run-interpret` | — | 触发文档解读按钮 |
+| `banner-browser-notice` | — | 浏览器检测提示条 |
+| `page-case-history` | — | 案件历史列表页面 |
 
 ---
 
@@ -696,6 +744,7 @@ empty → case-ready → application-uploaded
 | PUT | `/api/settings/keys` | 设置 API Key（内存或持久化） |
 | DELETE | `/api/settings/keys/:apiKeyRef` | 清除指定 Key |
 | POST | `/api/settings/unlock` | 解锁持久 keystore |
+| POST | `/api/export/save` | 可选：写入用户指定目录（v0.1.0 保留占位，不启用） |
 
 ### 5.3 AI Gateway 处理流程
 
@@ -750,6 +799,8 @@ v0.1.0 实现四家的非流式 chat completions：
 | Minimax | `https://api.minimax.chat/v1` | 自有 schema，adapter 内转换 |
 | MiMo (Token Plan) | `https://token-plan-cn.xiaomimimo.com/v1` | OpenAI-compatible |
 
+> **上下文窗口约束：** 申请文件通常 30–100 页 PDF，多篇对比文件各 10–50 页。各 Provider 选用的模型 context window 需 ≥ 128K tokens，否则超长文档可能导致截断丢失关键段落。Gateway 在 Provider 选择时应校验此约束。
+
 ### 5.5 安全模块
 
 | 模块 | 文件 | 职责 |
@@ -768,6 +819,7 @@ v0.1.0 的 Agent 为逻辑角色，通过 `AgentClient` 统一调度（架构参
 
 | Agent | 对应模块 (§4.3) | 输入 | 输出 Schema | maxTokens |
 |-------|---------|------|------------|-----------|
+| interpret | §4.3.4.5 | 申请文件全文 + TextIndex 摘要 | 自由文本 | 2000 |
 | claim-chart | §4.3.4 | 目标权利要求 + 说明书片段 | `claimChartSchema` | 1500 |
 | novelty | §4.3.5 | Claim Chart + 单篇对比文件 | `noveltySchema` | 2000 |
 | inventive | §4.3.6 | Claim Chart + 所有可用对比文件 | `inventiveSchema` | 2000 |
@@ -775,17 +827,20 @@ v0.1.0 的 Agent 为逻辑角色，通过 `AgentClient` 统一调度（架构参
 | draft | — | 四分区当前内容 | `draftSchema` | 1500 |
 | chat | §4.3.7 | 模块上下文 + 用户消息 | 自由文本 | 1200 |
 
+> **PRD Agent 名 ↔ Design Agent ID 映射：** PRD §5.4 图中的"文档解读 Agent"→ `interpret`（`moduleScope: "case"`）；"创新点研读 Agent"对应 `claim-chart` + `novelty` 两个 Agent；"简述 Agent"→ `summary`；"审查意见素材 Agent"→ `draft`。HTML 格式转换不作为 Agent，由导出模块直接处理。Orchestrator 落地为前端 AgentClient + 后端 AI Gateway（见 ADR-001）。
+
 ### 6.2 Prompt 设计原则
 
 1. **硬约束法律边界：** 每个 prompt 开头声明"不得输出任何法律结论"。
 2. **Citation 强制：** 每个事实必须给出可映射到说明书段落号的 Citation；无法定位时标 `needs-review`，禁止编造。
-3. **JSON Schema 锁定：** 要求严格按 JSON schema 输出，禁止自由文本说明。
+3. **JSON Schema 锁定：** 要求严格按 JSON schema 输出，禁止自由文本说明（适用于 claim-chart / novelty / inventive / summary / draft Agent；interpret Agent 和 chat Agent 输出自由文本，不使用 JSON schema 约束）。
 4. **上下文注入：** 按 scope 注入当前模块的数据快照（Claim Chart JSON / 对比文件摘要等）。
 
 ### 6.3 Prompt 模板位置
 
 | 文件 | Agent |
 |------|-------|
+| `shared/src/prompts/interpret.prompt.md` | 文档解读 |
 | `shared/src/prompts/claimChart.prompt.md` | 权利要求特征拆解 |
 | `shared/src/prompts/novelty.prompt.md` | 新颖性对照 |
 | `shared/src/prompts/inventive.prompt.md` | 创造性三步法 |
@@ -805,6 +860,7 @@ v0.1.0 的 Agent 为逻辑角色，通过 `AgentClient` 统一调度（架构参
 
 | scope | 注入上下文 | 截断策略 |
 |-------|----------|---------|
+| `case` (interpret) | 申请文件全文 + TextIndex 摘要 + textIndexDigest（段落号样式 + 样例） | 全文按 token 预算裁剪（保留权利要求 + 说明书摘要 + 发明名称） |
 | `claim-chart` | 目标权利要求全文 + 从属链 + 说明书摘要 + TextIndex 样例 | 说明书按 token 预算裁剪（保留与权利要求最相关的段落） |
 | `novelty` | Claim Chart（已确认部分）+ 选中对比文件全文 + TextIndex 样例 | 对比文件按 token 预算裁剪 |
 | `inventive` | Claim Chart + 所有可用对比文件摘要 | 每篇对比文件取前 30% + 关键段落 |
@@ -815,12 +871,13 @@ v0.1.0 的 Agent 为逻辑角色，通过 `AgentClient` 统一调度（架构参
 **`{{name}}` 变量展开安全处理：**
 - 变量值来自领域模型字段（已通过 zod schema 校验），不含用户自由输入的原始文本。
 - Prompt 模板中的变量占位符使用 `{{var}}` 双花括号，与 JSON schema 中的花括号不冲突。
-- 展开时不做 HTML 转义（LLM 不解析 HTML），但对变量值中的 prompt injection 风险关键词（如 "ignore previous instructions"）不做额外过滤——因为输入已限定为专利文档结构化数据，且 system prompt 的约束优先级高于 user prompt。
+- 展开时不做 HTML 转义（LLM 不解析 HTML）。Prompt 模板变量 (`{{name}}`) 中的值来自领域模型结构化字段（非用户自由输入），不做额外过滤。但 AgentChatPanel 中用户自由输入的追问/重新分析请求走 `user` role，不经过模板变量展开；system prompt 的约束优先级高于 user prompt，恶意指令注入风险在 v0.1.0 审查员使用场景下可接受。
 
 **temperature 与 maxTokens 默认映射：**
 
 | Agent | temperature | maxTokens | 说明 |
 |-------|-------------|-----------|------|
+| interpret | 0.3 | 2000 | 通俗理解，需自然语言表达 |
 | claim-chart | 0 | 1500 | 结构化输出需确定性 |
 | novelty | 0 | 2000 | 多特征 + Citation |
 | inventive | 0.2 | 2000 | 三步法结构，允许轻微发散 |
@@ -863,7 +920,8 @@ flowchart LR
     San --> GW["/api/ai/run (Node Gateway)"]
     GW --> PR["外部 Provider"]
     PR --> Res["候选结果 + Citation + 待确认标记"]
-    Res --> Store["IndexedDB + 审计日志"]
+    Res --> Rst["restore 还原脱敏内容"]
+    Rst --> Store["IndexedDB + 审计日志"]
 ```
 
 ### 7.2 硬性安全规则
@@ -919,14 +977,15 @@ flowchart LR
 
 ### 7.6 脱敏层（Sanitize）设计
 
-**工作流程：** `sanitize(外发文本) → AI API`（单向外发过滤，无 restore 还原步骤）
+**工作流程：** `sanitize(外发文本) → AI API → restore(AI 输出)`（双向流程，见 ADR-014）
 
 - **配置方式：** 用户在设置中定义脱敏规则（`AppSettings.sanitizeRules[]`），每条规则包含 `pattern`（正则）和 `replace`（替换文本）。
 - **脱敏粒度：** 全文级别——对即将发送给 AI 的完整文本统一执行正则替换（`applySanitizeRules(text, rules)`）。
-- **无 restore 机制：** 脱敏后发送给 AI 的文本中敏感内容已被替换文本替代，AI 输出中会引用替换后的文本。脱敏不可逆——如有需要还原，用户可查看 IndexedDB 中的原始数据进行人工对照。此设计保持实现简单，避免 LLM 改写占位符格式导致还原失败的复杂度。
-- **Citation 影响：** 脱敏不改变段落号和行号结构（仅替换文本内容），因此 Citation 映射不受影响。`quote` 字段中若包含脱敏内容，将保留替换后的文本。
+- **占位符格式：** 使用确定性占位符（如 `__REDACTED_0__`、`__REDACTED_1__`），维护 `Map<placeholder, originalText>` 映射表随请求传递。
+- **restore 还原：** AI 返回后，对输出 JSON 递归遍历所有 string 字段，精确匹配占位符并替换回原始文本。若 LLM 改写占位符格式导致匹配失败，降级为"AI 备注区提示部分脱敏内容未还原"，不丢失分析结果。
+- **Citation 影响：** 脱敏不改变段落号和行号结构（仅替换文本内容），因此 Citation 映射不受影响。restore 后 `quote` 字段还原为原始文本。
 - **启用/禁用：** 默认不启用（技术方案本身敏感时建议启用，但非强制）。在 `ExternalSendConfirm` 弹窗中以 checkbox 形式供用户选择。
-- **位置：** 前端 `client/src/lib/sanitizeSend.ts`（执行脱敏）+ 后端 `server/src/security/sanitize.ts`（可选的二次校验）。
+- **位置：** 前端 `client/src/lib/sanitizeSend.ts`（执行 sanitize + restore）+ 后端 `server/src/security/sanitize.ts`（可选的二次校验）。
 
 ---
 
@@ -956,6 +1015,7 @@ flowchart LR
   "claimNodes": [],
   "references": [{ "id": "ref-d1", "label": "D1", "doc": {}, "text": "" }],
   "agentResponses": {
+    "interpret": "自由文本解读内容",
     "claim-chart:1": { "claimChartSchema 输出" },
     "novelty:ref-d1:1": { "noveltySchema 输出" }
   },
@@ -969,6 +1029,7 @@ flowchart LR
 
 ```
 resolveFixture(req) → fixture key
+  interpret       → "interpret"
   claim-chart     → "claim-chart:{claimNumber}"
   novelty         → "novelty:{referenceId}:{claimNumber}"
   inventive       → "inventive:{claimNumber}"
@@ -1116,7 +1177,7 @@ npm run verify:precommit
 | `claimCharts` | `id` | `caseId`, `claimNumber` | ClaimFeature（一条 = 一个特征） |
 | `novelty` | `id` | `caseId`, `referenceId` | NoveltyComparison |
 | `inventive` | `id` | `caseId` | InventiveStepAnalysis |
-| `ocrCache` | `cacheKey` | — | key = sha256(file)+lang+pageCount |
+| `ocrCache` | `cacheKey` | — | key = sha256(file)+lang+pageCount；写入时附 `createdAt`，读取时检查是否超过 7 天，过期条目自动删除 |
 | `chatMessages` | `id` | `caseId`, `moduleScope`, `createdAt` | 每模块独立会话 |
 | `feedback` | `id` | `caseId`, `subjectType`, `subjectId` | like/dislike/comment |
 | `settings` | `id`="app" | — | 单例 AppSettings（不含 API Key 明文） |
@@ -1124,6 +1185,8 @@ npm run verify:precommit
 **迁移策略：** `open(db, version, { upgrade(db, oldV, newV, tx) })`，按版本分支处理。禁止破坏性清库（除非 major 版本变更并在 UI 提示）。
 
 **QuotaExceededError 处理：** 所有写入操作必须 catch，提示用户"存储空间不足，请导出并清理旧案件"。
+
+**一键清除所有本地数据：** 设置页提供"清除所有本地数据"按钮，行为 = 删除 IndexedDB `patent-examiner-v1` 数据库 + 清除 localStorage 中 `mode` 缓存。操作前需二次确认。
 
 ---
 
@@ -1138,15 +1201,17 @@ npm run verify:precommit
 | §6.1 | 案件基线字段 | `PatentCase` | `CaseBaselineForm.tsx`, `caseSlice.ts`, `caseValidation.ts`, `dateRules.ts`, `dateParse.ts` | ⬜ |
 | §6.2 | 文献清单 + 时间轴 | `ReferenceDocument`, `TimelineStatus` | `ReferenceLibraryPanel.tsx`, `ReferenceEditForm.tsx`, `referencesSlice.ts`, `TimelineStatusBadge.tsx` | ⬜ |
 | §6.3 | OCR 解析 | `SourceDocument`, `TextIndex` | `pdfText.ts`, `ocrWorker.ts`, `OcrProgressPanel.tsx`, `OcrReviewPanel.tsx` | ⬜ |
+| §6.3.5 | 文档解读（核心） | 复用 `ChatMessage`（`moduleScope: "case"`） | `InterpretPanel.tsx`, `AgentChatPanel.tsx`, `chatSlice.ts`, `interpret.prompt.md` | ⬜ |
 | §6.4 | 权利要求特征拆解 | `ClaimNode`, `ClaimFeature`, `Citation` | `claimParser.ts`, `ClaimChartTable.tsx`, `ClaimChartActions.tsx`, `claimsSlice.ts` | ⬜ |
 | §6.5.1 | 新颖性对照 | `NoveltyComparison`, `NoveltyComparisonRow` | `NoveltyComparisonTable.tsx`, `NoveltyAgentTrigger.tsx`, `noveltySlice.ts` | ⬜ |
 | §6.5.2 | 创造性三步法 | `InventiveStepAnalysis` | `InventiveStepPanel.tsx`, `inventiveSlice.ts` | ⬜ |
 | §6.6 | 形式缺陷（壳子） | `FeedbackItem` | `DefectPanel.tsx` | ⬜ |
-| §6.7 | 申请简述 | — | `SummaryPanel.tsx` | ⬜ |
+| §6.7 | 申请简述（壳子） | 复用 `ClaimFeature[]` + `Citation`（无独立领域类型） | `SummaryPanel.tsx` | ⬜ |
 | §6.8 | 审查意见素材草稿 | — | `DraftMaterialPanel.tsx` | ⬜ |
 | §6.9 | 答复审查意见（壳子） | `SourceDocument`（`role="office-action-response"`） | 复用 `DocumentUploadPanel.tsx` | ⬜ |
 | §6.10 | 导出 HTML/Markdown | — | `ExportPanel.tsx`, `exportSlice.ts`, `exportHtml.ts`, `exportMarkdown.ts`, `fileNameSanitize.ts` | ⬜ |
 | §6.11 | Mock 演示模式 | — | `MockProvider.ts`, `mockRouter.ts`, `shared/src/fixtures/*.json` | ⬜ |
+| §6.12 | 案件历史与交互记录（壳子） | `PatentCase`, `ChatMessage` | `CaseHistoryPanel.tsx`, `CaseListView.tsx`, `historySlice.ts` | ⬜ |
 
 ### PRD §7 非功能需求
 
@@ -1155,7 +1220,7 @@ npm run verify:precommit
 | §7.1 | 安全（外发确认/加密/OCR本地） | `AppSettings` | `ExternalSendConfirm.tsx`, `ConfirmModal.tsx`, `keyStore.ts`, `pbkdf2.ts`, `sanitizeSend.ts` | ⬜ |
 | §7.2 | 性能（进度/禁并发/缓存） | — | `ProgressBar.tsx`, `OcrProgressPanel.tsx`, `ocrCacheRepo.ts` | ⬜ |
 | §7.3 | 部署（本地单机一键） | — | `server/src/index.ts` | ⬜ |
-| §7.4 | UI（中文/独立对话/Token预估） | `ChatMessage` | `AgentChatPanel.tsx`, `chatSlice.ts`, `tokenEstimate.ts`, `ModeBanner.tsx` | ⬜ |
+| §7.4 | UI（中文/独立对话/Token预估/浏览器检测） | `ChatMessage` | `AgentChatPanel.tsx`, `chatSlice.ts`, `tokenEstimate.ts`, `ModeBanner.tsx`, `BrowserNotice.tsx` | ⬜ |
 | §7.5 | 两级配置 + Fallback | `ProviderConnection`, `AgentAssignment` | `ProvidersConfigPanel.tsx`, `AgentsAssignmentPanel.tsx`, `settingsSlice.ts`, `server/src/providers/registry.ts` | ⬜ |
 | §7.6 | 资源优化（去重/maxTokens） | — | `fileHash.ts`, `ocrCacheRepo.ts` | ⬜ |
 
@@ -1171,16 +1236,17 @@ npm run verify:precommit
 
 > v0.1.0 发布前逐项勾选，记录勾选人与日期。
 
-### A. MVP 闭环 8 步
+### A. MVP 闭环 9 步
 
 - [ ] A1 上传发明专利申请文件（.pdf/.docx/.txt/.html）
 - [ ] A2 扫描 PDF 自动 OCR + 用户确认质量
-- [ ] A3 填写申请号/发明名称/申请日/优先权日/目标权利要求编号
-- [ ] A4 上传对比文件 + 自动提取公开日 + 时间轴校验
-- [ ] A5 生成 Claim Chart（特征/描述/Citation/备注）
-- [ ] A6 新颖性对照（公开状态 + Citation + 区别特征候选 + 待检索问题）
-- [ ] A7 独立 AI 对话入口 + 可编辑 + 持久化
-- [ ] A8 导出 HTML（可打印，文件名自动生成）
+- [ ] A3 AI 交互式解读申请文件（通俗理解 + 追问）
+- [ ] A4 填写申请号/发明名称/申请日/优先权日/目标权利要求编号
+- [ ] A5 上传对比文件 + 自动提取公开日 + 时间轴校验
+- [ ] A6 生成 Claim Chart（特征/描述/Citation/备注）
+- [ ] A7 新颖性对照（公开状态 + Citation + 区别特征候选 + 待检索问题）
+- [ ] A8 独立 AI 对话入口 + 可编辑 + 持久化
+- [ ] A9 导出 HTML（可打印，文件名自动生成）
 
 ### B. Mock 演示模式
 
@@ -1201,6 +1267,8 @@ npm run verify:precommit
 - [ ] D1 `npm run verify` 全绿
 - [ ] D2 Evaluation Set G1/G2/G3 自动评分达标
 - [ ] D3 E2E Happy Path (G1) 全步骤通过
+- [ ] D4 Firefox 用户访问时显示浏览器检测提示条
+- [ ] D5 案件历史列表页面存在，可展示已有案件并载入
 
 **勾选人：** ________ **日期：** ________
 
@@ -1233,6 +1301,11 @@ npm run verify:precommit
 |------|------|---------|
 | v0.1.0 | 2026-05-05 | 初稿：总体架构、7 条 ADR、领域模型、前后端设计、安全设计、Mock 模式、测试架构 |
 | v0.1.0-r1 | 2026-05-05 | Review 修复（23 项）：补充 ocr-failed 状态、ProviderAdapter 接口修正、两级配置完整接口、6 条新 ADR、Prompt 注入策略、错误处理总览、脱敏层设计、Token 校准机制、导出模块设计、浏览器兼容矩阵、Zustand Slice 架构、9-case fixture 清单、Vite 代理配置、Pre-commit 门禁详情、可追溯矩阵精确路径、交叉引用、版本号与变更记录 |
-| v0.1.0-r2 | 2026-05-05 | 第二轮 Review 修复（12 项）：补充 ChatMessage 类型定义、脱敏层简化为单向外发过滤（移除 restore）+ ADR-014、答复审查路由复用说明、mockDelay 三种模式统一描述、AppSettings 增加 ocrQualityThresholds、citationStatus 自动提升 OR 语义明确、数据流图补充 IndexedDB 双向/脱敏/校准路径、draft/chat 无 prompt 模板说明、localStorage 安全边界说明、defectHints 类型定义、14 条自检清单移至附录、可追溯矩阵增加领域模型列 |
+| v0.1.0-r2 | 2026-05-05 | 第二轮 Review 修复（12 项）：补充 ChatMessage 类型定义、脱敏 ADR-014（初为单向外发过滤，后恢复双向 sanitize→restore 流程）、答复审查路由复用说明、mockDelay 三种模式统一描述、AppSettings 增加 ocrQualityThresholds、citationStatus 自动提升 OR 语义明确、数据流图补充 IndexedDB 双向/脱敏/校准路径、draft/chat 无 prompt 模板说明、localStorage 安全边界说明、defectHints 类型定义、14 条自检清单移至附录、可追溯矩阵增加领域模型列 |
 | v0.1.0-r3 | 2026-05-05 | 第三轮 Review 修复（6 项）：修正数据流图 Gateway→IndexedDB 箭头（改为经 AgentClient 中转）、补充 ClaimNode 类型定义、完善 targetClaimNumber 下拉动态行为描述、改善 ocr-failed 恢复路径说明、补全文档头部变更记录表、修正 ocr-failed 恢复路径措辞避免歧义 |
 | v0.1.0-r4 | 2026-05-06 | 2 项修复：TOC 目录编号与章节标题统一（附录无编号）、删除 §8.2 孤立代码围栏 |
+| v0.1.0-r5 | 2026-05-06 | 3 项修复：ADR-014 增加默认不启用说明、§7.2 状态名统一为 kebab-case、needs-review 特征高亮提醒说明 |
+| v0.1.0-r6 | 2026-05-06 | 3 项修复：§11 ocrCache 增加 7 天过期策略 + 一键清除本地数据说明、§12 追溯矩阵 §6.7 行补充领域模型（复用 ClaimFeature[] + Citation） |
+| v0.1.0-r7 | 2026-05-06 | 用户需求补充（3 项）：①文档解读模块 ②Firefox 兼容（降至 ≥100 + 浏览器检测）③案件历史壳子；MVP 8→9 步 |
+| v0.1.0-r8 | 2026-05-07 | 三文档一致性审查修复（4 项）：§4.3.5 新颖性对照四档枚举补充、§5.4 Provider 上下文窗口 ≥128K 约束补充、§6.4 interpret Agent 上下文注入补充 textIndexDigest、版本号更新 |
+| v0.1.0-r9 | 2026-05-07 | 三文档一致性审查第二轮修复（2 项）：§4.3.1 补充 textVersion 切换 stale 行为、§3.4 补充零对比文件待检索问题清单说明 |
