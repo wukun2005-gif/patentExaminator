@@ -1,6 +1,6 @@
 # 专利审查助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r9 · 2026-05-07</p>
+<p align="right">版本 v0.1.0-r12 · 2026-05-09</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -18,6 +18,9 @@
 | v0.1.0-r7 | 2026-05-06 | 用户需求补充（3 项）：①文档解读模块 ②Firefox 兼容（降至 ≥100 + 浏览器检测）③案件历史壳子；MVP 8→9 步 |
 | v0.1.0-r8 | 2026-05-07 | 三文档一致性审查修复（4 项）：§4.3.5 新颖性对照四档枚举补充、§5.4 Provider 上下文窗口 ≥128K 约束补充、§6.4 interpret Agent 上下文注入补充 textIndexDigest、版本号更新 |
 | v0.1.0-r9 | 2026-05-07 | 三文档一致性审查第二轮修复（2 项）：§4.3.1 补充 textVersion 切换 stale 行为、§3.4 补充零对比文件待检索问题清单说明 |
+| v0.1.0-r10 | 2026-05-09 | 部署路线调整为三阶段（本地→Vercel+Supabase远程试用→国内云合规）：§10 部署设计重构为三阶段 |
+| v0.1.0-r11 | 2026-05-09 | 三文档一致性审查第三轮修复（5 项）：§4.3.6 创造性三步法定位从壳子改为核心功能、§3.4 补充文档解读模块状态机说明、§6.4 补充 interpret 截断策略细节 |
+| v0.1.0-r12 | 2026-05-09 | 三文档一致性审查第四轮修复（3 项）：§3.4 状态转换图补充可选文档解读步骤、§6.1 Agent 映射补充创造性分析 Agent → `inventive` |
 
 ---
 
@@ -447,7 +450,8 @@ empty → case-ready → application-uploaded
   ocr-failed → case-ready                     （恢复路径：用户重新上传文件，再经 case-ready → application-uploaded 回到正常流程；同时提供"手动粘贴文本"入口，允许用户绕过 OCR 直接输入权利要求文字，与 PRD §6.3 一致）
   ocr-review → text-confirmed                 （用户确认 OCR 质量）
   text-extracted → text-confirmed             （有文字层直接确认）
-  text-confirmed → references-ready           （上传/添加对比文件）
+  text-confirmed → [可选：AI 文档解读（§4.3.4.5）] → references-ready / claim-chart-ready
+  text-confirmed → references-ready           （上传/添加对比文件；解读步骤可在此前或跳过）
   text-confirmed → claim-chart-ready          （零对比文件路径，跳过文献清单+时间轴）
   references-ready → timeline-checked         （时间轴校验完成）
   timeline-checked → claim-chart-ready        （生成 Claim Chart）
@@ -457,6 +461,8 @@ empty → case-ready → application-uploaded
   novelty-ready → export-ready                （跳过创造性）
   inventive-ready → export-ready              （用户审核）
 ```
+
+> **文档解读步骤：** `text-confirmed` 后、进入权利要求拆解之前，用户可选择进行 AI 文档解读（§4.3.4.5）。此步骤复用 `chatSlice`（`moduleScope: "case"`），不引入独立工作流状态，用户可跳过直接进入拆解。
 
 **状态门禁规则：**
 - `canRunNovelty`：仅当 `claim-chart-reviewed` 且目标权要所有特征 `citationStatus !== "not-found"`。`needs-review` 特征不阻塞新颖性对照，但 UI 应高亮提醒存在待确认引用。
@@ -471,6 +477,7 @@ empty → case-ready → application-uploaded
 
 **状态转换由各模块驱动（参见 §4.3 各模块设计）：**
 - 文档导入模块 → `application-uploaded` → `text-extracted` / `ocr-running` / `ocr-failed` / `ocr-review` → `text-confirmed`（参见 §4.3.2）
+- 文档解读模块 → `text-confirmed` 之后、权利要求拆解之前为可选步骤，用户可跳过直接进入拆解。解读模块复用 `chatSlice`（`moduleScope: "case"`），不引入独立工作流状态（参见 §4.3.4.5）
 - 文献清单模块 → `references-ready` → `timeline-checked`（参见 §4.3.3）
 - Claim Chart 模块 → `claim-chart-ready` → `claim-chart-reviewed`（参见 §4.3.4）
 - 新颖性模块 → `novelty-ready`（参见 §4.3.5）
@@ -572,7 +579,7 @@ empty → case-ready → application-uploaded
 - **校验策略：** 实时校验（react-hook-form `mode: "onChange"`）+ 保存前二次校验。`applicationDate` / `priorityDate` 格式由 `dateParse.ts` 解析，解析失败标红提示。
 - **自动提取：** 上传申请文件 + OCR 完成后，扫描前 3 页提取申请号/名称/申请人/申请日，按置信度自动填入或标"待确认"。同时 `claimParser.ts` 解析权利要求结构，`targetClaimNumber` 下拉动态列出所有独权编号供用户选择。
 - **保存策略：** 防抖 400ms 保存到 IndexedDB；申请日/优先权日变更触发所有文献时间轴重算。
-- **textVersion 切换行为：** 切换 `textVersion` 时，已生成的 `NoveltyComparison` 和 `InventiveStepAnalysis` 的 `status` 自动标记为 `"stale"`，UI 弹提示"审查文本版本已变更，建议重新生成对照/分析结果"。Claim Feature 本身不依赖 textVersion，不标记 stale。
+- **textVersion 切换行为：** 切换 `textVersion` 时，已生成的 `ClaimFeature[]` 的 `citationStatus` 自动重置为 `"needs-review"`（对应 `claimCharts` store）；`NoveltyComparison` 和 `InventiveStepAnalysis` 的 `status` 自动标记为 `"stale"`；UI 弹提示"审查文本版本已变更，建议重新生成拆解/对照/分析结果"。
 
 #### 4.3.2 文档导入模块
 
@@ -621,14 +628,15 @@ empty → case-ready → application-uploaded
 - **输出：** 逐特征公开状态（四档：`clearly-disclosed` 已明确公开 / `possibly-disclosed` 可能公开·待确认 / `not-found` 未找到对应公开 / `not-applicable` 不适用）+ Citation + 区别特征候选 + 待检索问题清单（最多 5 条）。
 - **UI 交互：** 对比文件下拉仅列出可用文献；不可用文献灰色展示，hover 显示原因；结果表可编辑 reviewerNotes。
 
-#### 4.3.6 创造性三步法模块（壳子）
+#### 4.3.6 创造性三步法模块（v0.1.0 核心）
 
 - **组件：** `InventiveStepPanel.tsx`
 - **Slice：** `inventiveSlice.ts`
-- **UI 三列布局：** Step 1（最接近现有技术选择）/ Step 2（区别特征 + 技术问题）/ Step 3（技术启示证据）。
+- **UI 三列布局：** Step 1（最接近现有技术选择）/ Step 2（区别特征 + 实际解决的技术问题）/ Step 3（技术启示证据）。
 - **Mock 模式：** G2 完整演示（结论："可能缺乏创造性（待确认）"）。
-- **真实模式：** 允许输出结构化骨架，所有结论字段必须"候选/待确认"措辞。
+- **真实模式：** 可调用 AI 生成 Step 1/2/3 结构化骨架内容，所有结论字段必须以"候选/待确认"措辞标注。
 - **硬约束：** 仅基于上传的对比文件内容判断技术启示，不使用模型训练知识中的外部技术信息（与 PRD §6.5.2 Step 3 一致）。
+- **v0.1.0 能力：** Mock 模式完整演示；真实模式可输出三步法结构化骨架，结论标注"候选/待审查员确认"。不要求完整 AI 分析质量达到生产级。
 
 #### 4.3.7 AI 对话框（每模块独立上下文）
 
@@ -827,7 +835,7 @@ v0.1.0 的 Agent 为逻辑角色，通过 `AgentClient` 统一调度（架构参
 | draft | — | 四分区当前内容 | `draftSchema` | 1500 |
 | chat | §4.3.7 | 模块上下文 + 用户消息 | 自由文本 | 1200 |
 
-> **PRD Agent 名 ↔ Design Agent ID 映射：** PRD §5.4 图中的"文档解读 Agent"→ `interpret`（`moduleScope: "case"`）；"创新点研读 Agent"对应 `claim-chart` + `novelty` 两个 Agent；"简述 Agent"→ `summary`；"审查意见素材 Agent"→ `draft`。HTML 格式转换不作为 Agent，由导出模块直接处理。Orchestrator 落地为前端 AgentClient + 后端 AI Gateway（见 ADR-001）。
+> **PRD Agent 名 ↔ Design Agent ID 映射：** PRD §5.4 图中的"文档解读 Agent"→ `interpret`（`moduleScope: "case"`）；"创新点研读 Agent"对应 `claim-chart` + `novelty` 两个 Agent；"创造性分析 Agent"→ `inventive`；"简述 Agent"→ `summary`；"审查意见素材 Agent"→ `draft`。HTML 格式转换不作为 Agent，由导出模块直接处理。Orchestrator 落地为前端 AgentClient + 后端 AI Gateway（见 ADR-001）。
 
 ### 6.2 Prompt 设计原则
 
@@ -860,7 +868,7 @@ v0.1.0 的 Agent 为逻辑角色，通过 `AgentClient` 统一调度（架构参
 
 | scope | 注入上下文 | 截断策略 |
 |-------|----------|---------|
-| `case` (interpret) | 申请文件全文 + TextIndex 摘要 + textIndexDigest（段落号样式 + 样例） | 全文按 token 预算裁剪（保留权利要求 + 说明书摘要 + 发明名称） |
+| `case` (interpret) | 申请文件全文 + TextIndex 摘要 + textIndexDigest（段落号样式 + 样例） | 优先保留权利要求全文 + 说明书前 30%（含技术领域、背景技术、发明内容）+ 摘要，超出 token 预算时截断说明书实施例部分 |
 | `claim-chart` | 目标权利要求全文 + 从属链 + 说明书摘要 + TextIndex 样例 | 说明书按 token 预算裁剪（保留与权利要求最相关的段落） |
 | `novelty` | Claim Chart（已确认部分）+ 选中对比文件全文 + TextIndex 样例 | 对比文件按 token 预算裁剪 |
 | `inventive` | Claim Chart + 所有可用对比文件摘要 | 每篇对比文件取前 30% + 关键段落 |
@@ -1133,9 +1141,9 @@ npm run verify:precommit
 
 ---
 
-## 10. 部署设计
+## 10. 部署设计（三阶段）
 
-### 10.1 本地验证阶段
+### 10.1 阶段一：本地验证（v0.1.0，当前）
 
 ```
 本地/内网机器（单台）
@@ -1148,7 +1156,32 @@ npm run verify:precommit
 
 启动：`npm run build && npm start` → 浏览器打开 `http://localhost:3000`。
 
-### 10.2 国内云部署阶段（v0.1.0 后）
+### 10.2 阶段二：远程试用（Vercel + Supabase，本地验证通过后）
+
+```
+Vercel（前端 + Serverless Functions）
+  ├── React SPA 静态托管（client/dist）
+  └── Serverless Functions
+       ├── POST /api/ai/run（AI Gateway，适配为无状态函数）
+       ├── GET /api/health
+       └── /api/settings/*
+
+Supabase（后端服务）
+  ├── PostgreSQL 数据库（替代浏览器端 IndexedDB，实现多用户数据持久化）
+  │    └── 案件/文档/分析结果/对话记录等业务数据
+  ├── Auth（可选，替代 HTTP Basic Auth）
+  └── Edge Functions（可选，替代部分 Express 路由）
+```
+
+**适配要点：**
+- Express 中间件需适配为 Vercel Serverless Function 格式（`api/` 目录结构）
+- IndexedDB 读写需迁移为 Supabase JS SDK 调用（数据模型不变，仅存储层替换）
+- API Key 加密存储从文件系统 (`data/keystore.enc`) 改为 Supabase 数据库加密字段或 Vercel 环境变量
+- 免费套餐限制：Vercel 100GB 带宽/月、Supabase 500MB 数据库、适合 5–10 人试用
+
+**试用规则：** 此阶段不处理真实申请文件，仅用于功能演示和流程验证。
+
+### 10.3 阶段三：国内云合规部署（远程试用反馈确认后）
 
 ```
 国内云服务器（阿里云/腾讯云/华为云 轻量 ECS）
@@ -1160,7 +1193,7 @@ npm run verify:precommit
        └── 同一打包产物
 ```
 
-架构不变，仅部署目标从 localhost 变更为国内域名。应用代码无需改动。
+架构与阶段一相同，仅部署目标从 localhost 变更为国内域名。应用核心逻辑不变，仅替换部署目标和数据库后端。
 
 ---
 
@@ -1236,7 +1269,7 @@ npm run verify:precommit
 
 > v0.1.0 发布前逐项勾选，记录勾选人与日期。
 
-### A. MVP 闭环 9 步
+### A. MVP 闭环 10 步
 
 - [ ] A1 上传发明专利申请文件（.pdf/.docx/.txt/.html）
 - [ ] A2 扫描 PDF 自动 OCR + 用户确认质量
@@ -1245,8 +1278,9 @@ npm run verify:precommit
 - [ ] A5 上传对比文件 + 自动提取公开日 + 时间轴校验
 - [ ] A6 生成 Claim Chart（特征/描述/Citation/备注）
 - [ ] A7 新颖性对照（公开状态 + Citation + 区别特征候选 + 待检索问题）
-- [ ] A8 独立 AI 对话入口 + 可编辑 + 持久化
-- [ ] A9 导出 HTML（可打印，文件名自动生成）
+- [ ] A8 创造性三步法分析（最接近现有技术 → 区别特征 → 技术启示，结论标注"候选/待确认"）
+- [ ] A9 独立 AI 对话入口 + 可编辑 + 持久化
+- [ ] A10 导出 HTML（可打印，文件名自动生成）
 
 ### B. Mock 演示模式
 
@@ -1309,3 +1343,5 @@ npm run verify:precommit
 | v0.1.0-r7 | 2026-05-06 | 用户需求补充（3 项）：①文档解读模块 ②Firefox 兼容（降至 ≥100 + 浏览器检测）③案件历史壳子；MVP 8→9 步 |
 | v0.1.0-r8 | 2026-05-07 | 三文档一致性审查修复（4 项）：§4.3.5 新颖性对照四档枚举补充、§5.4 Provider 上下文窗口 ≥128K 约束补充、§6.4 interpret Agent 上下文注入补充 textIndexDigest、版本号更新 |
 | v0.1.0-r9 | 2026-05-07 | 三文档一致性审查第二轮修复（2 项）：§4.3.1 补充 textVersion 切换 stale 行为、§3.4 补充零对比文件待检索问题清单说明 |
+| v0.1.0-r11 | 2026-05-09 | 三文档一致性审查第三轮修复（5 项）：§4.3.6 创造性三步法定位从壳子改为核心功能、§3.4 补充文档解读模块状态机说明、§6.4 补充 interpret 截断策略细节 |
+| v0.1.0-r12 | 2026-05-09 | 三文档一致性审查第四轮修复（3 项）：§3.4 状态转换图补充可选文档解读步骤、§6.1 Agent 映射补充创造性分析 Agent → `inventive` |

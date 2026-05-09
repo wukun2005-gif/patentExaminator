@@ -1,6 +1,6 @@
 # 专利审查助手 v0.1.0 详细软件开发计划
 
-<p align="right">2026-05-09 · v0.1.0-r4</p>
+<p align="right">2026-05-09 · v0.1.0-r6</p>
 
 > 本文件是面向"后续执行 AI / 工程师"的 v0.1.0 实施蓝图。执行者应在**仅**读取本文件 + `PRD.md` + `DESIGN.md` + 项目根级规则（若有）的条件下，能够从零搭出完整的本地 / 内网 Web App 并通过验收测试。
 >
@@ -60,6 +60,7 @@
 | 文档解析 Agent | `features/documents` + `lib/pdfText.ts` + `lib/ocrWorker.ts`（§5/§8.1） |
 | 文档解读 Agent | `features/interpret/InterpretPanel.tsx` + `prompts/interpret.prompt.md`（§8.4.5） |
 | 创新点研读 Agent | `features/claims` + `features/novelty`（§8.5/§8.6） |
+| 创造性分析 Agent | `features/inventive`（§8.7） |
 | 简述 Agent | `features/summary`（壳子，§8.7 末段） |
 | 审查意见素材 Agent | `features/draft`（壳子，§8.7 末段） |
 | HTML 格式转换 Agent | `features/export`（§8.13）— 实现层面不作为 Agent（不经 AgentClient / AI Gateway），由导出模块前端直接处理 |
@@ -73,7 +74,7 @@
 
 ### 1.1 v0.1.0 必须端到端真实可用的闭环（来自 PRD 附录 B）
 
-> 以下 12 项为 v0.1.0 完整交付范围（含壳子与 Mock），其中第 1–9 项对应 PRD 附录 B 的 MVP 闭环，第 10–12 项为 PRD §6.10/§6.11/§6.12 定义的附加交付。
+> 以下 13 项为 v0.1.0 完整交付范围（含壳子与 Mock），其中第 1–10 项对应 PRD 附录 B 的 MVP 闭环，第 11–13 项为 PRD §6.10/§6.11/§6.12 定义的附加交付。
 
 1. 新建 / 编辑案件基线，最少字段：申请号（可空）、发明名称、申请类型（固定发明专利）、申请日、优先权日（可选）、目标权利要求编号（默认 1）。
 2. 上传发明专利申请文件，支持 `.pdf` / `.docx` / `.txt` / `.html`。
@@ -89,13 +90,13 @@
 9. 每个功能区提供独立 AI 对话入口（上下文隔离），可编辑 AI 输出。
 10. 导出 HTML（必选）与 Markdown（可选），HTML 可直接打印。
 11. 案件历史列表（壳子）：可浏览已有案件并载入继续工作。
-12. Mock 演示模式默认开启，零 token、零联网、完整覆盖上述 1–11，内置 G1/G2/G3 案例。
+12. **创造性三步法**（核心）：确定最接近现有技术 → 区别特征 + 实际解决的技术问题 → 技术启示判断。三步结构化输出，结论标注"候选/待审查员确认"。真实模式可调用 AI 生成结构化骨架；Step 3 仅基于上传的对比文件内容判断，不使用模型训练知识中的外部技术信息。
+13. Mock 演示模式默认开启，零 token、零联网、完整覆盖上述 1–12，内置 G1/G2/G3 案例。
 
 ### 1.2 v0.1.0 壳子功能（必须有入口、数据结构与占位 UI，不要求完整 AI 分析）
 
 | 功能 | v0.1.0 要求 |
 |---|---|
-| 创造性三步法 | Mock G2 完整演示；真实模式允许输出 Step1/Step2/Step3 结构化骨架，所有结论标注"候选/待审查员确认" |
 | 形式缺陷检查 | 提供手动标记入口；对 G3 的"参数范围支持不足"给出风险提示位 |
 | 专利申请简述 | 壳子；可选实现。若实现必须基于已确认 Citation，禁止无出处内容进正文 |
 | 审查意见素材草稿 | 壳子：正文草稿 / AI 备注 / 分析策略 / 待确认事项四分区 |
@@ -106,7 +107,7 @@
 
 ### 1.3 明确不做（与 PRD §13 对齐）
 
-1. 不接入 CNIPA 内部检索系统（CNABS / PAPS / EPOQUE）。
+1. 不接入任何内部检索系统。
 2. 不接管案件管理、期限管理、发文系统、内部审批流程。
 3. 不替审查员作出新颖性 / 创造性 / 授权 / 驳回的法律结论。
 4. 不默认上传未公开申请文件到外部服务。
@@ -363,9 +364,9 @@ flowchart TD
     Store --> Exporter
 ```
 
-### 4.2 部署架构
+### 4.2 部署架构（三阶段）
 
-**当前（本地验证阶段）：**
+**阶段一（本地验证，当前）：**
 
 ```text
 内网 / 本地机器（单台）
@@ -383,7 +384,41 @@ flowchart TD
 
 浏览器端 IndexedDB 保存所有案件 / 文档 / 文本 / 分析结果 / OCR 结果；不需要独立数据库。
 
-**后续（国内云部署阶段，本地验证通过后启动）：**
+**阶段二（远程试用，Vercel + Supabase 免费套餐，本地验证通过后启动）：**
+
+```text
+Vercel（前端 + Serverless Functions）
+  ├── React SPA 静态托管（client/dist）
+  └── Serverless Functions（api/ 目录结构）
+       ├── POST /api/ai/run    AI Gateway（适配为无状态函数）
+       ├── GET  /api/health
+       └── /api/settings/*
+
+Supabase（后端服务）
+  ├── PostgreSQL 数据库（替代 IndexedDB，多用户数据持久化）
+  │    └── cases / documents / textIndex / claimNodes / claimCharts
+  │        / novelty / inventive / chatMessages / feedback / settings
+  ├── Auth（可选，替代 HTTP Basic Auth）
+  └── Edge Functions（可选）
+```
+
+**适配要点：**
+- Express 中间件适配为 Vercel Serverless Function 格式（`api/` 目录结构，每个路由一个文件）
+- IndexedDB repository 层需迁移为 Supabase JS SDK 调用（数据模型不变，仅存储层替换）
+- API Key 加密存储从文件系统 (`data/keystore.enc`) 改为 Supabase 数据库加密字段或 Vercel 环境变量
+- Supabase Row Level Security (RLS) 实现多用户数据隔离
+- 免费套餐限制：Vercel 100GB 带宽/月、Supabase 500MB 数据库、适合 5–10 人试用
+- **试用规则：** 此阶段不处理真实申请文件，仅用于功能演示和流程验证
+
+**迁移步骤（阶段一验证通过后执行）：**
+1. 创建 Supabase 项目（免费套餐），初始化数据库 schema（对应 §6 IndexedDB stores）
+2. 创建 Vercel 项目，连接 Git 仓库，配置构建命令和环境变量
+3. 适配 Express 路由为 Vercel Serverless Functions
+4. 适配 IndexedDB repositories 为 Supabase SDK 调用
+5. 部署并验证远程访问
+6. 邀请 5–10 人小范围试用，收集反馈
+
+**阶段三（国内云合规部署，远程试用反馈确认后启动）：**
 
 ```text
 国内云服务器（阿里云/腾讯云/华为云 轻量 ECS）
@@ -403,14 +438,11 @@ flowchart TD
   域名：https://your-domain.cn（需 ICP 备案）
 ```
 
-**关键决策：不采用 Vercel + Supabase 方案。** 原因：
-- Vercel（`*.vercel.app`）和 Supabase 均为海外服务，在 PRD §7.1 "仅可访问国内 URL"的网络约束下不可用
-- 当前架构（Node Express 静态托管 + API）本身就是自包含的，无需 Supabase 的 BaaS 能力（v0.1.0 无服务端数据库需求）
-- 从 localhost 迁移到国内云服务器的成本低：应用代码无需改动（仅部署配置），前提是已完成认证需求
+应用核心逻辑不变，仅替换部署目标和数据库后端。
 
 **多用户：** 云部署 v0.1.0 仍为单用户部署，每位审查员部署独立实例。多用户隔离（URL path 区分用户、`data/{userId}/` 隔离等）留到 v1.0.0。
 
-**迁移步骤（本地验证通过后执行）：**
+**迁移步骤（阶段二反馈确认后执行）：**
 1. 购买国内轻量应用服务器（新用户首年约 50-100 元，2C2G 足够）
 2. 完成 ICP 备案（需中国大陆身份证明，域名需实名认证；免费，约 1-2 周，以管局审核时间为准）
 3. 服务器上安装 Node.js 20+，配置 PM2 或 systemd 进程管理：
@@ -1016,9 +1048,11 @@ stateDiagram-v2
 
 状态机实现为 reducer，纯函数 + 严格联合类型；状态持久化到 IndexedDB（`cases` store 附字段 `workflowState`）。
 
+**文档解读模块说明：** 文档解读（§8.4.5）在 `text-confirmed` 之后、权利要求拆解之前为可选步骤，用户可跳过直接进入拆解。解读模块复用 `chatSlice`（`moduleScope: "case"`），不引入独立工作流状态。
+
 **硬约束（门禁）：**
 
-- `canRunNovelty(selector)`：仅当 `ClaimChartReviewed` 状态且目标权要的所有特征 `citationStatus !== "not-found"` 时返回 `true`，否则 Novelty 触发按钮 `disabled`。
+- `canRunNovelty(selector)`：仅当 `ClaimChartReviewed` 状态且目标权要的所有特征 `citationStatus !== "not-found"` 时返回 `true`，否则 Novelty 触发按钮 `disabled`。`needs-review` 特征不阻塞新颖性对照触发，但 UI 应高亮提醒存在待确认引用（与 DESIGN §3.4 一致）。
 - `citationStatus` 自动提升规则：当 ClaimFeature 的某条 `Citation.confidence === "high"` 时，自动将 `citationStatus` 提升为 `"confirmed"`。`"confirmed"` / `"high"` 是不同层级的值——`citationStatus` 只接受 `"confirmed" | "needs-review" | "not-found"`，`Citation.confidence` 只接受 `"high" | "medium" | "low"`。
 - `canRunInventive(selector)`：仅当 `NoveltyReady` 状态且对应 NoveltyComparison `status === "user-reviewed"` 时返回 `true`。
 
@@ -1206,7 +1240,7 @@ UI 映射：
 
 - 防抖 400ms 保存到 `cases` store。
 - 变更 `applicationDate` / `priorityDate` 后触发所有 `ReferenceDocument` 的 `timelineStatus` 重算（通过 `referencesSlice.recomputeAll()`）。
-- 变更 `textVersion` 后，已生成的 `NoveltyComparison` 和 `InventiveStepAnalysis` 的 `status` 自动标记为 `"stale"`，UI 弹提示"审查文本版本已变更，建议重新生成对照/分析结果"（与 PRD §6.1 一致）。
+- 变更 `textVersion` 后，已生成的 `ClaimFeature[]` 的 `citationStatus` 自动重置为 `"needs-review"`（`claimCharts` store）；`NoveltyComparison` 和 `InventiveStepAnalysis` 的 `status` 自动标记为 `"stale"`；UI 弹提示"审查文本版本已变更，建议重新生成拆解/对照/分析结果"（与 PRD §6.1 一致）。
 
 ### 8.3 资源 / 文献清单模块
 
@@ -1464,13 +1498,15 @@ export const noveltySchema = z.object({
 - 顶部固定显示 `legalCaution`。
 - 用户编辑 `reviewerNotes` 防抖保存。
 
-### 8.7 创造性三步法壳子（含简述 / 素材草稿）
+### 8.7 创造性三步法（核心功能）（含简述 / 素材草稿）
 
-#### 8.7.1 v0.1.0 范围
+#### 8.7.1 v0.1.0 范围（核心功能）
 
 - UI 必须呈现 **Step 1 / Step 2 / Step 3** 三段结构，并允许用户手动选择"最接近现有技术"。
 - Mock 模式：G2 完整演示（结论："可能缺乏创造性（待确认）"）。
-- 真实模式：允许输出结构化骨架；所有结论字段必须以"候选 / 待确认"措辞，禁止"具备创造性 / 不具备创造性"等法律结论措辞。
+- 真实模式：可调用 AI 生成 Step 1/2/3 结构化骨架内容；所有结论字段必须以"候选 / 待确认"措辞，禁止"具备创造性 / 不具备创造性"等法律结论措辞。
+- **硬约束：** Step 3 仅基于上传的对比文件内容判断技术启示，不使用模型训练知识中的外部技术信息（与 PRD §6.5.2 一致）。
+- v0.1.0 不要求完整 AI 分析质量达到生产级，但三步法结构和 Mock 演示必须完整。
 
 #### 8.7.2 输入
 
@@ -1703,7 +1739,7 @@ MiMo / Token Plan 的模型级 fallback 在单个 Provider 内先执行，顺序
 
 当错误为 `429 / quota`、`5xx / 网络错误`、超时时，先按上述模型顺序切换；所有模型失败后才进入 `providerPreference` 的下一个 Provider。`401 / 鉴权失败` 不做模型 fallback，直接返回并提示检查 `tp-` Key。
 
-#### 8.9.4 Token 估算（`client/src/agent/tokenEstimate.ts`）
+#### 8.9.4 Token 估算与校准（`client/src/agent/tokenEstimate.ts`）
 
 - 粗估公式：
   ```
@@ -1711,7 +1747,12 @@ MiMo / Token Plan 的模型级 fallback 在单个 Provider 内先执行，顺序
   latinChars = 其余字符数
   approxTokens = ceil(zhChars * 0.6 + latinChars * 0.3)
   ```
-- 发送确认框显示：`估算 Token ≈ {input} + maxTokens {output}`；发送后用实际 usage 覆盖并累计到 `localMetrics`。
+- **校准机制（与 DESIGN §6.5 一致）：**
+  - 首次真实调用后，记录实际 `tokenUsage.input` 与估算值的比率作为 `calibrationFactor`。
+  - 后续调用：`displayEstimate = approxTokens * calibrationFactor`。
+  - 校准系数持久化到 IndexedDB `settings` store 中，随每次实际 usage 更新（滑动窗口平均，窗口大小 = 最近 5 次调用）。
+  - Mock 模式不进行校准（无真实 token 数据）。
+- 发送确认框显示：`估算 Token ≈ {displayEstimate} + maxTokens {output}`；发送后用实际 usage 覆盖并累计到 `localMetrics`。
 
 #### 8.9.5 `maxTokens` 路由校准（对应 PRD §7.6）
 
@@ -2072,7 +2113,7 @@ v0.1.0 不强制 GitHub Actions。执行者必须：
 
 ### 9.7 开发者提交前真实 AI API Smoke（非 APP 用户测试）
 
-参考 `/Users/wukun/Documents/tmp/resumeTailor/vscCCOpus/test-e2e.mjs` 的 `loadEnvFile()`、fallback 模型列表、限速等待、`RESULTS` 汇总与 exit code 设计，新增 `tests/developer-ai-smoke.mjs`。该脚本只验证开发者提交前的 Provider / 协议 / fallback / schema 基线，不模拟 APP 用户操作，也不读取 APP 用户配置。
+参考 `test-e2e.mjs` 的 `loadEnvFile()`、fallback 模型列表、限速等待、`RESULTS` 汇总与 exit code 设计，新增 `tests/developer-ai-smoke.mjs`。该脚本只验证开发者提交前的 Provider / 协议 / fallback / schema 基线，不模拟 APP 用户操作，也不读取 APP 用户配置。
 
 #### 9.7.1 脚本结构与入口
 
@@ -2607,7 +2648,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | M4 | 文献清单 + 时间轴校验 | M2, M3 | 1.5 人日 |
 | M5 | Claim 解析 + Claim Chart（Mock） | M3 | 2.5 人日 |
 | M6 | 新颖性对照（Mock） | M4, M5 | 2.0 人日 |
-| M7 | 创造性三步法壳子 + 简述 + 素材草稿 + 形式缺陷 | M5, M6 | 2.0 人日 |
+| M7 | 创造性三步法（核心）+ 简述 + 素材草稿 + 形式缺陷 | M5, M6 | 2.0 人日 |
 | M8 | AI Gateway + Provider Adapter + 安全确认 + 设置面板 | M5 | 2.5 人日 |
 | M8.5 | 文档解读模块 + 案件历史壳子 + 浏览器检测 | M3, M8 | 1.5 人日 |
 | M9 | 导出 + 反馈 + Mock 完整覆盖 | M6, M7 | 1.5 人日 |
@@ -2703,10 +2744,10 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
   - §10.5 全绿；`happy-path-g1.spec.ts` 至 E2E-G1-006 全绿。
   - UI：不可用文献的"对照"按钮 `aria-disabled` / `disabled` 均正确，且 hover 文案包含时间轴原因（Playwright 断言）。
 
-### 11.9 M7 创造性三步法壳子 + 简述 + 素材草稿 + 形式缺陷
+### 11.9 M7 创造性三步法（核心）+ 简述 + 素材草稿 + 形式缺陷
 
 - **产出物**：
-  - `features/inventive/InventiveStepPanel.tsx` / `inventiveSlice.ts` + fixture `g2-battery.json` 的 `inventive:1`。
+  - `features/inventive/InventiveStepPanel.tsx` / `inventiveSlice.ts` + fixture `g2-battery.json` 的 `inventive:1`。真实模式可调用 AI 生成 Step 1/2/3 结构化骨架。
   - `features/summary/SummaryPanel.tsx` + fixture `summary:1`（仅 G1）。
   - `features/draft/DraftMaterialPanel.tsx`（四分区拼装，不走 AI）。
   - `features/defects/DefectPanel.tsx`（G3 给出"参数范围支持不足风险"占位）。
@@ -2815,7 +2856,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | B10 | 权利要求解析 & Claim Chart（Mock 模式） | M5 | B08 | 1.5d | §8.4, §8.5, PRD §6.4, DESIGN §4.3.4 |
 | B11 | Mock Provider & Fixture（G1/G2/G3） | M5 | B10 | 1.0d | §8.11, PRD §6.11, DESIGN §8 |
 | B12 | 新颖性对照模块（Mock 模式） | M6 | B09, B10 | 2.0d | §8.6, PRD §6.5.1, DESIGN §4.3.5 |
-| B13 | 创造性三步法壳子 | M7 | B10, B12 | 1.0d | §8.7, PRD §6.5.2, DESIGN §4.3.6 |
+| B13 | 创造性三步法（核心功能） | M7 | B10, B12 | 1.0d | §8.7, PRD §6.5.2, DESIGN §4.3.6 |
 | B14 | 简述壳子 + 素材草稿壳子 + 形式缺陷壳子 | M7 | B10 | 1.0d | §8.7.5, PRD §6.6–6.8 |
 | B15 | AI Gateway + Provider Adapter + 安全模块 | M8 | B10 | 1.5d | §8.9, §8.10, PRD §7.5, DESIGN §5 |
 | B16 | 外发确认弹窗 & 模式切换安全流 | M8 | B15 | 1.0d | §8.10.3–8.10.4, PRD §7.1, ADR-003/004/014 |
@@ -2975,11 +3016,13 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 - `features/references/ReferenceLibraryPanel.tsx` / `ReferenceEditForm.tsx` / `referencesSlice.ts`。
 - `components/TimelineStatusBadge.tsx`（绿/黄/红/灰 + tooltip）。
 - `recomputeAllReferenceTimeline()` 联动闭环。
+- 对比文件数量上限校验：10 篇（超出时阻止继续添加，提示用户合并或分批分析，与 PRD §6.2 / DESIGN §4.3.3 一致）。
 - 文件夹导入降级路径（Chrome/Edge 用 File System Access API；Firefox 降级为多文件选择）。
 - 集成测试：批量 50 条重算 ≤ 50ms。
 
 **Definition of Done：**
 - 改变 `applicationDate` 后所有文献的 TimelineStatusBadge 在 1 frame 内刷新。
+- 对比文件达到 10 篇后继续添加被阻止并显示提示。
 - Firefox 环境下文件夹导入降级为多文件选择并显示提示。
 - E2E-A2-001 / E2E-A3-001 通过。
 
@@ -3038,9 +3081,9 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 
 ---
 
-#### B13 — 创造性三步法壳子
+#### B13 — 创造性三步法（核心功能）
 
-**目标：** 三步法 UI 骨架 + Mock G2 完整演示。
+**目标：** 三步法 UI 完整结构 + Mock G2 完整演示 + 真实模式可输出结构化骨架。
 
 **产出物：**
 - `features/inventive/InventiveStepPanel.tsx` / `inventiveSlice.ts`。
@@ -3049,6 +3092,8 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 
 **Definition of Done：**
 - Mock G2 完整演示三步法：Step 1（D1 最接近）/ Step 2（区别特征 B）/ Step 3（D2 有启示 → "可能缺乏创造性·待确认"）。
+- 真实模式可调用 AI 生成 Step 1/2/3 结构化骨架，结论标注"候选/待审查员确认"。
+- Step 3 仅基于上传的对比文件内容判断技术启示，不使用模型训练知识中的外部技术信息（PRD §6.5.2）。
 - E2E-G2-001 通过。
 - 所有结论字段带"候选 / 待审查员确认"措辞。
 
@@ -3233,7 +3278,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | B10 | 权利要求解析 & Claim Chart（Mock） | ⬜ | | |
 | B11 | Mock Provider & Fixture | ⬜ | | |
 | B12 | 新颖性对照模块（Mock） | ⬜ | | |
-| B13 | 创造性三步法壳子 | ⬜ | | |
+| B13 | 创造性三步法（核心功能） | ⬜ | | |
 | B14 | 简述 + 素材草稿 + 形式缺陷壳子 | ⬜ | | |
 | B15 | AI Gateway + Provider Adapter + 安全模块 | ⬜ | | |
 | B16 | 外发确认弹窗 & 模式切换安全流 | ⬜ | | |
@@ -3257,10 +3302,10 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | §6.1 | 案件基线字段（含申请号 / 申请日 / 优先权日 / 目标权 / 备注） | §6.2 / §8.2 | `features/case/*`、`lib/dateRules.ts`、`lib/dateParse.ts` | T-DATE-001..007 / T-PARSE-001..005 / E2E-G1-002 |
 | §6.2 | 文献清单导入 + 自动提取 + 时间轴 | §6.2 / §8.3 / §6.5 | `features/references/*`、`lib/dateParse.ts`、`lib/dateRules.ts`、`components/TimelineStatusBadge.tsx` | T-DATE-* / E2E-A2-001 / E2E-A3-001 |
 | §6.3 | OCR 解析（扫描 PDF） | §8.1.2–8.1.5 | `lib/pdfText.ts` / `lib/ocrWorker.ts` / `features/documents/OcrReviewPanel.tsx` | T-DOC-004..007 / E2E-E2-001 |
-| §6.3.5 | 文档解读（核心） | §8.4.5 | `features/interpret/InterpretPanel.tsx`、`shared/prompts/interpret.prompt.md`、`components/BrowserNotice.tsx` | E2E 冒烟（Mock 解读 + 追问） |
+| §6.3.5 | 文档解读（核心） | §8.4.5 | `features/interpret/InterpretPanel.tsx`、`shared/prompts/interpret.prompt.md`、`agent/AgentClient.ts` | E2E 冒烟（Mock 解读 + 追问） |
 | §6.4 | 权利要求特征拆解（Claim Chart） | §8.4 / §8.5 | `lib/claimParser.ts`、`features/claims/*`、`shared/schemas/claimChart.schema.ts`、`prompts/claimChart.prompt.md` | T-CLAIM-001..005 / T-CHART-001..005 / E2E-G1-003 |
 | §6.5.1 | 新颖性对照（单篇 / 绝对公开） | §8.6 | `features/novelty/*`、`shared/schemas/novelty.schema.ts`、`prompts/novelty.prompt.md` | T-NOV-001..005 / E2E-G1-004 |
-| §6.5.2 | 创造性三步法（壳子） | §8.7 | `features/inventive/*`、`shared/schemas/inventive.schema.ts`、`prompts/inventive.prompt.md` | E2E-G2-001 |
+| §6.5.2 | 创造性三步法（核心功能） | §8.7 | `features/inventive/*`、`shared/schemas/inventive.schema.ts`、`prompts/inventive.prompt.md` | E2E-G2-001 |
 | §6.6 | 形式缺陷（壳子 + 手动标记） | §8.7.5 / §1.2 | `features/defects/DefectPanel.tsx` | E2E-G3-001 |
 | §6.7 | 申请简述（可选） | §8.7.5 | `features/summary/*`、`prompts/summary.prompt.md` | 通过 E2E-G1 / 评测 G1 间接覆盖 |
 | §6.8 | 审查意见素材草稿（壳子） | §8.7.5 | `features/draft/DraftMaterialPanel.tsx` | 通过 E2E-G1 间接覆盖（四分区渲染） |
@@ -3293,7 +3338,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | Human Correction Rate | `feedback` store 累计（v0.1.0 记录，不做报表） | T-CHART-004 |
 | 用户满意度（like/dislike/comment） | `feedbackRepo` | M9 离开门槛 |
 
-### 12.4 PRD 附录 B MVP 闭环 9 步
+### 12.4 PRD 附录 B MVP 闭环 10 步
 
 | PRD 附录 B 步骤 | 对应 E2E |
 |---|---|
@@ -3304,8 +3349,9 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | 5. 上传对比文件 + 时间轴校验 | E2E-A2-001 / E2E-A3-001 |
 | 6. 生成 Claim Chart | E2E-G1-003 |
 | 7. 新颖性对照 + Citation | E2E-G1-004 |
-| 8. 编辑 + 独立对话框追问 | E2E-G1-005 |
-| 9. 导出 HTML | E2E-G1-006 |
+| 8. 创造性三步法分析 | E2E-G2-001 |
+| 9. 编辑 + 独立对话框追问 | E2E-G1-005 |
+| 10. 导出 HTML | E2E-G1-006 |
 
 ### 12.5 PRD 附录 C 评测集 9 条
 
@@ -3685,7 +3731,7 @@ PR 描述必须包含以下小节，缺失视为不可合并：
 
 ### 16.1 产品维度（对齐 PRD 附录 B + 附录 C）
 
-**A. MVP 闭环 9 步（PRD 附录 B）**
+**A. MVP 闭环 10 步（PRD 附录 B）**
 
 - [ ] A1 上传发明专利申请文件，支持 `.pdf` / `.docx` / `.txt` / `.html`。
 - [ ] A2 扫描 PDF 自动 OCR + 用户确认质量。
@@ -3694,13 +3740,14 @@ PR 描述必须包含以下小节，缺失视为不可合并：
 - [ ] A5 上传对比文件 + 自动提取公开日 + 时间轴校验（按 §6.5 规则表）。
 - [ ] A6 生成目标权利要求 Claim Chart（特征编号 / 描述 / Citation / 备注）。
 - [ ] A7 选择一篇 `available` 对比文件生成新颖性对照（公开状态 + Citation + 区别特征候选 + 待检索问题）。
-- [ ] A8 各模块提供独立 AI 对话入口（上下文隔离），可编辑 AI 输出；刷新后持久化。
-- [ ] A9 导出 HTML（必选）与 Markdown（可选）；文件名符合 §8.13.1 规则；HTML 可打印且含 `legalCaution` 免责声明。
+- [ ] A8 创造性三步法分析（最接近现有技术 → 区别特征 + 实际技术问题 → 技术启示判断），结论标注"候选/待审查员确认"。
+- [ ] A9 各模块提供独立 AI 对话入口（上下文隔离），可编辑 AI 输出；刷新后持久化。
+- [ ] A10 导出 HTML（必选）与 Markdown（可选）；文件名符合 §8.13.1 规则；HTML 可打印且含 `legalCaution` 免责声明。
 
 **B. Mock 演示模式（PRD §6.11）**
 
 - [ ] B1 默认启动进入 Mock 模式，顶部横幅文案与 §7.3 一致。
-- [ ] B2 G1 / G2 / G3 "载入预置案例"可用，完整演示 A1–A9。
+- [ ] B2 G1 / G2 / G3 "载入预置案例"可用，完整演示 A1–A10。
 - [ ] B3 Mock 模式无任何 network 外发（自动化断言通过，T-SEC-006）。
 
 **C. 真实模式安全（PRD §7.1 / §10 风险 2）**
