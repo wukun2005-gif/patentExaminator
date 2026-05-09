@@ -1,6 +1,6 @@
 # 专利审查助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r12 · 2026-05-09</p>
+<p align="right">版本 v0.1.0-r13 · 2026-05-09</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -21,6 +21,7 @@
 | v0.1.0-r10 | 2026-05-09 | 部署路线调整为三阶段（本地→Vercel+Supabase远程试用→国内云合规）：§10 部署设计重构为三阶段 |
 | v0.1.0-r11 | 2026-05-09 | 三文档一致性审查第三轮修复（5 项）：§4.3.6 创造性三步法定位从壳子改为核心功能、§3.4 补充文档解读模块状态机说明、§6.4 补充 interpret 截断策略细节 |
 | v0.1.0-r12 | 2026-05-09 | 三文档一致性审查第四轮修复（3 项）：§3.4 状态转换图补充可选文档解读步骤、§6.1 Agent 映射补充创造性分析 Agent → `inventive` |
+| v0.1.0-r13 | 2026-05-09 | 新增 Deepseek Provider（5 家）：§1.1 架构图、§2 ADR-005、§3.3 ProviderId、§4.1 数据流图、§5.4 Provider 表 |
 
 ---
 
@@ -84,10 +85,10 @@
 │  │  · Provider 选择与 fallback · API Key 使用 · Token 计量      │   │
 │  └──────┬──────────┬──────────┬──────────┬─────────────────────┘   │
 │         │          │          │          │                          │
-│  ┌──────▼───┐ ┌────▼────┐ ┌──▼─────┐ ┌──▼──────┐                  │
-│  │ Kimi     │ │ GLM     │ │Minimax │ │ MiMo    │                  │
-│  │ Adapter  │ │ Adapter │ │Adapter │ │ Adapter │                  │
-│  └──────────┘ └─────────┘ └────────┘ └─────────┘                  │
+│  ┌──────▼───┐ ┌────▼────┐ ┌──▼─────┐ ┌──▼──────┐ ┌──▼──────────┐ │
+│  │ Kimi     │ │ GLM     │ │Minimax │ │ MiMo    │ │ Deepseek    │ │
+│  │ Adapter  │ │ Adapter │ │Adapter │ │ Adapter │ │ Adapter     │ │
+│  └──────────┘ └─────────┘ └────────┘ └─────────┘ └─────────────┘ │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │ 安全模块：keyStore (AES-256-GCM) + pbkdf2 + sanitize        │   │
@@ -120,7 +121,7 @@ flowchart LR
     AC -->|"Mock 模式"| MP["MockProvider\n(本地 fixture)"]
     AC -->|"真实模式"| CF["ExternalSendConfirm\n(用户确认 + 可选脱敏)"]
     CF -->|"sanitize 脱敏层（可选）"| GW["AI Gateway\n/api/ai/run"]
-    GW --> PA["Provider Adapter\n(Kimi/GLM/Minimax/MiMo)"]
+    GW --> PA["Provider Adapter\n(Kimi/GLM/Minimax/MiMo/Deepseek)"]
     PA --> EXT["外部 AI API"]
     MP --> IDB
     GW -->|"返回分析结果 + tokenUsage"| AC
@@ -198,7 +199,7 @@ Vite `server.proxy` 配置（`client/vite.config.ts`）：
 
 - **背景 / 问题：** 单一 Provider 可能因配额、网络等原因不可用，需要 fallback 机制保证可用性。
 - **备选方案：** (a) 仅支持单一 Provider；(b) 多 Provider 按优先级 fallback + MiMo 内部模型级 fallback。
-- **决策：** 采用方案 (b)。支持 4 家 Provider（Kimi/GLM/Minimax/MiMo），按用户配置的优先级顺序 fallback。MiMo/Token Plan 额外支持模型级 fallback（MiMo-V2.5-Pro → MiMo-V2.5 → MiMo-V2-Pro → MiMo-V2-Omni）。429/配额错误立即切换；5xx/网络错误指数退避后重试；401 鉴权失败不重试不切换。
+- **决策：** 采用方案 (b)。支持 5 家 Provider（Kimi/GLM/Minimax/MiMo/Deepseek），按用户配置的优先级顺序 fallback。MiMo/Token Plan 额外支持模型级 fallback（MiMo-V2.5-Pro → MiMo-V2.5 → MiMo-V2-Pro → MiMo-V2-Omni）。429/配额错误立即切换；5xx/网络错误指数退避后重试；401 鉴权失败不重试不切换。
 - **影响：** 提高系统可用性；增加 Gateway 复杂度（需管理重试逻辑和 attempt 记录）。
 - **关联章节：** DEVELOPMENT_PLAN §8.9.3
 
@@ -386,7 +387,7 @@ interface ChatMessage {
 **第一级：模型连接（`ProviderConnection`）**
 
 ```typescript
-type ProviderId = "kimi" | "glm" | "minimax" | "mimo";
+type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek";
 
 interface ProviderConnection {
   providerId: ProviderId;
@@ -425,7 +426,7 @@ interface AppSettings {
 }
 ```
 
-支持 Provider：Kimi (Moonshot)、GLM (智谱)、Minimax、MiMo (Token Plan，默认候选)。
+支持 Provider：Kimi (Moonshot)、GLM (智谱)、Minimax、MiMo (Token Plan，默认候选)、Deepseek。
 
 ### 3.4 工作流状态机
 
@@ -798,7 +799,7 @@ interface ProviderAdapter {
 
 > **注意：** `reasoningLevel` 不在 Provider Adapter 层处理。Gateway 根据 `AgentAssignment.reasoningLevel` 在构造请求时将其映射为 system prompt 前缀或 temperature 调节（例如 `high` → temperature 0 + "请进行深入分析" 系统提示），再传给 Adapter。各 Provider API 对推理强度的支持不一致，Adapter 层不应感知此参数。
 
-v0.1.0 实现四家的非流式 chat completions：
+v0.1.0 实现五家的非流式 chat completions：
 
 | Provider | Base URL | 协议兼容 |
 |---------|---------|---------|
@@ -806,6 +807,7 @@ v0.1.0 实现四家的非流式 chat completions：
 | GLM (智谱) | `https://open.bigmodel.cn/api/paas/v4` | OpenAI-like |
 | Minimax | `https://api.minimax.chat/v1` | 自有 schema，adapter 内转换 |
 | MiMo (Token Plan) | `https://token-plan-cn.xiaomimimo.com/v1` | OpenAI-compatible |
+| Deepseek | `https://api.deepseek.com` | OpenAI-compatible |
 
 > **上下文窗口约束：** 申请文件通常 30–100 页 PDF，多篇对比文件各 10–50 页。各 Provider 选用的模型 context window 需 ≥ 128K tokens，否则超长文档可能导致截断丢失关键段落。Gateway 在 Provider 选择时应校验此约束。
 
@@ -1343,5 +1345,7 @@ Supabase（后端服务）
 | v0.1.0-r7 | 2026-05-06 | 用户需求补充（3 项）：①文档解读模块 ②Firefox 兼容（降至 ≥100 + 浏览器检测）③案件历史壳子；MVP 8→9 步 |
 | v0.1.0-r8 | 2026-05-07 | 三文档一致性审查修复（4 项）：§4.3.5 新颖性对照四档枚举补充、§5.4 Provider 上下文窗口 ≥128K 约束补充、§6.4 interpret Agent 上下文注入补充 textIndexDigest、版本号更新 |
 | v0.1.0-r9 | 2026-05-07 | 三文档一致性审查第二轮修复（2 项）：§4.3.1 补充 textVersion 切换 stale 行为、§3.4 补充零对比文件待检索问题清单说明 |
+| v0.1.0-r10 | 2026-05-09 | 部署路线调整为三阶段（本地→Vercel+Supabase远程试用→国内云合规）：§10 部署设计重构为三阶段 |
 | v0.1.0-r11 | 2026-05-09 | 三文档一致性审查第三轮修复（5 项）：§4.3.6 创造性三步法定位从壳子改为核心功能、§3.4 补充文档解读模块状态机说明、§6.4 补充 interpret 截断策略细节 |
 | v0.1.0-r12 | 2026-05-09 | 三文档一致性审查第四轮修复（3 项）：§3.4 状态转换图补充可选文档解读步骤、§6.1 Agent 映射补充创造性分析 Agent → `inventive` |
+| v0.1.0-r13 | 2026-05-09 | 新增 Deepseek Provider（5 家）：§1.1 架构图、§2 ADR-005、§3.3 ProviderId、§4.1 数据流图、§5.4 Provider 表 |

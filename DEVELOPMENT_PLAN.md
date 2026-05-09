@@ -1,6 +1,6 @@
 # 专利审查助手 v0.1.0 详细软件开发计划
 
-<p align="right">2026-05-09 · v0.1.0-r6</p>
+<p align="right">2026-05-09 · v0.1.0-r7</p>
 
 > 本文件是面向"后续执行 AI / 工程师"的 v0.1.0 实施蓝图。执行者应在**仅**读取本文件 + `PRD.md` + `DESIGN.md` + 项目根级规则（若有）的条件下，能够从零搭出完整的本地 / 内网 Web App 并通过验收测试。
 >
@@ -357,6 +357,7 @@ flowchart TD
     Gateway --> GLM["GLM Adapter"]
     Gateway --> Minimax["Minimax Adapter"]
     Gateway --> MiMo["MiMo Adapter"]
+    Gateway --> Deepseek["Deepseek Adapter"]
     Gateway -->|fallback| Gateway
 
     Mock --> Store
@@ -634,6 +635,7 @@ flowchart LR
 │       │   ├── glm.ts
 │       │   ├── minimax.ts
 │       │   ├── mimo.ts
+│       │   ├── deepseek.ts
 │       │   └── registry.ts              # provider 选择 + fallback
 │       ├── security/
 │       │   ├── keyStore.ts              # AES-256-GCM 文件加密
@@ -913,7 +915,7 @@ export interface FeedbackItem {
 位于 `shared/src/types/agents.ts`：
 
 ```ts
-export type ProviderId = "kimi" | "glm" | "minimax" | "mimo";
+export type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek";
 
 export interface ProviderConnection {
   providerId: ProviderId;
@@ -1696,7 +1698,7 @@ export interface ProviderAdapter {
 
 > **注意：** `reasoningLevel` 不在 Provider Adapter 层处理。Gateway 根据 `AgentAssignment.reasoningLevel` 在构造请求时将其映射为 system prompt 前缀或 temperature 调节（例如 `high` → temperature 0 + "请进行深入分析" 系统提示），再传给 Adapter。各 Provider API 对推理强度的支持不一致，Adapter 层不应感知此参数（与 DESIGN §5.4 一致）。
 
-v0.1.0 实现四家的**非流式** chat completions：
+v0.1.0 实现五家的**非流式** chat completions：
 
 | Provider | Base URL（默认） | 协议兼容 |
 |---|---|---|
@@ -1704,6 +1706,7 @@ v0.1.0 实现四家的**非流式** chat completions：
 | GLM（智谱） | `https://open.bigmodel.cn/api/paas/v4` | OpenAI-like |
 | Minimax | `https://api.minimax.chat/v1` | 自有 schema，在 adapter 内转换 |
 | MiMo（Token Plan 默认） | `https://token-plan-cn.xiaomimimo.com/v1` | OpenAI-compatible |
+| Deepseek | `https://api.deepseek.com` | OpenAI-compatible |
 
 > **上下文窗口约束：** 申请文件通常 30–100 页 PDF，多篇对比文件各 10–50 页。各 Provider 选用的模型 context window 需 ≥ 128K tokens，否则超长文档可能导致截断丢失关键段落（与 PRD §1 一致）。
 
@@ -2761,7 +2764,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 
 - **产出物**：
   - `server/src/routes/ai.ts` / `settings.ts` / `health.ts`。
-  - `server/src/providers/ProviderAdapter.ts` + 四家 adapter + `registry.ts`（§8.9）。
+  - `server/src/providers/ProviderAdapter.ts` + 五家 adapter + `registry.ts`（§8.9）。
   - `server/src/security/keyStore.ts` / `pbkdf2.ts` / `sanitize.ts`（§8.10）。
   - `features/settings/ProvidersConfigPanel.tsx` / `AgentsAssignmentPanel.tsx` / `settingsSlice.ts`。
   - `components/ExternalSendConfirm.tsx` + `ConfirmModal.tsx`。
@@ -3117,11 +3120,11 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 
 #### B15 — AI Gateway + Provider Adapter + 安全模块
 
-**目标：** 后端 AI 调用链就绪，支持 4 家 Provider + fallback。
+**目标：** 后端 AI 调用链就绪，支持 5 家 Provider + fallback。
 
 **产出物：**
 - `server/src/routes/ai.ts` / `settings.ts` / `health.ts`。
-- `server/src/providers/ProviderAdapter.ts` + kimi/glm/minimax/mimo adapter + `registry.ts`。
+- `server/src/providers/ProviderAdapter.ts` + kimi/glm/minimax/mimo/deepseek adapter + `registry.ts`。
 - `server/src/security/keyStore.ts` / `pbkdf2.ts` / `sanitize.ts`。
 - `server/src/lib/schemas.ts` / `logger.ts`。
 - 集成测试 T-GW-001..005（fallback / 退避重试 / 401 不切换 / schema 校验修复）。
