@@ -1,6 +1,6 @@
 # 专利审查助手 v0.1.0 详细软件开发计划
 
-<p align="right">2026-05-07 · v0.1.0-r3</p>
+<p align="right">2026-05-09 · v0.1.0-r4</p>
 
 > 本文件是面向"后续执行 AI / 工程师"的 v0.1.0 实施蓝图。执行者应在**仅**读取本文件 + `PRD.md` + `DESIGN.md` + 项目根级规则（若有）的条件下，能够从零搭出完整的本地 / 内网 Web App 并通过验收测试。
 >
@@ -272,7 +272,43 @@ Vite `server.proxy`：
 | 复制到剪贴板 | `navigator.clipboard` | 文本区 + 手动 Ctrl/Cmd+C |
 | 文件保存 | `showSaveFilePicker` | `<a download>` 下载 |
 
-### 3.5 安装与首次启动（以 README 为准）
+### 3.5 环境设置与首次启动
+
+#### 3.5.1 开发测试 Key 准备（需人工操作）
+
+在开始开发前，**产品经理或项目负责人**需要：
+
+1. **获取 Token Plan 开发测试 Key**
+   - 前往 Token Plan 平台注册并获取 API Key
+   - Key 格式必须为 `tp-xxxxx` 前缀
+
+2. **配置 Key 到项目**
+   在仓库根目录创建 `.env` 文件（该文件已被 `.gitignore` 忽略，不会提交）：
+   ```bash
+   # 必填
+   TOKEN_PLAN_API_KEY=tp-your-actual-key-here
+
+   # 可选（以下为默认值，通常无需修改）
+   TOKEN_PLAN_OPENAI_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
+   TOKEN_PLAN_ANTHROPIC_BASE_URL=https://token-plan-cn.xiaomimimo.com/anthropic
+   TOKEN_PLAN_RATE_LIMIT_DELAY_MS=8000
+   TOKEN_PLAN_MODEL_FALLBACKS=MiMo-V2.5-Pro,MiMo-V2.5,MiMo-V2-Pro,MiMo-V2-Omni
+   ```
+
+3. **验证配置**
+   ```bash
+   # 检查 .env 文件存在且包含正确的 Key
+   cat .env | grep TOKEN_PLAN_API_KEY
+   # 应输出：TOKEN_PLAN_API_KEY=tp-xxxxx（显示实际 Key，不要泄露）
+   ```
+
+**重要提醒**：
+- `.env` 文件包含敏感信息，**绝对不能**提交到 Git
+- 可以提交 `.env.example` 作为模板（不含真实 Key）
+- 开发者测试 Key 仅用于 `test:ai-smoke`（提交前 AI Smoke 测试）
+- 与 APP 用户 Key 严格隔离，互不读取
+
+#### 3.5.2 安装与启动
 
 ```bash
 # 一次性安装
@@ -3508,6 +3544,13 @@ v0.1.0 **不强制** GitHub Actions。若后续开启：
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与 [SemVer](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
+
+## [0.1.0-r4] - 2026-05-09
+### Added
+- §3.5.1 开发测试 Key 准备：明确说明需要产品经理或项目负责人人工操作，提供 `.env` 文件配置模板和验证步骤。
+
+### Changed
+- §3.5 节标题从"安装与首次启动"改为"环境设置与首次启动"，将环境设置作为开发前的必要步骤。
 
 ## [0.1.0] - YYYY-MM-DD
 ### Added
