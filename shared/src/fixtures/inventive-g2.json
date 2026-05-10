@@ -1,0 +1,19 @@
+{
+  "claimNumber": 1,
+  "closestPriorArtId": "g2-ref-d1",
+  "sharedFeatureCodes": ["A"],
+  "distinguishingFeatureCodes": ["B"],
+  "objectiveTechnicalProblem": "如何实时监测电池状态以提高电池管理系统的安全性",
+  "motivationEvidence": [
+    {
+      "referenceId": "g2-ref-d2",
+      "label": "D2",
+      "paragraph": "0008",
+      "quote": "本发明提供了一种电池状态监测方法，通过传感器实时采集电池电压和温度数据",
+      "confidence": "high"
+    }
+  ],
+  "candidateAssessment": "possibly-lacks-inventiveness",
+  "cautions": ["D2 的监测方法与本申请的具体实现方式可能存在差异，需审查员确认技术启示的充分性"],
+  "legalCaution": "以上为候选事实整理，不构成创造性法律结论。"
+}

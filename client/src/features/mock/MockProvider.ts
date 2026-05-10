@@ -1,4 +1,11 @@
-import type { ClaimChartRequest, ClaimChartResponse, NoveltyRequest, NoveltyResponse } from "../../agent/contracts";
+import type {
+  ClaimChartRequest,
+  ClaimChartResponse,
+  NoveltyRequest,
+  NoveltyResponse,
+  InventiveRequest,
+  InventiveResponse
+} from "../../agent/contracts";
 import { loadFixture } from "./mockRouter";
 
 export interface MockDelayOptions {
@@ -24,6 +31,11 @@ export class MockProvider {
   async runNovelty(request: NoveltyRequest): Promise<NoveltyResponse> {
     await this.simulateDelay();
     return loadFixture<NoveltyResponse>("novelty", `${request.caseId}:${request.referenceId}`);
+  }
+
+  async runInventive(request: InventiveRequest): Promise<InventiveResponse> {
+    await this.simulateDelay();
+    return loadFixture<InventiveResponse>("inventive", request.caseId);
   }
 
   private async simulateDelay(): Promise<void> {

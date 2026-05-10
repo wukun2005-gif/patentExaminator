@@ -1,12 +1,13 @@
-import type { ClaimChartResponse, NoveltyResponse } from "../../agent/contracts";
+import type { ClaimChartResponse, NoveltyResponse, InventiveResponse } from "../../agent/contracts";
 
 // Import fixtures
 import g1Led from "@shared/fixtures/g1-led.json";
 import g2Battery from "@shared/fixtures/g2-battery.json";
 import g3Sensor from "@shared/fixtures/g3-sensor.json";
 import noveltyG1D1 from "@shared/fixtures/novelty-g1-d1.json";
+import inventiveG2 from "@shared/fixtures/inventive-g2.json";
 
-const FIXTURES: Record<string, Record<string, ClaimChartResponse | NoveltyResponse>> = {
+const FIXTURES: Record<string, Record<string, ClaimChartResponse | NoveltyResponse | InventiveResponse>> = {
   "claim-chart": {
     "g1-led": g1Led as unknown as ClaimChartResponse,
     "g2-battery": g2Battery as unknown as ClaimChartResponse,
@@ -14,6 +15,9 @@ const FIXTURES: Record<string, Record<string, ClaimChartResponse | NoveltyRespon
   },
   novelty: {
     "g1-led:g1-ref-d1": noveltyG1D1 as unknown as NoveltyResponse
+  },
+  inventive: {
+    "g2-battery": inventiveG2 as unknown as InventiveResponse
   }
 };
 
