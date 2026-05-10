@@ -1,0 +1,31 @@
+{
+  "referenceId": "g1-ref-d1",
+  "claimNumber": 1,
+  "rows": [
+    {
+      "featureCode": "A",
+      "disclosureStatus": "clearly-disclosed",
+      "citations": [
+        {
+          "label": "[0005]",
+          "paragraph": "0005",
+          "quote": "本实用新型提供一种LED散热装置，包括基板",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "featureCode": "B",
+      "disclosureStatus": "not-found",
+      "citations": []
+    },
+    {
+      "featureCode": "C",
+      "disclosureStatus": "not-found",
+      "citations": []
+    }
+  ],
+  "differenceFeatureCodes": ["B", "C"],
+  "pendingSearchQuestions": ["请确认对比文件中是否公开了散热翅片结构", "请确认对比文件中是否公开了一体成型工艺"],
+  "legalCaution": "以上为候选事实整理，不构成新颖性法律结论。"
+}
