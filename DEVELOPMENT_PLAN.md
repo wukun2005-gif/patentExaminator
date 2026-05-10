@@ -3279,7 +3279,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | B08 | OCR 模块 | ✅ | 470f4e2 | 2026-05-10 |
 | B09 | 文献清单模块 | ✅ | be7db25 | 2026-05-10 |
 | B10 | 权利要求解析 & Claim Chart（Mock） | ✅ | 9fe65a7 | 2026-05-10 |
-| B11 | Mock Provider & Fixture | ⬜ | | |
+| B11 | Mock Provider & Fixture | ✅ | 5aadf07 | 2026-05-10 |
 | B12 | 新颖性对照模块（Mock） | ⬜ | | |
 | B13 | 创造性三步法（核心功能） | ⬜ | | |
 | B14 | 简述 + 素材草稿 + 形式缺陷壳子 | ⬜ | | |
