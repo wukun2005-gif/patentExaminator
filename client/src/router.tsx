@@ -4,6 +4,7 @@ import { ShellPlaceholder } from "./components/ShellPlaceholder";
 import { CaseBaselineForm } from "./features/case/CaseBaselineForm";
 import { DocumentUploadPanel } from "./features/documents/DocumentUploadPanel";
 import { ReferenceLibraryPanel } from "./features/references/ReferenceLibraryPanel";
+import { SettingsPage } from "./features/settings/SettingsPage";
 
 function RootLayout() {
   return (
@@ -32,7 +33,7 @@ export const router = createBrowserRouter([
       { path: "cases/:caseId/interpret", element: <ShellPlaceholder title="文档解读" /> },
       { path: "cases/:caseId/export", element: <ShellPlaceholder title="导出" /> },
       { path: "cases", element: <ShellPlaceholder title="案件历史" /> },
-      { path: "settings", element: <ShellPlaceholder title="设置" /> }
+      { path: "settings", element: <SettingsPage /> }
     ]
   }
 ]);
