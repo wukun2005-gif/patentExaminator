@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { ShellPlaceholder } from "./components/ShellPlaceholder";
+import { CaseBaselineForm } from "./features/case/CaseBaselineForm";
 
 function RootLayout() {
   return (
@@ -17,7 +18,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/cases/new" replace /> },
       { path: "cases/new", element: <ShellPlaceholder title="新建案件" /> },
-      { path: "cases/:caseId/baseline", element: <ShellPlaceholder title="案件基线" /> },
+      { path: "cases/:caseId/baseline", element: <CaseBaselineForm /> },
       { path: "cases/:caseId/documents", element: <ShellPlaceholder title="申请文件" /> },
       { path: "cases/:caseId/references", element: <ShellPlaceholder title="文献清单" /> },
       { path: "cases/:caseId/claim-chart", element: <ShellPlaceholder title="Claim Chart" /> },
