@@ -3270,7 +3270,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | 编号 | Feature | 状态 | 提交 SHA | 日期 |
 |------|---------|------|---------|------|
 | B01 | 工程骨架 & 基线配置 | ✅ | a47db8c | 2026-05-10 |
-| B02 | 领域类型定义 & zod Schema | ⬜ | | |
+| B02 | 领域类型定义 & zod Schema | ✅ | adb8ceb | 2026-05-10 |
 | B03 | IndexedDB 封装 & Repository 层 | ⬜ | | |
 | B04 | Zustand Store 骨架 & 路由 | ⬜ | | |
 | B05 | 日期解析 & 时间轴规则 | ⬜ | | |
