@@ -16,6 +16,7 @@
     "react-dom": "^18.3.0",
     "react-hook-form": "^7.52.0",
     "react-router-dom": "^6.26.0",
+    "tesseract.js": "^7.0.0",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
