@@ -3,6 +3,7 @@ import { AppShell } from "./components/AppShell";
 import { ShellPlaceholder } from "./components/ShellPlaceholder";
 import { CaseBaselineForm } from "./features/case/CaseBaselineForm";
 import { DocumentUploadPanel } from "./features/documents/DocumentUploadPanel";
+import { ReferenceLibraryPanel } from "./features/references/ReferenceLibraryPanel";
 
 function RootLayout() {
   return (
@@ -21,7 +22,7 @@ export const router = createBrowserRouter([
       { path: "cases/new", element: <ShellPlaceholder title="新建案件" /> },
       { path: "cases/:caseId/baseline", element: <CaseBaselineForm /> },
       { path: "cases/:caseId/documents", element: <DocumentUploadPanel /> },
-      { path: "cases/:caseId/references", element: <ShellPlaceholder title="文献清单" /> },
+      { path: "cases/:caseId/references", element: <ReferenceLibraryPanel /> },
       { path: "cases/:caseId/claim-chart", element: <ShellPlaceholder title="Claim Chart" /> },
       { path: "cases/:caseId/novelty", element: <ShellPlaceholder title="新颖性对照" /> },
       { path: "cases/:caseId/inventive", element: <ShellPlaceholder title="创造性分析" /> },
