@@ -1,0 +1,62 @@
+{
+  "claimNumber": 1,
+  "features": [
+    {
+      "id": "g1-chart-1-A",
+      "caseId": "g1-led",
+      "claimNumber": 1,
+      "featureCode": "A",
+      "description": "一种LED散热装置，包括基板",
+      "specificationCitations": [
+        {
+          "documentId": "g1-app",
+          "label": "[0005]",
+          "paragraph": "0005",
+          "quote": "本实用新型提供一种LED散热装置，包括基板",
+          "confidence": "high"
+        }
+      ],
+      "citationStatus": "confirmed",
+      "source": "mock"
+    },
+    {
+      "id": "g1-chart-1-B",
+      "caseId": "g1-led",
+      "claimNumber": 1,
+      "featureCode": "B",
+      "description": "设置在基板上的散热翅片",
+      "specificationCitations": [
+        {
+          "documentId": "g1-app",
+          "label": "[0006]",
+          "paragraph": "0006",
+          "quote": "散热翅片设置在基板上表面",
+          "confidence": "high"
+        }
+      ],
+      "citationStatus": "confirmed",
+      "source": "mock"
+    },
+    {
+      "id": "g1-chart-1-C",
+      "caseId": "g1-led",
+      "claimNumber": 1,
+      "featureCode": "C",
+      "description": "散热翅片与基板一体成型",
+      "specificationCitations": [
+        {
+          "documentId": "g1-app",
+          "label": "[0007]",
+          "paragraph": "0007",
+          "quote": "散热翅片与基板采用一体成型工艺",
+          "confidence": "high"
+        }
+      ],
+      "citationStatus": "confirmed",
+      "source": "mock"
+    }
+  ],
+  "warnings": [],
+  "pendingSearchQuestions": ["请确认对比文件中是否公开了一体成型的散热翅片结构"],
+  "legalCaution": "以上为候选事实整理，不构成新颖性法律结论。"
+}

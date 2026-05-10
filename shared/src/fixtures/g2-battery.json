@@ -1,0 +1,42 @@
+{
+  "claimNumber": 1,
+  "features": [
+    {
+      "id": "g2-chart-1-A",
+      "caseId": "g2-battery",
+      "claimNumber": 1,
+      "featureCode": "A",
+      "description": "一种电池管理系统，包括电池组",
+      "specificationCitations": [
+        {
+          "documentId": "g2-app",
+          "label": "[0003]",
+          "paragraph": "0003",
+          "confidence": "high"
+        }
+      ],
+      "citationStatus": "confirmed",
+      "source": "mock"
+    },
+    {
+      "id": "g2-chart-1-B",
+      "caseId": "g2-battery",
+      "claimNumber": 1,
+      "featureCode": "B",
+      "description": "电池状态监测模块",
+      "specificationCitations": [
+        {
+          "documentId": "g2-app",
+          "label": "[0004]",
+          "paragraph": "0004",
+          "confidence": "high"
+        }
+      ],
+      "citationStatus": "confirmed",
+      "source": "mock"
+    }
+  ],
+  "warnings": [],
+  "pendingSearchQuestions": ["请确认对比文件中是否公开了电池状态监测模块"],
+  "legalCaution": "以上为候选事实整理，不构成新颖性法律结论。"
+}

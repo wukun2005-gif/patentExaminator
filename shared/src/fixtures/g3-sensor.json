@@ -1,0 +1,42 @@
+{
+  "claimNumber": 1,
+  "features": [
+    {
+      "id": "g3-chart-1-A",
+      "caseId": "g3-sensor",
+      "claimNumber": 1,
+      "featureCode": "A",
+      "description": "一种传感器装置，包括传感元件",
+      "specificationCitations": [
+        {
+          "documentId": "g3-app",
+          "label": "[0002]",
+          "paragraph": "0002",
+          "confidence": "high"
+        }
+      ],
+      "citationStatus": "confirmed",
+      "source": "mock"
+    },
+    {
+      "id": "g3-chart-1-B",
+      "caseId": "g3-sensor",
+      "claimNumber": 1,
+      "featureCode": "B",
+      "description": "信号处理模块",
+      "specificationCitations": [
+        {
+          "documentId": "g3-app",
+          "label": "[0003]",
+          "paragraph": "0003",
+          "confidence": "high"
+        }
+      ],
+      "citationStatus": "confirmed",
+      "source": "mock"
+    }
+  ],
+  "warnings": [],
+  "pendingSearchQuestions": ["请确认对比文件中是否公开了信号处理模块"],
+  "legalCaution": "以上为候选事实整理，不构成新颖性法律结论。"
+}
