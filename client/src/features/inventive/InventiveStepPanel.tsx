@@ -164,7 +164,7 @@ export function InventiveStepPanel({
               {analysis.motivationEvidence.map((evidence, i) => (
                 <li key={i} data-testid={`motivation-evidence-${i}`}>
                   <strong>{evidence.label}</strong>
-                  {evidence.quote && <span>："{evidence.quote}"</span>}
+                  {evidence.quote && <span>：&ldquo;{evidence.quote}&rdquo;</span>}
                   <span className="confidence">（{evidence.confidence}）</span>
                 </li>
               ))}

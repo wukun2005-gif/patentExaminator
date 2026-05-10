@@ -10,11 +10,11 @@ const MOCK_VIEWMODEL: ExportViewModel = {
     applicationNumber: "CN202310001001",
     title: "一种LED散热装置",
     applicationDate: "2023-03-15",
-    patentType: "utility",
+    patentType: "invention",
     textVersion: "original",
     targetClaimNumber: 1,
     guidelineVersion: "2023",
-    workflowState: "chart-reviewed",
+    workflowState: "claim-chart-reviewed",
     createdAt: "2023-01-01T00:00:00Z",
     updatedAt: "2023-01-01T00:00:00Z"
   },

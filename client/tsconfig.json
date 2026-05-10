@@ -7,7 +7,8 @@
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["../shared/src/*"],
-      "@client/*": ["./src/*"]
+      "@client/*": ["./src/*"],
+      "@server/*": ["../server/src/*"]
     }
   },
   "include": ["src", "../tests"]

@@ -5,7 +5,7 @@
  * - Handle same-day conflicts with sequence number
  */
 
-const ILLEGAL_CHARS = /[\/\\:*?"<>|]/g;
+const ILLEGAL_CHARS = /[/\\:*?"<>|]/g;
 const MAX_TITLE_LENGTH = 40;
 
 export function sanitizeFileName(name: string): string {

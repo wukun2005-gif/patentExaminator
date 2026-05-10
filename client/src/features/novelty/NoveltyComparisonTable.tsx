@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { NoveltyComparison } from "@shared/types/domain";
 import { useNoveltyStore } from "../../store";
 import { FeedbackButtons } from "../../components/FeedbackButtons";
 import { getFeedback, saveFeedback } from "../../lib/feedbackRepo";

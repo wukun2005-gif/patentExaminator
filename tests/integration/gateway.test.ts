@@ -4,10 +4,11 @@ import { setApiKey, getApiKey, clearAll, listProviders } from "@server/security/
 import { sanitizeText } from "@server/security/sanitize";
 import { aiRunRequestSchema } from "@server/lib/schemas";
 import type { ProviderAdapter, ChatRequest, ChatResponse } from "@server/providers/ProviderAdapter";
+import type { ProviderId } from "@shared/types/agents";
 
 // Mock adapter for testing
 class MockAdapter implements ProviderAdapter {
-  id: "kimi" = "kimi";
+  id: ProviderId = "kimi";
   defaultBaseUrl = "https://mock.api";
   private responses: ChatResponse[];
   private callCount = 0;
@@ -39,7 +40,7 @@ class MockAdapter implements ProviderAdapter {
 
 // Failing adapter that always throws with a specific status
 class FailingAdapter implements ProviderAdapter {
-  id: "glm" = "glm";
+  id: ProviderId = "glm";
   defaultBaseUrl = "https://mock.api";
   private status: number;
 
@@ -72,8 +73,8 @@ describe("ProviderRegistry", () => {
       { text: "success", rawResponse: {} }
     ]);
 
-    failingAdapter.id = "kimi" as "kimi";
-    successAdapter.id = "glm" as "glm";
+    failingAdapter.id = "kimi";
+    successAdapter.id = "glm";
     registry.register(failingAdapter);
     registry.register(successAdapter);
 
@@ -118,10 +119,10 @@ describe("ProviderRegistry", () => {
 
   it("T-GW-003: 401 does not retry or fallback", async () => {
     const authFailAdapter = new FailingAdapter(401);
-    authFailAdapter.id = "kimi" as "kimi";
+    authFailAdapter.id = "kimi";
 
     const successAdapter = new MockAdapter([{ text: "success", rawResponse: {} }]);
-    successAdapter.id = "glm" as "glm";
+    successAdapter.id = "glm";
 
     registry.register(authFailAdapter);
     registry.register(successAdapter);
@@ -139,9 +140,9 @@ describe("ProviderRegistry", () => {
 
   it("T-GW-004: returns error when all providers fail", async () => {
     const adapter1 = new FailingAdapter(500);
-    adapter1.id = "kimi" as "kimi";
+    adapter1.id = "kimi";
     const adapter2 = new FailingAdapter(500);
-    adapter2.id = "glm" as "glm";
+    adapter2.id = "glm";
 
     registry.register(adapter1);
     registry.register(adapter2);
