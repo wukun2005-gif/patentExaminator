@@ -6,6 +6,7 @@ import { DocumentUploadPanel } from "./features/documents/DocumentUploadPanel";
 import { ReferenceLibraryPanel } from "./features/references/ReferenceLibraryPanel";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { InterpretPanel } from "./features/interpret/InterpretPanel";
+import { CaseHistoryPanel } from "./features/history/CaseHistoryPanel";
 
 function RootLayout() {
   return (
@@ -33,7 +34,7 @@ export const router = createBrowserRouter([
       { path: "cases/:caseId/response", element: <ShellPlaceholder title="答复审查" /> },
       { path: "cases/:caseId/interpret", element: <InterpretPanel caseId="mock" runInterpret={async () => "Mock 解读"} /> },
       { path: "cases/:caseId/export", element: <ShellPlaceholder title="导出" /> },
-      { path: "cases", element: <ShellPlaceholder title="案件历史" /> },
+      { path: "cases", element: <CaseHistoryPanel /> },
       { path: "settings", element: <SettingsPage /> }
     ]
   }
