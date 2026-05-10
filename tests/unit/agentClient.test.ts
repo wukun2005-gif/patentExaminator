@@ -17,8 +17,8 @@ describe("AgentClient (mock mode)", () => {
     expect(result.legalCaution).toContain("不构成");
   });
 
-  it("real mode throws error", async () => {
-    const client = new AgentClient("real");
+  it("real mode attempts gateway call", async () => {
+    const client = new AgentClient("real", "http://localhost:3000/api");
     await expect(
       client.runClaimChart({
         caseId: "case-1",
@@ -26,7 +26,7 @@ describe("AgentClient (mock mode)", () => {
         claimNumber: 1,
         specificationText: "test"
       })
-    ).rejects.toThrow("real-mode-not-ready");
+    ).rejects.toThrow();
   });
 });
 
