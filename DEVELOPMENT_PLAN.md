@@ -3283,7 +3283,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | B12 | 新颖性对照模块（Mock） | ✅ | cfa95b9 | 2026-05-10 |
 | B13 | 创造性三步法（核心功能） | ✅ | 0fa9532 | 2026-05-10 |
 | B14 | 简述 + 素材草稿 + 形式缺陷壳子 | ✅ | a67cd73 | 2026-05-10 |
-| B15 | AI Gateway + Provider Adapter + 安全模块 | ⬜ | | |
+| B15 | AI Gateway + Provider Adapter + 安全模块 | ✅ | d7bca55 | 2026-05-10 |
 | B16 | 外发确认弹窗 & 模式切换安全流 | ⬜ | | |
 | B17 | 设置面板 | ⬜ | | |
 | B18 | 文档解读模块 | ⬜ | | |
