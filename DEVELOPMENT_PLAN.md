@@ -3272,7 +3272,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | B01 | 工程骨架 & 基线配置 | ✅ | a47db8c | 2026-05-10 |
 | B02 | 领域类型定义 & zod Schema | ✅ | adb8ceb | 2026-05-10 |
 | B03 | IndexedDB 封装 & Repository 层 | ✅ | a10b28a | 2026-05-10 |
-| B04 | Zustand Store 骨架 & 路由 | ⬜ | | |
+| B04 | Zustand Store 骨架 & 路由 | ✅ | 0775d45 | 2026-05-10 |
 | B05 | 日期解析 & 时间轴规则 | ⬜ | | |
 | B06 | 案件基线模块 | ⬜ | | |
 | B07 | 文档导入 Pipeline | ⬜ | | |
