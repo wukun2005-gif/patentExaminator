@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { ChatMessage } from "@shared/types/domain";
+import { FeedbackButtons } from "../../components/FeedbackButtons";
+import { getFeedback, saveFeedback } from "../../lib/feedbackRepo";
 
 interface InterpretPanelProps {
   caseId: string;
@@ -22,7 +24,7 @@ export function InterpretPanel({ caseId, documentText, runInterpret }: Interpret
       moduleScope: "case",
       role: "user",
       content: "请解读此专利文档",
-      timestamp: new Date().toISOString()
+      createdAt: new Date().toISOString()
     };
     setMessages((prev) => [...prev, userMessage]);
 
@@ -34,7 +36,7 @@ export function InterpretPanel({ caseId, documentText, runInterpret }: Interpret
         moduleScope: "case",
         role: "assistant",
         content: response,
-        timestamp: new Date().toISOString()
+        createdAt: new Date().toISOString()
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } finally {
@@ -51,7 +53,7 @@ export function InterpretPanel({ caseId, documentText, runInterpret }: Interpret
       moduleScope: "case",
       role: "user",
       content: input.trim(),
-      timestamp: new Date().toISOString()
+      createdAt: new Date().toISOString()
     };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
@@ -65,7 +67,7 @@ export function InterpretPanel({ caseId, documentText, runInterpret }: Interpret
         moduleScope: "case",
         role: "assistant",
         content: response,
-        timestamp: new Date().toISOString()
+        createdAt: new Date().toISOString()
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } finally {
@@ -101,6 +103,14 @@ export function InterpretPanel({ caseId, documentText, runInterpret }: Interpret
               >
                 <div className="message-role">{msg.role === "user" ? "审查员" : "AI"}</div>
                 <div className="message-content">{msg.content}</div>
+                {msg.role === "assistant" && (
+                  <FeedbackButtons
+                    targetId={msg.id}
+                    targetType="chat-message"
+                    existingFeedback={getFeedback(msg.id)}
+                    onSave={saveFeedback}
+                  />
+                )}
               </div>
             ))}
           </div>

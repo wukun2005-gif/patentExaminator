@@ -1,0 +1,26 @@
+{
+  "case": {
+    "id": "a2-boundary-date",
+    "applicationNumber": "CN202310200002",
+    "title": "一种温控系统",
+    "applicationDate": "2023-01-15",
+    "priorityDate": "2022-07-15",
+    "patentType": "invention",
+    "textVersion": "original",
+    "targetClaimNumber": 1,
+    "guidelineVersion": "2023",
+    "workflowState": "text-confirmed",
+    "createdAt": "2023-01-15T00:00:00Z",
+    "updatedAt": "2023-01-15T00:00:00Z"
+  },
+  "applicationText": "【技术领域】\n[0001] 本发明涉及温度控制领域，具体涉及一种温控系统。\n\n【背景技术】\n[0002] 现有温控系统精度不足。\n\n【发明内容】\n[0003] 本发明提供一种温控系统，包括温度传感器、控制器和执行器。\n\n【权利要求书】\n1. 一种温控系统，其特征在于，包括：温度传感器，用于采集环境温度数据；控制器，用于根据所述环境温度数据计算控制量；执行器，用于根据所述控制量调节温度。\n2. 根据权利要求1所述的系统，其特征在于，所述温度传感器的精度为±0.1℃。",
+  "references": [
+    {
+      "id": "a2-ref-d1",
+      "title": "一种温度调节装置",
+      "publicationNumber": "CN112000001A",
+      "publicationDate": "2022-08-01",
+      "text": "[0001] 本公开涉及一种温度调节装置，包括传感器和调节器。"
+    }
+  ]
+}

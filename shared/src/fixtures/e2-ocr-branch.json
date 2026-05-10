@@ -1,0 +1,29 @@
+{
+  "case": {
+    "id": "e2-ocr",
+    "applicationNumber": "CN202310600002",
+    "title": "一种图像识别装置",
+    "applicationDate": "2023-05-01",
+    "patentType": "invention",
+    "textVersion": "original",
+    "targetClaimNumber": 1,
+    "guidelineVersion": "2023",
+    "workflowState": "ocr-review",
+    "createdAt": "2023-05-01T00:00:00Z",
+    "updatedAt": "2023-05-01T00:00:00Z"
+  },
+  "applicationText": "【技术领域】\n[0001] 本发明涉及图像识别领域。\n\n【背景技术】\n[0002] 现有图像识别装置在低光照条件下识别率低。\n\n【发明内容】\n[0003] 本发明提供一种图像识别装置，包括图像采集模块、预处理模块和识别模块。\n\n【权利要求书】\n1. 一种图像识别装置，其特征在于，包括：图像采集模块，用于采集图像数据；预处理模块，用于对所述图像数据进行增强处理；识别模块，用于对增强后的图像数据进行识别。",
+  "references": [
+    {
+      "id": "e2-ref-d1",
+      "title": "一种图像处理方法",
+      "publicationNumber": "CN116000001A",
+      "publicationDate": "2023-01-10",
+      "text": "[0001] 本公开涉及一种图像处理方法。"
+    }
+  ],
+  "ocrConfig": {
+    "simulateOcrFailure": true,
+    "ocrQuality": "low"
+  }
+}

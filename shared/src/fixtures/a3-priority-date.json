@@ -1,0 +1,26 @@
+{
+  "case": {
+    "id": "a3-priority-date",
+    "applicationNumber": "CN202310300003",
+    "title": "一种电池管理系统",
+    "applicationDate": "2023-03-20",
+    "priorityDate": "2022-09-20",
+    "patentType": "invention",
+    "textVersion": "original",
+    "targetClaimNumber": 1,
+    "guidelineVersion": "2023",
+    "workflowState": "text-confirmed",
+    "createdAt": "2023-03-20T00:00:00Z",
+    "updatedAt": "2023-03-20T00:00:00Z"
+  },
+  "applicationText": "【技术领域】\n[0001] 本发明涉及电池管理领域。\n\n【背景技术】\n[0002] 现有电池管理系统存在过充风险。\n\n【发明内容】\n[0003] 本发明提供一种电池管理系统，包括电压检测模块和充放电控制模块。\n\n【权利要求书】\n1. 一种电池管理系统，其特征在于，包括：电压检测模块，用于检测电池组中各单体电池的电压；充放电控制模块，用于根据所述电压控制充放电过程。\n2. 根据权利要求1所述的系统，其特征在于，还包括温度检测模块。",
+  "references": [
+    {
+      "id": "a3-ref-d1",
+      "title": "一种电池管理装置",
+      "publicationNumber": "CN113000001A",
+      "publicationDate": "2022-10-01",
+      "text": "[0001] 本公开涉及一种电池管理装置。"
+    }
+  ]
+}

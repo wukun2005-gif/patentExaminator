@@ -26,10 +26,12 @@ export function ExportPanel({
     pendingSearchQuestions
   };
 
+  const appNumber = caseData.applicationNumber ?? "unknown";
+
   const handleExportHtml = () => {
     const html = renderCaseHtml(viewModel);
     const fileName = buildExportFileName(
-      caseData.applicationNumber,
+      appNumber,
       caseData.title,
       "审查辅助",
       new Date().toISOString().slice(0, 10)
@@ -43,7 +45,7 @@ export function ExportPanel({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${buildExportFileName(caseData.applicationNumber, caseData.title, "审查辅助", new Date().toISOString().slice(0, 10))}.md`;
+    a.download = `${buildExportFileName(appNumber, caseData.title, "审查辅助", new Date().toISOString().slice(0, 10))}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -95,7 +97,7 @@ export function ExportPanel({
           <p>
             文件名示例：
             <code>
-              {buildExportFileName(caseData.applicationNumber, caseData.title, "审查辅助", new Date().toISOString().slice(0, 10))}
+              {buildExportFileName(appNumber, caseData.title, "审查辅助", new Date().toISOString().slice(0, 10))}
             </code>
           </p>
         </div>

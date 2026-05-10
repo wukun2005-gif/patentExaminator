@@ -166,6 +166,16 @@ export interface Citation {
   confidence: "high" | "medium" | "low";
 }
 
+export interface FeedbackEntry {
+  id: string;
+  targetId: string;
+  targetType: "claim-feature" | "novelty-row" | "chat-message";
+  sentiment: "like" | "dislike" | null;
+  comment: string;
+  createdAt: ISODateTimeString;
+  updatedAt: ISODateTimeString;
+}
+
 export interface ChatMessage {
   id: string;
   caseId: string;

@@ -1,0 +1,17 @@
+{
+  "case": {
+    "id": "e1-no-ref",
+    "applicationNumber": "CN202310500001",
+    "title": "一种数据压缩方法",
+    "applicationDate": "2023-04-10",
+    "patentType": "invention",
+    "textVersion": "original",
+    "targetClaimNumber": 1,
+    "guidelineVersion": "2023",
+    "workflowState": "text-confirmed",
+    "createdAt": "2023-04-10T00:00:00Z",
+    "updatedAt": "2023-04-10T00:00:00Z"
+  },
+  "applicationText": "【技术领域】\n[0001] 本发明涉及数据压缩领域。\n\n【背景技术】\n[0002] 现有压缩算法对特定数据类型效率不高。\n\n【发明内容】\n[0003] 本发明提供一种自适应数据压缩方法。\n\n【权利要求书】\n1. 一种数据压缩方法，其特征在于，包括：分析待压缩数据的数据类型；根据所述数据类型选择压缩算法；使用所选压缩算法对所述待压缩数据进行压缩。",
+  "references": []
+}
