@@ -98,6 +98,7 @@ export interface TextLine {
 
 export interface ClaimNode {
   id: string;
+  caseId: string;
   claimNumber: number;
   type: "independent" | "dependent" | "unknown";
   dependsOn: number[];
@@ -106,6 +107,7 @@ export interface ClaimNode {
 
 export interface ClaimFeature {
   id: string;
+  caseId: string;
   claimNumber: number;
   featureCode: string;
   description: string;
