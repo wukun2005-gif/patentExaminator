@@ -38,5 +38,6 @@
   ],
   "warnings": [],
   "pendingSearchQuestions": ["请确认对比文件中是否公开了信号处理模块"],
+  "defectHints": ["参数范围支持不足风险"],
   "legalCaution": "以上为候选事实整理，不构成新颖性法律结论。"
 }
