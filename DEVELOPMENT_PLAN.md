@@ -3276,7 +3276,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | B05 | 日期解析 & 时间轴规则 | ✅ | 0dcafe8 | 2026-05-10 |
 | B06 | 案件基线模块 | ✅ | fbef8d0 | 2026-05-10 |
 | B07 | 文档导入 Pipeline | ✅ | d9e94f7 | 2026-05-10 |
-| B08 | OCR 模块 | ⬜ | | |
+| B08 | OCR 模块 | ✅ | 470f4e2 | 2026-05-10 |
 | B09 | 文献清单模块 | ⬜ | | |
 | B10 | 权利要求解析 & Claim Chart（Mock） | ⬜ | | |
 | B11 | Mock Provider & Fixture | ⬜ | | |
