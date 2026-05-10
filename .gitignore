@@ -1,3 +1,22 @@
-prd-keynote*.md
+node_modules/
+dist/
 .env
 .claude/
+
+# Test artifacts
+test-results/
+playwright-report/
+blob-report/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build cache
+*.tsbuildinfo
