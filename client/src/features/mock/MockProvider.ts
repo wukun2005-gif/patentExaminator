@@ -38,6 +38,12 @@ export class MockProvider {
     return loadFixture<InventiveResponse>("inventive", request.caseId);
   }
 
+  async runInterpret(caseId: string): Promise<string> {
+    await this.simulateDelay();
+    const fixture = loadFixture<{ response: string }>("interpret", caseId);
+    return fixture.response;
+  }
+
   private async simulateDelay(): Promise<void> {
     let ms: number;
     switch (this.delayOptions.mode) {
