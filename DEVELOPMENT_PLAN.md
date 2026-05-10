@@ -3281,7 +3281,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | B10 | 权利要求解析 & Claim Chart（Mock） | ✅ | 9fe65a7 | 2026-05-10 |
 | B11 | Mock Provider & Fixture | ✅ | 5aadf07 | 2026-05-10 |
 | B12 | 新颖性对照模块（Mock） | ✅ | cfa95b9 | 2026-05-10 |
-| B13 | 创造性三步法（核心功能） | ⬜ | | |
+| B13 | 创造性三步法（核心功能） | ✅ | 0fa9532 | 2026-05-10 |
 | B14 | 简述 + 素材草稿 + 形式缺陷壳子 | ⬜ | | |
 | B15 | AI Gateway + Provider Adapter + 安全模块 | ⬜ | | |
 | B16 | 外发确认弹窗 & 模式切换安全流 | ⬜ | | |
