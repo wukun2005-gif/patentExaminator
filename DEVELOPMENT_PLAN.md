@@ -3275,7 +3275,7 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | B04 | Zustand Store 骨架 & 路由 | ✅ | 0775d45 | 2026-05-10 |
 | B05 | 日期解析 & 时间轴规则 | ✅ | 0dcafe8 | 2026-05-10 |
 | B06 | 案件基线模块 | ✅ | fbef8d0 | 2026-05-10 |
-| B07 | 文档导入 Pipeline | ⬜ | | |
+| B07 | 文档导入 Pipeline | ✅ | d9e94f7 | 2026-05-10 |
 | B08 | OCR 模块 | ⬜ | | |
 | B09 | 文献清单模块 | ⬜ | | |
 | B10 | 权利要求解析 & Claim Chart（Mock） | ⬜ | | |
