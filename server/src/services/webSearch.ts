@@ -51,7 +51,8 @@ async function searchTavily(
   maxResults: number,
   apiKey: string
 ): Promise<SearchResponse> {
-  const searchQuery = `${query} site:patents.google.com OR site:espacenet.com OR site:worldwide.espacenet.com`;
+  // 不加 site 限制，让 Tavily 自由搜索，由 LLM 后续筛选专利相关结果
+  const searchQuery = `${query} 专利 patent 对比文件`;
 
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",

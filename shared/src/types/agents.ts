@@ -2,6 +2,16 @@ import type { AppMode } from "./domain.js";
 
 export type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek" | "gemini";
 
+export interface ModelInfo {
+  id: string;
+  recommendation?: string;
+  rpm?: number;
+  rpd?: number;
+  tpm?: string;
+  inputTokenLimit?: number;
+  outputTokenLimit?: number;
+}
+
 export interface ProviderConnection {
   providerId: ProviderId;
   baseUrl?: string;
@@ -13,8 +23,10 @@ export interface ProviderConnection {
   enabled: boolean;
 }
 
+export type AgentKey = "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat" | "search-references" | "defects" | "extract-case-fields";
+
 export interface AgentAssignment {
-  agent: "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat" | "search-references";
+  agent: AgentKey;
   providerOrder: ProviderId[];
   modelId: string;
   modelFallbacks?: string[];

@@ -117,6 +117,25 @@ export interface DefectResponse {
   legalCaution: string;
 }
 
+export interface ExtractCaseFieldsRequest {
+  caseId: string;
+  documents: Array<{ fileName: string; text: string }>;
+}
+
+export interface ExtractCaseFieldsResponse {
+  title: string | null;
+  applicationNumber: string | null;
+  applicant: string | null;
+  applicationDate: string | null;
+  priorityDate: string | null;
+  claims: Array<{
+    claimNumber: number;
+    type: "independent" | "dependent";
+    dependsOn: number[];
+    rawText: string;
+  }>;
+}
+
 export interface SearchReferencesRequest {
   caseId: string;
   claimText: string;
@@ -142,4 +161,13 @@ export interface SearchReferencesResponse {
   candidates: SearchReferencesCandidate[];
   searchQuery?: string;
   error?: string;
+}
+
+export interface InterpretRequest {
+  caseId: string;
+  documentText: string;
+}
+
+export interface InterpretResponse {
+  reply: string;
 }

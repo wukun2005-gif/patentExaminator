@@ -13,9 +13,10 @@ export interface PdfExtractionResult {
  */
 export async function extractPdfText(file: File): Promise<PdfExtractionResult> {
   const pdfjsLib = await import("pdfjs-dist");
-
-  // Disable worker for Node/test environments
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url
+  ).href;
 
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;

@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import type { ReferenceDocument } from "@shared/types/domain";
+import type { ReferenceDocument, SourceDocument } from "@shared/types/domain";
 import { classifyReferenceDate } from "../../lib/dateRules";
+import { extractPdfText } from "../../lib/pdfText";
+import { extractDocxText } from "../../lib/docxText";
+import { extractHtmlText } from "../../lib/htmlText";
+import { buildTextIndex } from "../../lib/textIndex";
 import { TimelineStatusBadge } from "../../components/TimelineStatusBadge";
 import { ReferenceEditForm } from "./ReferenceEditForm";
 import { ReferenceSearchPanel } from "./ReferenceSearchPanel";
@@ -39,20 +43,66 @@ export function ReferenceLibraryPanel() {
 
     const toAdd = fileArray.slice(0, remaining);
     for (const file of toAdd) {
+      const ext = getFileExtension(file.name);
+      const fileType = ext.replace(".", "") as SourceDocument["fileType"];
+
+      // Extract text based on file type
+      let text = "";
+      let textStatus: SourceDocument["textStatus"] = "empty";
+      let textLayerStatus: SourceDocument["textLayerStatus"] = "unknown";
+
+      try {
+        if (ext === ".pdf") {
+          const result = await extractPdfText(file);
+          text = result.text;
+          textLayerStatus = result.hasTextLayer ? "present" : "absent";
+          textStatus = result.text ? "extracted" : "empty";
+        } else if (ext === ".docx") {
+          const result = await extractDocxText(file);
+          text = result.text;
+          textStatus = result.text ? "extracted" : "empty";
+        } else if (ext === ".html") {
+          const result = extractHtmlText(await file.text());
+          text = result.text;
+          textStatus = result.text ? "extracted" : "empty";
+        } else if (ext === ".txt") {
+          text = await file.text();
+          textStatus = text ? "extracted" : "empty";
+        }
+      } catch {
+        textStatus = "empty";
+      }
+
+      const textIndex = buildTextIndex(text);
+      const meta = parsePatentMeta(text, file.name);
+
       const ref: ReferenceDocument = {
         id: `ref-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         caseId: caseId ?? "",
         role: "reference",
         fileName: file.name,
-        fileType: getFileExtension(file.name) as ReferenceDocument["fileType"],
-        textStatus: "empty",
-        extractedText: "",
-        textIndex: { pages: [], paragraphs: [], lineMap: [] },
+        fileType: fileType as ReferenceDocument["fileType"],
+        textLayerStatus,
+        textStatus,
+        extractedText: text,
+        textIndex,
         source: "user-upload",
-        publicationDateConfidence: "manual",
+        publicationDateConfidence: meta.publicationDate ? "medium" : "manual",
         timelineStatus: "needs-publication-date",
+        title: meta.title,
+        publicationNumber: meta.publicationNumber,
+        ...(meta.publicationDate ? { publicationDate: meta.publicationDate } : {}),
         createdAt: new Date().toISOString()
       };
+
+      // Compute timeline status now that we may have a publication date
+      const timelineStatus = classifyReferenceDate(
+        baselineDate,
+        ref.publicationDate,
+        ref.publicationDateConfidence
+      );
+      ref.timelineStatus = timelineStatus;
+
       await createDocument(ref);
       addReference(ref);
     }
@@ -125,5 +175,42 @@ export function ReferenceLibraryPanel() {
 
 function getFileExtension(fileName: string): string {
   const lastDot = fileName.lastIndexOf(".");
-  return lastDot >= 0 ? fileName.slice(lastDot + 1).toLowerCase() : "txt";
+  return lastDot >= 0 ? fileName.slice(lastDot).toLowerCase() : ".txt";
+}
+
+/** Try to extract patent publication number, date, and title from text. */
+function parsePatentMeta(text: string, fileName: string) {
+  const result: { publicationNumber?: string; publicationDate?: string; title?: string } = {};
+
+  // Publication number: CN patterns (CN1234567A, CN 1234567 B, CN201234567U, etc.)
+  // Also covers US, EP, WO, JP, KR patterns
+  const pubNumMatch = text.match(
+    /(?:公开号|申请号|Publication\s*No\.?|Application\s*No\.?)[:\s]*((?:CN|US|EP|WO|JP|KR)\s*\d[\d\s]*(?:[A-Z]\d?)?)/i
+  ) || text.match(/((?:CN|US|EP|WO|JP|KR)\s*\d{5,}[\d\s]*[A-Z]?\d?)/i);
+  if (pubNumMatch?.[1]) {
+    result.publicationNumber = pubNumMatch[1].replace(/\s+/g, "");
+  }
+
+  // Publication date: 公开日/申请日 patterns, or ISO-like dates near patent numbers
+  const dateMatch = text.match(
+    /(?:公开日|公告日|授权公告日|公开日期|Publication\s*Date)[:\s]*(\d{4})[.\-/年](\d{1,2})[.\-/月](\d{1,2})/i
+  );
+  if (dateMatch) {
+    const [, y, m, d] = dateMatch;
+    result.publicationDate = `${y}-${m!.padStart(2, "0")}-${d!.padStart(2, "0")}`;
+  }
+
+  // Title: look for 发明名称 or Title field
+  const titleMatch = text.match(/(?:发明名称|实用新型名称|Title)[:\s]*([^\n]{2,80})/i);
+  if (titleMatch?.[1]) {
+    result.title = titleMatch[1].trim().replace(/\s+/g, " ");
+  }
+
+  // Fallback: derive title from filename
+  if (!result.title) {
+    const nameWithoutExt = fileName.replace(/\.[^.]+$/, "");
+    result.title = nameWithoutExt.replace(/[_-]+/g, " ").trim();
+  }
+
+  return result;
 }

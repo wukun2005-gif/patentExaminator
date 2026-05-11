@@ -2,8 +2,7 @@ import { createBrowserRouter, Navigate, Outlet, useParams } from "react-router-d
 import { AppShell } from "./components/AppShell";
 import { ShellPlaceholder } from "./components/ShellPlaceholder";
 import { NewCasePage } from "./features/case/NewCasePage";
-import { CaseBaselineForm } from "./features/case/CaseBaselineForm";
-import { DocumentUploadPanel } from "./features/documents/DocumentUploadPanel";
+import { CaseSetupPage } from "./features/case/CaseSetupPage";
 import { ReferenceLibraryPanel } from "./features/references/ReferenceLibraryPanel";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { InterpretPanel } from "./features/interpret/InterpretPanel";
@@ -21,6 +20,8 @@ import { useDocumentsStore } from "./store";
 import { useReferencesStore } from "./store";
 import { useInventiveStore } from "./store";
 import { useDefectsStore } from "./store";
+import { useSettingsStore } from "./store";
+import { AgentClient } from "./agent/AgentClient";
 import type { InventiveResponse } from "./agent/contracts";
 import type { DefectResponse } from "./agent/contracts";
 
@@ -112,30 +113,17 @@ function InterpretWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { currentCase } = useCaseStore();
   const { documents } = useDocumentsStore();
+  const { settings } = useSettingsStore();
   const appDoc = documents.find((d) => d.caseId === caseId && d.role === "application");
   const docText = appDoc?.extractedText || (currentCase?.title ? `案件：${currentCase.title}` : "");
   return (
     <InterpretPanel
       caseId={caseId ?? ""}
       documentText={docText}
-      runInterpret={async () => {
-        if (!currentCase) return "（演示模式）未找到案件信息。";
-        return [
-          "【技术领域】LED照明设备散热技术。",
-          "",
-          "【核心技术方案】",
-          "一种LED散热装置，包括铝合金基板和散热翅片，采用一体成型压铸工艺，翅片表面设置纳米碳化硅涂层以提高辐射散热效率。",
-          "",
-          "【主要权利要求】",
-          "1. 铝合金基板 + 一体成型散热翅片 + 纳米涂层",
-          "2. 翅片数量8-16片（从属权利要求）",
-          "3. LED安装区域面积占比30%-50%（从属权利要求）",
-          "",
-          "【关键实施例】",
-          "基板100×100mm，厚3mm，12片翅片（高20mm），纳米碳化硅涂层0.2mm。测试显示散热效率较传统分体式提升约25%。",
-          "",
-          "（以上为演示模式摘要，实际使用时将调用大模型进行深度解读。）"
-        ].join("\n");
+      runInterpret={async (text: string) => {
+        const client = new AgentClient(settings.mode, "/api", settings);
+        const response = await client.runInterpret({ caseId: caseId ?? "", documentText: text });
+        return response.reply;
       }}
     />
   );
@@ -187,8 +175,9 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/cases/new" replace /> },
       { path: "cases/new", element: <NewCasePage /> },
-      { path: "cases/:caseId/baseline", element: <CaseBaselineForm /> },
-      { path: "cases/:caseId/documents", element: <DocumentUploadPanel /> },
+      { path: "cases/:caseId/setup", element: <CaseSetupPage /> },
+      { path: "cases/:caseId/baseline", element: <Navigate to="../setup" replace /> },
+      { path: "cases/:caseId/documents", element: <Navigate to="../setup" replace /> },
       { path: "cases/:caseId/references", element: <ReferenceLibraryPanel /> },
       { path: "cases/:caseId/claim-chart", element: <ClaimChartWrapper /> },
       { path: "cases/:caseId/novelty", element: <NoveltyWrapper /> },

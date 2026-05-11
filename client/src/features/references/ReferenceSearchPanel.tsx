@@ -22,6 +22,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
   const { settings } = useSettingsStore();
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const baselineDate = currentCase?.priorityDate ?? currentCase?.applicationDate;
   const MAX_REFERENCES = 10;
@@ -37,38 +38,57 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
     setCandidates([]);
 
     try {
-      const agentClient = new AgentClient(settings.mode);
+      const agentClient = new AgentClient(settings.mode, "/api", settings);
       const enabledSearchProviders = (settings.searchProviders ?? []).filter((p) => p.enabled && p.apiKeyRef);
       if (enabledSearchProviders.length === 0) {
         setError("未配置搜索 API。请在设置→专利搜索中配置搜索服务的 API Key。");
         setIsSearching(false);
         return;
       }
-      const primary = enabledSearchProviders[0]!;
-      const response = await agentClient.runSearchReferences({
-        caseId: caseId ?? "",
-        claimText,
-        features,
-        maxResults: MAX_REFERENCES - references.length,
-        searchProviderId: primary.providerId,
-        searchApiKey: primary.apiKeyRef,
-        ...(primary.baseUrl ? { searchBaseUrl: primary.baseUrl } : {})
-      });
 
-      if (!response.ok) {
-        setError(response.error ?? "检索失败，请稍后重试。");
+      // 并行请求所有搜索 API
+      const maxResults = MAX_REFERENCES - references.length;
+      const perProvider = Math.max(3, Math.ceil(maxResults / enabledSearchProviders.length));
+      const responses = await Promise.all(
+        enabledSearchProviders.map((sp) =>
+          agentClient.runSearchReferences({
+            caseId: caseId ?? "",
+            claimText,
+            features,
+            maxResults: perProvider,
+            searchProviderId: sp.providerId,
+            searchApiKey: sp.apiKeyRef,
+            ...(sp.baseUrl ? { searchBaseUrl: sp.baseUrl } : {})
+          }).catch((err): { ok: false; candidates: []; error: string } => ({
+            ok: false,
+            candidates: [],
+            error: String(err)
+          }))
+        )
+      );
+
+      // 合并结果，去重，取 top N
+      const allOk = responses.some((r) => r.ok);
+      if (!allOk) {
+        setError(responses.map((r) => r.error).filter(Boolean).join("; ") || "检索失败，请稍后重试。");
         return;
       }
 
-      if (response.searchQuery) {
-        setSearchQuery(response.searchQuery);
-      }
+      const firstQuery = responses.find((r) => r.searchQuery)?.searchQuery;
+      if (firstQuery) setSearchQuery(firstQuery);
 
-      // Convert candidates to ReferenceDocument format
-      const candidateDocs: ReferenceDocument[] = response.candidates.map((c) =>
-        candidateToReference(c, caseId ?? "")
-      );
-      setCandidates(candidateDocs);
+      const seen = new Set<string>();
+      const merged: ReferenceDocument[] = [];
+      for (const res of responses) {
+        for (const c of res.candidates) {
+          if (seen.has(c.publicationNumber)) continue;
+          seen.add(c.publicationNumber);
+          merged.push(candidateToReference(c, caseId ?? ""));
+          if (merged.length >= maxResults) break;
+        }
+        if (merged.length >= maxResults) break;
+      }
+      setCandidates(merged);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -90,6 +110,32 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
 
     await createDocument(withTimeline);
     acceptCandidate(candidateId);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const selectable = candidates.slice(0, remaining);
+    if (selected.size === selectable.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(selectable.map((c) => c.id)));
+    }
+  };
+
+  const handleBatchAccept = async () => {
+    const ids = candidates.filter((c) => selected.has(c.id)).slice(0, remaining).map((c) => c.id);
+    for (const id of ids) {
+      await handleAccept(id);
+    }
+    setSelected(new Set());
   };
 
   const handleReject = (candidateId: string) => {
@@ -130,42 +176,78 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
 
       {candidates.length > 0 && (
         <div className="candidates-list" data-testid="candidates-list">
-          <h4>候选文献 ({candidates.length} 篇)</h4>
-          {candidates.map((candidate) => (
-            <div key={candidate.id} className="candidate-item" data-testid={`candidate-${candidate.id}`}>
-              <div className="candidate-header">
-                <span className="candidate-title">{candidate.title}</span>
-                <span className="relevance-score" data-testid={`score-${candidate.id}`}>
-                  {candidate.aiRelevanceScore}分
-                </span>
-              </div>
-              <div className="candidate-meta">
-                <span>{candidate.publicationNumber}</span>
-                {candidate.publicationDate && <span>公开日: {candidate.publicationDate}</span>}
-                <TimelineStatusBadge
-                  status={classifyReferenceDate(baselineDate, candidate.publicationDate, candidate.publicationDateConfidence)}
-                  dataTestId={`badge-timeline-candidate-${candidate.id}`}
-                />
-              </div>
-              {candidate.summary && <p className="candidate-summary">{candidate.summary}</p>}
-              {candidate.aiRecommendationReason && (
-                <p className="candidate-reason">推荐理由: {candidate.aiRecommendationReason}</p>
+          <div className="candidates-toolbar">
+            <h4>候选文献 ({candidates.length} 篇)</h4>
+            <div className="candidates-toolbar-actions">
+              <button
+                type="button"
+                className="btn-text"
+                onClick={toggleSelectAll}
+                data-testid="btn-select-all"
+              >
+                {selected.size === candidates.slice(0, remaining).length ? "取消全选" : "全选"}
+              </button>
+              {selected.size > 0 && (
+                <button
+                  type="button"
+                  className="btn-primary-sm"
+                  onClick={handleBatchAccept}
+                  data-testid="btn-batch-accept"
+                >
+                  批量接受 ({selected.size})
+                </button>
               )}
-              <div className="candidate-actions">
-                <button
-                  type="button"
-                  onClick={() => handleAccept(candidate.id)}
-                  data-testid={`btn-accept-${candidate.id}`}
-                >
-                  接受
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleReject(candidate.id)}
-                  data-testid={`btn-reject-${candidate.id}`}
-                >
-                  拒绝
-                </button>
+            </div>
+          </div>
+          {candidates.map((candidate) => (
+            <div
+              key={candidate.id}
+              className={`candidate-item${selected.has(candidate.id) ? " candidate-item--selected" : ""}`}
+              data-testid={`candidate-${candidate.id}`}
+            >
+              <label className="candidate-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={selected.has(candidate.id)}
+                  onChange={() => toggleSelect(candidate.id)}
+                  data-testid={`checkbox-${candidate.id}`}
+                />
+              </label>
+              <div className="candidate-body">
+                <div className="candidate-header">
+                  <span className="candidate-title">{candidate.title}</span>
+                  <span className="relevance-score" data-testid={`score-${candidate.id}`}>
+                    {candidate.aiRelevanceScore}分
+                  </span>
+                </div>
+                <div className="candidate-meta">
+                  <span>{candidate.publicationNumber}</span>
+                  {candidate.publicationDate && <span>公开日: {candidate.publicationDate}</span>}
+                  <TimelineStatusBadge
+                    status={classifyReferenceDate(baselineDate, candidate.publicationDate, candidate.publicationDateConfidence)}
+                    dataTestId={`badge-timeline-candidate-${candidate.id}`}
+                  />
+                </div>
+                {candidate.summary && <p className="candidate-summary">{candidate.summary}</p>}
+                {candidate.aiRecommendationReason && (
+                  <p className="candidate-reason">推荐理由: {candidate.aiRecommendationReason}</p>
+                )}
+                <div className="candidate-actions">
+                  <button
+                    type="button"
+                    onClick={() => handleAccept(candidate.id)}
+                    data-testid={`btn-accept-${candidate.id}`}
+                  >
+                    接受
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReject(candidate.id)}
+                    data-testid={`btn-reject-${candidate.id}`}
+                  >
+                    拒绝
+                  </button>
+                </div>
               </div>
             </div>
           ))}

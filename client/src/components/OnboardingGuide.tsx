@@ -163,7 +163,7 @@ export function OnboardingGuide({ onClose }: OnboardingGuideProps) {
   const handleLoadPreset = async () => {
     const caseId = await loadPresetCase();
     onClose();
-    router.navigate(`/cases/${caseId}/baseline`);
+    router.navigate(`/cases/${caseId}/setup`);
   };
 
   // Mode selection screen

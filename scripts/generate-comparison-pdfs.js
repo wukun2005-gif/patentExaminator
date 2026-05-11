@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const FONT = '/Library/Fonts/Arial Unicode.ttf';
-const BASE = path.join(__dirname, '..', 'samples', '02-对比文件');
+const BASE = path.join(__dirname, '..', 'samples', 'led-heatsink');
 
 function createDoc(outputPath, title, author) {
   const doc = new PDFDocument({

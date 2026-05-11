@@ -6,7 +6,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
-const OUTPUT = path.join(__dirname, '..', 'samples', '01-专利申请文件', 'led-heatsink', '申请文件.pdf');
+const OUTPUT = path.join(__dirname, '..', 'samples', 'led-heatsink', '申请文件.pdf');
 const FONT = '/Library/Fonts/Arial Unicode.ttf';
 
 const doc = new PDFDocument({

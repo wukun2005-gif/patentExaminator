@@ -10,6 +10,7 @@ export function InterpretPanel({ caseId, documentText, runInterpret }: Interpret
   const [isLoading, setIsLoading] = useState(false);
   const [summary, setSummary] = useState("");
   const [summarySaved, setSummarySaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const autoTriggered = useRef(false);
 
   useEffect(() => {
@@ -24,9 +25,12 @@ export function InterpretPanel({ caseId, documentText, runInterpret }: Interpret
 
     setIsLoading(true);
     setSummarySaved(false);
+    setError(null);
     try {
       const response = await runInterpret(documentText);
       setSummary(response);
+    } catch (err) {
+      setError(`解读失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsLoading(false);
     }
@@ -57,6 +61,7 @@ export function InterpretPanel({ caseId, documentText, runInterpret }: Interpret
             data-testid="interpret-summary"
             readOnly={isLoading}
           />
+          {error && <p className="extract-error" data-testid="interpret-error" style={{ color: "#c00", fontSize: "0.9em", margin: "4px 0" }}>{error}</p>}
           <div className="interpret-main__actions">
             <button
               type="button"

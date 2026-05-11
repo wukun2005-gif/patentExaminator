@@ -27,7 +27,7 @@ export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartA
     setError("");
 
     try {
-      const client = new AgentClient(settings.mode);
+      const client = new AgentClient(settings.mode, "/api", settings);
       const response = await client.runClaimChart({
         caseId,
         claimText: targetClaim.rawText,

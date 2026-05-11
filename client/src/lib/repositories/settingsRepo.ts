@@ -117,6 +117,25 @@ export async function writeSettings(settings: AppSettings): Promise<void> {
   }
 }
 
+/**
+ * Sync enabled provider API keys to the server's in-memory key store.
+ * The server needs these keys to make real AI calls.
+ */
+export async function syncProviderKeys(settings: AppSettings): Promise<void> {
+  for (const provider of settings.providers) {
+    if (!provider.enabled || !provider.apiKeyRef) continue;
+    try {
+      await fetch(`/api/settings/providers/${provider.providerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: provider.apiKeyRef })
+      });
+    } catch {
+      // Server may be unavailable; keys will be synced on next attempt
+    }
+  }
+}
+
 const ALL_STORES = [
   "cases", "documents", "textIndex", "claimNodes", "claimCharts",
   "novelty", "inventive", "ocrCache", "chatMessages", "feedback", "settings"

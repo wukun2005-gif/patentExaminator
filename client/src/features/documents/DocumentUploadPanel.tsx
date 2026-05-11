@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { SourceDocument } from "@shared/types/domain";
 import { extractPdfText } from "../../lib/pdfText";
@@ -6,7 +6,7 @@ import { extractDocxText } from "../../lib/docxText";
 import { extractHtmlText } from "../../lib/htmlText";
 import { buildTextIndex } from "../../lib/textIndex";
 import { computeFileHash } from "../../lib/fileHash";
-import { createDocument } from "../../lib/repositories/documentRepo";
+import { createDocument, readDocumentsByCaseId } from "../../lib/repositories/documentRepo";
 import { useDocumentsStore } from "../../store";
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".html"];
@@ -15,7 +15,21 @@ export function DocumentUploadPanel() {
   const { caseId } = useParams<{ caseId: string }>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<string>("");
-  const { addDocument } = useDocumentsStore();
+  const { addDocument, setDocuments } = useDocumentsStore();
+
+  useEffect(() => {
+    if (!caseId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const docs = await readDocumentsByCaseId(caseId);
+        if (!cancelled) setDocuments(docs);
+      } catch {
+        /* IndexedDB unavailable (test env) */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [caseId, setDocuments]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

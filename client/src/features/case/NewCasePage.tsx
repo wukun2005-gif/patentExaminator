@@ -26,12 +26,12 @@ export function NewCasePage() {
     };
     await createCase(newCase);
     setCurrentCase(newCase);
-    navigate(`/cases/${id}/baseline`);
+    navigate(`/cases/${id}/setup`);
   };
 
   const handleLoadPreset = async () => {
     const caseId = await loadPresetCase();
-    navigate(`/cases/${caseId}/baseline`);
+    navigate(`/cases/${caseId}/setup`);
   };
 
   return (

@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import type { ProviderConnection, ProviderId } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
 import { fetchModels } from "../../lib/api";
+import { DEFAULT_MODELS, getModelMeta } from "../../lib/modelCatalog";
 
 const PROVIDER_OPTIONS: Array<{ id: ProviderId; name: string; desc: string }> = [
   { id: "gemini", name: "Gemini", desc: "Google AI Studio (免费)" },
@@ -11,15 +12,6 @@ const PROVIDER_OPTIONS: Array<{ id: ProviderId; name: string; desc: string }> = 
   { id: "minimax", name: "MiniMax", desc: "MiniMax" },
   { id: "deepseek", name: "DeepSeek", desc: "深度求索" }
 ];
-
-const DEFAULT_MODELS: Record<ProviderId, string[]> = {
-  gemini: ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"],
-  mimo: ["MiMo-V2.5-Pro", "MiMo-V2.5", "MiMo-V2-Pro", "MiMo-V2-Omni"],
-  kimi: ["moonshot-v1-128k", "moonshot-v1-32k"],
-  glm: ["glm-4-plus", "glm-4", "glm-4-long"],
-  minimax: ["abab6.5s-chat", "abab6.5-chat"],
-  deepseek: ["deepseek-chat", "deepseek-reasoner"]
-};
 
 export function ProvidersConfigPanel() {
   const { settings, setSettings } = useSettingsStore();
@@ -150,6 +142,9 @@ export function ProvidersConfigPanel() {
           const isLoading = loadingModels === provider.providerId;
           const error = modelError[provider.providerId];
           const fallbackList = provider.modelFallbacks ?? provider.modelIds;
+          const modelMetaMap = new Map(
+            fallbackList.map((id) => [id, getModelMeta(provider.providerId, id)])
+          );
           return (
             <div
               key={provider.providerId}
@@ -251,12 +246,15 @@ export function ProvidersConfigPanel() {
                             <th className="fallback-table__handle-col" />
                             <th className="fallback-table__seq-col">#</th>
                             <th>模型</th>
+                            <th>推荐场景</th>
+                            <th>配额</th>
                             <th className="fallback-table__action-col" />
                           </tr>
                         </thead>
                         <tbody>
                           {fallbackList.map((model, i) => {
                             const isDefault = model === provider.defaultModelId;
+                            const meta = modelMetaMap.get(model);
                             return (
                               <tr
                                 key={model}
@@ -277,6 +275,12 @@ export function ProvidersConfigPanel() {
                                     {model}
                                     {isDefault && <span className="fallback-current-badge">当前默认</span>}
                                   </span>
+                                </td>
+                                <td className="fallback-table__meta-col">
+                                  {meta?.recommendation ?? "—"}
+                                </td>
+                                <td className="fallback-table__meta-col">
+                                  {meta ? `RPM ${meta.rpm ?? "?"} / RPD ${meta.rpd ?? "?"} / TPM ${meta.tpm ?? "?"}` : "—"}
                                 </td>
                                 <td className="fallback-table__action-col">
                                   {!isDefault && (

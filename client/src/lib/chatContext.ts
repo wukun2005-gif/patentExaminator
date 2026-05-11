@@ -28,11 +28,19 @@ export function buildContextSummary(caseId: string, moduleScope: ModuleScope): s
       }
       break;
 
-    case "documents": {
+    case "documents":
+    case "interpret": {
       const docs = useDocumentsStore.getState().documents.filter((d) => d.caseId === caseId);
       lines.push(`已导入文档: ${docs.length} 份`);
       for (const d of docs) {
         lines.push(`  - ${d.fileName} (${d.role}, 文本状态: ${d.textStatus})`);
+        if (d.extractedText && d.extractedText.trim()) {
+          const maxLen = 6000;
+          const text = d.extractedText.length > maxLen
+            ? d.extractedText.slice(0, maxLen) + "\n...（已截断）"
+            : d.extractedText;
+          lines.push(`  文档正文:\n${text}`);
+        }
       }
       break;
     }
@@ -96,9 +104,6 @@ export function buildContextSummary(caseId: string, moduleScope: ModuleScope): s
       break;
     }
 
-    case "interpret":
-      // interpret doesn't have structured store data yet
-      break;
   }
 
   return lines.join("\n") || "（暂无模块数据）";

@@ -61,8 +61,11 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [panelWidth, setPanelWidth] = useState(340);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   // Load sessions + messages from IndexedDB on mount / caseId change
   useEffect(() => {
@@ -172,7 +175,7 @@ export function ChatPanel() {
     setLoading(true);
     try {
       const settings = (await import("../../store")).useSettingsStore.getState().settings;
-      const client = new AgentClient(settings.mode);
+      const client = new AgentClient(settings.mode, "/api", settings);
 
       const contextSummary = buildContextSummary(caseId, moduleScope);
       const history = messages
@@ -207,6 +210,17 @@ export function ChatPanel() {
       };
       addMessage(assistantMsg);
       try { await createMessage(assistantMsg); } catch { /* test env */ }
+    } catch (err) {
+      const errorMsg: ChatMessage = {
+        id: `msg-${Date.now()}-error`,
+        caseId,
+        sessionId,
+        moduleScope,
+        role: "assistant",
+        content: `请求失败: ${err instanceof Error ? err.message : String(err)}\n\n请检查 API Key 配置是否正确，或切换到演示模式。`,
+        createdAt: new Date().toISOString()
+      };
+      addMessage(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -221,6 +235,37 @@ export function ChatPanel() {
 
   const handleAction = (target: string) => {
     window.dispatchEvent(new CustomEvent("chat-action", { detail: { target, caseId } }));
+  };
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const el = panelRef.current;
+    if (!el) return;
+    dragRef.current = { startX: e.clientX, startWidth: el.offsetWidth };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const delta = dragRef.current.startX - ev.clientX;
+      const newWidth = Math.max(280, Math.min(600, dragRef.current.startWidth + delta));
+      el.style.width = newWidth + "px";
+    };
+
+    const onMouseUp = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const delta = dragRef.current.startX - ev.clientX;
+      const finalWidth = Math.max(280, Math.min(600, dragRef.current.startWidth + delta));
+      dragRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      setPanelWidth(finalWidth);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
   };
 
   const handleDeleteSession = async (id: string) => {
@@ -249,7 +294,19 @@ export function ChatPanel() {
   };
 
   return (
-    <aside className={`chat-panel ${isPanelOpen ? "chat-panel--open" : "chat-panel--collapsed"}`} data-testid="chat-panel">
+    <aside
+      ref={panelRef}
+      className={`chat-panel ${isPanelOpen ? "chat-panel--open" : "chat-panel--collapsed"}`}
+      style={isPanelOpen ? { width: panelWidth + "px" } : undefined}
+      data-testid="chat-panel"
+    >
+      {isPanelOpen && (
+        <div
+          className="chat-panel__resize-handle"
+          onMouseDown={handleResizeStart}
+          data-testid="chat-resize-handle"
+        />
+      )}
       <div className="chat-panel__header">
         <span className="chat-panel__title">AI 助手 · {moduleLabel}</span>
         <button

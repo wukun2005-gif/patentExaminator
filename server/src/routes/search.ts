@@ -66,10 +66,14 @@ searchRouter.post("/search-references", async (req, res) => {
     // Step 1: Use LLM to extract search terms from claims
     const featureText = request.features.map((f) => `${f.featureCode}: ${f.description}`).join("\n");
     const extractPrompt = sanitizeText(
-      `你是专利检索专家。从以下权利要求中提取用于专利检索的关键词和可能的IPC分类号。\n\n` +
+      `你是专利检索专家。从以下权利要求中提取最核心的检索关键词（3-5个），用于搜索对比文件。\n\n` +
       `权利要求文本:\n${request.claimText.slice(0, 4000)}\n\n` +
       `技术特征:\n${featureText}\n\n` +
-      `请输出一个简洁的检索查询字符串（中英文关键词，用空格分隔），不要输出其他内容。`
+      `要求:\n` +
+      `1. 只提取最核心的技术方案关键词，不要罗列所有特征\n` +
+      `2. 同时输出中文和英文，用空格分隔\n` +
+      `3. 只输出检索词，不要输出其他内容\n\n` +
+      `示例: LED散热器 相变材料 heatsink phase change`
     );
 
     const firstProvider = availableProviders[0]!;
@@ -107,6 +111,10 @@ searchRouter.post("/search-references", async (req, res) => {
       ...(request.searchBaseUrl ? { baseUrl: request.searchBaseUrl } : {})
     };
     const searchRes = await searchPatents(searchQuery, request.maxResults * 2, searchConfig);
+    logger.info("Tavily search returned", { count: searchRes.results.length, query: searchQuery });
+    for (const r of searchRes.results) {
+      logger.info("  result", { title: r.title?.slice(0, 80), url: r.url?.slice(0, 100) });
+    }
 
     if (searchRes.results.length === 0) {
       res.json({
@@ -132,9 +140,12 @@ searchRouter.post("/search-references", async (req, res) => {
       `技术特征:\n${featureText}\n\n` +
       `搜索结果:\n${searchResultsText}\n\n` +
       `请从上述搜索结果中筛选出与权利要求最相关的专利文献（最多${request.maxResults}篇），\n` +
-      `从每条结果中提取公开号（从URL或标题中提取，如CN/US/EP开头的编号）、公开日（如有）。\n` +
+      `从每条结果中提取公开号（从URL或标题中提取，CN/US/EP/JP/KR/WO开头的编号）、公开日（如有）。\n` +
       `输出JSON格式，每篇包含: title, publicationNumber, publicationDate(可选), summary, relevanceScore(0-100), recommendationReason, sourceUrl\n\n` +
-      `重要：所有字段必须来自搜索结果原文，不得编造。如果没有相关专利文献，返回空数组。`
+      `重要：\n` +
+      `- 所有字段必须来自搜索结果原文，不得编造\n` +
+      `- 如果搜索结果中没有专利文献，返回空数组\n` +
+      `- 优先保留中国专利（CN开头）和与权利要求技术方案最相关的文献`
     );
 
     const filterReq: ChatRequest = {
@@ -165,6 +176,7 @@ searchRouter.post("/search-references", async (req, res) => {
     try {
       const parsed = JSON.parse(filterRes.text);
       const rawCandidates = Array.isArray(parsed) ? parsed : parsed.candidates ?? [];
+      logger.info("LLM filter returned", { raw: rawCandidates.length });
       candidates = rawCandidates
         .filter((c: Record<string, unknown>) => c.title && c.publicationNumber)
         .slice(0, request.maxResults)
@@ -177,6 +189,7 @@ searchRouter.post("/search-references", async (req, res) => {
           recommendationReason: String(c.recommendationReason ?? ""),
           sourceUrl: c.sourceUrl ? String(c.sourceUrl) : undefined
         }));
+      logger.info("Final candidates", { count: candidates.length });
     } catch {
       logger.warn("Failed to parse LLM filter output as JSON", { rawText: filterRes.text.slice(0, 200) });
     }
