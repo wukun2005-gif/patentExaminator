@@ -1,14 +1,17 @@
 import { create } from "zustand";
 import type { AppMode } from "@shared/types/domain";
 import type { AppSettings } from "@shared/types/agents";
+import { readSettings, writeSettings } from "../../../lib/repositories/settingsRepo";
 
 export interface SettingsSlice {
   settings: AppSettings;
   isLoading: boolean;
+  isInitialized: boolean;
 
   setSettings: (settings: AppSettings) => void;
   updateMode: (mode: AppMode) => void;
   setLoading: (v: boolean) => void;
+  loadFromDb: () => Promise<void>;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -25,11 +28,29 @@ export const createSettingsSlice = (
 ): SettingsSlice => ({
   settings: DEFAULT_SETTINGS,
   isLoading: false,
+  isInitialized: false,
 
-  setSettings: (settings) => set(() => ({ settings })),
-  updateMode: (mode) =>
-    set((prev) => ({ settings: { ...prev.settings, mode } })),
-  setLoading: (v) => set(() => ({ isLoading: v }))
+  setSettings: (settings) => {
+    set(() => ({ settings }));
+    writeSettings(settings).catch(console.error);
+  },
+  updateMode: (mode) => {
+    set((prev) => {
+      const next = { ...prev.settings, mode };
+      writeSettings(next).catch(console.error);
+      return { settings: next };
+    });
+  },
+  setLoading: (v) => set(() => ({ isLoading: v })),
+  loadFromDb: async () => {
+    try {
+      const saved = await readSettings();
+      set(() => ({ settings: saved, isInitialized: true }));
+    } catch (e) {
+      console.error("Failed to load settings from DB:", e);
+      set(() => ({ isInitialized: true }));
+    }
+  }
 });
 
 export const useSettingsStore = create<SettingsSlice>()((set, get) =>

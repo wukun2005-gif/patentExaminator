@@ -7,7 +7,11 @@ export function ModeBanner() {
   const mode = settings.mode;
   const [showModal, setShowModal] = useState(false);
 
-  const hasProviders = settings.providers.length > 0;
+  const hasProviders = settings.providers.some((p) => p.enabled);
+
+  const handleToggle = () => {
+    setShowModal(true);
+  };
 
   const handleConfirm = () => {
     updateMode(mode === "mock" ? "real" : "mock");
@@ -16,18 +20,22 @@ export function ModeBanner() {
 
   return (
     <>
-      <div
-        className={`mode-banner mode-banner--${mode}`}
-        data-testid="banner-mode"
-        role="status"
-        aria-label={mode === "mock" ? "演示模式" : "真实模式"}
-        onClick={() => setShowModal(true)}
-        style={{ cursor: "pointer" }}
-        title="点击切换模式"
-      >
-        {mode === "mock"
-          ? "演示模式：AI 输出为预置示例，不消耗 Token"
-          : "真实模式：AI 调用将消耗 Token 并联网"}
+      <div className="mode-toggle" data-testid="banner-mode">
+        <span className={`mode-toggle__label ${mode === "mock" ? "mode-toggle__label--active" : ""}`}>
+          演示
+        </span>
+        <button
+          type="button"
+          className={`mode-toggle__switch ${mode === "real" ? "mode-toggle__switch--on" : ""}`}
+          onClick={handleToggle}
+          aria-label={mode === "mock" ? "切换到真实模式" : "切换到演示模式"}
+          title={mode === "mock" ? "当前：演示模式（点击切换）" : "当前：真实模式（点击切换）"}
+        >
+          <span className="mode-toggle__knob" />
+        </button>
+        <span className={`mode-toggle__label ${mode === "real" ? "mode-toggle__label--active" : ""}`}>
+          真实
+        </span>
       </div>
 
       <ModeSwitchModal

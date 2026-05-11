@@ -19,6 +19,11 @@ const CASE_NAV_ITEMS = [
   { path: "export", label: "导出" }
 ];
 
+function showGuide() {
+  localStorage.removeItem("patent-examiner-onboarding-done");
+  window.dispatchEvent(new Event("show-onboarding"));
+}
+
 export function AppShell({ children }: AppShellProps) {
   const { caseId } = useParams<{ caseId: string }>();
   const location = useLocation();
@@ -29,6 +34,9 @@ export function AppShell({ children }: AppShellProps) {
         <Link to="/cases" className="app-shell__logo">专利审查助手</Link>
         <ModeBanner />
         <nav className="app-shell__topnav">
+          <button type="button" className="btn-link" onClick={showGuide}>
+            引导
+          </button>
           <Link to="/settings">设置</Link>
         </nav>
       </header>
@@ -47,12 +55,6 @@ export function AppShell({ children }: AppShellProps) {
                 className={location.pathname === "/cases" ? "active" : ""}
               >
                 案件历史
-              </Link>
-              <Link
-                to="/settings"
-                className={location.pathname === "/settings" ? "active" : ""}
-              >
-                设置
               </Link>
             </div>
 
