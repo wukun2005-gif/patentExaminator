@@ -60,6 +60,10 @@ export interface ReferenceDocument extends SourceDocument {
   technicalField?: string;
   summary?: string;
   relevanceNotes?: string;
+  source?: "user-upload" | "ai-search";
+  candidateStatus?: "pending" | "accepted" | "rejected";
+  aiRelevanceScore?: number;
+  aiRecommendationReason?: string;
 }
 
 export type TimelineStatus =

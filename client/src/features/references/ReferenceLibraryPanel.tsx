@@ -4,7 +4,8 @@ import type { ReferenceDocument } from "@shared/types/domain";
 import { classifyReferenceDate } from "../../lib/dateRules";
 import { TimelineStatusBadge } from "../../components/TimelineStatusBadge";
 import { ReferenceEditForm } from "./ReferenceEditForm";
-import { useReferencesStore, useCaseStore } from "../../store";
+import { ReferenceSearchPanel } from "./ReferenceSearchPanel";
+import { useReferencesStore, useCaseStore, useClaimsStore } from "../../store";
 import { createDocument, deleteDocument } from "../../lib/repositories/documentRepo";
 
 const MAX_REFERENCES = 10;
@@ -14,9 +15,18 @@ export function ReferenceLibraryPanel() {
   const { references, addReference, updateReference, removeReference } =
     useReferencesStore();
   const { currentCase } = useCaseStore();
+  const { claimNodes, claimFeatures } = useClaimsStore();
   const [limitWarning, setLimitWarning] = useState("");
 
   const baselineDate = currentCase?.priorityDate ?? currentCase?.applicationDate;
+
+  // Get claim text and features for search
+  const targetClaim = claimNodes.find((n) => n.claimNumber === currentCase?.targetClaimNumber);
+  const claimText = targetClaim?.rawText ?? "";
+  const features = claimFeatures.map((f) => ({
+    featureCode: f.featureCode,
+    description: f.description
+  }));
 
   const handleAddFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -38,6 +48,7 @@ export function ReferenceLibraryPanel() {
         textStatus: "empty",
         extractedText: "",
         textIndex: { pages: [], paragraphs: [], lineMap: [] },
+        source: "user-upload",
         publicationDateConfidence: "manual",
         timelineStatus: "needs-publication-date",
         createdAt: new Date().toISOString()
@@ -72,13 +83,24 @@ export function ReferenceLibraryPanel() {
           {limitWarning}
         </p>
       )}
-      <input
-        type="file"
-        multiple
-        accept=".pdf,.docx,.txt,.html"
-        onChange={(e) => e.target.files && handleAddFiles(e.target.files)}
-        data-testid="input-ref-upload"
-      />
+
+      {/* Manual upload */}
+      <div className="ref-upload-section">
+        <input
+          type="file"
+          multiple
+          accept=".pdf,.docx,.txt,.html"
+          onChange={(e) => e.target.files && handleAddFiles(e.target.files)}
+          data-testid="input-ref-upload"
+        />
+      </div>
+
+      {/* AI search */}
+      {claimText && (
+        <ReferenceSearchPanel claimText={claimText} features={features} />
+      )}
+
+      {/* Confirmed references */}
       <div className="reference-list">
         {references.map((ref) => (
           <div key={ref.id} className="reference-item" data-testid={`ref-item-${ref.id}`}>

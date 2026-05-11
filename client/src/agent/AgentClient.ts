@@ -9,7 +9,9 @@ import type {
   DefectResponse,
   ChatRequest,
   ChatResponse,
-  AgentRunOptions
+  AgentRunOptions,
+  SearchReferencesRequest,
+  SearchReferencesResponse
 } from "./contracts";
 import type { ClaimFeature } from "@shared/types/domain";
 import type { AiRunRequest, AiRunResponse } from "@shared/types/api";
@@ -98,6 +100,35 @@ export class AgentClient {
       moduleScope: request.moduleScope,
       ...options
     });
+  }
+
+  async runSearchReferences(
+    request: SearchReferencesRequest,
+    options?: AgentRunOptions
+  ): Promise<SearchReferencesResponse> {
+    if (this.mode === "mock") {
+      return mockSearchReferences(request);
+    }
+
+    const res = await fetch(`${this.gatewayUrl}/search-references`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        caseId: request.caseId,
+        claimText: request.claimText,
+        features: request.features,
+        maxResults: request.maxResults ?? 5,
+        providerPreference: [options?.providerId ?? "gemini"],
+        modelId: options?.modelId ?? "gemini-2.5-flash-lite"
+      })
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(error.error ?? `Search error: ${res.status}`);
+    }
+
+    return (await res.json()) as SearchReferencesResponse;
   }
 
   private async callGateway<T>(
@@ -312,5 +343,41 @@ function mockChat(request: ChatRequest): ChatResponse {
 
   return {
     reply: `当前正在${label}模块。您的问题已收到："${request.userMessage}"。\n\n这是演示模式的回复。实际使用时，AI 将结合当前模块的数据为您提供分析和建议。`
+  };
+}
+
+function mockSearchReferences(request: SearchReferencesRequest): SearchReferencesResponse {
+  return {
+    ok: true,
+    candidates: [
+      {
+        title: "一种基于深度学习的图像识别方法及装置",
+        publicationNumber: "CN112345678A",
+        publicationDate: "2021-02-05",
+        summary: "公开了一种基于深度学习的图像识别方法，包括特征提取、模型训练和推理阶段。",
+        relevanceScore: 88,
+        recommendationReason: "该文献公开了与权利要求中图像特征提取相关的技术方案",
+        sourceUrl: "https://patents.google.com/patent/CN112345678A"
+      },
+      {
+        title: "基于神经网络的目标检测系统",
+        publicationNumber: "CN113456789B",
+        publicationDate: "2020-11-20",
+        summary: "提出了一种基于卷积神经网络的目标检测系统，具有较高的检测精度和实时性。",
+        relevanceScore: 75,
+        recommendationReason: "该文献涉及目标检测领域的神经网络架构，与本申请技术领域相关",
+        sourceUrl: "https://patents.google.com/patent/CN113456789B"
+      },
+      {
+        title: "Image Processing Method Using Machine Learning",
+        publicationNumber: "US20200123456A1",
+        publicationDate: "2020-04-16",
+        summary: "An image processing method utilizing machine learning models for feature extraction and classification.",
+        relevanceScore: 65,
+        recommendationReason: "该文献涉及机器学习在图像处理中的应用，技术领域有交叉",
+        sourceUrl: "https://patents.google.com/patent/US20200123456A1"
+      }
+    ],
+    searchQuery: "深度学习 图像识别 特征提取 神经网络"
   };
 }

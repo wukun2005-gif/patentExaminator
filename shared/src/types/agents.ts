@@ -14,7 +14,7 @@ export interface ProviderConnection {
 }
 
 export interface AgentAssignment {
-  agent: "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat";
+  agent: "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat" | "search-references";
   providerOrder: ProviderId[];
   modelId: string;
   modelFallbacks?: string[];

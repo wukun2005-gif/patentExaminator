@@ -3,6 +3,7 @@ import express from "express";
 import { healthRouter } from "./routes/health.js";
 import { aiRouter } from "./routes/ai.js";
 import { settingsRouter } from "./routes/settings.js";
+import { searchRouter } from "./routes/search.js";
 import { setApiKey } from "./security/keyStore.js";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -27,6 +28,7 @@ app.use(express.json());
 app.use("/api", healthRouter);
 app.use("/api", aiRouter);
 app.use("/api", settingsRouter);
+app.use("/api", searchRouter);
 
 // Serve client static files if dist exists
 const clientDist = path.resolve(__dirname, "../../client/dist");

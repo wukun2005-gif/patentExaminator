@@ -116,3 +116,27 @@ export interface DefectResponse {
   warnings: string[];
   legalCaution: string;
 }
+
+export interface SearchReferencesRequest {
+  caseId: string;
+  claimText: string;
+  features: Array<{ featureCode: string; description: string }>;
+  maxResults?: number;
+}
+
+export interface SearchReferencesCandidate {
+  title: string;
+  publicationNumber: string;
+  publicationDate?: string;
+  summary: string;
+  relevanceScore: number;
+  recommendationReason: string;
+  sourceUrl?: string;
+}
+
+export interface SearchReferencesResponse {
+  ok: boolean;
+  candidates: SearchReferencesCandidate[];
+  searchQuery?: string;
+  error?: string;
+}
