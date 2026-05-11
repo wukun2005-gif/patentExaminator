@@ -4,7 +4,7 @@ import { useChatStore, useCaseStore } from "../../store";
 import { ChatBubble } from "./ChatBubble";
 import { buildContextSummary } from "../../lib/chatContext";
 import { AgentClient } from "../../agent/AgentClient";
-import { deleteSession, deleteMessagesBySessionId, updateSession } from "../../lib/repositories/chatRepo";
+import { createSession, createMessage, deleteSession, deleteMessagesBySessionId, updateSession, getSessionsByCaseId, getMessagesBySessionId } from "../../lib/repositories/chatRepo";
 import type { ChatMessage, ChatSession, ModuleScope } from "@shared/types/domain";
 import type { ChatRequest } from "../../agent/contracts";
 
@@ -55,7 +55,7 @@ export function ChatPanel() {
 
   const {
     sessions, messages, activeSessionId, isPanelOpen, isLoading,
-    addSession, removeSession, renameSession, setActiveSessionId, addMessage, setPanelOpen, setLoading
+    setSessions, setMessages, addSession, removeSession, renameSession, setActiveSessionId, addMessage, setPanelOpen, setLoading
   } = useChatStore();
 
   const [input, setInput] = useState("");
@@ -63,6 +63,41 @@ export function ChatPanel() {
   const [editTitle, setEditTitle] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load sessions + messages from IndexedDB on mount / caseId change
+  useEffect(() => {
+    if (!caseId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const storedSessions = await getSessionsByCaseId(caseId);
+        if (cancelled) return;
+        const existingIds = new Set(sessions.map((s) => s.id));
+        const merged = [...sessions];
+        for (const s of storedSessions) {
+          if (!existingIds.has(s.id)) merged.push(s);
+        }
+        setSessions(merged);
+
+        const allMessages: typeof messages = [];
+        for (const s of storedSessions) {
+          const msgs = await getMessagesBySessionId(s.id);
+          allMessages.push(...msgs);
+        }
+        if (!cancelled) {
+          const existingMsgIds = new Set(messages.map((m) => m.id));
+          const mergedMsgs = [...messages];
+          for (const m of allMessages) {
+            if (!existingMsgIds.has(m.id)) mergedMsgs.push(m);
+          }
+          setMessages(mergedMsgs);
+        }
+      } catch {
+        // IndexedDB not available (test env) — store-only mode
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [caseId]);
 
   // All sessions for current case (not filtered by module — user controls session lifecycle)
   const caseSessions = useMemo(
@@ -91,7 +126,7 @@ export function ChatPanel() {
 
   if (!caseId || !currentCase) return null;
 
-  const handleNewSession = () => {
+  const handleNewSession = async () => {
     const now = new Date().toISOString();
     const session: ChatSession = {
       id: `chat-${caseId}-${moduleScope}-${Date.now()}`,
@@ -103,6 +138,7 @@ export function ChatPanel() {
     };
     addSession(session);
     setActiveSessionId(session.id);
+    try { await createSession(session); } catch { /* test env */ }
   };
 
   const handleSend = async () => {
@@ -124,6 +160,7 @@ export function ChatPanel() {
       addSession(session);
       sessionId = session.id;
       setActiveSessionId(session.id);
+      try { await createSession(session); } catch { /* test env */ }
     }
 
     setInput("");
@@ -139,6 +176,7 @@ export function ChatPanel() {
       createdAt: new Date().toISOString()
     };
     addMessage(userMsg);
+    try { await createMessage(userMsg); } catch { /* test env */ }
 
     // Call AI
     setLoading(true);
@@ -178,6 +216,7 @@ export function ChatPanel() {
         createdAt: new Date().toISOString()
       };
       addMessage(assistantMsg);
+      try { await createMessage(assistantMsg); } catch { /* test env */ }
     } finally {
       setLoading(false);
     }
