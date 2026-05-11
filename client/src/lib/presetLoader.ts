@@ -10,7 +10,7 @@ import type {
   ChatMessage,
   ReferenceDocument
 } from "@shared/types/domain";
-import { createCase } from "./repositories/caseRepo";
+import { createCase, readCaseById } from "./repositories/caseRepo";
 import { createDocument } from "./repositories/documentRepo";
 import { createClaimNode, createClaimFeature } from "./repositories/claimRepo";
 import { createNovelty } from "./repositories/noveltyRepo";
@@ -37,6 +37,15 @@ export async function loadPresetCase(): Promise<string> {
 
   const theCase = data.case;
 
+  // Check if this case was already loaded (preserves user deletions)
+  let isFirstLoad = false;
+  try {
+    const existing = await readCaseById(theCase.id);
+    isFirstLoad = !existing;
+  } catch {
+    isFirstLoad = true;
+  }
+
   // 1. Write to IndexedDB
   await createCase(theCase);
   await createDocument(data.applicationDoc);
@@ -56,16 +65,24 @@ export async function loadPresetCase(): Promise<string> {
   for (const defect of data.defectCheck) {
     await createDefect(defect);
   }
-  // Check if sessions already exist in IndexedDB (user may have deleted some)
-  let existingSessions: ChatSession[];
-  try {
-    existingSessions = await getSessionsByCaseId(theCase.id);
-  } catch {
-    existingSessions = [];
-  }
-
-  if (existingSessions.length > 0) {
-    // User has existing sessions — load from DB instead of overwriting
+  // Chat sessions: only write preset data on first load; subsequent loads read from DB
+  if (isFirstLoad) {
+    for (const session of data.chatSessions) {
+      await createSession(session);
+    }
+    for (const msg of data.chatMessages) {
+      await createMessage(msg);
+    }
+    useChatStore.getState().setSessions(data.chatSessions);
+    useChatStore.getState().setMessages(data.chatMessages);
+    useChatStore.getState().setActiveSessionId(data.chatSessions[0]?.id ?? null);
+  } else {
+    let existingSessions: ChatSession[];
+    try {
+      existingSessions = await getSessionsByCaseId(theCase.id);
+    } catch {
+      existingSessions = [];
+    }
     const allMessages: ChatMessage[] = [];
     for (const s of existingSessions) {
       try {
@@ -76,17 +93,6 @@ export async function loadPresetCase(): Promise<string> {
     useChatStore.getState().setSessions(existingSessions);
     useChatStore.getState().setMessages(allMessages);
     useChatStore.getState().setActiveSessionId(existingSessions[0]?.id ?? null);
-  } else {
-    // First load — write preset sessions to DB
-    for (const session of data.chatSessions) {
-      await createSession(session);
-    }
-    for (const msg of data.chatMessages) {
-      await createMessage(msg);
-    }
-    useChatStore.getState().setSessions(data.chatSessions);
-    useChatStore.getState().setMessages(data.chatMessages);
-    useChatStore.getState().setActiveSessionId(data.chatSessions[0]?.id ?? null);
   }
 
   // 2. Hydrate Zustand stores
