@@ -1695,6 +1695,93 @@
   margin-top: 8px;
 }
 
+/* ── Draft Material Panel ── */
+
+.draft-material-panel {
+  max-width: 900px;
+}
+
+.draft-material-panel h2 {
+  font-size: 20px;
+  margin-bottom: 4px;
+  color: #1a1a1a;
+}
+
+.draft-description {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.draft-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.draft-section {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.draft-section h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  margin: 0;
+}
+
+.section-content {
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #333;
+}
+
+.section-content p {
+  margin: 0 0 8px;
+}
+
+.section-content h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #444;
+  margin: 16px 0 8px;
+}
+
+.section-content h4:first-child {
+  margin-top: 0;
+}
+
+.section-content ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.section-content li {
+  margin-bottom: 4px;
+}
+
+.section-content strong {
+  color: #1a1a1a;
+}
+
+.placeholder-hint {
+  color: #999;
+  font-style: italic;
+}
+
+.case-ref {
+  margin-top: 24px;
+  font-size: 12px;
+  color: #aaa;
+  font-family: monospace;
+}
+
 /* ── Chat Panel ── */
 
 .chat-panel {
