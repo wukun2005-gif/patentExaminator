@@ -61,7 +61,8 @@ describe("Settings persistence", () => {
     mockGet.mockResolvedValueOnce(undefined);
     const result = await readSettings();
     expect(result.mode).toBe("mock");
-    expect(result.providers).toEqual([]);
+    expect(result.providers.length).toBeGreaterThan(0);
+    expect(result.providers[0].providerId).toBe("gemini");
   });
 
   it("readSettings returns stored settings with providers", async () => {

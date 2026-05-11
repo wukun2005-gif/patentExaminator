@@ -69,14 +69,26 @@ describe("Component rendering smoke tests", () => {
 });
 
 describe("OnboardingGuide step navigation", () => {
-  it("shows first step by default", () => {
+  it("shows choose screen by default", () => {
     render(
       <MemoryRouter>
         <OnboardingGuide onClose={() => {}} />
       </MemoryRouter>
     );
     expect(screen.getByText("欢迎使用专利审查助手")).toBeDefined();
-    expect(screen.getByText("1 / 10")).toBeDefined();
+    expect(screen.getByTestId("btn-quick-preset")).toBeDefined();
+    expect(screen.getByTestId("btn-sample-guide")).toBeDefined();
+  });
+
+  it("enters guide mode on Sample 引导 click", () => {
+    render(
+      <MemoryRouter>
+        <OnboardingGuide onClose={() => {}} />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByTestId("btn-sample-guide"));
+    expect(screen.getByText("第1步：新建案件并填写基本信息")).toBeDefined();
+    expect(screen.getByText("1 / 12")).toBeDefined();
   });
 
   it("navigates to next step on click", () => {
@@ -85,9 +97,10 @@ describe("OnboardingGuide step navigation", () => {
         <OnboardingGuide onClose={() => {}} />
       </MemoryRouter>
     );
+    fireEvent.click(screen.getByTestId("btn-sample-guide"));
     fireEvent.click(screen.getByTestId("btn-onboarding-next"));
-    expect(screen.getByText("第一步：创建案件")).toBeDefined();
-    expect(screen.getByText("2 / 10")).toBeDefined();
+    expect(screen.getByText("第2步：上传申请文件")).toBeDefined();
+    expect(screen.getByText("2 / 12")).toBeDefined();
   });
 
   it("navigates back to previous step", () => {
@@ -96,12 +109,13 @@ describe("OnboardingGuide step navigation", () => {
         <OnboardingGuide onClose={() => {}} />
       </MemoryRouter>
     );
+    fireEvent.click(screen.getByTestId("btn-sample-guide"));
     // Go to step 2
     fireEvent.click(screen.getByTestId("btn-onboarding-next"));
-    expect(screen.getByText("第一步：创建案件")).toBeDefined();
+    expect(screen.getByText("第2步：上传申请文件")).toBeDefined();
     // Go back to step 1
     fireEvent.click(screen.getByText("上一步"));
-    expect(screen.getByText("欢迎使用专利审查助手")).toBeDefined();
+    expect(screen.getByText("第1步：新建案件并填写基本信息")).toBeDefined();
   });
 
   it("calls onClose when clicking close button", () => {
@@ -122,11 +136,12 @@ describe("OnboardingGuide step navigation", () => {
         <OnboardingGuide onClose={onClose} />
       </MemoryRouter>
     );
-    // Navigate to last step (step 10)
-    for (let i = 0; i < 9; i++) {
+    fireEvent.click(screen.getByTestId("btn-sample-guide"));
+    // Navigate to last step (step 12)
+    for (let i = 0; i < 11; i++) {
       fireEvent.click(screen.getByTestId("btn-onboarding-next"));
     }
-    expect(screen.getByText("演示模式 vs 真实模式")).toBeDefined();
+    expect(screen.getByText("完成！")).toBeDefined();
     expect(screen.getByText("开始使用")).toBeDefined();
     fireEvent.click(screen.getByTestId("btn-onboarding-next"));
     expect(onClose).toHaveBeenCalledOnce();
@@ -138,6 +153,7 @@ describe("OnboardingGuide step navigation", () => {
         <OnboardingGuide onClose={() => {}} />
       </MemoryRouter>
     );
+    fireEvent.click(screen.getByTestId("btn-sample-guide"));
     expect(screen.queryByText("上一步")).toBeNull();
   });
 });
