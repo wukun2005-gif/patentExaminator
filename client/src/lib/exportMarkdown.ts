@@ -11,7 +11,7 @@ export function renderCaseMarkdown(viewModel: ExportViewModel): string {
   lines.push("");
   lines.push(`> ${LEGAL_DISCLAIMER}`);
   lines.push("");
-  lines.push("## 案件基线");
+  lines.push("## 案件基本信息");
   lines.push("");
   lines.push(`- 申请号: ${caseData.applicationNumber}`);
   lines.push(`- 发明名称: ${caseData.title}`);

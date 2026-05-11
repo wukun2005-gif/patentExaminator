@@ -31,9 +31,17 @@ export function InventiveStepPanel({
   );
 
   const availableRefs = references.filter((r) => r.timelineStatus === "available");
-  const [selectedClosestId, setSelectedClosestId] = useState<string>("");
-  const [selectedDistinguishing, setSelectedDistinguishing] = useState<string[]>([]);
-  const [techProblem, setTechProblem] = useState<string>("");
+
+  // Initialize local state from existing analysis (computed, not useEffect)
+  const [selectedClosestId, setSelectedClosestId] = useState<string>(
+    () => analysis?.closestPriorArtId ?? ""
+  );
+  const [selectedDistinguishing, setSelectedDistinguishing] = useState<string[]>(
+    () => analysis?.distinguishingFeatureCodes ?? []
+  );
+  const [techProblem, setTechProblem] = useState<string>(
+    () => analysis?.objectiveTechnicalProblem ?? ""
+  );
 
   const handleRun = async () => {
     if (isLoading || availableRefs.length === 0) return;
@@ -93,6 +101,12 @@ export function InventiveStepPanel({
     );
   };
 
+  const closestRefName = analysis?.closestPriorArtId
+    ? availableRefs.find((r) => r.id === analysis.closestPriorArtId)?.title
+      ?? availableRefs.find((r) => r.id === analysis.closestPriorArtId)?.publicationNumber
+      ?? analysis.closestPriorArtId
+    : null;
+
   return (
     <div className="inventive-step-panel" data-testid="inventive-step-panel">
       {analysis && (
@@ -105,87 +119,136 @@ export function InventiveStepPanel({
         {/* Step 1: Closest Prior Art */}
         <div className="step" data-testid="step-1">
           <h3>Step 1：最接近现有技术</h3>
-          <select
-            value={selectedClosestId}
-            onChange={(e) => setSelectedClosestId(e.target.value)}
-            data-testid="select-closest-prior-art"
-          >
-            <option value="">— 由 AI 候选推荐 —</option>
-            {availableRefs.map((ref) => (
-              <option key={ref.id} value={ref.id}>
-                {ref.title ?? ref.publicationNumber ?? ref.fileName}
-              </option>
-            ))}
-          </select>
-          {analysis?.closestPriorArtId && (
-            <p data-testid="closest-prior-art-result">
-              AI 推荐：{analysis.closestPriorArtId}
+          <p className="step-desc">AI 从可用对比文件中推荐最接近现有技术，您可点击更换。</p>
+          <div className="prior-art-list" data-testid="prior-art-list">
+            {availableRefs.map((ref) => {
+              const isRecommended = analysis?.closestPriorArtId === ref.id;
+              const isSelected = selectedClosestId === ref.id || (!selectedClosestId && isRecommended);
+              return (
+                <div
+                  key={ref.id}
+                  className={`prior-art-item ${isSelected ? "prior-art-item--selected" : ""} ${isRecommended ? "prior-art-item--recommended" : ""}`}
+                  onClick={() => setSelectedClosestId(ref.id)}
+                  data-testid={`prior-art-${ref.id}`}
+                >
+                  <div className="prior-art-item__radio">
+                    <input
+                      type="radio"
+                      name="closest-prior-art"
+                      checked={isSelected}
+                      onChange={() => setSelectedClosestId(ref.id)}
+                    />
+                  </div>
+                  <div className="prior-art-item__info">
+                    <div className="prior-art-item__title">
+                      {ref.title ?? ref.publicationNumber ?? ref.fileName}
+                      {isRecommended && <span className="prior-art-badge">AI 推荐</span>}
+                    </div>
+                    {ref.summary && (
+                      <div className="prior-art-item__summary">{ref.summary}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {analysis && (
+            <p className="step-shared-features">
+              共有特征：{analysis.sharedFeatureCodes.length > 0
+                ? analysis.sharedFeatureCodes.join("、")
+                : "无"}
             </p>
           )}
         </div>
 
         {/* Step 2: Distinguishing Features */}
         <div className="step" data-testid="step-2">
-          <h3>Step 2：区别特征与技术问题</h3>
-          <div className="feature-checkboxes">
-            {features.map((f) => (
-              <label key={f.featureCode} data-testid={`checkbox-feature-${f.featureCode}`}>
-                <input
-                  type="checkbox"
-                  checked={selectedDistinguishing.includes(f.featureCode)}
-                  onChange={() => handleToggleDistinguishing(f.featureCode)}
-                />
-                {f.featureCode}: {f.description}
+          <h3>Step 2：区别特征与客观技术问题</h3>
+
+          <div className="step2-content">
+            <div className="step2-features">
+              <strong>区别特征：</strong>
+              {analysis?.distinguishingFeatureCodes && analysis.distinguishingFeatureCodes.length > 0 ? (
+                <div className="distinguishing-features-display" data-testid="distinguishing-features-result">
+                  {features
+                    .filter((f) => analysis.distinguishingFeatureCodes.includes(f.featureCode))
+                    .map((f) => (
+                      <span key={f.featureCode} className="feature-tag">
+                        {f.featureCode}: {f.description}
+                      </span>
+                    ))}
+                </div>
+              ) : (
+                <div className="feature-checkboxes">
+                  {features.map((f) => (
+                    <label key={f.featureCode} data-testid={`checkbox-feature-${f.featureCode}`}>
+                      <input
+                        type="checkbox"
+                        checked={selectedDistinguishing.includes(f.featureCode)}
+                        onChange={() => handleToggleDistinguishing(f.featureCode)}
+                      />
+                      {f.featureCode}: {f.description}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="step2-tech-problem">
+              <label htmlFor="tech-problem">
+                客观技术问题：
+                {techProblem && <span className="step2-ai-hint">（AI 输出，可修改）</span>}
               </label>
-            ))}
+              <textarea
+                id="tech-problem"
+                value={techProblem}
+                onChange={(e) => setTechProblem(e.target.value)}
+                data-testid="input-objective-technical-problem"
+                placeholder="AI 将根据区别特征推导客观技术问题，您也可以手动修改。"
+                rows={4}
+              />
+            </div>
           </div>
-          <div>
-            <label htmlFor="tech-problem">客观技术问题：</label>
-            <textarea
-              id="tech-problem"
-              value={techProblem}
-              onChange={(e) => setTechProblem(e.target.value)}
-              data-testid="input-objective-technical-problem"
-              rows={3}
-            />
-          </div>
-          {analysis?.distinguishingFeatureCodes && (
-            <p data-testid="distinguishing-features-result">
-              区别特征：{analysis.distinguishingFeatureCodes.join(", ")}
-            </p>
-          )}
         </div>
 
         {/* Step 3: Technical Motivation */}
         <div className="step" data-testid="step-3">
-          <h3>Step 3：技术启示</h3>
-          {analysis?.motivationEvidence && analysis.motivationEvidence.length > 0 ? (
-            <ul>
-              {analysis.motivationEvidence.map((evidence, i) => (
-                <li key={i} data-testid={`motivation-evidence-${i}`}>
-                  <strong>{evidence.label}</strong>
-                  {evidence.quote && <span>：&ldquo;{evidence.quote}&rdquo;</span>}
-                  <span className="confidence">（{evidence.confidence}）</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p data-testid="no-motivation-evidence">尚未分析技术启示</p>
-          )}
-          {analysis?.candidateAssessment && (
-            <p data-testid="candidate-assessment">
-              候选结论：{ASSESSMENT_LABELS[analysis.candidateAssessment]}
-            </p>
-          )}
-          {analysis?.cautions && analysis.cautions.length > 0 && (
-            <div data-testid="inventive-cautions">
-              <h4>注意事项</h4>
-              <ul>
-                {analysis.cautions.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
+          <h3>Step 3：技术启示与结论</h3>
+          {analysis ? (
+            <div className="step-result">
+              {analysis.motivationEvidence && analysis.motivationEvidence.length > 0 && (
+                <div className="motivation-evidence-list">
+                  <strong>现有技术启示：</strong>
+                  <ul>
+                    {analysis.motivationEvidence.map((evidence, i) => (
+                      <li key={i} data-testid={`motivation-evidence-${i}`}>
+                        {evidence.label}
+                        {evidence.quote && <span>：&ldquo;{evidence.quote}&rdquo;</span>}
+                        <span className="confidence">（置信度：{evidence.confidence}）</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="candidate-assessment-display" data-testid="candidate-assessment">
+                <strong>候选结论：</strong>
+                <span className={`assessment-${analysis.candidateAssessment}`}>
+                  {ASSESSMENT_LABELS[analysis.candidateAssessment]}
+                </span>
+              </div>
+              {analysis.cautions && analysis.cautions.length > 0 && (
+                <div className="inventive-cautions" data-testid="inventive-cautions">
+                  <strong>注意事项：</strong>
+                  <ul>
+                    {analysis.cautions.map((c, i) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
+          ) : (
+            <p data-testid="no-motivation-evidence">运行分析后将显示技术启示和候选结论。</p>
           )}
         </div>
       </div>
@@ -196,7 +259,7 @@ export function InventiveStepPanel({
         disabled={isLoading || availableRefs.length === 0}
         data-testid="btn-run-inventive"
       >
-        {isLoading ? "分析中..." : "运行创造性三步法"}
+        {isLoading ? "分析中..." : analysis ? "重新运行分析" : "运行创造性三步法"}
       </button>
 
       {availableRefs.length === 0 && (

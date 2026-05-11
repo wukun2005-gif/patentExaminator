@@ -7,7 +7,9 @@ import type {
   ClaimFeature,
   NoveltyComparison,
   InventiveStepAnalysis,
-  ChatMessage
+  FormalDefect,
+  ChatMessage,
+  ChatSession
 } from "@shared/types/domain";
 import type { FeedbackItem } from "@shared/types/feedback";
 import type { AppSettings } from "@shared/types/agents";
@@ -47,6 +49,11 @@ export interface PatentExaminerDB extends DBSchema {
     value: InventiveStepAnalysis;
     indexes: { "by-caseId": string };
   };
+  defects: {
+    key: string;
+    value: FormalDefect;
+    indexes: { "by-caseId": string };
+  };
   ocrCache: {
     key: string;
     value: { cacheKey: string; text: string; createdAt: number };
@@ -58,7 +65,13 @@ export interface PatentExaminerDB extends DBSchema {
       "by-caseId": string;
       "by-moduleScope": string;
       "by-createdAt": string;
+      "by-sessionId": string;
     };
+  };
+  chatSessions: {
+    key: string;
+    value: ChatSession;
+    indexes: { "by-caseId": string };
   };
   feedback: {
     key: string;
@@ -76,7 +89,7 @@ export interface PatentExaminerDB extends DBSchema {
 }
 
 const DB_NAME = "patent-examiner-v1";
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 
 export async function openPatentDB(): Promise<IDBPDatabase<PatentExaminerDB>> {
   return openDB<PatentExaminerDB>(DB_NAME, DB_VERSION, {
@@ -126,6 +139,12 @@ export async function openPatentDB(): Promise<IDBPDatabase<PatentExaminerDB>> {
         inventiveStore.createIndex("by-caseId", "caseId");
       }
 
+      // defects
+      if (!db.objectStoreNames.contains("defects")) {
+        const defectsStore = db.createObjectStore("defects", { keyPath: "id" });
+        defectsStore.createIndex("by-caseId", "caseId");
+      }
+
       // ocrCache
       if (!db.objectStoreNames.contains("ocrCache")) {
         db.createObjectStore("ocrCache", { keyPath: "cacheKey" });
@@ -137,6 +156,13 @@ export async function openPatentDB(): Promise<IDBPDatabase<PatentExaminerDB>> {
         chatStore.createIndex("by-caseId", "caseId");
         chatStore.createIndex("by-moduleScope", "moduleScope");
         chatStore.createIndex("by-createdAt", "createdAt");
+        chatStore.createIndex("by-sessionId", "sessionId");
+      }
+
+      // chatSessions
+      if (!db.objectStoreNames.contains("chatSessions")) {
+        const sessionStore = db.createObjectStore("chatSessions", { keyPath: "id" });
+        sessionStore.createIndex("by-caseId", "caseId");
       }
 
       // feedback

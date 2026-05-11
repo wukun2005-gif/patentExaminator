@@ -5,6 +5,10 @@ import type {
   NoveltyResponse,
   InventiveRequest,
   InventiveResponse,
+  DefectRequest,
+  DefectResponse,
+  ChatRequest,
+  ChatResponse,
   AgentRunOptions
 } from "./contracts";
 import type { ClaimFeature } from "@shared/types/domain";
@@ -62,6 +66,36 @@ export class AgentClient {
     return this.callGateway<InventiveResponse>("inventive", prompt, {
       caseId: request.caseId,
       moduleScope: "inventive",
+      ...options
+    });
+  }
+
+  async runDefectCheck(
+    request: DefectRequest,
+    options?: AgentRunOptions
+  ): Promise<DefectResponse> {
+    if (this.mode === "mock") {
+      return mockDefectCheck(request);
+    }
+    const prompt = buildDefectPrompt(request);
+    return this.callGateway<DefectResponse>("defects", prompt, {
+      caseId: request.caseId,
+      moduleScope: "defects",
+      ...options
+    });
+  }
+
+  async runChat(
+    request: ChatRequest,
+    options?: AgentRunOptions
+  ): Promise<ChatResponse> {
+    if (this.mode === "mock") {
+      return mockChat(request);
+    }
+    const prompt = buildChatPrompt(request);
+    return this.callGateway<ChatResponse>("chat", prompt, {
+      caseId: request.caseId,
+      moduleScope: request.moduleScope,
       ...options
     });
   }
@@ -173,4 +207,110 @@ function estimateTokens(text: string): number {
   const zhChars = (text.match(/[一-鿿＀-￯]/g) ?? []).length;
   const latinChars = text.length - zhChars;
   return Math.ceil(zhChars * 0.6 + latinChars * 0.3);
+}
+
+function buildDefectPrompt(request: DefectRequest): string {
+  return [
+    `案件 ID: ${request.caseId}`,
+    ``,
+    `权利要求文本:`,
+    request.claimText.slice(0, 4000),
+    ``,
+    `说明书文本:`,
+    request.specificationText.slice(0, 8000),
+    ``,
+    `技术特征:`,
+    ...request.claimFeatures.map((f) => `  ${f.featureCode}: ${f.description}`)
+  ].join("\n");
+}
+
+function mockDefectCheck(request: DefectRequest): DefectResponse {
+  const defects: DefectResponse["defects"] = [
+    {
+      category: "权利要求",
+      description: "权利要求引用关系不明确，缺少对独立权利要求的具体引用",
+      location: "权利要求2",
+      severity: "error"
+    },
+    {
+      category: "说明书",
+      description: "具体实施方式中部分技术参数未公开具体数值范围",
+      location: "说明书第4段",
+      severity: "warning"
+    }
+  ];
+
+  if (request.specificationText.length > 5000) {
+    defects.push({
+      category: "说明书",
+      description: "摘要可能超过300字，建议精简",
+      severity: "info"
+    });
+  }
+
+  return {
+    defects,
+    warnings: [],
+    legalCaution: "以下为 AI 辅助检测结果，需审查员逐项确认。"
+  };
+}
+
+function buildChatPrompt(request: ChatRequest): string {
+  const parts = [
+    `案件 ID: ${request.caseId}`,
+    `当前模块: ${request.moduleScope}`,
+    ``,
+    `=== 当前模块数据 ===`,
+    request.contextSummary,
+    ``,
+    `=== 对话历史 ===`,
+    ...request.history.map((m) => `[${m.role}]: ${m.content}`),
+    ``,
+    `=== 用户消息 ===`,
+    request.userMessage
+  ];
+  return parts.join("\n");
+}
+
+function mockChat(request: ChatRequest): ChatResponse {
+  const msg = request.userMessage.toLowerCase();
+  const scope = request.moduleScope;
+
+  // Detect action intent
+  if (msg.includes("重新") && (msg.includes("claim") || msg.includes("特征"))) {
+    return {
+      reply: "好的，我将为您重新生成 Claim Chart 的特征拆解。请点击下方按钮执行。",
+      action: { type: "regenerate", target: "claim-chart" }
+    };
+  }
+  if (msg.includes("重新") && msg.includes("新颖")) {
+    return {
+      reply: "好的，我将为您重新运行新颖性对照分析。请点击下方按钮执行。",
+      action: { type: "regenerate", target: "novelty" }
+    };
+  }
+  if (msg.includes("重新") && msg.includes("创造")) {
+    return {
+      reply: "好的，我将为您重新运行创造性分析。请点击下方按钮执行。",
+      action: { type: "regenerate", target: "inventive" }
+    };
+  }
+
+  // Context-aware mock reply
+  const scopeLabels: Record<string, string> = {
+    "claim-chart": "Claim Chart",
+    novelty: "新颖性对照",
+    inventive: "创造性分析",
+    defects: "形式缺陷",
+    draft: "素材草稿",
+    export: "导出",
+    interpret: "文档解读",
+    documents: "文档导入",
+    case: "案件基本信息"
+  };
+  const label = scopeLabels[scope] ?? scope;
+
+  return {
+    reply: `当前正在${label}模块。您的问题已收到："${request.userMessage}"。\n\n这是演示模式的回复。实际使用时，AI 将结合当前模块的数据为您提供分析和建议。`
+  };
 }

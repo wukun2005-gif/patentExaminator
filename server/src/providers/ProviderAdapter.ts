@@ -1,5 +1,11 @@
 import type { ProviderId } from "@shared/types/agents";
 
+const NON_TEXT_PATTERNS = /embed|image|tts|audio|speech|whisper|dall|vision|moderation|rerank|code-search/i;
+
+function isTextModel(id: string): boolean {
+  return !NON_TEXT_PATTERNS.test(id);
+}
+
 export interface ChatRequest {
   modelId: string;
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
@@ -21,6 +27,7 @@ export interface ProviderAdapter {
   defaultBaseUrl: string;
   supportedModels(): string[];
   chat(req: ChatRequest): Promise<ChatResponse>;
+  listModels(apiKey: string): Promise<string[]>;
 }
 
 /**
@@ -42,6 +49,22 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
   }
 
   abstract supportedModels(): string[];
+
+  async listModels(apiKey: string): Promise<string[]> {
+    if (!this.baseUrl) this.init();
+    const url = `${this.baseUrl}/models`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Failed to list models for ${this.id}: ${res.status} ${body}`);
+    }
+    const data = (await res.json()) as { data: Array<{ id: string }> };
+    const ids = data.data.map((m) => m.id).filter((id) => isTextModel(id));
+    return ids.sort();
+  }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
     if (!this.baseUrl) this.init();

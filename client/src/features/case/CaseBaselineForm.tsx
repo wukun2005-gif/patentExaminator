@@ -132,7 +132,7 @@ export function CaseBaselineForm() {
 
   return (
     <div className="case-baseline-form" data-testid="page-baseline">
-      <h2>案件基线</h2>
+      <h2>案件基本信息</h2>
       <form onSubmit={handleSubmit(() => {})} noValidate>
         <div className="form-field">
           <label htmlFor="title">发明名称 *</label>

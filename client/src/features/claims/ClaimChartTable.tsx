@@ -1,8 +1,6 @@
 import { useState } from "react";
 import type { ClaimFeature } from "@shared/types/domain";
 import { useClaimsStore } from "../../store";
-import { FeedbackButtons } from "../../components/FeedbackButtons";
-import { getFeedback, saveFeedback } from "../../lib/feedbackRepo";
 
 interface ClaimChartTableProps {
   caseId: string;
@@ -46,7 +44,6 @@ export function ClaimChartTable({ caseId, claimNumber }: ClaimChartTableProps) {
             <th>引用状态</th>
             <th>来源</th>
             <th>操作</th>
-            <th>反馈</th>
           </tr>
         </thead>
         <tbody>
@@ -89,14 +86,6 @@ export function ClaimChartTable({ caseId, claimNumber }: ClaimChartTableProps) {
                     编辑
                   </button>
                 )}
-              </td>
-              <td>
-                <FeedbackButtons
-                  targetId={feature.id}
-                  targetType="claim-feature"
-                  existingFeedback={getFeedback(feature.id)}
-                  onSave={saveFeedback}
-                />
               </td>
             </tr>
           ))}

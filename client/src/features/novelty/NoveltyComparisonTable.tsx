@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { useNoveltyStore } from "../../store";
-import { FeedbackButtons } from "../../components/FeedbackButtons";
-import { getFeedback, saveFeedback } from "../../lib/feedbackRepo";
 
 interface NoveltyComparisonTableProps {
   comparisonId: string;
@@ -18,6 +16,7 @@ export function NoveltyComparisonTable({ comparisonId }: NoveltyComparisonTableP
   const { comparisons, updateComparison } = useNoveltyStore();
   const comparison = comparisons.find((c) => c.id === comparisonId);
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
+  const [editingConclusions, setEditingConclusions] = useState<Record<number, string>>({});
 
   if (!comparison) {
     return <p data-testid="novelty-empty">未找到新颖性对照结果</p>;
@@ -41,10 +40,25 @@ export function NoveltyComparisonTable({ comparisonId }: NoveltyComparisonTableP
     });
   };
 
+  const handleConclusionChange = (index: number, value: string) => {
+    setEditingConclusions((prev) => ({ ...prev, [index]: value }));
+  };
+
+  const handleConclusionSave = (index: number) => {
+    const conclusions = [...(comparison.pendingSearchConclusions ?? [])];
+    conclusions[index] = editingConclusions[index] ?? "";
+    updateComparison({ ...comparison, pendingSearchConclusions: conclusions });
+    setEditingConclusions((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+  };
+
   return (
     <div className="novelty-comparison-table" data-testid="novelty-comparison-table">
       <div data-testid="novelty-legal-caution" className="legal-caution">
-        {comparison.legalCaution}
+        以下为候选事实整理，不构成新颖性法律结论。审查员需结合对比文件全文进行独立判断。
       </div>
 
       <table>
@@ -54,7 +68,6 @@ export function NoveltyComparisonTable({ comparisonId }: NoveltyComparisonTableP
             <th>公开状态</th>
             <th>引用</th>
             <th>审查员备注</th>
-            <th>反馈</th>
           </tr>
         </thead>
         <tbody>
@@ -101,36 +114,61 @@ export function NoveltyComparisonTable({ comparisonId }: NoveltyComparisonTableP
                   </span>
                 )}
               </td>
-              <td>
-                <FeedbackButtons
-                  targetId={`${comparisonId}-${row.featureCode}`}
-                  targetType="novelty-row"
-                  existingFeedback={getFeedback(`${comparisonId}-${row.featureCode}`)}
-                  onSave={saveFeedback}
-                />
-              </td>
             </tr>
           ))}
         </tbody>
       </table>
 
       {comparison.differenceFeatureCodes.length > 0 && (
-        <div data-testid="difference-features">
+        <div data-testid="difference-features" className="novelty-section">
           <h4>区别特征候选</h4>
-          <ul>
+          <div className="difference-features-tags">
             {comparison.differenceFeatureCodes.map((code) => (
-              <li key={code}>{code}</li>
+              <span key={code} className="feature-tag">{code}</span>
             ))}
-          </ul>
+          </div>
         </div>
       )}
 
       {comparison.pendingSearchQuestions.length > 0 && (
-        <div data-testid="pending-search-questions">
-          <h4>待检索问题清单</h4>
-          <ul>
+        <div data-testid="pending-search-questions" className="novelty-section">
+          <h4>待确认问题与 AI 判断</h4>
+          <ul className="pending-search-list">
             {comparison.pendingSearchQuestions.map((q, i) => (
-              <li key={i}>{q}</li>
+              <li key={i} className="pending-search-item">
+                <div className="pending-search-question">{q}</div>
+                {editingConclusions[i] !== undefined ? (
+                  <div className="pending-search-edit">
+                    <textarea
+                      value={editingConclusions[i]}
+                      onChange={(e) => handleConclusionChange(i, e.target.value)}
+                      rows={3}
+                      data-testid={`input-conclusion-${i}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleConclusionSave(i)}
+                      data-testid={`btn-save-conclusion-${i}`}
+                    >
+                      保存
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className="pending-search-conclusion"
+                    onClick={() =>
+                      setEditingConclusions((prev) => ({
+                        ...prev,
+                        [i]: comparison.pendingSearchConclusions?.[i] ?? ""
+                      }))
+                    }
+                    style={{ cursor: "pointer" }}
+                    data-testid={`cell-conclusion-${i}`}
+                  >
+                    {comparison.pendingSearchConclusions?.[i] || "（点击编辑 AI 结论）"}
+                  </div>
+                )}
+              </li>
             ))}
           </ul>
         </div>

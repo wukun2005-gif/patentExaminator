@@ -1,6 +1,5 @@
-import type { PatentCase, ClaimFeature, NoveltyComparison } from "@shared/types/domain";
+import type { PatentCase, ClaimFeature, NoveltyComparison, InventiveStepAnalysis, FormalDefect } from "@shared/types/domain";
 import { renderCaseHtml, downloadHtml } from "../../lib/exportHtml";
-import { renderCaseMarkdown } from "../../lib/exportMarkdown";
 import { buildExportFileName } from "../../lib/fileNameSanitize";
 
 interface ExportPanelProps {
@@ -9,6 +8,8 @@ interface ExportPanelProps {
   noveltyComparisons: NoveltyComparison[];
   differenceFeatureCodes: string[];
   pendingSearchQuestions: string[];
+  inventiveAnalysis?: InventiveStepAnalysis;
+  defects?: FormalDefect[];
 }
 
 export function ExportPanel({
@@ -16,14 +17,18 @@ export function ExportPanel({
   claimFeatures,
   noveltyComparisons,
   differenceFeatureCodes,
-  pendingSearchQuestions
+  pendingSearchQuestions,
+  inventiveAnalysis,
+  defects
 }: ExportPanelProps) {
   const viewModel = {
     caseData,
     claimFeatures,
     noveltyComparisons,
     differenceFeatureCodes,
-    pendingSearchQuestions
+    pendingSearchQuestions,
+    inventiveAnalysis,
+    defects
   };
 
   const appNumber = caseData.applicationNumber ?? "unknown";
@@ -39,30 +44,17 @@ export function ExportPanel({
     downloadHtml(html, fileName);
   };
 
-  const handleExportMarkdown = () => {
-    const md = renderCaseMarkdown(viewModel);
-    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${buildExportFileName(appNumber, caseData.title, "审查辅助", new Date().toISOString().slice(0, 10))}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="export-panel" data-testid="export-panel">
       <h2>导出</h2>
 
       <div className="export-section">
-        <p>导出审查辅助材料，包含案件基线、Claim Chart、新颖性对照等内容。</p>
+        <p>导出审查辅助材料，包含案件基本信息、Claim Chart、新颖性对照等内容。</p>
 
         <div className="export-preview">
           <h3>导出内容预览</h3>
           <ul>
-            <li>案件基线信息</li>
+            <li>案件基本信息</li>
             <li>Claim Chart（{claimFeatures.filter((f) => f.citationStatus !== "not-found").length} 个已确认特征）</li>
             {noveltyComparisons.length > 0 && (
               <li>新颖性对照（{noveltyComparisons.length} 篇对比文件）</li>
@@ -72,6 +64,12 @@ export function ExportPanel({
             )}
             {pendingSearchQuestions.length > 0 && (
               <li>待检索问题清单（{pendingSearchQuestions.length} 条）</li>
+            )}
+            {inventiveAnalysis && (
+              <li>创造性三步法分析（候选结论：{ASSESSMENT_LABELS[inventiveAnalysis.candidateAssessment] ?? inventiveAnalysis.candidateAssessment}）</li>
+            )}
+            {defects && defects.length > 0 && (
+              <li>形式缺陷检查（{defects.length} 项，{defects.filter((d) => !d.resolved).length} 项未解决）</li>
             )}
           </ul>
         </div>
@@ -83,13 +81,6 @@ export function ExportPanel({
             data-testid="btn-export-html"
           >
             导出 HTML
-          </button>
-          <button
-            type="button"
-            onClick={handleExportMarkdown}
-            data-testid="btn-export-markdown"
-          >
-            导出 Markdown
           </button>
         </div>
 
@@ -105,3 +96,10 @@ export function ExportPanel({
     </div>
   );
 }
+
+const ASSESSMENT_LABELS: Record<string, string> = {
+  "possibly-lacks-inventiveness": "可能缺乏创造性",
+  "possibly-inventive": "可能具有创造性",
+  "insufficient-evidence": "证据不足",
+  "not-analyzed": "尚未分析"
+};

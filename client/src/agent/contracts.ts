@@ -80,3 +80,39 @@ export interface AgentRunOptions {
   modelId?: string;
   maxTokens?: number;
 }
+
+export interface ChatRequest {
+  caseId: string;
+  sessionId: string;
+  moduleScope: string;
+  userMessage: string;
+  contextSummary: string;
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+}
+
+export interface ChatResponse {
+  reply: string;
+  action?: {
+    type: "regenerate" | "update";
+    target: string;
+    params?: Record<string, unknown>;
+  };
+}
+
+export interface DefectRequest {
+  caseId: string;
+  claimText: string;
+  specificationText: string;
+  claimFeatures: Array<{ featureCode: string; description: string }>;
+}
+
+export interface DefectResponse {
+  defects: Array<{
+    category: string;
+    description: string;
+    location?: string;
+    severity: "error" | "warning" | "info";
+  }>;
+  warnings: string[];
+  legalCaution: string;
+}

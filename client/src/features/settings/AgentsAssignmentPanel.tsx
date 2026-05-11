@@ -11,14 +11,6 @@ const AGENT_OPTIONS = [
   { id: "chat", name: "通用对话", desc: "AI 问答" }
 ] as const;
 
-const MODEL_OPTIONS: Record<ProviderId, string[]> = {
-  mimo: ["MiMo-V2.5-Pro", "MiMo-V2.5", "MiMo-V2-Pro", "MiMo-V2-Omni"],
-  kimi: ["moonshot-v1-128k", "moonshot-v1-32k"],
-  glm: ["glm-4-plus", "glm-4", "glm-4-long"],
-  minimax: ["abab6.5s-chat", "abab6.5-chat"],
-  deepseek: ["deepseek-chat", "deepseek-reasoner"]
-};
-
 const PROVIDER_NAMES: Record<ProviderId, string> = {
   mimo: "MiMo",
   kimi: "Kimi",
@@ -34,6 +26,11 @@ export function AgentsAssignmentPanel() {
 
   const getAssignment = (agentId: string) =>
     settings.agents.find((a) => a.agent === agentId);
+
+  const getDefaultModel = (providerId: ProviderId): string => {
+    const provider = settings.providers.find((p) => p.providerId === providerId);
+    return provider?.defaultModelId ?? (provider?.modelIds[0] ?? "");
+  };
 
   const handleModelChange = (agentId: string, providerId: ProviderId, modelId: string) => {
     const existing = getAssignment(agentId);
@@ -69,10 +66,14 @@ export function AgentsAssignmentPanel() {
     );
   }
 
+  const defaultProvider = enabledProviders[0];
+  const defaultModel = defaultProvider ? getDefaultModel(defaultProvider.providerId) : "";
+
   return (
     <div className="agents-assignment-panel" data-testid="agents-assignment-panel">
       <p className="panel-desc">
-        为每个 AI 功能选择使用哪个模型。未单独配置的功能将使用默认模型。
+        为每个 AI 功能选择使用哪个模型。未单独配置的功能将使用默认模型：
+        <strong>{defaultProvider ? `${PROVIDER_NAMES[defaultProvider.providerId]} / ${defaultModel}` : "未设置"}</strong>。
       </p>
 
       <div className="agent-table">
@@ -105,13 +106,15 @@ export function AgentsAssignmentPanel() {
                   data-testid={`select-model-${agentOpt.id}`}
                 >
                   {!assignment && <option value="">使用默认</option>}
-                  {enabledProviders.flatMap((p) =>
-                    (MODEL_OPTIONS[p.providerId] ?? []).map((model) => (
+                  {enabledProviders.map((p) => {
+                    const defaultModel = getDefaultModel(p.providerId);
+                    const models = p.modelIds;
+                    return models.map((model) => (
                       <option key={`${p.providerId}:${model}`} value={`${p.providerId}:${model}`}>
-                        {PROVIDER_NAMES[p.providerId]} / {model}
+                        {PROVIDER_NAMES[p.providerId]} / {model}{model === defaultModel ? " (默认)" : ""}
                       </option>
-                    ))
-                  )}
+                    ));
+                  })}
                 </select>
               </span>
               <span>

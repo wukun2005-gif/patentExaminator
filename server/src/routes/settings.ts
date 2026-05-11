@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { setApiKey, getApiKey, removeApiKey, listProviders } from "../security/keyStore.js";
+import { registry } from "../providers/registry.js";
 
 export const settingsRouter = Router();
 
@@ -38,4 +39,29 @@ settingsRouter.get("/settings/providers/:providerId", (req, res) => {
   const { providerId } = req.params;
   const key = getApiKey(providerId!);
   res.json({ providerId, hasKey: !!key });
+});
+
+// List available models for a provider
+settingsRouter.get("/providers/:providerId/models", async (req, res) => {
+  const { providerId } = req.params;
+  const apiKey = req.query.apiKey as string | undefined;
+
+  if (!apiKey) {
+    res.status(400).json({ error: "apiKey query parameter is required" });
+    return;
+  }
+
+  const adapter = registry.get(providerId!);
+  if (!adapter) {
+    res.status(404).json({ error: `Unknown provider: ${providerId}` });
+    return;
+  }
+
+  try {
+    const models = await adapter.listModels(apiKey);
+    res.json({ providerId, models });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(502).json({ error: message });
+  }
 });

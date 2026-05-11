@@ -1,4 +1,4 @@
-import type { PatentCase, ClaimFeature, NoveltyComparison } from "@shared/types/domain";
+import type { PatentCase, ClaimFeature, NoveltyComparison, InventiveStepAnalysis, FormalDefect } from "@shared/types/domain";
 
 export interface ExportViewModel {
   caseData: PatentCase;
@@ -6,6 +6,8 @@ export interface ExportViewModel {
   noveltyComparisons: NoveltyComparison[];
   differenceFeatureCodes: string[];
   pendingSearchQuestions: string[];
+  inventiveAnalysis?: InventiveStepAnalysis;
+  defects?: FormalDefect[];
 }
 
 const LEGAL_DISCLAIMER = "本文件为审查辅助素材，不构成法律结论。所有 AI 生成内容均为候选事实整理，需审查员确认。";
@@ -36,7 +38,7 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
   </div>
 
   <div class="section">
-    <h1>案件基线</h1>
+    <h1>案件基本信息</h1>
     <table>
       <tr><th>申请号</th><td>${caseData.applicationNumber}</td></tr>
       <tr><th>发明名称</th><td>${caseData.title}</td></tr>
@@ -134,6 +136,77 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
       : ""
   }
 
+  ${
+    viewModel.inventiveAnalysis
+      ? (() => {
+          const a = viewModel.inventiveAnalysis;
+          return `
+  <div class="section">
+    <h2>创造性三步法分析</h2>
+    <table>
+      <tr><th>最接近现有技术</th><td>${a.closestPriorArtId ?? "—"}</td></tr>
+      <tr><th>共有特征</th><td>${a.sharedFeatureCodes.join("、") || "无"}</td></tr>
+      <tr><th>区别特征</th><td>${a.distinguishingFeatureCodes.join("、") || "无"}</td></tr>
+      ${a.objectiveTechnicalProblem ? `<tr><th>客观技术问题</th><td>${a.objectiveTechnicalProblem}</td></tr>` : ""}
+      <tr><th>候选结论</th><td>${ASSESSMENT_LABELS[a.candidateAssessment] ?? a.candidateAssessment}</td></tr>
+    </table>
+    ${
+      a.motivationEvidence.length > 0
+        ? `<h3>现有技术启示</h3>
+    <ul>
+      ${a.motivationEvidence.map((e) => `<li>${e.label}${e.quote ? `：「${e.quote}」` : ""}（置信度：${e.confidence}）</li>`).join("")}
+    </ul>`
+        : ""
+    }
+    ${
+      a.cautions.length > 0
+        ? `<h3>注意事项</h3>
+    <ul>
+      ${a.cautions.map((c) => `<li>${c}</li>`).join("")}
+    </ul>`
+        : ""
+    }
+    <p><em>${a.legalCaution}</em></p>
+  </div>`;
+        })()
+      : ""
+  }
+
+  ${
+    viewModel.defects && viewModel.defects.length > 0
+      ? `
+  <div class="section">
+    <h2>形式缺陷检查</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>严重度</th>
+          <th>分类</th>
+          <th>缺陷描述</th>
+          <th>位置</th>
+          <th>状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${viewModel.defects
+          .map(
+            (d) => `
+        <tr>
+          <td>${SEVERITY_LABELS[d.severity]}</td>
+          <td>${d.category}</td>
+          <td>${d.description}</td>
+          <td>${d.location ?? "—"}</td>
+          <td>${d.resolved ? "已解决" : "未解决"}</td>
+        </tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
+    <p><em>以下为 AI 辅助检测结果，需审查员逐项确认。</em></p>
+  </div>`
+      : ""
+  }
+
   <div class="legal-disclaimer">
     <strong>法律免责声明：</strong>${LEGAL_DISCLAIMER}
   </div>
@@ -157,6 +230,19 @@ const STATUS_LABELS: Record<string, string> = {
   confirmed: "已确认",
   "needs-review": "待确认",
   "not-found": "未找到"
+};
+
+const ASSESSMENT_LABELS: Record<string, string> = {
+  "possibly-lacks-inventiveness": "可能缺乏创造性",
+  "possibly-inventive": "可能具有创造性",
+  "insufficient-evidence": "证据不足",
+  "not-analyzed": "尚未分析"
+};
+
+const SEVERITY_LABELS: Record<string, string> = {
+  error: "严重",
+  warning: "警告",
+  info: "提示"
 };
 
 const DISCLOSURE_LABELS: Record<string, string> = {

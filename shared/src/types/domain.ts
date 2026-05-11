@@ -125,6 +125,7 @@ export interface NoveltyComparison {
   rows: NoveltyComparisonRow[];
   differenceFeatureCodes: string[];
   pendingSearchQuestions: string[];
+  pendingSearchConclusions?: string[];
   status: "draft" | "user-reviewed" | "stale";
   legalCaution: string;
 }
@@ -166,6 +167,16 @@ export interface Citation {
   confidence: "high" | "medium" | "low";
 }
 
+export interface FormalDefect {
+  id: string;
+  caseId: string;
+  category: string;
+  description: string;
+  location?: string;
+  severity: "error" | "warning" | "info";
+  resolved: boolean;
+}
+
 export interface FeedbackEntry {
   id: string;
   targetId: string;
@@ -176,18 +187,31 @@ export interface FeedbackEntry {
   updatedAt: ISODateTimeString;
 }
 
+export type ModuleScope =
+  | "claim-chart"
+  | "novelty"
+  | "inventive"
+  | "summary"
+  | "draft"
+  | "defects"
+  | "case"
+  | "documents"
+  | "interpret";
+
+export interface ChatSession {
+  id: string;
+  caseId: string;
+  moduleScope: ModuleScope;
+  title: string;
+  createdAt: ISODateTimeString;
+  updatedAt: ISODateTimeString;
+}
+
 export interface ChatMessage {
   id: string;
   caseId: string;
-  moduleScope:
-    | "claim-chart"
-    | "novelty"
-    | "inventive"
-    | "summary"
-    | "draft"
-    | "defects"
-    | "case"
-    | "documents";
+  sessionId: string;
+  moduleScope: ModuleScope;
   role: "user" | "assistant" | "system";
   content: string;
   attachedContextSnapshot?: {

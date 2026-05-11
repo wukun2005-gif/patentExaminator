@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
 import { Link, useParams, useLocation } from "react-router-dom";
 import { ModeBanner } from "./ModeBanner";
+import { ChatPanel } from "../features/chat/ChatPanel";
 
 interface AppShellProps {
   children: ReactNode;
 }
 
 const CASE_NAV_ITEMS = [
-  { path: "baseline", label: "案件基线" },
+  { path: "baseline", label: "案件基本信息" },
   { path: "documents", label: "文档导入" },
   { path: "references", label: "文献清单" },
   { path: "interpret", label: "文档解读" },
@@ -32,6 +33,11 @@ export function AppShell({ children }: AppShellProps) {
     <div className="app-shell">
       <header className="app-shell__topbar">
         <Link to="/cases" className="app-shell__logo">专利审查助手</Link>
+        {caseId && (
+          <span className="app-shell__case-id" data-testid="topbar-case-id">
+            案件: {caseId}
+          </span>
+        )}
         <ModeBanner />
         <nav className="app-shell__topnav">
           <button type="button" className="btn-link" onClick={showGuide}>
@@ -79,6 +85,7 @@ export function AppShell({ children }: AppShellProps) {
         <main className="app-shell__main" data-testid="main-content">
           {children}
         </main>
+        {caseId && <ChatPanel />}
       </div>
     </div>
   );

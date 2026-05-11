@@ -1,6 +1,6 @@
 import type { AppMode } from "./domain.js";
 
-export type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek";
+export type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek" | "gemini";
 
 export interface ProviderConnection {
   providerId: ProviderId;
@@ -8,6 +8,8 @@ export interface ProviderConnection {
   protocol?: "openai-compatible" | "anthropic-compatible";
   apiKeyRef: string;
   modelIds: string[];
+  defaultModelId: string;
+  modelFallbacks?: string[];
   enabled: boolean;
 }
 

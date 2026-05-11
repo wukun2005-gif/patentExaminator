@@ -11,7 +11,8 @@ export function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    loadFromDb();
+    loadFromDb().catch((e) => console.warn("Settings load failed:", e));
+
     const done = localStorage.getItem(ONBOARDING_KEY);
     if (!done) setShowOnboarding(true);
   }, [loadFromDb]);

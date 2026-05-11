@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { createCase } from "../../lib/repositories/caseRepo";
+import { loadPresetCase } from "../../lib/presetLoader";
 import { useCaseStore } from "../../store";
 import type { PatentCase } from "@shared/types/domain";
 
@@ -28,10 +29,15 @@ export function NewCasePage() {
     navigate(`/cases/${id}/baseline`);
   };
 
+  const handleLoadPreset = async () => {
+    const caseId = await loadPresetCase();
+    navigate(`/cases/${caseId}/baseline`);
+  };
+
   return (
     <div className="new-case-page" data-testid="new-case-page">
       <h2>新建案件</h2>
-      <p>创建一个新的专利审查案件，然后在案件基线页面填写基本信息。</p>
+      <p>创建一个新的专利审查案件，然后在案件基本信息页面填写相关信息。</p>
       <button
         type="button"
         onClick={handleCreate}
@@ -39,6 +45,17 @@ export function NewCasePage() {
       >
         创建新案件
       </button>
+      <div className="new-case-page__preset">
+        <p>或者加载一个预置案例，快速体验完整审查流程：</p>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={handleLoadPreset}
+          data-testid="btn-load-preset"
+        >
+          加载预置案例
+        </button>
+      </div>
     </div>
   );
 }

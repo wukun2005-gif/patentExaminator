@@ -36,6 +36,10 @@ class MockAdapter implements ProviderAdapter {
     }
     return response;
   }
+
+  async listModels(): Promise<string[]> {
+    return ["mock-model"];
+  }
 }
 
 // Failing adapter that always throws with a specific status
@@ -56,6 +60,10 @@ class FailingAdapter implements ProviderAdapter {
     const error = new Error(`HTTP ${this.status}`);
     (error as Error & { status: number }).status = this.status;
     throw error;
+  }
+
+  async listModels(): Promise<string[]> {
+    return [];
   }
 }
 

@@ -1,0 +1,303 @@
+{
+  "case": {
+    "id": "preset-demo-001",
+    "applicationNumber": "202410123456.7",
+    "title": "一种LED散热装置",
+    "applicant": "深圳光明科技有限公司",
+    "applicationDate": "2024-03-15",
+    "patentType": "invention",
+    "textVersion": "original",
+    "targetClaimNumber": 1,
+    "guidelineVersion": "2023",
+    "workflowState": "export-ready",
+    "examinerNotes": "预置演示案例，用于体验完整审查流程。",
+    "createdAt": "2024-03-15T10:00:00.000Z",
+    "updatedAt": "2024-03-20T14:30:00.000Z"
+  },
+  "applicationDoc": {
+    "id": "preset-demo-001-app",
+    "caseId": "preset-demo-001",
+    "role": "application",
+    "fileName": "LED散热装置-申请文件.txt",
+    "fileType": "txt",
+    "textLayerStatus": "present",
+    "ocrStatus": "not-needed",
+    "textStatus": "confirmed",
+    "extractedText": "【技术领域】\n[0001] 本发明涉及LED照明设备散热技术领域，具体涉及一种LED散热装置。\n\n【背景技术】\n[0002] 随着LED照明技术的快速发展，大功率LED灯具的散热问题日益突出。现有技术中，LED散热装置通常采用散热翅片与基板分体组装的方式，存在热阻大、散热效率低的问题。\n[0003] 中国专利申请CN108XXXXXXA公开了一种散热器，采用铝合金基板与铜质散热翅片焊接连接，虽然提高了散热性能，但焊接工艺复杂，成本较高，且焊接界面存在热阻。\n[0004] 因此，需要一种结构简单、散热效率高、制造成本低的LED散热装置。\n\n【发明内容】\n[0005] 本发明提供一种LED散热装置，包括基板，所述基板为铝合金材质，厚度为2-5mm。\n[0006] 所述基板上表面设置有散热翅片，散热翅片数量为8-16片，均匀分布在基板上表面。\n[0007] 所述散热翅片与基板采用一体成型工艺，通过铝合金压铸一次成型，翅片高度为15-30mm。\n[0008] 所述基板下表面设置有LED安装区域，安装区域面积占基板下表面面积的30%-50%。\n[0009] 所述基板边缘设置有固定孔，用于将散热装置固定在灯具壳体上。\n[0010] 所述散热翅片表面设置有纳米涂层，涂层厚度为0.1-0.3mm，用于提高辐射散热效率。\n\n【具体实施方式】\n[0011] 实施例1：一种LED散热装置，包括铝合金基板，基板厚度3mm，尺寸为100mm×100mm。基板上表面设置12片散热翅片，翅片高度20mm，厚度2mm，采用铝合金压铸一体成型。\n[0012] 基板下表面中央设置LED安装区域，尺寸为60mm×60mm，安装区域设有导热硅脂层。\n[0013] 基板四角各设置一个M3固定孔，孔心距边缘8mm。\n[0014] 散热翅片表面经阳极氧化处理后，喷涂纳米碳化硅涂层，涂层厚度0.2mm。\n[0015] 经测试，该散热装置在LED功率为30W时，基板温度较传统分体式散热器降低15°C，散热效率提升约25%。\n\n【权利要求书】\n1. 一种LED散热装置，其特征在于，包括：\n  基板，所述基板为铝合金材质；\n  散热翅片，设置在所述基板上表面，所述散热翅片与所述基板一体成型；\n  所述散热翅片表面设置有纳米涂层。\n2. 根据权利要求1所述的LED散热装置，其特征在于，所述散热翅片数量为8-16片，均匀分布在所述基板上表面。\n3. 根据权利要求1所述的LED散热装置，其特征在于，所述基板下表面设置有LED安装区域，所述安装区域面积占基板下表面面积的30%-50%。",
+    "textIndex": {
+      "pages": [
+        { "pageNumber": 1, "startOffset": 0, "endOffset": 1200 }
+      ],
+      "paragraphs": [
+        { "id": "p-0001", "page": 1, "paragraphNumber": 1, "text": "本发明涉及LED照明设备散热技术领域，具体涉及一种LED散热装置。", "startOffset": 12, "endOffset": 52 },
+        { "id": "p-0005", "page": 1, "paragraphNumber": 5, "text": "本发明提供一种LED散热装置，包括基板，所述基板为铝合金材质，厚度为2-5mm。", "startOffset": 220, "endOffset": 270 },
+        { "id": "p-0006", "page": 1, "paragraphNumber": 6, "text": "所述基板上表面设置有散热翅片，散热翅片数量为8-16片，均匀分布在基板上表面。", "startOffset": 272, "endOffset": 322 },
+        { "id": "p-0007", "page": 1, "paragraphNumber": 7, "text": "所述散热翅片与基板采用一体成型工艺，通过铝合金压铸一次成型，翅片高度为15-30mm。", "startOffset": 324, "endOffset": 378 }
+      ],
+      "lineMap": []
+    },
+    "createdAt": "2024-03-15T10:00:00.000Z"
+  },
+  "referenceDocs": [
+    {
+      "id": "preset-demo-001-ref-d1",
+      "caseId": "preset-demo-001",
+      "role": "reference",
+      "fileName": "CN108XXXXXXA-散热器.txt",
+      "fileType": "txt",
+      "textLayerStatus": "present",
+      "ocrStatus": "not-needed",
+      "textStatus": "confirmed",
+      "extractedText": "【技术领域】\n[0001] 本实用新型涉及散热器技术领域。\n\n【背景技术】\n[0002] 现有散热器结构复杂，散热效率有待提高。\n\n【实用新型内容】\n[0003] 本实用新型提供一种散热器，包括铝合金基板。\n[0004] 所述基板上设置有铜质散热翅片，通过焊接方式与基板连接。\n[0005] 本实用新型提供一种LED散热装置，包括基板，所述基板为铝合金材质。\n[0006] 所述散热翅片通过焊接工艺与基板连接。\n\n【具体实施方式】\n[0007] 实施例中，基板厚度4mm，散热翅片10片，焊接连接。",
+      "textIndex": {
+        "pages": [{ "pageNumber": 1, "startOffset": 0, "endOffset": 500 }],
+        "paragraphs": [
+          { "id": "ref-p-0005", "page": 1, "paragraphNumber": 5, "text": "本实用新型提供一种LED散热装置，包括基板，所述基板为铝合金材质。", "startOffset": 180, "endOffset": 225 }
+        ],
+        "lineMap": []
+      },
+      "title": "一种散热器",
+      "publicationNumber": "CN108XXXXXXA",
+      "publicationDate": "2022-06-15",
+      "publicationDateConfidence": "high",
+      "timelineStatus": "available",
+      "technicalField": "散热器技术领域",
+      "summary": "公开了一种铝合金基板与铜质散热翅片焊接连接的散热器结构。",
+      "relevanceNotes": "公开了LED散热装置的基板结构，但未公开一体成型工艺和纳米涂层。",
+      "createdAt": "2024-03-16T09:00:00.000Z"
+    }
+  ],
+  "claimNodes": [
+    {
+      "id": "preset-demo-001-claim-1",
+      "caseId": "preset-demo-001",
+      "claimNumber": 1,
+      "type": "independent",
+      "dependsOn": [],
+      "rawText": "1. 一种LED散热装置，其特征在于，包括：基板，所述基板为铝合金材质；散热翅片，设置在所述基板上表面，所述散热翅片与所述基板一体成型；所述散热翅片表面设置有纳米涂层。"
+    },
+    {
+      "id": "preset-demo-001-claim-2",
+      "caseId": "preset-demo-001",
+      "claimNumber": 2,
+      "type": "dependent",
+      "dependsOn": [1],
+      "rawText": "2. 根据权利要求1所述的LED散热装置，其特征在于，所述散热翅片数量为8-16片，均匀分布在所述基板上表面。"
+    }
+  ],
+  "claimFeatures": [
+    {
+      "id": "preset-demo-001-chart-1-A",
+      "caseId": "preset-demo-001",
+      "claimNumber": 1,
+      "featureCode": "A",
+      "description": "一种LED散热装置，包括基板，所述基板为铝合金材质",
+      "specificationCitations": [
+        {
+          "documentId": "preset-demo-001-app",
+          "label": "[0005]",
+          "page": 1,
+          "paragraph": "0005",
+          "quote": "本发明提供一种LED散热装置，包括基板，所述基板为铝合金材质，厚度为2-5mm。",
+          "confidence": "high"
+        }
+      ],
+      "citationStatus": "confirmed",
+      "source": "mock"
+    },
+    {
+      "id": "preset-demo-001-chart-1-B",
+      "caseId": "preset-demo-001",
+      "claimNumber": 1,
+      "featureCode": "B",
+      "description": "散热翅片，设置在所述基板上表面，所述散热翅片与所述基板一体成型",
+      "specificationCitations": [
+        {
+          "documentId": "preset-demo-001-app",
+          "label": "[0007]",
+          "page": 1,
+          "paragraph": "0007",
+          "quote": "所述散热翅片与基板采用一体成型工艺，通过铝合金压铸一次成型，翅片高度为15-30mm。",
+          "confidence": "high"
+        }
+      ],
+      "citationStatus": "confirmed",
+      "source": "mock"
+    },
+    {
+      "id": "preset-demo-001-chart-1-C",
+      "caseId": "preset-demo-001",
+      "claimNumber": 1,
+      "featureCode": "C",
+      "description": "所述散热翅片表面设置有纳米涂层",
+      "specificationCitations": [
+        {
+          "documentId": "preset-demo-001-app",
+          "label": "[0010]",
+          "page": 1,
+          "paragraph": "0010",
+          "quote": "所述散热翅片表面设置有纳米涂层，涂层厚度为0.1-0.3mm，用于提高辐射散热效率。",
+          "confidence": "high"
+        }
+      ],
+      "citationStatus": "confirmed",
+      "source": "mock"
+    }
+  ],
+  "noveltyComparisons": [
+    {
+      "id": "preset-demo-001-novelty-d1",
+      "caseId": "preset-demo-001",
+      "referenceId": "preset-demo-001-ref-d1",
+      "claimNumber": 1,
+      "rows": [
+        {
+          "featureCode": "A",
+          "disclosureStatus": "clearly-disclosed",
+          "citations": [
+            {
+              "documentId": "preset-demo-001-ref-d1",
+              "label": "[0005]",
+              "page": 1,
+              "paragraph": "0005",
+              "quote": "本实用新型提供一种LED散热装置，包括基板，所述基板为铝合金材质。",
+              "confidence": "high"
+            }
+          ]
+        },
+        {
+          "featureCode": "B",
+          "disclosureStatus": "not-found",
+          "citations": [],
+          "mismatchNotes": "对比文件公开的是焊接连接（[0006]），未公开一体成型工艺。"
+        },
+        {
+          "featureCode": "C",
+          "disclosureStatus": "not-found",
+          "citations": [],
+          "mismatchNotes": "对比文件未公开纳米涂层。"
+        }
+      ],
+      "differenceFeatureCodes": ["B", "C"],
+      "pendingSearchQuestions": [
+        "对比文件中是否公开了一体成型的散热翅片结构？",
+        "对比文件中是否公开了纳米涂层技术？"
+      ],
+      "pendingSearchConclusions": [
+        "AI判断：未公开。对比文件[0006]记载「散热翅片通过焊接工艺与基板连接」，采用的是焊接工艺，与本申请的一体成型压铸工艺不同。焊接属于分体组装，不属于一体成型。",
+        "AI判断：未公开。对比文件全文未记载纳米涂层或任何表面涂层技术。本申请的纳米碳化硅涂层（[0010]）用于提高辐射散热效率，在对比文件中无对应技术特征。"
+      ],
+      "status": "user-reviewed",
+      "legalCaution": "以下为候选事实整理，不构成新颖性法律结论。审查员需结合对比文件全文进行独立判断。"
+    }
+  ],
+  "inventiveAnalysis": {
+    "id": "inventive-preset-demo-001-1",
+    "caseId": "preset-demo-001",
+    "closestPriorArtId": "preset-demo-001-ref-d1",
+    "sharedFeatureCodes": ["A"],
+    "distinguishingFeatureCodes": ["B", "C"],
+    "status": "draft",
+    "objectiveTechnicalProblem": "如何提高散热翅片与基板之间的热传导效率，同时简化制造工艺并增强辐射散热能力。",
+    "motivationEvidence": [
+      {
+        "documentId": "preset-demo-001-ref-d1",
+        "label": "[0006]",
+        "page": 1,
+        "paragraph": "0006",
+        "quote": "所述散热翅片通过焊接工艺与基板连接。",
+        "confidence": "high"
+      }
+    ],
+    "candidateAssessment": "possibly-inventive",
+    "cautions": [
+      "对比文件采用焊接工艺，与本申请的一体成型工艺属于不同的技术手段。",
+      "纳米涂层在散热领域的应用需要进一步检索现有技术。"
+    ],
+    "legalCaution": "本分析为 AI 辅助候选，需审查员确认。创造性判断需综合考虑技术领域、技术问题、技术方案和有益效果。"
+  },
+  "defectCheck": [
+    {
+      "id": "defect-preset-demo-001-1",
+      "caseId": "preset-demo-001",
+      "category": "权利要求",
+      "description": "权利要求2-3引用关系不明确，缺少对权利要求1的具体引用",
+      "location": "权利要求2、3",
+      "severity": "error",
+      "resolved": false
+    },
+    {
+      "id": "defect-preset-demo-001-2",
+      "caseId": "preset-demo-001",
+      "category": "说明书",
+      "description": "具体实施方式中未公开纳米碳化硅涂层的厚度参数范围",
+      "location": "说明书第4段",
+      "severity": "warning",
+      "resolved": false
+    },
+    {
+      "id": "defect-preset-demo-001-3",
+      "caseId": "preset-demo-001",
+      "category": "说明书",
+      "description": "摘要超过300字，建议精简",
+      "severity": "info",
+      "resolved": false
+    }
+  ],
+  "chatSessions": [
+    {
+      "id": "chat-preset-demo-001-claim-chart",
+      "caseId": "preset-demo-001",
+      "moduleScope": "claim-chart",
+      "title": "Claim Chart 讨论",
+      "createdAt": "2026-05-11T10:00:00.000Z",
+      "updatedAt": "2026-05-11T10:05:00.000Z"
+    },
+    {
+      "id": "chat-preset-demo-001-inventive",
+      "caseId": "preset-demo-001",
+      "moduleScope": "inventive",
+      "title": "创造性分析讨论",
+      "createdAt": "2026-05-11T10:10:00.000Z",
+      "updatedAt": "2026-05-11T10:15:00.000Z"
+    }
+  ],
+  "chatMessages": [
+    {
+      "id": "msg-preset-001",
+      "caseId": "preset-demo-001",
+      "sessionId": "chat-preset-demo-001-claim-chart",
+      "moduleScope": "claim-chart",
+      "role": "user",
+      "content": "帮我分析一下权利要求1的特征拆解是否合理？",
+      "createdAt": "2026-05-11T10:01:00.000Z"
+    },
+    {
+      "id": "msg-preset-002",
+      "caseId": "preset-demo-001",
+      "sessionId": "chat-preset-demo-001-claim-chart",
+      "moduleScope": "claim-chart",
+      "role": "assistant",
+      "content": "权利要求1包含3个技术特征：\nA. 铝合金基板\nB. 一体成型散热翅片\nC. 纳米碳化硅涂层\n\n特征拆解基本合理。A和B是结构特征，C是材料/表面处理特征。建议确认C是否属于附加技术特征。",
+      "createdAt": "2026-05-11T10:02:00.000Z"
+    },
+    {
+      "id": "msg-preset-003",
+      "caseId": "preset-demo-001",
+      "sessionId": "chat-preset-demo-001-inventive",
+      "moduleScope": "inventive",
+      "role": "user",
+      "content": "创造性三步法的结论是什么？",
+      "createdAt": "2026-05-11T10:11:00.000Z"
+    },
+    {
+      "id": "msg-preset-004",
+      "caseId": "preset-demo-001",
+      "sessionId": "chat-preset-demo-001-inventive",
+      "moduleScope": "inventive",
+      "role": "assistant",
+      "content": "创造性分析结论：\n- 最接近现有技术：对比文件1\n- 区别特征：B（一体成型翅片）和 C（纳米涂层）\n- 客观技术问题：如何提高散热翅片与基板之间的热传导效率\n- 候选结论：可能具有创造性（待确认）\n\n对比文件采用焊接工艺，与本申请的一体成型工艺不同，需要进一步检索纳米涂层在散热领域的应用。",
+      "createdAt": "2026-05-11T10:12:00.000Z"
+    }
+  ]
+}
