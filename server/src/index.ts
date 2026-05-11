@@ -1,15 +1,25 @@
+import dotenv from "dotenv";
 import express from "express";
 import { healthRouter } from "./routes/health.js";
 import { aiRouter } from "./routes/ai.js";
 import { settingsRouter } from "./routes/settings.js";
+import { setApiKey } from "./security/keyStore.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 
+// Load .env file from project root
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+
+// Load default API keys from environment variables
+if (process.env.GEMINI_KEY) {
+  setApiKey("gemini", process.env.GEMINI_KEY);
+  console.log("Loaded GEMINI_KEY from environment");
+}
 
 app.use(express.json());
 

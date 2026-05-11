@@ -7,8 +7,59 @@ const LS_KEY = "patent-examiner-settings";
 const DEFAULT_SETTINGS: AppSettings = {
   mode: "mock",
   guidelineVersion: "2023",
-  providers: [],
-  agents: [],
+  providers: [
+    {
+      providerId: "gemini",
+      apiKeyRef: "gemini",
+      modelIds: ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"],
+      defaultModelId: "gemini-2.5-flash-lite",
+      enabled: true
+    }
+  ],
+  agents: [
+    {
+      agent: "interpret",
+      providerOrder: ["gemini"],
+      modelId: "gemini-2.5-flash-lite",
+      maxTokens: 4096
+    },
+    {
+      agent: "claim-chart",
+      providerOrder: ["gemini"],
+      modelId: "gemini-2.5-flash-lite",
+      maxTokens: 4096
+    },
+    {
+      agent: "novelty",
+      providerOrder: ["gemini"],
+      modelId: "gemini-2.5-flash-lite",
+      maxTokens: 4096
+    },
+    {
+      agent: "inventive",
+      providerOrder: ["gemini"],
+      modelId: "gemini-2.5-flash-lite",
+      maxTokens: 4096
+    },
+    {
+      agent: "summary",
+      providerOrder: ["gemini"],
+      modelId: "gemini-2.5-flash-lite",
+      maxTokens: 4096
+    },
+    {
+      agent: "draft",
+      providerOrder: ["gemini"],
+      modelId: "gemini-2.5-flash-lite",
+      maxTokens: 4096
+    },
+    {
+      agent: "chat",
+      providerOrder: ["gemini"],
+      modelId: "gemini-2.5-flash-lite",
+      maxTokens: 4096
+    }
+  ],
   persistKeysEncrypted: false
 };
 

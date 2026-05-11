@@ -4,6 +4,7 @@ import { useSettingsStore } from "../../store";
 import { fetchModels } from "../../lib/api";
 
 const PROVIDER_OPTIONS: Array<{ id: ProviderId; name: string; desc: string }> = [
+  { id: "gemini", name: "Gemini", desc: "Google AI Studio (免费)" },
   { id: "mimo", name: "MiMo", desc: "小米 Token Plan" },
   { id: "kimi", name: "Kimi", desc: "Moonshot / 月之暗面" },
   { id: "glm", name: "GLM", desc: "智谱 AI" },
@@ -12,6 +13,7 @@ const PROVIDER_OPTIONS: Array<{ id: ProviderId; name: string; desc: string }> = 
 ];
 
 const DEFAULT_MODELS: Record<ProviderId, string[]> = {
+  gemini: ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"],
   mimo: ["MiMo-V2.5-Pro", "MiMo-V2.5", "MiMo-V2-Pro", "MiMo-V2-Omni"],
   kimi: ["moonshot-v1-128k", "moonshot-v1-32k"],
   glm: ["glm-4-plus", "glm-4", "glm-4-long"],

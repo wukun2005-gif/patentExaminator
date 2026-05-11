@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { router } from "../router";
 import { loadPresetCase } from "../lib/presetLoader";
 
 interface Step {
@@ -28,7 +28,7 @@ const QUICK_STEPS: Step[] = [
   {
     title: "切换模式",
     content:
-      "顶部模式横幅可以切换「演示模式」和「真实模式」。演示模式下 AI 输出为预置示例；真实模式需要配置 API Key，调用大模型生成结果。"
+      "顶部模式横幅可以切换「演示模式」和「真实模式」。演示模式下 AI 输出为预置示例；真实模式会调用 Google AI Studio (Gemini) 免费 API 生成结果，无需额外配置。"
   }
 ];
 
@@ -137,7 +137,6 @@ export function OnboardingGuide({ onClose }: OnboardingGuideProps) {
   const [mode, setMode] = useState<"choose" | "quick" | "guide">("choose");
   const [current, setCurrent] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
-  const navigate = useNavigate();
 
   const steps = mode === "quick" ? QUICK_STEPS : GUIDE_STEPS;
   const step = steps[current]!;
@@ -164,7 +163,7 @@ export function OnboardingGuide({ onClose }: OnboardingGuideProps) {
   const handleLoadPreset = async () => {
     const caseId = await loadPresetCase();
     onClose();
-    navigate(`/cases/${caseId}/baseline`);
+    router.navigate(`/cases/${caseId}/baseline`);
   };
 
   // Mode selection screen

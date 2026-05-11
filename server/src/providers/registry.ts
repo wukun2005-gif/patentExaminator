@@ -5,8 +5,10 @@ import { GlmAdapter } from "./glm.js";
 import { MinimaxAdapter } from "./minimax.js";
 import { MimoAdapter } from "./mimo.js";
 import { DeepseekAdapter } from "./deepseek.js";
+import { GeminiAdapter } from "./gemini.js";
 
 const MIMO_MODEL_FALLBACKS = ["MiMo-V2.5-Pro", "MiMo-V2.5", "MiMo-V2-Pro", "MiMo-V2-Omni"];
+const GEMINI_MODEL_FALLBACKS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
 
 const BACKOFF_DELAYS = [500, 1500, 3000];
 const MAX_RETRIES = 2;
@@ -27,6 +29,7 @@ export class ProviderRegistry {
     this.register(new MinimaxAdapter());
     this.register(new MimoAdapter());
     this.register(new DeepseekAdapter());
+    this.register(new GeminiAdapter());
   }
 
   register(adapter: ProviderAdapter): void {
@@ -39,7 +42,7 @@ export class ProviderRegistry {
 
   /**
    * Execute a chat request with fallback logic.
-   * - 429/quota: try next provider (for mimo, try model fallbacks first)
+   * - 429/quota: try next provider (for mimo/gemini, try model fallbacks first)
    * - 5xx/network: exponential backoff retry up to 2 times, then next provider
    * - 401: no retry, no fallback
    * - timeout: treated as network error
@@ -62,6 +65,29 @@ export class ProviderRegistry {
       // For mimo, try model fallbacks first
       if (pid === "mimo") {
         const models = mimoModelFallbacks ?? MIMO_MODEL_FALLBACKS;
+        for (const modelId of models) {
+          try {
+            const response = await this.executeWithRetry(adapter, { ...req, modelId });
+            attempts.push({ providerId, ok: true });
+            return { response, attempts };
+          } catch (error) {
+            const errInfo = classifyError(error);
+            attempts.push({ providerId, ok: false, errorCode: errInfo.code });
+            if (errInfo.code === "auth-failed") {
+              return { response: buildErrorResponse(errInfo), attempts };
+            }
+            if (errInfo.code === "quota-exceeded") {
+              break; // Try next provider
+            }
+            // For other errors, try next model
+          }
+        }
+        continue;
+      }
+
+      // For gemini, try model fallbacks first
+      if (pid === "gemini") {
+        const models = GEMINI_MODEL_FALLBACKS;
         for (const modelId of models) {
           try {
             const response = await this.executeWithRetry(adapter, { ...req, modelId });

@@ -12,6 +12,7 @@ const AGENT_OPTIONS = [
 ] as const;
 
 const PROVIDER_NAMES: Record<ProviderId, string> = {
+  gemini: "Gemini",
   mimo: "MiMo",
   kimi: "Kimi",
   glm: "GLM",
