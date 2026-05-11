@@ -72,12 +72,7 @@ export function ChatPanel() {
       try {
         const storedSessions = await getSessionsByCaseId(caseId);
         if (cancelled) return;
-        const existingIds = new Set(sessions.map((s) => s.id));
-        const merged = [...sessions];
-        for (const s of storedSessions) {
-          if (!existingIds.has(s.id)) merged.push(s);
-        }
-        setSessions(merged);
+        setSessions(storedSessions);
 
         const allMessages: typeof messages = [];
         for (const s of storedSessions) {
@@ -85,12 +80,7 @@ export function ChatPanel() {
           allMessages.push(...msgs);
         }
         if (!cancelled) {
-          const existingMsgIds = new Set(messages.map((m) => m.id));
-          const mergedMsgs = [...messages];
-          for (const m of allMessages) {
-            if (!existingMsgIds.has(m.id)) mergedMsgs.push(m);
-          }
-          setMessages(mergedMsgs);
+          setMessages(allMessages);
         }
       } catch {
         // IndexedDB not available (test env) — store-only mode
