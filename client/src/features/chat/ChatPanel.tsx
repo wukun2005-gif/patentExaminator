@@ -61,19 +61,19 @@ export function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Sessions for current case + module
-  const moduleSessions = useMemo(
-    () => sessions.filter((s) => s.caseId === caseId && s.moduleScope === moduleScope),
-    [sessions, caseId, moduleScope]
+  // All sessions for current case (not filtered by module — user controls session lifecycle)
+  const caseSessions = useMemo(
+    () => sessions.filter((s) => s.caseId === caseId),
+    [sessions, caseId]
   );
 
-  // Active session: prefer activeSessionId, fallback to first module session
+  // Active session: prefer activeSessionId, fallback to first case session
   const effectiveSessionId = useMemo(() => {
-    if (activeSessionId && moduleSessions.some((s) => s.id === activeSessionId)) {
+    if (activeSessionId && caseSessions.some((s) => s.id === activeSessionId)) {
       return activeSessionId;
     }
-    return moduleSessions[0]?.id ?? null;
-  }, [activeSessionId, moduleSessions]);
+    return caseSessions[0]?.id ?? null;
+  }, [activeSessionId, caseSessions]);
 
   // Messages for active session
   const sessionMessages = useMemo(
@@ -208,9 +208,9 @@ export function ChatPanel() {
 
       {isPanelOpen && (
         <>
-          {/* Session tabs */}
+          {/* Session tabs — all sessions for this case */}
           <div className="chat-panel__sessions">
-            {moduleSessions.map((s) => (
+            {caseSessions.map((s) => (
               <button
                 key={s.id}
                 type="button"

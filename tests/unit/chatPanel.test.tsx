@@ -126,27 +126,27 @@ describe("ChatPanel", () => {
     expect(sessions[0].moduleScope).toBe("claim-chart");
   });
 
-  it("不同模块路径显示对应 session", () => {
+  it("切换模块后所有 session 仍可见", () => {
     useChatStore.getState().setSessions([
       makeSession({ id: "s1", moduleScope: "claim-chart" }),
       makeSession({ id: "s2", moduleScope: "novelty", title: "新颖性讨论" })
     ]);
 
-    // Render at claim-chart path → only s1 visible
+    // Render at claim-chart path → both sessions visible
     renderChatAt("/cases/test/claim-chart");
     expect(screen.getByTestId("session-tab-s1")).toBeTruthy();
-    expect(screen.queryByTestId("session-tab-s2")).toBeNull();
+    expect(screen.getByTestId("session-tab-s2")).toBeTruthy();
   });
 
-  it("不同模块路径显示对应 session (novelty)", () => {
+  it("切换到 novelty 路径后 session 不消失", () => {
     useChatStore.getState().setSessions([
       makeSession({ id: "s1", moduleScope: "claim-chart" }),
       makeSession({ id: "s2", moduleScope: "novelty", title: "新颖性讨论" })
     ]);
 
-    // Render at novelty path → only s2 visible
+    // Render at novelty path → both sessions still visible
     renderChatAt("/cases/test/novelty");
+    expect(screen.getByTestId("session-tab-s1")).toBeTruthy();
     expect(screen.getByTestId("session-tab-s2")).toBeTruthy();
-    expect(screen.queryByTestId("session-tab-s1")).toBeNull();
   });
 });
