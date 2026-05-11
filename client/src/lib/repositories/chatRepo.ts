@@ -16,6 +16,21 @@ export async function deleteSession(id: string): Promise<void> {
   await db.delete("chatSessions", id);
 }
 
+export async function updateSession(session: ChatSession): Promise<void> {
+  const db = await getDB();
+  await db.put("chatSessions", session);
+}
+
+export async function deleteMessagesBySessionId(sessionId: string): Promise<void> {
+  const db = await getDB();
+  const messages = await db.getAllFromIndex("chatMessages", "by-sessionId", sessionId);
+  const tx = db.transaction("chatMessages", "readwrite");
+  for (const msg of messages) {
+    await tx.store.delete(msg.id);
+  }
+  await tx.done;
+}
+
 export async function createMessage(message: ChatMessage): Promise<void> {
   const db = await getDB();
   await db.put("chatMessages", message);

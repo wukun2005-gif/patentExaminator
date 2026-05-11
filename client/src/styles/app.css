@@ -1892,6 +1892,9 @@
 }
 
 .chat-session-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 10px;
   font-size: 11px;
   border: 1px solid #ddd;
@@ -1915,6 +1918,38 @@
 .chat-session-tab--new {
   font-weight: 700;
   color: #1a73e8;
+}
+
+.chat-session-tab__title {
+  cursor: pointer;
+}
+
+.chat-session-tab__input {
+  width: 80px;
+  font-size: 11px;
+  border: 1px solid #1a73e8;
+  border-radius: 4px;
+  padding: 1px 4px;
+  outline: none;
+}
+
+.chat-session-tab__delete {
+  display: none;
+  border: none;
+  background: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.chat-session-tab:hover .chat-session-tab__delete {
+  display: inline;
+}
+
+.chat-session-tab__delete:hover {
+  color: #d32f2f;
 }
 
 /* Messages area */

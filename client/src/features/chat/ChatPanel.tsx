@@ -4,6 +4,7 @@ import { useChatStore, useCaseStore } from "../../store";
 import { ChatBubble } from "./ChatBubble";
 import { buildContextSummary } from "../../lib/chatContext";
 import { AgentClient } from "../../agent/AgentClient";
+import { deleteSession, deleteMessagesBySessionId, updateSession } from "../../lib/repositories/chatRepo";
 import type { ChatMessage, ChatSession, ModuleScope } from "@shared/types/domain";
 import type { ChatRequest } from "../../agent/contracts";
 
@@ -54,10 +55,12 @@ export function ChatPanel() {
 
   const {
     sessions, messages, activeSessionId, isPanelOpen, isLoading,
-    addSession, removeSession, setActiveSessionId, addMessage, setPanelOpen, setLoading
+    addSession, removeSession, renameSession, setActiveSessionId, addMessage, setPanelOpen, setLoading
   } = useChatStore();
 
   const [input, setInput] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -191,6 +194,31 @@ export function ChatPanel() {
     window.dispatchEvent(new CustomEvent("chat-action", { detail: { target, caseId } }));
   };
 
+  const handleDeleteSession = async (id: string) => {
+    removeSession(id);
+    await deleteSession(id);
+    await deleteMessagesBySessionId(id);
+  };
+
+  const handleStartRename = (s: ChatSession) => {
+    setEditingId(s.id);
+    setEditTitle(s.title);
+  };
+
+  const handleConfirmRename = async (id: string) => {
+    const title = editTitle.trim();
+    if (!title) return;
+    renameSession(id, title);
+    const session = sessions.find((s) => s.id === id);
+    if (session) await updateSession({ ...session, title, updatedAt: new Date().toISOString() });
+    setEditingId(null);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent, id: string) => {
+    if (e.key === "Enter") handleConfirmRename(id);
+    if (e.key === "Escape") setEditingId(null);
+  };
+
   return (
     <aside className={`chat-panel ${isPanelOpen ? "chat-panel--open" : "chat-panel--collapsed"}`} data-testid="chat-panel">
       <div className="chat-panel__header">
@@ -211,15 +239,41 @@ export function ChatPanel() {
           {/* Session tabs — all sessions for this case */}
           <div className="chat-panel__sessions">
             {caseSessions.map((s) => (
-              <button
+              <div
                 key={s.id}
-                type="button"
                 className={`chat-session-tab ${s.id === effectiveSessionId ? "chat-session-tab--active" : ""}`}
-                onClick={() => setActiveSessionId(s.id)}
                 data-testid={`session-tab-${s.id}`}
               >
-                {s.title}
-              </button>
+                {editingId === s.id ? (
+                  <input
+                    className="chat-session-tab__input"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onBlur={() => handleConfirmRename(s.id)}
+                    onKeyDown={(e) => handleRenameKeyDown(e, s.id)}
+                    autoFocus
+                    data-testid={`session-rename-${s.id}`}
+                  />
+                ) : (
+                  <span
+                    className="chat-session-tab__title"
+                    onClick={() => setActiveSessionId(s.id)}
+                    onDoubleClick={() => handleStartRename(s)}
+                    title="双击重命名"
+                  >
+                    {s.title}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="chat-session-tab__delete"
+                  onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }}
+                  title="删除对话"
+                  data-testid={`session-delete-${s.id}`}
+                >
+                  &times;
+                </button>
+              </div>
             ))}
             <button
               type="button"

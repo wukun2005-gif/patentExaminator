@@ -11,6 +11,7 @@ export interface ChatSlice {
   setSessions: (sessions: ChatSession[]) => void;
   addSession: (session: ChatSession) => void;
   removeSession: (id: string) => void;
+  renameSession: (id: string, title: string) => void;
 
   setMessages: (messages: ChatMessage[]) => void;
   addMessage: (message: ChatMessage) => void;
@@ -37,6 +38,10 @@ export const createChatSlice = (
       sessions: prev.sessions.filter((s) => s.id !== id),
       messages: prev.messages.filter((m) => m.sessionId !== id),
       activeSessionId: prev.activeSessionId === id ? null : prev.activeSessionId
+    })),
+  renameSession: (id, title) =>
+    set((prev) => ({
+      sessions: prev.sessions.map((s) => (s.id === id ? { ...s, title, updatedAt: new Date().toISOString() } : s))
     })),
 
   setMessages: (messages) => set(() => ({ messages })),
