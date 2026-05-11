@@ -65,7 +65,7 @@ const GUIDE_STEPS: Step[] = [
     title: "第4步：添加对比文件1（中文）",
     content:
       "进入左侧导航「文献清单」页面，点击上传按钮添加第一份对比文件。上传后填写公开号和公开日。",
-    sampleFile: `${SAMPLE_BASE}/02-对比文件/CN108XXXXXXA-散热器.txt`,
+    sampleFile: `${SAMPLE_BASE}/02-对比文件/CN108XXXXXXA-散热器.pdf`,
     sampleLabel: "对比文件1 - CN108XXXXXXA 散热器",
     prefill: {
       标题: "一种散热器",
@@ -77,7 +77,7 @@ const GUIDE_STEPS: Step[] = [
   {
     title: "第5步：添加对比文件2（英文）",
     content: "继续在「文献清单」中添加第二份对比文件。",
-    sampleFile: `${SAMPLE_BASE}/02-对比文件/US20230000XXXA1-热管理.txt`,
+    sampleFile: `${SAMPLE_BASE}/02-对比文件/US20230000XXXA1-热管理.pdf`,
     sampleLabel: "对比文件2 - US2023/0000XXXA1 热管理装置",
     prefill: {
       标题: "Thermal Management Device for Semiconductor Light Sources",
