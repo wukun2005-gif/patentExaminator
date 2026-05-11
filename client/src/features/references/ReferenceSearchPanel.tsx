@@ -38,11 +38,21 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
 
     try {
       const agentClient = new AgentClient(settings.mode);
+      const enabledSearchProviders = (settings.searchProviders ?? []).filter((p) => p.enabled && p.apiKeyRef);
+      if (enabledSearchProviders.length === 0) {
+        setError("未配置搜索 API。请在设置→专利搜索中配置搜索服务的 API Key。");
+        setIsSearching(false);
+        return;
+      }
+      const primary = enabledSearchProviders[0]!;
       const response = await agentClient.runSearchReferences({
         caseId: caseId ?? "",
         claimText,
         features,
-        maxResults: MAX_REFERENCES - references.length
+        maxResults: MAX_REFERENCES - references.length,
+        searchProviderId: primary.providerId,
+        searchApiKey: primary.apiKeyRef,
+        ...(primary.baseUrl ? { searchBaseUrl: primary.baseUrl } : {})
       });
 
       if (!response.ok) {

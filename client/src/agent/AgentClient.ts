@@ -119,7 +119,10 @@ export class AgentClient {
         features: request.features,
         maxResults: request.maxResults ?? 5,
         providerPreference: [options?.providerId ?? "gemini"],
-        modelId: options?.modelId ?? "gemini-2.5-flash-lite"
+        modelId: options?.modelId ?? "gemini-2.5-flash-lite",
+        searchProviderId: request.searchProviderId,
+        searchApiKey: request.searchApiKey,
+        searchBaseUrl: request.searchBaseUrl
       })
     });
 

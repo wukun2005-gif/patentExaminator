@@ -60,6 +60,14 @@ const DEFAULT_SETTINGS: AppSettings = {
       maxTokens: 4096
     }
   ],
+  searchProviders: [
+    {
+      providerId: "tavily",
+      name: "Tavily",
+      apiKeyRef: "",
+      enabled: true
+    }
+  ],
   persistKeysEncrypted: false
 };
 
@@ -74,6 +82,7 @@ export async function readSettings(): Promise<AppSettings> {
         guidelineVersion: stored.guidelineVersion,
         providers: stored.providers,
         agents: stored.agents,
+        searchProviders: stored.searchProviders ?? DEFAULT_SETTINGS.searchProviders,
         persistKeysEncrypted: stored.persistKeysEncrypted
       };
       if (stored.sanitizeRules) result.sanitizeRules = stored.sanitizeRules;

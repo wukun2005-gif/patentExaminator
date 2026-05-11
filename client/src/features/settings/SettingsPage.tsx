@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ProvidersConfigPanel } from "./ProvidersConfigPanel";
 import { AgentsAssignmentPanel } from "./AgentsAssignmentPanel";
+import { SearchProvidersConfigPanel } from "./SearchProvidersConfigPanel";
 
-type Tab = "providers" | "agents";
+type Tab = "providers" | "agents" | "search";
 
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>("providers");
@@ -24,7 +25,7 @@ export function SettingsPage() {
         </button>
       </div>
       <p className="settings-page__desc">
-        配置 AI 模型连接（真实模式需要），以及各功能使用哪个模型。
+        配置 AI 模型连接（真实模式需要），各功能使用哪个模型，以及专利文献搜索 API。
       </p>
 
       <div className="settings-tabs">
@@ -44,11 +45,20 @@ export function SettingsPage() {
         >
           功能分配
         </button>
+        <button
+          type="button"
+          className={`settings-tab ${tab === "search" ? "settings-tab--active" : ""}`}
+          onClick={() => setTab("search")}
+          data-testid="tab-search"
+        >
+          专利搜索
+        </button>
       </div>
 
       <div className="settings-content">
         {tab === "providers" && <ProvidersConfigPanel />}
         {tab === "agents" && <AgentsAssignmentPanel />}
+        {tab === "search" && <SearchProvidersConfigPanel />}
       </div>
     </div>
   );

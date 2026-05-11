@@ -28,6 +28,7 @@ describe("Settings persistence", () => {
         guidelineVersion: "2023",
         providers: [],
         agents: [],
+        searchProviders: [],
         persistKeysEncrypted: false
       },
       isInitialized: false
@@ -43,10 +44,12 @@ describe("Settings persistence", () => {
           providerId: "mimo" as const,
           apiKeyRef: "test-key-123",
           modelIds: ["MiMo-V2.5-Pro"],
+          defaultModelId: "MiMo-V2.5-Pro",
           enabled: true
         }
       ],
       agents: [],
+      searchProviders: [],
       persistKeysEncrypted: false
     };
     await writeSettings(settings);
@@ -164,7 +167,7 @@ describe("Settings persistence", () => {
 
     // Step 3: loadFromDb should restore the settings
     useSettingsStore.setState({
-      settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], persistKeysEncrypted: false },
+      settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], persistKeysEncrypted: false },
       isInitialized: false
     });
     await useSettingsStore.getState().loadFromDb();

@@ -282,6 +282,7 @@ describe("settingsRepo", () => {
       guidelineVersion: "2023",
       providers: [],
       agents: [],
+      searchProviders: [],
       persistKeysEncrypted: false
     };
     await writeSettings(custom);

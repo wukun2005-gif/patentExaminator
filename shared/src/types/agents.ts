@@ -22,11 +22,22 @@ export interface AgentAssignment {
   maxTokens: number;
 }
 
+export type SearchProviderId = "tavily" | "serpapi" | "custom";
+
+export interface SearchProviderConnection {
+  providerId: SearchProviderId;
+  name: string;
+  apiKeyRef: string;
+  baseUrl?: string;
+  enabled: boolean;
+}
+
 export interface AppSettings {
   mode: AppMode;
   guidelineVersion: string;
   providers: ProviderConnection[];
   agents: AgentAssignment[];
+  searchProviders: SearchProviderConnection[];
   sanitizeRules?: Array<{ pattern: string; replace: string; note?: string }>;
   ocrQualityThresholds?: { good: number; poor: number };
   persistKeysEncrypted: boolean;

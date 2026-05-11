@@ -2,11 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import { registry } from "../providers/registry.js";
 import { getApiKey } from "../security/keyStore.js";
-import { searchPatents, extractPublicationNumbers } from "../services/webSearch.js";
+import { searchPatents } from "../services/webSearch.js";
 import { logger } from "../lib/logger.js";
 import { sanitizeText } from "../security/sanitize.js";
 import type { SearchReferencesResponse, SearchReferencesCandidate } from "@shared/types/api";
-import type { ProviderId } from "@shared/types/agents";
 import type { ChatRequest } from "../providers/ProviderAdapter.js";
 
 export const searchRouter = Router();
@@ -17,7 +16,10 @@ const searchRequestSchema = z.object({
   features: z.array(z.object({ featureCode: z.string(), description: z.string() })),
   maxResults: z.number().int().min(1).max(10).optional().default(5),
   providerPreference: z.array(z.string()).optional().default(["gemini", "mimo"]),
-  modelId: z.string().optional().default("gemini-2.5-flash-lite")
+  modelId: z.string().optional().default("gemini-2.5-flash-lite"),
+  searchProviderId: z.string().optional(),
+  searchApiKey: z.string().optional(),
+  searchBaseUrl: z.string().optional()
 });
 
 searchRouter.post("/search-references", async (req, res) => {
@@ -33,12 +35,13 @@ searchRouter.post("/search-references", async (req, res) => {
 
   const request = parseResult.data;
 
-  // Hard constraint: TAVILY_API_KEY must be configured
-  if (!process.env.TAVILY_API_KEY) {
+  // Resolve search API key: request body > env
+  const searchApiKey = request.searchApiKey || process.env.TAVILY_API_KEY;
+  if (!searchApiKey) {
     res.status(503).json({
       ok: false,
       candidates: [],
-      error: "搜索服务不可用：未配置 TAVILY_API_KEY。请在 .env 文件中配置后重试，或手动上传文献。"
+      error: "搜索服务不可用：未配置搜索 API Key。请在设置→专利搜索中配置，或手动上传文献。"
     } satisfies SearchReferencesResponse);
     return;
   }
@@ -97,10 +100,15 @@ searchRouter.post("/search-references", async (req, res) => {
     const searchQuery = extractRes.text.trim();
     logger.info("Extracted search query", { searchQuery });
 
-    // Step 2: Search with Tavily (real search results only)
-    const tavilyRes = await searchPatents(searchQuery, request.maxResults * 2);
+    // Step 2: Search with configured search provider (real search results only)
+    const searchConfig = {
+      providerId: request.searchProviderId || "tavily",
+      apiKey: searchApiKey,
+      ...(request.searchBaseUrl ? { baseUrl: request.searchBaseUrl } : {})
+    };
+    const searchRes = await searchPatents(searchQuery, request.maxResults * 2, searchConfig);
 
-    if (tavilyRes.results.length === 0) {
+    if (searchRes.results.length === 0) {
       res.json({
         ok: true,
         candidates: [],
@@ -111,7 +119,7 @@ searchRouter.post("/search-references", async (req, res) => {
     }
 
     // Step 3: Use LLM to filter and rank real search results
-    const searchResultsText = tavilyRes.results
+    const searchResultsText = searchRes.results
       .map(
         (r, i) =>
           `[${i + 1}] 标题: ${r.title}\nURL: ${r.url}\n摘要: ${r.content.slice(0, 500)}`
@@ -176,7 +184,7 @@ searchRouter.post("/search-references", async (req, res) => {
     logger.info("Search references completed", {
       caseId: request.caseId,
       query: searchQuery,
-      tavilyResults: tavilyRes.results.length,
+      searchResults: searchRes.results.length,
       candidates: candidates.length
     });
 

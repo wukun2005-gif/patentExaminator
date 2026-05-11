@@ -122,6 +122,9 @@ export interface SearchReferencesRequest {
   claimText: string;
   features: Array<{ featureCode: string; description: string }>;
   maxResults?: number;
+  searchProviderId?: string;
+  searchApiKey?: string;
+  searchBaseUrl?: string;
 }
 
 export interface SearchReferencesCandidate {
