@@ -51,7 +51,7 @@ const GUIDE_STEPS: Step[] = [
     title: "第2步：上传申请文件",
     content:
       "进入左侧导航「文档导入」页面，点击文件选择器上传下方的申请文件。系统会自动读取全文、建立段落索引、解析权利要求。",
-    sampleFile: `${SAMPLE_BASE}/01-patent-applications/led-heatsink/application.txt`,
+    sampleFile: `${SAMPLE_BASE}/01-专利申请文件/led-heatsink/申请文件.txt`,
     sampleLabel: "申请文件 - LED散热模组",
     tip: "实际专利申请中，说明书和权利要求书合为一个文件提交。权利要求书是文件末尾的一个章节，系统会自动提取并解析。"
   },
@@ -65,7 +65,7 @@ const GUIDE_STEPS: Step[] = [
     title: "第4步：添加对比文件1（中文）",
     content:
       "进入左侧导航「文献清单」页面，点击上传按钮添加第一份对比文件。上传后填写公开号和公开日。",
-    sampleFile: `${SAMPLE_BASE}/02-reference-documents/CN108XXXXXXA-heatsink.txt`,
+    sampleFile: `${SAMPLE_BASE}/02-对比文件/CN108XXXXXXA-散热器.txt`,
     sampleLabel: "对比文件1 - CN108XXXXXXA 散热器",
     prefill: {
       标题: "一种散热器",
@@ -77,7 +77,7 @@ const GUIDE_STEPS: Step[] = [
   {
     title: "第5步：添加对比文件2（英文）",
     content: "继续在「文献清单」中添加第二份对比文件。",
-    sampleFile: `${SAMPLE_BASE}/02-reference-documents/US20230000XXXA1-thermal.txt`,
+    sampleFile: `${SAMPLE_BASE}/02-对比文件/US20230000XXXA1-热管理.txt`,
     sampleLabel: "对比文件2 - US2023/0000XXXA1 热管理装置",
     prefill: {
       标题: "Thermal Management Device for Semiconductor Light Sources",
