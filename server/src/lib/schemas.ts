@@ -8,6 +8,7 @@ export const aiRunRequestSchema = z.object({
   prompt: z.string().min(1),
   expectedSchemaName: z.string().optional(),
   sanitized: z.boolean(),
+  mock: z.boolean().optional(),
   metadata: z.object({
     caseId: z.string(),
     moduleScope: z.string(),

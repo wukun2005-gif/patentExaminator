@@ -1999,14 +1999,15 @@ function buildExportFilename(parts: {
 |---|---|---|---|
 | Unit | Vitest + @testing-library/react | `tests/unit/**`、`*/*.test.ts` | 纯函数、组件渲染、slice reducer |
 | Integration | Vitest（不同 config） + msw | `tests/integration/**` | 跨模块行为（documentPipeline、aiGateway、repository） |
-| E2E | Playwright（Chromium） | `tests/e2e/**` | 浏览器端真实用户路径 |
+| E2E (API) | Node.js `.mjs` 单文件脚本 | `tests/e2e-real.mjs` | 前后端 API 全链路：Mock 模式（秒级，零 Token）+ Real 模式（Gemini + Tavily/Serp 真实 API） |
 | Evaluation | Vitest（evaluation config） | `tests/evaluation/**` | 对 9 条评测集自动评分 |
 
 ### 9.2 目录结构
 
 ```text
 tests/
-├── developer-ai-smoke.mjs             # 提交前 Token Plan 真实 API smoke（非 APP 用户测试）
+├── e2e-real.mjs                        # 唯一 E2E 测试入口：API 级 Mock + Real 双模式
+├── developer-ai-smoke.mjs             # 提交前 Gemini 真实 API smoke（非 APP 用户测试）
 ├── unit/
 │   ├── dateRules.test.ts
 │   ├── dateParse.test.ts
@@ -2030,40 +2031,27 @@ tests/
 │   ├── aiGatewayFallback.test.ts      # Express 内进程 + msw
 │   ├── keystoreRoundtrip.test.ts      # 加密文件读写
 │   └── evaluationAutoScore.test.ts    # 自动评分实现的单元
-├── e2e/
-│   ├── fixtures/                      # Playwright 使用的 evaluator PDF/DOCX
-│   ├── happy-path-g1.spec.ts
-│   ├── g2-inventive-mock.spec.ts
-│   ├── g3-no-reference.spec.ts
-│   ├── a1-functional.spec.ts
-│   ├── a2-boundary-date.spec.ts
-│   ├── a3-pct-priority.spec.ts
-│   ├── e1-no-reference.spec.ts
-│   ├── e2-scanned-pdf.spec.ts
-│   ├── e3-multi-independent.spec.ts
-│   ├── mode-switch-security.spec.ts
-│   ├── real-mode-confirmation.spec.ts # msw 拦截 provider
-│   └── export.spec.ts
 └── evaluation/
     ├── runner.ts                      # 载入 fixture + 调 mockProvider + 评分
     ├── metrics.ts                     # 计算公式
     └── cases/*.test.ts                # 每条评测一个文件
 ```
 
-### 9.3 data-testid & selectors 约定
+### 9.3 E2E 测试选择约定
 
-- 只用 `data-testid` + 可达文本（`getByText`）两类 selector；禁止 CSS class / nth-child 定位。
-- Playwright `expect(locator).toHaveText(...)` 使用中文字面量，必须与 UI 文案完全一致。
-- 每新增 E2E 用例，相关 UI 未添加 `data-testid` 时禁止用 workaround（例如 `page.locator('div >> nth=3')`）。
+- `tests/e2e-real.mjs` 文件顶部有详细的**测试分类指南**注释，AI 执行者必须在运行前阅读
+- 根据 `git diff` 变更文件选择对应测试：`node tests/e2e-real.mjs --only <category>`
+- Mock 模式（默认）：变更后端/API/Schema 时必须跑，秒级完成，零 Token
+- Real 模式：变更 Provider/Gateway/Fallback 时跑，需 GEMINI_KEY + 搜索 Key
+- UI 改动跳过 E2E 自动测试，人类手工验证
+- 新 Feature 必须添加对应测试用例到 `tests/e2e-real.mjs`
 
-### 9.4 MSW 真实模式测试拦截
+### 9.4 Mock 模式架构
 
-- 位置：`client/src/test-utils/mswServer.ts`，全局 `setupServer(...handlers)`。
-- 默认 handler：对 `/api/ai/run` 返回确定性 JSON（按 `req.body.agent` 选用 fixture）。
-- Provider 端点（Kimi/GLM/Minimax/MiMo）被 server 端 `AI Gateway` 调用；在 integration / e2e 中用 msw 拦截 **外部** URL；验证：
-  - 请求 header 含预期 `Authorization: Bearer ...`；
-  - 请求 body 结构符合 adapter 的转换；
-  - 401 / 429 / 500 的 fallback 行为。
+- `tests/e2e-real.mjs` 发送 `mock: true` 到 server 端 `POST /api/ai/run`
+- Server 端 `loadFixture.ts` 根据 agent + mockKey 返回 `shared/src/fixtures/` 中的预置 JSON
+- Mock 响应不调用任何外部 API，秒级返回
+- 所有 Mock 响应通过 Schema 校验（`validateClaimChartOutput` / `validateNoveltyOutput` / `validateInventiveOutput`）
 
 ### 9.5 Evaluation Set 自动评分公式
 
@@ -2111,7 +2099,8 @@ tests/
 v0.1.0 不强制 GitHub Actions。执行者必须：
 
 - 提交前运行 `npm run verify:precommit`，结果全绿才能 commit。
-- `npm run verify` 保持本地 / MSW / Mock 路径，不调用真实外部 AI API；`npm run test:ai-smoke` 是唯一默认允许真实调用 Token Plan 的提交前自动测试入口。
+- `npm run verify` 保持本地 / MSW / Mock 路径，不调用真实外部 AI API；`npm run test:e2e` 默认 Mock 模式（零 Token，秒级）；`npm run test:ai-smoke` 是唯一默认允许真实调用 Gemini 的提交前自动测试入口。
+- `npm run test:e2e:real` 运行真实 API 测试（需 GEMINI_KEY + 搜索 Key）。
 - 可选启用 `husky + lint-staged`（若引入需走 §2.4 依赖确认）。
 
 ### 9.7 开发者提交前真实 AI API Smoke（非 APP 用户测试）
@@ -2554,41 +2543,46 @@ TOKEN_PLAN_API_KEY=tp-your-key-here
 | T-NOV-004 | G1 但 fixture 把 D1 paragraph 改成缺失 | 定制 | rows 仍存在；citations 标 `needs-review` |
 | T-NOV-005 | G1 输出 `differenceFeatureCodes` | `g1-led.json` | 等于 `["B","C"]`（严格） |
 
-### 10.6 Mock 模式 E2E（`tests/e2e/happy-path-g1.spec.ts` 等）
+### 10.6 E2E API 测试（`tests/e2e-real.mjs`）
 
-所有 E2E 默认 `?mockDelay=0`。
+项目唯一的 E2E 自动测试入口，纯 API 级 HTTP 测试，不启动浏览器。详见 `tests/e2e-real.mjs` 顶部注释和 `backlog.md` B-003。
 
-| 编号 | 步骤 | 断言 |
+**Mock 模式（默认，`node tests/e2e-real.mjs`）：**
+
+| 编号 | 测试函数 | 关键断言 |
 |---|---|---|
-| E2E-G1-001 | 访问 `/` | `banner-mode` 文案含 "演示模式" |
-| E2E-G1-002 | 点击"载入预置案例 G1" | `input-application-date` 值 = `2023-03-15`；`input-title` 含 "LED" |
-| E2E-G1-003 | 点击 `btn-run-claim-chart` | 1s 内 `row-feature-A/B/C` 存在 |
-| E2E-G1-004 | 选择 D1 → 点击 `btn-run-novelty-D1` | `cell-status-A` 含"已明确公开"；`cell-status-B/C` 含"未找到" |
-| E2E-G1-005 | 在 `cell-reviewer-notes-B` 输入"已核" → 刷新 | 值仍为"已核" |
-| E2E-G1-006 | 点击 `btn-export-html` | 触发下载；下载文件名匹配 `CN202310001001A_*_新颖性对照_*\.html`；包含 "本文件为审查辅助素材，不构成法律结论" |
+| MOCK-001 | `testHealthCheck` | `GET /api/health` → 200, `{status:"ok"}` |
+| MOCK-002 | `testMockModeEnabled` | `POST /api/ai/run` mock=true → 200, `provider="mock"` |
+| MOCK-003 | `testMockClaimChart_G1` | G1 → features A/B/C, schema valid |
+| MOCK-004 | `testMockClaimChart_G3` | G3 → pendingSearchQuestions, schema valid |
+| MOCK-005 | `testMockNovelty_G1` | G1+D1 → rows, differenceFeatureCodes B/C, schema valid |
+| MOCK-006 | `testMockInventive_G2` | G2 → Step 1/2/3, closestPriorArtId=D1, schema valid |
+| MOCK-007 | `testMockInventive_G3_NoRef` | G3 → schema valid (no-reference branch) |
+| MOCK-008 | `testMockInterpret_G1` | G1 → response text non-empty |
+| MOCK-009 | `testSchemaClaimChart/Novelty/Inventive` | All mock outputs pass schema validation |
+| MOCK-010 | `testInvalidAgent` | Invalid agent → 400 |
+| MOCK-011 | `testMissingRequiredFields` | Missing fields → 400 |
+| MOCK-012 | `testEmptyClaimText` | Empty prompt → 400 |
+| MOCK-013 | `testFullPipelineMock_G1` | Chart → Novelty → both pass |
+| MOCK-014 | `testFullPipelineMock_G2` | Chart → Inventive → both pass |
 
-| 编号 | 场景 | 关键断言 |
+**Real 模式（`node tests/e2e-real.mjs --real`，需 GEMINI_KEY）：**
+
+| 编号 | 测试函数 | 关键断言 |
 |---|---|---|
-| E2E-G2-001 | 载入 G2，运行三步法 | 顶部 `legalCaution` 可见；Step 1 选中 D1；Step 2 区别特征 `B`；Step 3 列出 D2 启示 |
-| E2E-G3-001 | 载入 G3（零对比文件） | Claim Chart 仍能生成；`page-novelty` 显示"未上传对比文件，跳过对照"；形式缺陷面板显示"参数范围支持不足风险" |
-| E2E-A1-001 | 载入 A1，生成 Claim Chart | `warnings` 中出现 `functional-language` 徽标；chat 面板提示 §26.4 风险 |
-| E2E-A2-001 | 载入 A2（申请日 2022-11-08） | D1 徽标绿、D2 `unavailable-same-day`、D3 `unavailable-later`；D2 对照按钮禁用并显示法律依据 |
-| E2E-A3-001 | 载入 A3（PCT，优先权日 2021-07-20） | D1 绿、D2/D3 `unavailable-later`；baselineDate 显示 `2021-07-20` |
-| E2E-E1-001 | 载入 E1（零对比） | novelty 面板文案含"跳过对照"；不报错 |
-| E2E-E2-001 | 上传 `e2-scanned.pdf` | OCR 进度条出现；完成后 `OcrReviewPanel` 显示质量分；用户点确认后可继续 |
-| E2E-E3-001 | 载入 E3（多独权），在 `CaseBaselineForm` `targetClaimNumber` 下拉仅可选 1/4/8 | 选 1 后 Claim Chart 仅含权 1/2/3 |
+| REAL-001 | `testRealProviderConnectivity` | Gemini API 连通, text models > 0 |
+| REAL-002 | `testRealClaimChart_G1` | Real AI Claim Chart + schema valid |
+| REAL-003 | `testRealNovelty_G1` | Real AI Novelty + schema valid |
+| REAL-004 | `testRealInventive_G2` | Real AI Inventive + schema valid |
+| REAL-005 | `testRealTokenUsageReturned` | tokenUsage present, input > 0 |
+| REAL-006 | `testRealSearchVerifyTavilyKey` | Tavily key valid |
+| REAL-007 | `testRealSearchVerifySerpKey` | SerpAPI key valid |
+| REAL-008 | `testRealSearchReferences_G1` | Full search pipeline + candidates |
+| REAL-009 | `testRealSearchRateLimit` | Consecutive calls w/o ban |
 
-### 10.7 真实模式安全（`tests/e2e/mode-switch-security.spec.ts`、`real-mode-confirmation.spec.ts`）
+### 10.7 真实模式安全（手动验证）
 
-| 编号 | 场景 | 断言 |
-|---|---|---|
-| T-SEC-001 | 点"切换真实模式"按钮 | 弹 `modal-mode-switch`；文案含"合规风险"；未勾选同意时确认按钮禁用 |
-| T-SEC-002 | 无 Provider 配置时切换 | 切换按钮 `disabled`，hint 含"请先配置模型连接" |
-| T-SEC-003 | Setup: `PUT /api/settings/providers` 配置至少一个 Provider → 切换到真实模式 → 进入 Claim Chart 页 → 点击 `btn-run-claim-chart` | 弹 `modal-external-send`；显示 Provider/Model/Token 估算/字段摘要 |
-| T-SEC-004 | 在 `modal-external-send` 点取消 | `/api/ai/run` 不被调用（MSW 捕获断言） |
-| T-SEC-005 | 切到真实模式后在 G1 上触发 `claim-chart` | MSW 捕获的外部 Provider URL 恰好 = `providerPreference[0]` |
-| T-SEC-006 | Mock 模式触发任意分析 | 所有 `/api/*` 外发捕获器 calls=0；浏览器 `fetch` 非同源请求 = 0 |
-| T-SEC-007 | `PUT /api/settings/keys` `{persist:false}` | `data/keystore.enc` 不生成 |
+UI 安全功能（模式切换弹窗、外发确认、合规提示等）由人类手工验证，不在自动 E2E 测试范围内。
 | T-SEC-008 | `PUT /api/settings/keys` `{persist:true, password}` | 生成 `keystore.enc`；`pbkdf2` 使用 200000 次迭代 |
 | T-SEC-009 | 浏览器 `localStorage` 任意 key | 不含 `apiKey` / `sk-` / `Bearer` 等字样（正则断言） |
 

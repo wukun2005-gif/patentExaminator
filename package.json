@@ -23,14 +23,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run -c vitest.integration.config.ts",
-    "test:e2e": "playwright test",
+    "test:e2e": "node tests/e2e-real.mjs",
+    "test:e2e:real": "node tests/e2e-real.mjs --real",
     "test:evaluation": "vitest run -c vitest.evaluation.config.ts",
     "test:ai-smoke": "node tests/developer-ai-smoke.mjs",
     "verify": "npm run typecheck && npm run lint && npm test && npm run test:integration && npm run test:e2e && npm run test:evaluation",
     "verify:precommit": "npm run verify && npm run test:ai-smoke"
   },
   "devDependencies": {
-    "@playwright/test": "^1.47.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.0.0",
@@ -43,7 +43,6 @@
     "fake-indexeddb": "^6.2.5",
     "happy-dom": "^15.0.0",
     "pdfkit": "^0.18.0",
-    "playwright": "^1.47.0",
     "prettier": "^3.3.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"

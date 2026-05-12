@@ -26,6 +26,38 @@ aiRouter.post("/ai/run", async (req, res) => {
   const request = parseResult.data;
   const startTime = Date.now();
 
+  // Mock mode: return fixture data without calling real AI
+  if (request.mock) {
+    try {
+      const { loadFixture } = await import("../../../shared/src/fixtures/loadFixture.js");
+      // Build mock key: for novelty, use "caseId:referenceId" format
+      const mockKey = (request.metadata as Record<string, unknown>).mockKey as string
+        || request.metadata.caseId;
+      const fixture = loadFixture(request.agent, mockKey);
+      const durationMs = Date.now() - startTime;
+      res.json({
+        ok: true,
+        provider: "mock" as ProviderId,
+        modelId: "mock",
+        outputJson: fixture,
+        rawText: typeof fixture === "string" ? fixture : JSON.stringify(fixture),
+        durationMs,
+        attempts: [{ providerId: "mock" as ProviderId, ok: true }]
+      } satisfies AiRunResponse);
+      return;
+    } catch (mockErr) {
+      res.status(400).json({
+        ok: false,
+        error: {
+          code: "mock-fixture-not-found",
+          message: `No mock fixture for agent=${request.agent} key=${request.metadata.caseId}`,
+          retryable: false
+        }
+      } satisfies AiRunResponse);
+      return;
+    }
+  }
+
   // Sanitize prompt if not already sanitized
   let prompt = request.prompt;
   if (!request.sanitized) {
