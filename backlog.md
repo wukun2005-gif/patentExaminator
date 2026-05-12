@@ -1549,6 +1549,9 @@ interface AmendedClaimDetail {
 - [ ] **Sample data 已更新**：包含构造的审查意见通知书 + 意见陈述书
 - [ ] **旧的初审相关测试用例已移除**
 
+### Detail Implementaion Plan
+/Users/wukun/Documents/tmp/patentExaminator/B-008/b008_implementation_plan.md
+
 ### 依赖与风险
 
 | 风险 | 缓解措施 |
