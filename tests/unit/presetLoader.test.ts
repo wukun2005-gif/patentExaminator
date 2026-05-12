@@ -57,7 +57,7 @@ describe("loadPresetCase", () => {
   it("calls createCase with preset data", async () => {
     await loadPresetCase();
     expect(createCase).toHaveBeenCalledOnce();
-    const arg = vi.mocked(createCase).mock.calls[0][0];
+    const arg = vi.mocked(createCase).mock.calls[0]![0];
     expect(arg.id).toBe("preset-demo-001");
     expect(arg.title).toBe("一种LED散热装置");
   });
@@ -81,7 +81,7 @@ describe("loadPresetCase", () => {
   it("creates novelty comparison", async () => {
     await loadPresetCase();
     expect(createNovelty).toHaveBeenCalledOnce();
-    const arg = vi.mocked(createNovelty).mock.calls[0][0];
+    const arg = vi.mocked(createNovelty).mock.calls[0]![0];
     expect(arg.caseId).toBe("preset-demo-001");
     expect(arg.differenceFeatureCodes).toEqual(["B", "C"]);
   });
@@ -89,7 +89,7 @@ describe("loadPresetCase", () => {
   it("creates inventive analysis", async () => {
     await loadPresetCase();
     expect(createInventive).toHaveBeenCalledOnce();
-    const arg = vi.mocked(createInventive).mock.calls[0][0];
+    const arg = vi.mocked(createInventive).mock.calls[0]![0];
     expect(arg.candidateAssessment).toBe("possibly-inventive");
   });
 
@@ -106,20 +106,20 @@ describe("loadPresetCase", () => {
     const state = useClaimsStore.getState();
     expect(state.claimNodes).toHaveLength(2);
     expect(state.claimFeatures).toHaveLength(3);
-    expect(state.claimFeatures[0].featureCode).toBe("A");
+    expect(state.claimFeatures[0]!.featureCode).toBe("A");
   });
 
   it("hydrates novelty store", async () => {
     await loadPresetCase();
     const state = useNoveltyStore.getState();
     expect(state.comparisons).toHaveLength(1);
-    expect(state.comparisons[0].differenceFeatureCodes).toEqual(["B", "C"]);
+    expect(state.comparisons[0]!.differenceFeatureCodes).toEqual(["B", "C"]);
   });
 
   it("hydrates inventive store", async () => {
     await loadPresetCase();
     const state = useInventiveStore.getState();
     expect(state.analyses).toHaveLength(1);
-    expect(state.analyses[0].distinguishingFeatureCodes).toEqual(["B", "C"]);
+    expect(state.analyses[0]!.distinguishingFeatureCodes).toEqual(["B", "C"]);
   });
 });

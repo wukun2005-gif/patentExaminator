@@ -58,6 +58,12 @@ const DEFAULT_SETTINGS: AppSettings = {
       providerOrder: ["gemini"],
       modelId: "gemini-2.5-flash-lite",
       maxTokens: 4096
+    },
+    {
+      agent: "extract-case-fields",
+      providerOrder: ["gemini"],
+      modelId: "gemini-2.5-flash-lite",
+      maxTokens: 8192
     }
   ],
   searchProviders: [

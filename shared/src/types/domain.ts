@@ -61,6 +61,7 @@ export interface ReferenceDocument extends SourceDocument {
   summary?: string;
   relevanceNotes?: string;
   source?: "user-upload" | "ai-search";
+  sourceUrl?: string;
   candidateStatus?: "pending" | "accepted" | "rejected";
   aiRelevanceScore?: number;
   aiRecommendationReason?: string;

@@ -76,10 +76,7 @@ export class ProviderRegistry {
             if (errInfo.code === "auth-failed") {
               return { response: buildErrorResponse(errInfo), attempts };
             }
-            if (errInfo.code === "quota-exceeded") {
-              break; // Try next provider
-            }
-            // For other errors, try next model
+            // quota-exceeded / other errors: try next model (different models may have separate quotas)
           }
         }
         continue;
@@ -99,10 +96,7 @@ export class ProviderRegistry {
             if (errInfo.code === "auth-failed") {
               return { response: buildErrorResponse(errInfo), attempts };
             }
-            if (errInfo.code === "quota-exceeded") {
-              break; // Try next provider
-            }
-            // For other errors, try next model
+            // quota-exceeded / other errors: try next model (different models may have separate quotas)
           }
         }
         continue;
@@ -122,11 +116,15 @@ export class ProviderRegistry {
       }
     }
 
+    const attemptSummary = attempts
+      .map((a) => `${a.providerId}(${a.errorCode ?? "unknown"})`)
+      .join(", ");
+
     return {
       response: {
         text: "",
         rawResponse: null,
-        error: { code: "all-providers-failed", message: "All providers failed", retryable: false }
+        error: { code: "all-providers-failed", message: `All providers failed: ${attemptSummary}`, retryable: false }
       },
       attempts
     };

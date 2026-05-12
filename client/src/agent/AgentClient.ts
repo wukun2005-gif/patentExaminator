@@ -44,6 +44,7 @@ export class AgentClient {
   private fallbackProvider: ProviderId;
   private fallbackModel: string;
   private enabledProviders: ProviderId[];
+  private llmApiKey: string;
 
   constructor(
     private mode: "mock" | "real",
@@ -52,21 +53,24 @@ export class AgentClient {
   ) {
     if (Array.isArray(settings)) {
       this.agentAssignments = settings;
-      this.fallbackProvider = "mimo";
-      this.fallbackModel = "MiMo-V2.5-Pro";
-      this.enabledProviders = ["mimo"];
+      this.fallbackProvider = "gemini";
+      this.fallbackModel = "gemini-3.1-flash-lite-preview";
+      this.enabledProviders = ["gemini"];
+      this.llmApiKey = "";
     } else if (settings) {
       this.agentAssignments = settings.agents ?? [];
       const enabled = settings.providers.filter((p) => p.enabled && p.apiKeyRef);
       const firstEnabled = enabled[0];
       this.fallbackProvider = (firstEnabled?.providerId as ProviderId) ?? "gemini";
-      this.fallbackModel = firstEnabled?.defaultModelId ?? "gemini-2.5-flash-lite";
+      this.fallbackModel = firstEnabled?.defaultModelId ?? "gemini-3.1-flash-lite-preview";
       this.enabledProviders = enabled.map((p) => p.providerId as ProviderId);
+      this.llmApiKey = firstEnabled?.apiKeyRef ?? "";
     } else {
       this.agentAssignments = [];
-      this.fallbackProvider = "mimo";
-      this.fallbackModel = "MiMo-V2.5-Pro";
-      this.enabledProviders = ["mimo"];
+      this.fallbackProvider = "gemini";
+      this.fallbackModel = "gemini-3.1-flash-lite-preview";
+      this.enabledProviders = ["gemini"];
+      this.llmApiKey = "";
     }
   }
 
@@ -165,7 +169,10 @@ export class AgentClient {
 
     const searchResolved = options?.providerId && options?.modelId
       ? { providerId: options.providerId, modelId: options.modelId }
-      : this.resolveAgent("search-references") ?? { providerId: "gemini", modelId: "gemini-2.5-flash-lite" };
+      : this.resolveAgent("search-references") ?? {
+          providerId: this.enabledProviders[0] ?? this.fallbackProvider,
+          modelId: this.fallbackModel
+        };
 
     const res = await fetch(`${this.gatewayUrl}/search-references`, {
       method: "POST",
@@ -175,11 +182,12 @@ export class AgentClient {
         claimText: request.claimText,
         features: request.features,
         maxResults: request.maxResults ?? 5,
-        providerPreference: [searchResolved.providerId],
+        providerPreference: [searchResolved.providerId, ...this.enabledProviders.filter((p) => p !== searchResolved.providerId)],
         modelId: searchResolved.modelId,
         searchProviderId: request.searchProviderId,
         searchApiKey: request.searchApiKey,
-        searchBaseUrl: request.searchBaseUrl
+        searchBaseUrl: request.searchBaseUrl,
+        llmApiKey: this.llmApiKey || undefined
       })
     });
 
@@ -250,13 +258,22 @@ export class AgentClient {
     });
 
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ error: { message: res.statusText } }));
-      throw new Error(error.error?.message ?? `Gateway error: ${res.status}`);
+      const errorBody = await res.json().catch(() => ({ error: { message: res.statusText } }));
+      const msg = errorBody.error?.message ?? `Gateway error: ${res.status}`;
+      const attempts = errorBody.attempts as AiRunResponse["attempts"] | undefined;
+      const detail = attempts?.length
+        ? ` (${attempts.map((a) => `${a.providerId}: ${a.errorCode ?? "failed"}`).join("; ")})`
+        : "";
+      throw new Error(`${msg}${detail}`);
     }
 
     const data = (await res.json()) as AiRunResponse;
     if (!data.ok) {
-      throw new Error(data.error?.message ?? "Gateway returned error");
+      const msg = data.error?.message ?? "Gateway returned error";
+      const detail = data.attempts?.length
+        ? ` (${data.attempts.map((a) => `${a.providerId}: ${a.errorCode ?? "failed"}`).join("; ")})`
+        : "";
+      throw new Error(`${msg}${detail}`);
     }
 
     if (data.outputJson) {

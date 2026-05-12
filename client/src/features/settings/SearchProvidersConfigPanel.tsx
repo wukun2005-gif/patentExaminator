@@ -8,10 +8,18 @@ const SEARCH_PROVIDER_OPTIONS: Array<{ id: SearchProviderId; name: string; desc:
   { id: "custom", name: "自定义", desc: "自定义搜索 API 端点", keyPlaceholder: "your-api-key" }
 ];
 
+interface VerifyResult {
+  ok: boolean;
+  message?: string;
+  error?: string;
+}
+
 export function SearchProvidersConfigPanel() {
   const { settings, setSettings } = useSettingsStore();
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
+  const [verifying, setVerifying] = useState<string | null>(null);
+  const [verifyResult, setVerifyResult] = useState<Record<string, VerifyResult>>({});
 
   const searchProviders = settings.searchProviders ?? [];
 
@@ -48,6 +56,37 @@ export function SearchProvidersConfigPanel() {
     updateSearchProvider(id, { apiKeyRef: keyInput });
     setEditingKey(null);
     setKeyInput("");
+    // Clear previous verify result when key changes
+    setVerifyResult((prev) => { const next = { ...prev }; delete next[id]; return next; });
+  };
+
+  const handleVerifyKey = async (provider: SearchProviderConnection) => {
+    if (!provider.apiKeyRef) return;
+    setVerifying(provider.providerId);
+    setVerifyResult((prev) => { const next = { ...prev }; delete next[provider.providerId]; return next; });
+    try {
+      const res = await fetch("/api/verify-search-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerId: provider.providerId,
+          apiKey: provider.apiKeyRef,
+          ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {})
+        })
+      });
+      const data = await res.json() as VerifyResult & { providerId?: string };
+      setVerifyResult((prev) => ({
+        ...prev,
+        [provider.providerId]: { ok: data.ok, message: data.message, error: data.error }
+      }));
+    } catch (err) {
+      setVerifyResult((prev) => ({
+        ...prev,
+        [provider.providerId]: { ok: false, error: `请求失败: ${String(err)}` }
+      }));
+    } finally {
+      setVerifying(null);
+    }
   };
 
   const available = SEARCH_PROVIDER_OPTIONS.filter(
@@ -63,6 +102,7 @@ export function SearchProvidersConfigPanel() {
       <div className="provider-cards">
         {searchProviders.map((provider) => {
           const info = SEARCH_PROVIDER_OPTIONS.find((o) => o.id === provider.providerId);
+          const vResult = verifyResult[provider.providerId];
           return (
             <div
               key={provider.providerId}
@@ -128,6 +168,22 @@ export function SearchProvidersConfigPanel() {
                       >
                         {provider.apiKeyRef ? "修改" : "填写"}
                       </button>
+                      {provider.apiKeyRef && (
+                        <button
+                          type="button"
+                          className="btn-text"
+                          disabled={verifying === provider.providerId}
+                          onClick={() => handleVerifyKey(provider)}
+                          data-testid={`btn-verify-search-key-${provider.providerId}`}
+                        >
+                          {verifying === provider.providerId ? "验证中..." : "验证"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {vResult && (
+                    <div className={`verify-result ${vResult.ok ? "verify-ok" : "verify-fail"}`}>
+                      {vResult.ok ? vResult.message : vResult.error}
                     </div>
                   )}
                 </div>

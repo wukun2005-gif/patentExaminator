@@ -27,8 +27,8 @@ describe("AgentClient real mode", () => {
   it("returns parsed JSON on success", async () => {
     const mockResponse = {
       ok: true,
-      provider: "mimo",
-      modelId: "MiMo-V2.5-Pro",
+      provider: "gemini",
+      modelId: "gemini-2.5-flash-lite",
       outputJson: {
         features: [],
         warnings: [],
@@ -78,8 +78,8 @@ describe("AgentClient real mode", () => {
 
     expect(capturedBody).toMatchObject({
       agent: "claim-chart",
-      providerPreference: ["mimo"],
-      modelId: "MiMo-V2.5-Pro",
+      providerPreference: expect.arrayContaining(["gemini"]),
+      modelId: "gemini-3.1-flash-lite-preview",
       sanitized: false,
       metadata: {
         caseId: "g1-led",

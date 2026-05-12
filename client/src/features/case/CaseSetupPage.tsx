@@ -88,39 +88,38 @@ export function CaseSetupPage() {
           });
         }
         setDocuments(docs);
-        // Re-extract fields from existing documents
-        if (docs.length > 0) {
-          setExtractingFields(true);
-          setExtractError(null);
-          const appDocs = docs.filter((d) => d.role === "application");
-          const docInputs = appDocs.map((d) => ({ fileName: d.fileName, text: d.extractedText }));
-          try {
-            const client = new AgentClient(settings.mode, "/api", settings);
-            const fields = await extractCaseFields(docInputs, caseId, client);
-            if (!cancelled) {
-              setExtracted(fields);
-              applyExtracted(fields, existing);
-              await persistClaims(fields.claims, setClaimNodes);
-            }
-          } catch (err) {
-            // AI failed — show error and fall back to regex
-            if (!cancelled) {
-              setExtractError(`AI 提取失败: ${err instanceof Error ? err.message : String(err)}，已降级为本地解析`);
-              const fallback = extractCaseFieldsFallback(docInputs, caseId);
-              setExtracted(fallback);
-              applyExtracted(fallback, existing);
-              await persistClaims(fallback.claims, setClaimNodes);
-            }
-          } finally {
-            if (!cancelled) setExtractingFields(false);
-          }
-        }
       } catch {
         /* IndexedDB unavailable */
       }
     })();
     return () => { cancelled = true; };
   }, [caseId, reset, setCurrentCase, setDocuments]);
+
+  // AI extraction handler — triggered by user button click
+  const handleAiExtract = async () => {
+    if (!caseId) return;
+    const appDocs = documents.filter((d) => d.role === "application");
+    if (appDocs.length === 0) return;
+
+    const docInputs = appDocs.map((d) => ({ fileName: d.fileName, text: d.extractedText }));
+    setExtractingFields(true);
+    setExtractError(null);
+    try {
+      const client = new AgentClient(settings.mode, "/api", settings);
+      const fields = await extractCaseFields(docInputs, caseId, client);
+      setExtracted(fields);
+      applyExtracted(fields, currentCase);
+      await persistClaims(fields.claims, setClaimNodes);
+    } catch (err) {
+      setExtractError(`AI 提取失败: ${err instanceof Error ? err.message : String(err)}，已降级为本地解析`);
+      const fallback = extractCaseFieldsFallback(docInputs, caseId);
+      setExtracted(fallback);
+      applyExtracted(fallback, currentCase);
+      await persistClaims(fallback.claims, setClaimNodes);
+    } finally {
+      setExtractingFields(false);
+    }
+  };
 
   // Apply extracted fields to form (only fill empty fields)
   const applyExtracted = (fields: ExtractedFields, existingCase?: PatentCase | null) => {
@@ -231,27 +230,6 @@ export function CaseSetupPage() {
         await createDocument(doc);
         addDocument(doc);
         setFileStatuses((prev) => ({ ...prev, [file.name]: "完成" }));
-
-        // Re-extract fields from all documents
-        const allAppDocs = [...documents.filter((d) => d.role === "application"), doc];
-        const docInputs = allAppDocs.map((d) => ({ fileName: d.fileName, text: d.extractedText }));
-        setExtractingFields(true);
-        setExtractError(null);
-        try {
-          const client = new AgentClient(settings.mode, "/api", settings);
-          const fields = await extractCaseFields(docInputs, caseId, client);
-          setExtracted(fields);
-          applyExtracted(fields, currentCase);
-          await persistClaims(fields.claims, setClaimNodes);
-        } catch (err) {
-          setExtractError(`AI 提取失败: ${err instanceof Error ? err.message : String(err)}，已降级为本地解析`);
-          const fallback = extractCaseFieldsFallback(docInputs, caseId);
-          setExtracted(fallback);
-          applyExtracted(fallback, currentCase);
-          await persistClaims(fallback.claims, setClaimNodes);
-        } finally {
-          setExtractingFields(false);
-        }
       } catch (err) {
         setFileStatuses((prev) => ({ ...prev, [file.name]: `出错: ${err}` }));
       }
@@ -326,15 +304,30 @@ export function CaseSetupPage() {
         )}
       </section>
 
+      {/* AI extraction trigger — only show when documents exist */}
       {/* Case baseline form */}
       <section className="setup-section">
-        <h3>
-          案件基本信息
-          {extractingFields && <span className="extracting-badge" data-testid="extracting-status">AI 提取中…</span>}
-        </h3>
+        <div className="setup-section__header">
+          <h3>案件基本信息</h3>
+          {documents.some((d) => d.role === "application") && (
+            <button
+              type="button"
+              className="btn-ai-extract"
+              disabled={extractingFields}
+              onClick={handleAiExtract}
+              data-testid="btn-ai-extract"
+            >
+              {extractingFields ? (
+                <><span className="spinner" />提取中…</>
+              ) : (
+                <><span className="icon-ai" />AI 提取</>
+              )}
+            </button>
+          )}
+        </div>
+        {extractError && <p className="extract-error" data-testid="extract-error">{extractError}</p>}
         <p className="section-desc">
-          上传文件后自动提取，可手动修正
-          {extractError && <span className="extract-error" data-testid="extract-error">{extractError}</span>}
+          上传文件后点击「AI 提取」自动填充，可手动修正
         </p>
         <form onSubmit={handleSubmit(() => {})} noValidate className="case-form">
           <div className="form-field">

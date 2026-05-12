@@ -308,6 +308,7 @@ export function ChatPanel() {
         />
       )}
       <div className="chat-panel__header">
+        <span className="chat-panel__icon">🤖</span>
         <span className="chat-panel__title">AI 助手 · {moduleLabel}</span>
         <button
           type="button"

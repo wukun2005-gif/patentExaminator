@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { ChatPanel } from "@client/features/chat/ChatPanel";
@@ -62,7 +62,7 @@ describe("ChatBubble", () => {
       role: "assistant",
       content: "我将重新生成。[action:claim-chart]"
     });
-    const onAction = vitest.fn();
+    const onAction = vi.fn();
     render(<ChatBubble message={msg} onAction={onAction} />);
     const btn = screen.getByTestId("btn-action-msg-action");
     expect(btn).toBeTruthy();
@@ -123,7 +123,7 @@ describe("ChatPanel", () => {
     fireEvent.click(btn);
     const sessions = useChatStore.getState().sessions;
     expect(sessions.length).toBe(1);
-    expect(sessions[0].moduleScope).toBe("claim-chart");
+    expect(sessions[0]!.moduleScope).toBe("claim-chart");
   });
 
   it("切换模块后所有 session 仍可见", () => {

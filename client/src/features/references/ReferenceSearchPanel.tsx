@@ -68,18 +68,26 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
       );
 
       // 合并结果，去重，取 top N
-      const allOk = responses.some((r) => r.ok);
-      if (!allOk) {
+      const failedProviders = responses.filter((r) => !r.ok);
+      const okResponses = responses.filter((r) => r.ok);
+
+      // Show partial errors if some providers failed but others succeeded
+      if (failedProviders.length > 0 && okResponses.length > 0) {
+        const failedNames = failedProviders.map((_, i) => enabledSearchProviders[i]?.name ?? `Provider ${i + 1}`);
+        console.warn(`Search providers failed: ${failedNames.join(", ")}`, failedProviders.map((r) => r.error));
+      }
+
+      if (okResponses.length === 0) {
         setError(responses.map((r) => r.error).filter(Boolean).join("; ") || "检索失败，请稍后重试。");
         return;
       }
 
-      const firstQuery = responses.find((r) => r.searchQuery)?.searchQuery;
+      const firstQuery = okResponses.find((r) => r.searchQuery)?.searchQuery;
       if (firstQuery) setSearchQuery(firstQuery);
 
       const seen = new Set<string>();
       const merged: ReferenceDocument[] = [];
-      for (const res of responses) {
+      for (const res of okResponses) {
         for (const c of res.candidates) {
           if (seen.has(c.publicationNumber)) continue;
           seen.add(c.publicationNumber);
@@ -223,6 +231,17 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
                 <div className="candidate-meta">
                   <span>{candidate.publicationNumber}</span>
                   {candidate.publicationDate && <span>公开日: {candidate.publicationDate}</span>}
+                  {candidate.sourceUrl && (
+                    <a
+                      href={candidate.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="candidate-source-link"
+                      data-testid={`source-link-${candidate.id}`}
+                    >
+                      来源
+                    </a>
+                  )}
                   <TimelineStatusBadge
                     status={classifyReferenceDate(baselineDate, candidate.publicationDate, candidate.publicationDateConfidence)}
                     dataTestId={`badge-timeline-candidate-${candidate.id}`}
@@ -280,6 +299,9 @@ function candidateToReference(candidate: SearchReferencesCandidate, caseId: stri
   };
   if (candidate.publicationDate) {
     ref.publicationDate = candidate.publicationDate;
+  }
+  if (candidate.sourceUrl) {
+    ref.sourceUrl = candidate.sourceUrl;
   }
   return ref;
 }

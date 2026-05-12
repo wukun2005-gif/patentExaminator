@@ -103,6 +103,7 @@ describe("ProviderRegistry", () => {
       id: "kimi",
       defaultBaseUrl: "https://mock.api",
       supportedModels: () => ["test"],
+      async listModels(_apiKey: string): Promise<string[]> { return ["test"]; },
       async chat(_req: ChatRequest): Promise<ChatResponse> {
         callCount++;
         if (callCount <= 2) {
