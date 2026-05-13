@@ -57,6 +57,7 @@ export function NoveltyComparisonTable({ comparisonId }: NoveltyComparisonTableP
 
   return (
     <div className="novelty-comparison-table" data-testid="novelty-comparison-table">
+      <h2>新颖性复核</h2>
       <div data-testid="novelty-legal-caution" className="legal-caution">
         以下为候选事实整理，不构成新颖性法律结论。审查员需结合对比文件全文进行独立判断。
       </div>
@@ -171,6 +172,19 @@ export function NoveltyComparisonTable({ comparisonId }: NoveltyComparisonTableP
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {comparison.applicantArguments && (
+        <div className="reexam-context" data-testid="novelty-reexam-context">
+          <h4>申请人答辩理由</h4>
+          <blockquote>{comparison.applicantArguments}</blockquote>
+          {comparison.examinerResponse && (
+            <>
+              <h4>审查员回应（AI 草稿）</h4>
+              <p>{comparison.examinerResponse}</p>
+            </>
+          )}
         </div>
       )}
     </div>

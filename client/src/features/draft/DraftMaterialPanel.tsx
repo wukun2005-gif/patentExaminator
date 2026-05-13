@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useCaseStore, useClaimsStore, useNoveltyStore, useInventiveStore, useDefectsStore } from "../../store";
+import type { ReexamDraftResponse } from "../../agent/contracts";
 
 interface DraftMaterialPanelProps {
   caseId: string;
+  runReexamDraft?: () => Promise<ReexamDraftResponse>;
 }
 
 const ASSESSMENT_LABELS: Record<string, string> = {
@@ -17,12 +20,22 @@ const SEVERITY_LABELS: Record<string, string> = {
   info: "提示"
 };
 
-export function DraftMaterialPanel({ caseId }: DraftMaterialPanelProps) {
+const REEXAM_CONCLUSION_LABELS: Record<string, string> = {
+  "argument-accepted": "答辩成立",
+  "argument-partially-accepted": "答辩部分成立",
+  "argument-rejected": "答辩不成立",
+  "needs-further-review": "需进一步审查"
+};
+
+export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPanelProps) {
   const { currentCase } = useCaseStore();
   const { claimFeatures } = useClaimsStore();
   const { comparisons } = useNoveltyStore();
   const { analyses } = useInventiveStore();
   const { defects } = useDefectsStore();
+  const [reexamDraft, setReexamDraft] = useState<ReexamDraftResponse | null>(null);
+  const [loadingDraft, setLoadingDraft] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   const features = claimFeatures.filter((f) => f.caseId === caseId);
   const noveltyComparisons = comparisons.filter((c) => c.caseId === caseId);
@@ -37,17 +50,78 @@ export function DraftMaterialPanel({ caseId }: DraftMaterialPanelProps) {
   const pendingQuestions = [...new Set(noveltyComparisons.flatMap((c) => c.pendingSearchQuestions))];
   const unresolvedDefects = caseDefects.filter((d) => !d.resolved);
 
+  const handleGenerateReexamDraft = async () => {
+    if (!runReexamDraft || loadingDraft) return;
+    setLoadingDraft(true);
+    setDraftError(null);
+    try {
+      const draft = await runReexamDraft();
+      setReexamDraft(draft);
+    } catch (err) {
+      setDraftError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingDraft(false);
+    }
+  };
+
   return (
     <div className="draft-material-panel" data-testid="draft-material-panel">
-      <h2>素材草稿</h2>
+      <h2>复审意见草稿</h2>
       <p className="draft-description">
-        素材草稿由以下片段拼装，不做 AI 生成。
+        基于驳回理由、答辩映射和上游分析结果生成逐条回应格式草稿。
       </p>
+      {runReexamDraft && (
+        <button
+          type="button"
+          onClick={handleGenerateReexamDraft}
+          disabled={loadingDraft}
+          data-testid="btn-generate-reexam-draft"
+        >
+          {loadingDraft ? "生成中..." : reexamDraft ? "重新生成复审意见草稿" : "生成复审意见草稿"}
+        </button>
+      )}
+      {draftError && <div className="alert alert--error" data-testid="draft-error">{draftError}</div>}
 
       <div className="draft-sections">
-        {/* Section 1: 正文草稿 */}
+        {reexamDraft && (
+          <section className="draft-section" data-testid="section-reexam-draft">
+            <h3>逐条回应</h3>
+            <div className="section-content">
+              {reexamDraft.responseItems.map((item) => (
+                <div key={item.rejectionGroundCode} className="reexam-response-item">
+                  <h4>{item.rejectionGroundCode} · {item.category}</h4>
+                  <p><strong>申请人意见：</strong>{item.applicantArgumentSummary}</p>
+                  <p><strong>审查员回应草稿：</strong>{item.examinerResponse}</p>
+                  <p><strong>候选结论：</strong>{REEXAM_CONCLUSION_LABELS[item.conclusion] ?? item.conclusion}</p>
+                  {item.supportingEvidence && item.supportingEvidence.length > 0 && (
+                    <ul>
+                      {item.supportingEvidence.map((evidence) => (
+                        <li key={`${item.rejectionGroundCode}-${evidence.label}`}>
+                          {evidence.label}
+                          {evidence.quote ? `：「${evidence.quote}」` : ""}
+                          （置信度：{evidence.confidence}）
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+              <h4>综合评估</h4>
+              <p>{reexamDraft.overallAssessment}</p>
+              {reexamDraft.defectReviewSummary && (
+                <>
+                  <h4>缺陷复查总结</h4>
+                  <p>{reexamDraft.defectReviewSummary}</p>
+                </>
+              )}
+              <p className="legal-caution-text"><em>{reexamDraft.legalCaution}</em></p>
+            </div>
+          </section>
+        )}
+
+        {/* Section 1: 上游事实材料 */}
         <section className="draft-section" data-testid="section-body-draft">
-          <h3>正文草稿</h3>
+          <h3>上游事实材料</h3>
           <div className="section-content">
             {currentCase && (
               <div className="draft-case-summary">
@@ -82,7 +156,7 @@ export function DraftMaterialPanel({ caseId }: DraftMaterialPanelProps) {
 
         {/* Section 2: 创造性分析 */}
         <section className="draft-section" data-testid="section-inventive">
-          <h3>创造性三步法分析</h3>
+          <h3>创造性复核</h3>
           <div className="section-content">
             {inventiveAnalysis ? (
               <>
@@ -139,7 +213,7 @@ export function DraftMaterialPanel({ caseId }: DraftMaterialPanelProps) {
 
         {/* Section 4: 形式缺陷 */}
         <section className="draft-section" data-testid="section-defects">
-          <h3>形式缺陷检查</h3>
+          <h3>缺陷复查</h3>
           <div className="section-content">
             {caseDefects.length > 0 ? (
               <>

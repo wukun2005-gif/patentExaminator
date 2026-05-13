@@ -1,0 +1,26 @@
+{
+  "mappings": [
+    {
+      "rejectionGroundCode": "R1",
+      "applicantArgument": "申请人认为D1公开的散热基板为普通铝板，与本申请的铝合金散热基板+散热翅片一体成型结构不同，D1未公开一体成型工艺。",
+      "argumentSummary": "申请人通过强调一体成型工艺这一区别特征来反驳新颖性驳回",
+      "confidence": "high",
+      "amendedClaims": [
+        {
+          "claimNumber": 1,
+          "originalText": "散热翅片与基板一体成型",
+          "amendedText": "散热翅片与基板通过压铸一体成型工艺制成，翅片间距2-5mm",
+          "changeDescription": "进一步限定了一体成型的具体工艺（压铸）和翅片间距参数"
+        }
+      ]
+    },
+    {
+      "rejectionGroundCode": "R2",
+      "applicantArgument": "申请人认为D2的石墨烯导热膜应用领域为CPU散热，与LED灯具散热的技术领域不同，本领域技术人员没有动机将D2的方案应用于D1。",
+      "argumentSummary": "申请人通过论证技术领域差异否定技术启示的存在",
+      "confidence": "medium"
+    }
+  ],
+  "unmappedGrounds": ["R3"],
+  "legalCaution": "以上为答辩映射候选，需审查员核对确认。"
+}

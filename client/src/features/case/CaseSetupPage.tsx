@@ -16,6 +16,13 @@ import { AgentClient } from "../../agent/AgentClient";
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".html"];
 
+const DOCUMENT_ROLE_LABELS: Record<SourceDocument["role"], string> = {
+  application: "申请文件",
+  "office-action": "审查意见通知书",
+  "office-action-response": "意见陈述书",
+  reference: "对比文件"
+};
+
 interface CaseFormValues {
   title: string;
   applicationNumber: string;
@@ -50,6 +57,7 @@ export function CaseSetupPage() {
   const [extracted, setExtracted] = useState<ExtractedFields | null>(null);
   const [extractingFields, setExtractingFields] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [uploadRole, setUploadRole] = useState<SourceDocument["role"]>("application");
 
   const {
     register,
@@ -152,6 +160,7 @@ export function CaseSetupPage() {
         textVersion: watchAll.textVersion as PatentCase["textVersion"],
         targetClaimNumber: watchAll.targetClaimNumber,
         guidelineVersion: "2023",
+        reexaminationRound: currentCase?.reexaminationRound ?? 1,
         workflowState: (currentCase?.workflowState ?? "empty") as PatentCase["workflowState"],
         createdAt: currentCase?.createdAt ?? now,
         updatedAt: now,
@@ -216,7 +225,7 @@ export function CaseSetupPage() {
         const doc: SourceDocument = {
           id: `doc-${fileHash.slice(0, 8)}`,
           caseId,
-          role: "application",
+          role: uploadRole,
           fileName: file.name,
           fileType: ext.replace(".", "") as SourceDocument["fileType"],
           fileHash,
@@ -269,11 +278,24 @@ export function CaseSetupPage() {
   return (
     <div className="case-setup-page" data-testid="page-setup">
       <h2>案件基本信息导入</h2>
+      <p className="section-desc">上传申请文件、审查意见通知书和意见陈述书，建立复审分析上下文。</p>
 
       {/* File upload section */}
       <section className="setup-section">
-        <h3>上传申请文件</h3>
-        <p className="section-desc">支持 PDF、DOCX、TXT、HTML 格式，可批量选择多个文件</p>
+        <h3>上传复审文件</h3>
+        <p className="section-desc">支持 PDF、DOCX、TXT、HTML 格式；选择文件类型后可批量上传同类文件</p>
+        <label htmlFor="upload-role">文件类型</label>
+        <select
+          id="upload-role"
+          value={uploadRole}
+          onChange={(e) => setUploadRole(e.target.value as SourceDocument["role"])}
+          data-testid="select-upload-role"
+        >
+          <option value="application">申请文件 / 修改后权利要求</option>
+          <option value="office-action">审查意见通知书</option>
+          <option value="office-action-response">意见陈述书</option>
+          <option value="reference">对比文件</option>
+        </select>
         <input
           ref={fileInputRef}
           type="file"
@@ -282,11 +304,12 @@ export function CaseSetupPage() {
           onChange={handleFileChange}
           data-testid="input-file-upload"
         />
-        {(documents.some((d) => d.role === "application") || Object.keys(fileStatuses).length > 0) && (
+        {(documents.length > 0 || Object.keys(fileStatuses).length > 0) && (
           <ul className="file-status-list" data-testid="file-status-list">
-            {documents.filter((d) => d.role === "application").map((doc) => (
+            {documents.map((doc) => (
               <li key={doc.id} className="file-status-item">
                 <span className="file-name">{doc.fileName}</span>
+                <span className="file-role">{DOCUMENT_ROLE_LABELS[doc.role]}</span>
                 <span className="file-status status-ok">已导入</span>
               </li>
             ))}
@@ -327,7 +350,7 @@ export function CaseSetupPage() {
         </div>
         {extractError && <p className="extract-error" data-testid="extract-error">{extractError}</p>}
         <p className="section-desc">
-          上传文件后点击「AI 提取」自动填充，可手动修正
+          上传申请文件后点击「AI 提取」自动填充，可手动修正
         </p>
         <form onSubmit={handleSubmit(() => {})} noValidate className="case-form">
           <div className="form-field">

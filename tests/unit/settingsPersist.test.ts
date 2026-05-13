@@ -54,10 +54,10 @@ describe("Settings persistence", () => {
     };
     await writeSettings(settings);
     expect(mockPut).toHaveBeenCalledOnce();
-    const putArg = mockPut.mock.calls[0][1] as Record<string, unknown>;
+    const putArg = mockPut.mock.calls[0]![1] as Record<string, unknown>;
     expect(putArg.id).toBe("app");
     expect(putArg.mode).toBe("real");
-    expect((putArg.providers as Array<Record<string, unknown>>)[0].apiKeyRef).toBe("test-key-123");
+    expect((putArg.providers as Array<Record<string, unknown>>)[0]!.apiKeyRef).toBe("test-key-123");
   });
 
   it("readSettings returns defaults when nothing stored", async () => {
@@ -65,7 +65,7 @@ describe("Settings persistence", () => {
     const result = await readSettings();
     expect(result.mode).toBe("mock");
     expect(result.providers.length).toBeGreaterThan(0);
-    expect(result.providers[0].providerId).toBe("gemini");
+    expect(result.providers[0]!.providerId).toBe("gemini");
   });
 
   it("readSettings returns stored settings with providers", async () => {
@@ -78,6 +78,7 @@ describe("Settings persistence", () => {
           providerId: "mimo",
           apiKeyRef: "test-key-123",
           modelIds: ["MiMo-V2.5-Pro"],
+          defaultModelId: "MiMo-V2.5-Pro",
           enabled: true
         }
       ],
@@ -88,7 +89,7 @@ describe("Settings persistence", () => {
     const result = await readSettings();
     expect(result.mode).toBe("real");
     expect(result.providers).toHaveLength(1);
-    expect(result.providers[0].apiKeyRef).toBe("test-key-123");
+    expect(result.providers[0]!.apiKeyRef).toBe("test-key-123");
   });
 
   it("setSettings calls writeSettings", async () => {
@@ -100,6 +101,7 @@ describe("Settings persistence", () => {
           providerId: "kimi" as const,
           apiKeyRef: "kimi-key-456",
           modelIds: ["moonshot-v1-128k"],
+          defaultModelId: "moonshot-v1-128k",
           enabled: true
         }
       ]
@@ -109,8 +111,8 @@ describe("Settings persistence", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(mockPut).toHaveBeenCalledOnce();
-    const putArg = mockPut.mock.calls[0][1] as Record<string, unknown>;
-    expect((putArg.providers as Array<Record<string, unknown>>)[0].apiKeyRef).toBe("kimi-key-456");
+    const putArg = mockPut.mock.calls[0]![1] as Record<string, unknown>;
+    expect((putArg.providers as Array<Record<string, unknown>>)[0]!.apiKeyRef).toBe("kimi-key-456");
   });
 
   it("loadFromDb restores settings from IndexedDB", async () => {
@@ -123,6 +125,7 @@ describe("Settings persistence", () => {
           providerId: "deepseek",
           apiKeyRef: "ds-key-789",
           modelIds: ["deepseek-chat"],
+          defaultModelId: "deepseek-chat",
           enabled: true
         }
       ],
@@ -135,7 +138,7 @@ describe("Settings persistence", () => {
     const state = useSettingsStore.getState();
     expect(state.settings.mode).toBe("real");
     expect(state.settings.providers).toHaveLength(1);
-    expect(state.settings.providers[0].apiKeyRef).toBe("ds-key-789");
+    expect(state.settings.providers[0]!.apiKeyRef).toBe("ds-key-789");
     expect(state.isInitialized).toBe(true);
   });
 
@@ -149,6 +152,7 @@ describe("Settings persistence", () => {
           providerId: "mimo" as const,
           apiKeyRef: "my-secret-key-abc",
           modelIds: ["MiMo-V2.5-Pro"],
+          defaultModelId: "MiMo-V2.5-Pro",
           enabled: true
         }
       ]
@@ -160,7 +164,7 @@ describe("Settings persistence", () => {
 
     // Verify the write happened
     expect(mockPut).toHaveBeenCalledOnce();
-    const writtenData = mockPut.mock.calls[0][1] as Record<string, unknown>;
+    const writtenData = mockPut.mock.calls[0]![1] as Record<string, unknown>;
 
     // Step 2: Simulate page refresh — readSettings returns what was written
     mockGet.mockResolvedValueOnce(writtenData);
@@ -174,8 +178,8 @@ describe("Settings persistence", () => {
 
     const restored = useSettingsStore.getState();
     expect(restored.settings.providers).toHaveLength(1);
-    expect(restored.settings.providers[0].apiKeyRef).toBe("my-secret-key-abc");
-    expect(restored.settings.providers[0].providerId).toBe("mimo");
+    expect(restored.settings.providers[0]!.apiKeyRef).toBe("my-secret-key-abc");
+    expect(restored.settings.providers[0]!.providerId).toBe("mimo");
     expect(restored.settings.mode).toBe("mock");
   });
 });

@@ -4,7 +4,7 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { ChatPanel } from "@client/features/chat/ChatPanel";
 import { ChatBubble } from "@client/features/chat/ChatBubble";
 import { useChatStore, useCaseStore } from "@client/store";
-import type { ChatMessage, ChatSession } from "@shared/types/domain";
+import type { ChatMessage, ChatSession, PatentCase } from "@shared/types/domain";
 
 function makeSession(overrides: Partial<ChatSession> = {}): ChatSession {
   return {
@@ -77,7 +77,7 @@ describe("ChatPanel", () => {
     useChatStore.getState().setMessages([]);
     useChatStore.getState().setActiveSessionId(null);
     useChatStore.getState().setPanelOpen(true);
-    useCaseStore.getState().setCurrentCase({
+    const currentCase: PatentCase = {
       id: "test",
       title: "测试案件",
       applicationNumber: "2024100001",
@@ -86,10 +86,12 @@ describe("ChatPanel", () => {
       textVersion: "original",
       targetClaimNumber: 1,
       guidelineVersion: "2023",
+      reexaminationRound: 1,
       workflowState: "claim-chart-ready",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
-    } as any);
+    };
+    useCaseStore.getState().setCurrentCase(currentCase);
   });
 
   it("无 session 时显示空状态", () => {

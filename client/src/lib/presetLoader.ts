@@ -22,9 +22,11 @@ import { useCaseStore, useDocumentsStore, useReferencesStore, useClaimsStore, us
 import presetData from "@shared/fixtures/preset-demo.json";
 
 export async function loadPresetCase(): Promise<string> {
-  const data = presetData as {
+  const data = presetData as unknown as {
     case: PatentCase;
     applicationDoc: SourceDocument;
+    officeActionDoc?: SourceDocument;
+    officeActionResponseDoc?: SourceDocument;
     referenceDocs: SourceDocument[];
     claimNodes: ClaimNode[];
     claimFeatures: ClaimFeature[];
@@ -49,6 +51,12 @@ export async function loadPresetCase(): Promise<string> {
   // 1. Write to IndexedDB
   await createCase(theCase);
   await createDocument(data.applicationDoc);
+  if (data.officeActionDoc) {
+    await createDocument(data.officeActionDoc);
+  }
+  if (data.officeActionResponseDoc) {
+    await createDocument(data.officeActionResponseDoc);
+  }
   for (const ref of data.referenceDocs) {
     await createDocument(ref);
   }
@@ -98,7 +106,11 @@ export async function loadPresetCase(): Promise<string> {
   // 2. Hydrate Zustand stores
   useCaseStore.getState().setCurrentCase(theCase);
   useCaseStore.getState().setCases([theCase]);
-  useDocumentsStore.getState().setDocuments([data.applicationDoc]);
+  useDocumentsStore.getState().setDocuments([
+    data.applicationDoc,
+    ...(data.officeActionDoc ? [data.officeActionDoc] : []),
+    ...(data.officeActionResponseDoc ? [data.officeActionResponseDoc] : [])
+  ]);
   useReferencesStore.getState().setReferences(
     data.referenceDocs as unknown as ReferenceDocument[]
   );

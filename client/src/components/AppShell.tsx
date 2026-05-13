@@ -9,14 +9,16 @@ interface AppShellProps {
 }
 
 const CASE_NAV_ITEMS = [
-  { path: "setup", label: "案件基本信息导入", icon: "📄" },
+  { path: "setup", label: "复审文件导入", icon: "📄" },
+  { path: "opinion-analysis", label: "审查意见解析", icon: "🧾" },
+  { path: "argument-mapping", label: "答辩理由映射", icon: "🔗" },
   { path: "references", label: "文献清单", icon: "📚" },
   { path: "interpret", label: "文档解读", icon: "🔍" },
   { path: "claim-chart", label: "Claim Chart", icon: "📊" },
-  { path: "novelty", label: "新颖性对照", icon: "⚖️" },
-  { path: "inventive", label: "创造性分析", icon: "💡" },
-  { path: "defects", label: "形式缺陷", icon: "⚠️" },
-  { path: "draft", label: "素材草稿", icon: "✏️" },
+  { path: "novelty", label: "新颖性复核", icon: "⚖️" },
+  { path: "inventive", label: "创造性复核", icon: "💡" },
+  { path: "defects", label: "缺陷复查", icon: "⚠️" },
+  { path: "draft", label: "复审意见草稿", icon: "✏️" },
   { path: "export", label: "导出", icon: "📤" }
 ];
 
@@ -33,7 +35,7 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="app-shell">
       <header className="app-shell__topbar">
-        <Link to="/cases" className="app-shell__logo">专利审查助手</Link>
+        <Link to="/cases" className="app-shell__logo">专利复审 AI 助手</Link>
         {caseId && (
           <span className="app-shell__case-id" data-testid="topbar-case-id">
             案件: {caseId}

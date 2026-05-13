@@ -6,8 +6,8 @@ export interface ExportViewModel {
   noveltyComparisons: NoveltyComparison[];
   differenceFeatureCodes: string[];
   pendingSearchQuestions: string[];
-  inventiveAnalysis?: InventiveStepAnalysis;
-  defects?: FormalDefect[];
+  inventiveAnalysis?: InventiveStepAnalysis | undefined;
+  defects?: FormalDefect[] | undefined;
 }
 
 const LEGAL_DISCLAIMER = "本文件为审查辅助素材，不构成法律结论。所有 AI 生成内容均为候选事实整理，需审查员确认。";

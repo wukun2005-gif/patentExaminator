@@ -5,18 +5,22 @@ export type AppMode = "mock" | "real";
 export type CaseWorkflowState =
   | "empty"
   | "case-ready"
-  | "application-uploaded"
+  | "documents-uploaded"
   | "text-extracted"
   | "ocr-running"
   | "ocr-failed"
   | "ocr-review"
   | "text-confirmed"
+  | "opinion-analyzed"
+  | "argument-mapped"
   | "references-ready"
   | "timeline-checked"
   | "claim-chart-ready"
   | "claim-chart-reviewed"
   | "novelty-ready"
   | "inventive-ready"
+  | "defects-ready"
+  | "draft-ready"
   | "export-ready";
 
 export interface PatentCase {
@@ -31,6 +35,8 @@ export interface PatentCase {
   targetClaimNumber: number;
   guidelineVersion: string;
   examinerNotes?: string;
+  reexaminationRound: number;
+  previousCaseId?: string;
   workflowState: CaseWorkflowState;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
@@ -39,7 +45,7 @@ export interface PatentCase {
 export interface SourceDocument {
   id: string;
   caseId: string;
-  role: "application" | "reference" | "office-action-response";
+  role: "application" | "reference" | "office-action-response" | "office-action";
   fileName: string;
   fileType: "pdf" | "docx" | "txt" | "html" | "manual";
   fileHash?: string;
@@ -131,6 +137,8 @@ export interface NoveltyComparison {
   differenceFeatureCodes: string[];
   pendingSearchQuestions: string[];
   pendingSearchConclusions?: string[];
+  applicantArguments?: string;
+  examinerResponse?: string;
   status: "draft" | "user-reviewed" | "stale";
   legalCaution: string;
 }
@@ -149,6 +157,8 @@ export interface InventiveStepAnalysis {
   closestPriorArtId?: string;
   sharedFeatureCodes: string[];
   distinguishingFeatureCodes: string[];
+  applicantArguments?: string;
+  examinerResponse?: string;
   status: "draft" | "user-reviewed" | "stale";
   objectiveTechnicalProblem?: string;
   motivationEvidence: Citation[];
@@ -180,6 +190,8 @@ export interface FormalDefect {
   location?: string;
   severity: "error" | "warning" | "info";
   resolved: boolean;
+  previouslyRaised?: boolean;
+  overcomeStatus?: "overcome" | "not-overcome" | "partially-overcome";
 }
 
 export interface FeedbackEntry {
@@ -201,7 +213,9 @@ export type ModuleScope =
   | "defects"
   | "case"
   | "documents"
-  | "interpret";
+  | "interpret"
+  | "opinion-analysis"
+  | "argument-mapping";
 
 export interface ChatSession {
   id: string;
@@ -230,4 +244,51 @@ export interface ChatMessage {
     tokenOutput: number;
   };
   createdAt: ISODateTimeString;
+}
+
+// ── 复审专用类型 ──────────────────────────────────────
+
+export interface OfficeActionAnalysis {
+  id: string;
+  caseId: string;
+  documentId: string;
+  rejectionGrounds: RejectionGround[];
+  citedReferences: RejectionCitedReference[];
+  status: "draft" | "user-reviewed" | "stale";
+  createdAt: ISODateTimeString;
+}
+
+export interface RejectionGround {
+  code: string;
+  category: "novelty" | "inventive" | "clarity" | "support" | "amendment" | "other";
+  claimNumbers: number[];
+  summary: string;
+  legalBasis: string;
+  originalText?: string;
+}
+
+export interface RejectionCitedReference {
+  publicationNumber: string;
+  rejectionGroundCodes: string[];
+  featureMapping: string;
+}
+
+export interface ArgumentMapping {
+  id: string;
+  caseId: string;
+  rejectionGroundCode: string;
+  applicantArgument: string;
+  argumentSummary: string;
+  confidence: "high" | "medium" | "low";
+  amendedClaims?: AmendedClaimDetail[];
+  newEvidence?: string;
+  status: "draft" | "user-reviewed" | "stale";
+  createdAt: ISODateTimeString;
+}
+
+export interface AmendedClaimDetail {
+  claimNumber: number;
+  originalText: string;
+  amendedText: string;
+  changeDescription: string;
 }

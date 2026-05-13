@@ -11,3 +11,6 @@ export * from "./schemas/inventive.schema.js";
 export * from "./schemas/summary.schema.js";
 export * from "./schemas/draft.schema.js";
 export * from "./schemas/export.schema.js";
+export * from "./schemas/opinionAnalysis.schema.js";
+export * from "./schemas/argumentMapping.schema.js";
+export * from "./schemas/reexamDraft.schema.js";

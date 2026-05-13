@@ -127,7 +127,7 @@ export function extractCaseFieldsFallback(
 
 function extractApplicationNumber(text: string): string | null {
   // Labeled: "申请号：202410567890.1" or "申请号：CN202410567890A"
-  const labeled = text.match(/申请号[：:\s]*([A-Z]{0,2}\d{9,14}[.\-]?\d{0,2}[A-Z]?)/);
+  const labeled = text.match(/申请号[：:\s]*([A-Z]{0,2}\d{9,14}[.-]?\d{0,2}[A-Z]?)/);
   if (labeled?.[1]) return labeled[1].trim();
   // Standalone: CN202410567890A
   const standalone = text.match(/\b(CN\d{9,13}[A-Z]?)\b/);

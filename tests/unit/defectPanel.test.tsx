@@ -24,7 +24,7 @@ const NOOP_RUN = async (_req: DefectRequest): Promise<DefectResponse> => ({
   legalCaution: ""
 });
 
-describe("DefectPanel - 形式缺陷检查", () => {
+describe("DefectPanel - 缺陷复查", () => {
   beforeEach(() => {
     useDefectsStore.getState().setDefects([]);
   });
@@ -41,7 +41,7 @@ describe("DefectPanel - 形式缺陷检查", () => {
     );
 
     expect(screen.getByTestId("defect-empty")).toBeTruthy();
-    expect(screen.getByText("尚未运行形式缺陷检查。")).toBeTruthy();
+    expect(screen.getByText("尚未运行缺陷复查。")).toBeTruthy();
   });
 
   it("store 中已有 defects 时，表格正确渲染", () => {

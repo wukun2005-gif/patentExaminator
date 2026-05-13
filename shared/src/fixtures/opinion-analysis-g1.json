@@ -1,0 +1,42 @@
+{
+  "documentId": "g1-office-action",
+  "rejectionGrounds": [
+    {
+      "code": "R1",
+      "category": "novelty",
+      "claimNumbers": [1],
+      "summary": "权利要求1相对于D1不具备新颖性。D1已公开了包括散热基板和散热翅片的LED散热装置。",
+      "legalBasis": "专利法§22.2",
+      "originalText": "权利要求1所述的LED散热装置与对比文件D1公开的技术方案相比，特征A（散热基板）已被D1完全公开。"
+    },
+    {
+      "code": "R2",
+      "category": "inventive",
+      "claimNumbers": [1],
+      "summary": "权利要求1相对于D1和D2的结合不具备创造性。D1公开了散热基板，D2公开了石墨烯导热膜的应用。",
+      "legalBasis": "专利法§22.3",
+      "originalText": "本领域技术人员容易想到将D2公开的石墨烯导热膜应用于D1的散热装置中。"
+    },
+    {
+      "code": "R3",
+      "category": "clarity",
+      "claimNumbers": [2, 3],
+      "summary": "从属权利要求2和3的引用关系不明确。",
+      "legalBasis": "专利法§26.4",
+      "originalText": "从属权利要求2未明确引用独立权利要求1的具体技术特征。"
+    }
+  ],
+  "citedReferences": [
+    {
+      "publicationNumber": "CN201510012345A",
+      "rejectionGroundCodes": ["R1", "R2"],
+      "featureMapping": "D1公开了特征A（铝合金散热基板+散热翅片）"
+    },
+    {
+      "publicationNumber": "CN201810067890A",
+      "rejectionGroundCodes": ["R2"],
+      "featureMapping": "D2公开了石墨烯导热膜在电子散热领域的应用"
+    }
+  ],
+  "legalCaution": "以上为审查意见结构化提取，需审查员核对确认。"
+}

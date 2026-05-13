@@ -1781,3 +1781,411 @@ interface AmendedClaimDetail {
 | `sticky` 定位在旧浏览器上可能不支持 | 使用 `position: -webkit-sticky` 作为前缀，兼容 Safari 等浏览器；降级方案：保持当前行为 |
 | 固定头部可能与页面其他元素的 `z-index` 冲突 | 设置合适的 `z-index` 值（如 100），确保头部在最上层 |
 | 固定头部可能遮挡页面顶部的内容 | 为 `.settings-page` 添加适当的 `padding-top`，或为 `.settings-page__header` 添加 `padding-bottom` 以避免内容遮挡 |
+
+---
+
+## B-012: 接入 EPO 专利检索 API（OPS v3.2）
+
+**优先级：** P2 — nice-to-have，丰富数据源生态，提升欧洲专利检索质量
+**状态：** Todo
+**目标版本：** v0.2.0
+
+### 问题陈述
+
+当前系统专利检索（B-001 AI 辅助文献检索）主要通过 Web Search（Tavily/SerpAPI）进行，检索结果结构化程度低、元数据提取不完整。EPO（欧洲专利局）提供的 OPS（Open Patent Services）v3.2 API 是全球最权威的专利数据源之一，覆盖 100+ 国家/地区的专利文献，提供：
+
+1. **结构化专利数据**：公开号、标题、摘要、申请人、发明人、IPC 分类、优先权信息、法律状态等
+2. **全文检索**：支持关键词、分类号、日期范围等多维度检索
+3. **专利家族查询**：获取同族专利信息
+4. **引用关系**：前引和后引专利文献
+5. **高质量元数据**：官方数据，无需 AI 后处理即可直接使用
+
+接入 EPO OPS API 可作为 Tavily/SerpAPI 之外的补充数据源，显著提升专利检索结果的结构化程度和元数据质量，减少 AI 后处理的错误率。
+
+### EPO OPS API 概况
+
+| 项目 | 说明 |
+|------|------|
+| API 文档 | https://developers.epo.org/apis/ops-v32 |
+| 认证方式 | OAuth2（Consumer Key + Consumer Secret Key） |
+| 免费额度 | 有免费 tier，具体限制见 EPO 开发者门户 |
+| 数据覆盖 | 100+ 国家/地区，包括 EPO、WIPO、USPTO、CNIPA 等 |
+| 主要端点 | Published Data Search、Family、Register、Images 等 |
+| 响应格式 | XML / JSON（默认 XML，Accept header 可指定 JSON） |
+
+### 功能描述
+
+系统新增 EPO OPS API 作为专利检索数据源，与现有 Tavily/SerpAPI Web Search 并列：
+
+1. **用户配置**：在设置页面的搜索 Provider 区域新增"EPO OPS"选项，用户填入 Consumer Key 和 Consumer Secret Key
+2. **自动测试配置**：`.env` 文件支持 `EPO_CONSUMER_KEY` 和 `EPO_CONSUMER_SECRET` 环境变量，用于 E2E 自动测试
+3. **检索流程**：B-001 的 AI 辅助文献检索在选择 EPO OPS 作为数据源时，使用 EPO OPS API 进行结构化专利检索
+4. **结果增强**：EPO OPS 返回的结构化数据直接映射到 `ReferenceDocument` 字段（公开号、公开日、标题、摘要、IPC 分类、申请人等），无需 AI 从网页文本中提取
+
+### 数据流
+
+```
+用户检索专利
+      │
+      ▼
+┌──────────────────────────┐
+│  搜索 Provider 选择       │
+│  ├── Tavily (Web Search)  │
+│  ├── SerpAPI (Web Search) │
+│  └── EPO OPS (新增)       │  ← 用户选择或在 Agent 配置中指定
+└──────────┬───────────────┘
+           │
+           ▼
+┌──────────────────────────┐
+│  EPO OPS Adapter          │
+│                           │
+│  OAuth2 Token 获取        │  ← Consumer Key + Secret → access_token
+│  │                        │
+│  ▼                        │
+│  检索式构建                │  ← AI 提取的关键词/IPC分类 → EPO CQL 查询
+│  │                        │
+│  ▼                        │
+│  GET /published-data/search  │
+│  │                        │
+│  ▼                        │
+│  结果映射                  │  ← EPO 结构化数据 → ReferenceDocument
+└──────────┬───────────────┘
+           │
+           ▼
+候选文献清单（结构化元数据 + 高置信度）
+```
+
+### 数据模型扩展
+
+```typescript
+// shared/src/types/agents.ts — SearchProviderId 扩展
+type SearchProviderId = "tavily" | "serpapi" | "epo";  // 新增 "epo"
+
+// 新增：EPO OPS 配置
+interface EpoOpsConfig {
+  consumerKey: string;
+  consumerSecret: string;
+  accessToken?: string;           // OAuth2 token（运行时获取，不持久化）
+  tokenExpiresAt?: ISODateTimeString;
+  enabled: boolean;
+}
+
+// shared/src/types/api.ts — 扩展
+interface SearchConfig {
+  provider: SearchProviderId;
+  // ... existing fields for Tavily/SerpAPI ...
+  epo?: EpoOpsConfig;            // 新增
+}
+
+// server 端环境变量（.env）
+// EPO_CONSUMER_KEY=xxx           // 用于自动测试
+// EPO_CONSUMER_SECRET=xxx        // 用于自动测试
+```
+
+### UI 交互
+
+```
+Settings → Search Providers 配置:
+
+┌─────────────────────────────────────────┐
+│  搜索 Provider 配置                      │
+│                                         │
+│  Tavily                          [▼]   │
+│  ┌─────────────────────────────────┐    │
+│  │ API Key: [tavily_key_here    ] │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  SerpAPI                         [▼]   │
+│  ┌─────────────────────────────────┐    │
+│  │ API Key: [serpapi_key_here   ] │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  EPO OPS                    [◎ 已启用]  │  ← 新增
+│  ┌─────────────────────────────────┐    │
+│  │ Consumer Key:      [ck_here  ] │    │
+│  │ Consumer Secret:   [cs_here  ] │    │
+│  │ Status: ✓ 已连接               │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  [+ 添加 Provider]                      │
+└─────────────────────────────────────────┘
+```
+
+### 涉及文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `server/src/search/epo-ops.ts`（新增） | EPO OPS API 适配器：OAuth2 Token 获取、检索请求、结果解析 |
+| `server/src/search/registry.ts` | 注册 `epo` 搜索 Provider |
+| `server/src/routes/search.ts` | 支持 `epo` provider 检索请求；Key 验证端点 |
+| `shared/src/types/agents.ts` | `SearchProviderId` 追加 `"epo"` |
+| `shared/src/types/api.ts` | 新增 `EpoOpsConfig` 接口；扩展 `SearchConfig` |
+| `server/src/lib/schemas.ts` | 新增 epo config 的 Zod schema |
+| `client/src/features/settings/SearchProvidersConfigPanel.tsx` | 新增 EPO OPS 配置表单（Consumer Key + Consumer Secret 输入） |
+| `client/src/lib/repositories/settingsRepo.ts` | 默认设置中包含 epo 配置结构 |
+| `client/src/features/references/ReferenceSearchPanel.tsx` | 支持选择 EPO OPS 作为数据源 |
+| `tests/e2e-real.mjs` | 新增 `--only epo` 测试用例（Mock + Real） |
+| `.env.example` | 新增 `EPO_CONSUMER_KEY` / `EPO_CONSUMER_SECRET` 示例 |
+
+### 技术实现要点
+
+1. **OAuth2 认证流程**
+   - EPO OPS API 使用 OAuth2 Client Credentials Grant
+   - POST `https://ops.epo.org/3.2/auth/accesstoken` 获取 `access_token`
+   - Token 有效期内复用，过期前 5 分钟自动刷新
+   - 服务端缓存 token，不暴露给前端
+
+2. **检索端点**
+   - 主端点：`GET /3.2/rest-services/published-data/search`
+   - 查询语言：CQL（Contextual Query Language）
+   - 支持字段：`ti`（标题）、`ab`（摘要）、`desc`（说明书）、`clms`（权利要求）、`pa`（申请人）、`in`（发明人）、`ipc`（IPC 分类号）、`pd`（公开日）
+   - 请求头：`Accept: application/json` 获取 JSON 响应（优先，降级 XML）
+
+3. **检索式构建**
+   - AI 提取的技术特征（关键词）→ CQL 查询
+   - IPC 分类号 → `ipc = "F21V29/00"` 精确匹配
+   - 日期范围 → `pd within "2010 2026"`
+   - 示例 CQL：`ti = "LED" AND ab = "heat" AND ipc = "F21V" AND pd within "2010 2026"`
+
+4. **结果映射**
+   - EPO 返回的 `exchange-documents[].bibliographic-data` → `ReferenceDocument`
+   - 公开号：`publication-reference.@doc-number` + `@kind`
+   - 公开日：`publication-reference.@date`
+   - 标题：`invention-title.$`
+   - 摘要：`abstract.$`
+   - IPC：`classification-ipc[]` → IPC 分类列表
+   - 申请人：`applicants.applicant[].@data-format` → 申请人名称
+
+5. **速率限制与错误处理**
+   - 遵守 EPO API 的速率限制（免费 tier 通常 ~1 req/s）
+   - 429 → 等待 Retry-After header 指定时间后重试
+   - OAuth2 认证失败 → 友好提示用户检查 Consumer Key/Secret
+   - 不可用时 → 降级为其他数据源（Tavily/SerpAPI），与 B-001 的多源冗余设计一致
+
+6. **Key 管理与安全**
+   - Consumer Key/Secret 仅在服务端使用，不暴露给前端 API 响应
+   - E2E 测试用 `.env` 中的 `EPO_CONSUMER_KEY` / `EPO_CONSUMER_SECRET`，已在 `.gitignore`
+   - 日志中不打印完整 Key，仅显示末 4 位
+
+### 验收标准
+
+- [ ] 用户在 Search Providers 设置页面可选择"EPO OPS"并填入 Consumer Key + Consumer Secret
+- [ ] OAuth2 Token 正常获取、缓存和自动刷新
+- [ ] 支持关键词 + IPC 分类号 + 日期范围的 CQL 检索
+- [ ] 检索结果正确映射为 `ReferenceDocument` 结构（公开号、公开日、标题、摘要、IPC、申请人）
+- [ ] EPO OPS 检索失败时自动降级为 Web Search（Tavily/SerpAPI）
+- [ ] `.env` 中的 `EPO_CONSUMER_KEY` / `EPO_CONSUMER_SECRET` 可用于 E2E 自动化测试
+- [ ] Mock 模式下提供预置的 EPO OPS 检索响应 fixture
+- [ ] `tests/e2e-real.mjs` 新增 `--only epo` 测试用例（Mock + Real）
+- [ ] `.env.example` 包含 EPO 环境变量的说明注释
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| EPO API 免费额度有限 | 提供 Mock fixture 用于开发测试；生产环境由用户自行管理额度 |
+| OAuth2 Token 获取失败 | 明确错误提示；降级为 Web Search |
+| CQL 查询语法限制（复杂布尔嵌套可能不支持） | AI 构建检索式时限制查询复杂度；提供 fallback 为简单关键词搜索 |
+| EPO API 响应格式变化（XML/JSON 字段调整） | 适配器中做字段存在性校验；解析失败时降级为 Web Search |
+| EPO 开发者账户审核可能较慢 | 不影响现有功能；EPO OPS 作为可选数据源，非强制要求 |
+| 国内网络访问 EPO API 可能不稳定 | 支持配置代理；与现有 Web Search 互为备份 |
+
+### 与现有功能的关系
+
+- **AI 辅助文献检索（B-001）**：EPO OPS 作为新增数据源，在数据源表格中增加一行
+- **ReferenceLibraryPanel**：EPO 检索结果直接进入候选文献清单，接受/拒绝交互复用
+- **搜索 Provider 配置**：在现有 Tavily/SerpAPI 配置旁边新增 EPO OPS 配置区域
+- **B-005 Grounding Citation**：EPO OPS 返回的高质量元数据可直接用于 citation（公开号、段落号更准确）
+
+## B-013: 配置界面仅允许从预置 Provider 列表选取，禁止用户自行添加
+
+**优先级：** P0 — 安全与品牌控制，防止用户接入非授权第三方服务
+**状态：** Todo
+**目标版本：** v0.2.0
+
+### 问题陈述
+
+当前配置界面存在两类 Provider 配置区域：
+
+1. **模型 Provider**（`ProvidersConfigPanel`）：用户可添加 LLM 模型提供商（OpenAI、Anthropic、DeepSeek 等）
+2. **搜索 Provider**（`SearchProvidersConfigPanel`）：用户可添加搜索 API 提供商（Tavily、SerpAPI 等）
+
+这两个面板目前可能存在让用户**自由添加任意 Provider** 的入口（如"添加 Provider"按钮），允许用户输入任意 base URL、API endpoint 等。这带来以下问题：
+
+- **安全风险**：用户可能配置恶意或不安全的第三方代理服务，导致敏感申请文件数据泄露
+- **品牌风险**：APP 作为专业审查工具，应保持可控的 Provider 生态，确保所有可用的模型和搜索服务都经过 APP 团队验证
+- **支持负担**：用户自行添加的非标 Provider 可能导致不可预期的行为（API 兼容性、响应格式差异），增加支持成本
+- **合规风险**：专利审查涉及保密数据，必须确保数据传输链路上的所有服务都合规
+
+### 功能描述
+
+**核心规则：用户不能自行添加任何 Provider。** 配置界面变为"只读选择"模式：
+
+1. **模型 Provider 配置**
+   - 预置 Provider 列表由 APP 硬编码（如 OpenAI、Anthropic、DeepSeek、Qwen 等），用户**不可增删**
+   - 每个预置 Provider 的 base URL / API endpoint 由 APP 固定，用户**不可修改**
+   - 用户仅可填写认证参数：API Key、Token 等（根据各 Provider 的认证方式提供对应输入框）
+   - 用户可启用/禁用某个 Provider（toggle switch）
+   - 新增 Provider 由 APP 版本更新提供，不在配置界面暴露添加入口
+
+2. **搜索 Provider 配置**
+   - 预置 Provider 列表由 APP 硬编码（如 Tavily、SerpAPI、EPO OPS 等），用户**不可增删**
+   - 每个预置 Provider 的 base URL / API endpoint 由 APP 固定，用户**不可修改**
+   - 用户仅可填写各 Provider 对应的认证参数（如 API Key、Consumer Key/Secret 等）
+   - 用户可启用/禁用某个 Provider（toggle switch）
+   - 新增 Provider 由 APP 版本更新提供，不在配置界面暴露添加入口
+
+### UI 变更
+
+```
+Settings → Providers 配置（变更后）:
+
+┌─────────────────────────────────────────────┐
+│  模型 Provider 配置                          │
+│                                             │
+│  OpenAI                              [◎]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [sk-xxxxxxxxxxxxxxxx    ] │    │
+│  │ Base URL: https://api.openai.com   │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  Anthropic                           [◎]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [sk-ant-xxxxxxxxxxxxxx  ] │    │
+│  │ Base URL: https://api.anthropic.com│ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  DeepSeek                            [ ]   │ ← 可启用/禁用
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [ds-xxxxxxxxxxxxxxxxx   ] │    │
+│  │ Base URL: https://api.deepseek.com │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  Qwen                                [ ]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [sk-xxxxxxxxxxxxxxxx    ] │    │
+│  │ Base URL: https://dashscope...     │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  [无 "+ 添加 Provider" 按钮]                 │  ← 移除
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│  搜索 Provider 配置                          │
+│                                             │
+│  Tavily                              [◎]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [tvly-xxxxxxxxxxxxxxxx  ] │    │
+│  │ Endpoint: https://api.tavily.com    │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  SerpAPI                             [ ]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [xxxxxxxxxxxxxxxxxxxxxx ] │    │
+│  │ Endpoint: https://serpapi.com       │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  EPO OPS                             [ ]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ Consumer Key:    [xxxxxxxxxxxxxxx] │    │
+│  │ Consumer Secret: [xxxxxxxxxxxxxxx] │    │
+│  │ Endpoint: https://ops.epo.org       │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  [无 "+ 添加 Provider" 按钮]                 │  ← 移除
+└─────────────────────────────────────────────┘
+```
+
+### 数据模型变更
+
+```typescript
+// shared/src/types/agents.ts
+
+// 预置的模型 Provider 定义（硬编码，不可修改）
+interface PresetModelProvider {
+  id: string;              // 唯一标识，如 "openai"、"anthropic"、"deepseek"、"qwen"
+  displayName: string;     // UI 展示名称
+  baseUrl: string;         // 固定的 API endpoint，前端灰显
+  authFields: AuthField[]; // 该 Provider 需要的认证参数
+  defaultModels: string[]; // 预置的默认模型列表
+  enabled: boolean;        // 用户可切换
+}
+
+interface AuthField {
+  key: string;             // 配置键，如 "apiKey"、"consumerKey"、"consumerSecret"
+  label: string;           // UI 标签，如 "API Key"
+  type: "password" | "text"; // 输入框类型
+  placeholder: string;
+}
+
+// 搜索 Provider 同样结构
+interface PresetSearchProvider {
+  id: string;              // 唯一标识，如 "tavily"、"serpapi"、"epo"
+  displayName: string;
+  baseUrl: string;         // 固定的 API endpoint
+  authFields: AuthField[];
+  enabled: boolean;
+}
+
+// 用户配置仅保存认证信息
+interface UserProviderAuthConfig {
+  providerId: string;      // 关联到预置 Provider
+  auth: Record<string, string>; // { apiKey: "sk-xxx", ... }
+  enabled: boolean;
+}
+```
+
+### 涉及文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `shared/src/types/agents.ts` | 新增 `PresetModelProvider`、`PresetSearchProvider`、`AuthField` 类型；新增预置 Provider 常量数组 `PRESET_MODEL_PROVIDERS`、`PRESET_SEARCH_PROVIDERS` |
+| `shared/src/types/api.ts` | 调整 `UserProviderAuthConfig` 结构，用户侧只存认证信息 |
+| `client/src/features/settings/ProvidersConfigPanel.tsx` | 移除"添加 Provider"按钮；base URL 字段变为只读灰显；Provider 列表从预置常量渲染 |
+| `client/src/features/settings/SearchProvidersConfigPanel.tsx` | 同上：移除添加按钮；endpoint 字段只读灰显；Provider 列表从预置常量渲染 |
+| `client/src/store/index.ts` | 调整 Provider 配置相关的 state 结构 |
+| `client/src/lib/repositories/settingsRepo.ts` | 调整默认设置，移除用户自定义 Provider 的结构 |
+| `shared/src/fixtures/preset-demo.json` | 更新预置 demo 数据 |
+
+### 技术实现要点
+
+1. **预置 Provider 常量化**
+   - 在 `shared/src/types/agents.ts` 中定义 `PRESET_MODEL_PROVIDERS` 和 `PRESET_SEARCH_PROVIDERS` 常量数组
+   - 包含每个 Provider 的固定 baseUrl 和所需认证字段
+   - 新增 Provider 时只需向数组追加元素，无需改动 UI 组件逻辑
+
+2. **配置 UI 改造**
+   - Provider 列表由遍历预置常量动态渲染（而非从用户配置中读取）
+   - base URL / endpoint 字段设置 `disabled` 属性 + 灰显样式（`opacity: 0.6` 或 `readOnly`）
+   - 仅认证字段（API Key 等）可编辑
+   - 每个 Provider 行有启用/禁用 toggle
+   - 移除底部的"+ 添加 Provider"按钮
+
+3. **认证字段的动态表单**
+   - 根据每个 Provider 的 `authFields` 定义动态渲染输入框
+   - 统一处理 `password` 类型字段（带 show/hide toggle）
+
+4. **向后兼容**
+   - 用户已保存的 API Key 等认证信息不受影响（仅移除用户自行添加的非法 Provider）
+   - 如果用户之前自行添加了非预置 Provider，升级后该配置被忽略
+
+5. **Provider 扩展流程**
+   - 需要新增 Provider 时：在 `PRESET_MODEL_PROVIDERS` 或 `PRESET_SEARCH_PROVIDERS` 中追加一项 → 发布新版本
+   - 不再需要在 UI 中暴露添加接口
+
+### 验收标准
+
+- [ ] 模型 Provider 配置面板无"添加 Provider"按钮
+- [ ] 搜索 Provider 配置面板无"添加 Provider"按钮
+- [ ] 所有 Provider 的 base URL / endpoint 字段为只读灰显状态，不可编辑
+- [ ] 用户可为每个 Provider 填写对应的认证参数（API Key 等）
+- [ ] 用户可启用/禁用每个 Provider
+- [ ] 预置 Provider 列表与 APP 版本绑定，版本更新可新增 Provider
+- [ ] 现有已保存的认证信息（API Key 等）不受影响
+- [ ] 用户之前自行添加的非预置 Provider 配置被安全忽略
+
+### 安全考量
+
+- base URL 锁定防止中间人代理攻击（用户将 API 请求导向恶意代理服务器）
+- Provider 白名单机制确保所有数据传输仅通过已审核的第三方服务
+- 符合专利审查场景的数据安全合规要求

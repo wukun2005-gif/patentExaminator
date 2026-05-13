@@ -19,6 +19,15 @@ const FIXTURE_MAP: Record<string, Record<string, string>> = {
   interpret: {
     "g1-led": "interpret-g1.json",
   },
+  "opinion-analysis": {
+    "g1-led": "opinion-analysis-g1.json",
+  },
+  "argument-analysis": {
+    "g1-led": "argument-analysis-g1.json",
+  },
+  "reexam-draft": {
+    "g1-led": "reexam-draft-g1.json",
+  },
 };
 
 const FIXTURE_CACHE = new Map<string, unknown>();

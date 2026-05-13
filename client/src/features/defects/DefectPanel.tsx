@@ -16,6 +16,12 @@ const SEVERITY_LABELS: Record<string, string> = {
   info: "提示"
 };
 
+const OVERCOME_LABELS: Record<string, string> = {
+  overcome: "已克服",
+  "not-overcome": "未克服",
+  "partially-overcome": "部分克服"
+};
+
 export function DefectPanel({
   caseId,
   claimText,
@@ -23,7 +29,7 @@ export function DefectPanel({
   claimFeatures,
   runDefectCheck
 }: DefectPanelProps) {
-  const { defects, addDefect, updateDefect, setDefects, isLoading, setLoading } =
+  const { defects, addDefect, updateDefect, isLoading, setLoading } =
     useDefectsStore();
 
   const caseDefects = defects.filter((d) => d.caseId === caseId);
@@ -55,7 +61,9 @@ export function DefectPanel({
           description: item.description,
           severity: item.severity,
           resolved: false,
-          ...(item.location ? { location: item.location } : {})
+          ...(item.location ? { location: item.location } : {}),
+          ...(item.previouslyRaised !== undefined ? { previouslyRaised: item.previouslyRaised } : {}),
+          ...(item.overcomeStatus ? { overcomeStatus: item.overcomeStatus } : {})
         };
         addDefect(defect);
       }
@@ -78,7 +86,7 @@ export function DefectPanel({
 
   return (
     <div className="defect-panel" data-testid="defect-panel">
-      <h2>形式缺陷检查</h2>
+      <h2>缺陷复查</h2>
 
       {caseDefects.length > 0 && (
         <div className="defect-legal-caution" data-testid="defect-legal-caution">
@@ -101,6 +109,8 @@ export function DefectPanel({
                     <th className="defect-col-severity">严重度</th>
                     <th className="defect-col-desc">缺陷描述</th>
                     <th className="defect-col-location">位置</th>
+                    <th>上次已指出</th>
+                    <th>克服状态</th>
                     <th className="defect-col-status">状态</th>
                   </tr>
                 </thead>
@@ -121,6 +131,8 @@ export function DefectPanel({
                       </td>
                       <td className="defect-desc">{d.description}</td>
                       <td className="defect-location">{d.location ?? "—"}</td>
+                      <td>{d.previouslyRaised ? "是" : "否"}</td>
+                      <td>{d.overcomeStatus ? OVERCOME_LABELS[d.overcomeStatus] : "—"}</td>
                       <td>
                         <label className="defect-resolve-toggle">
                           <input
@@ -141,8 +153,8 @@ export function DefectPanel({
         </div>
       ) : (
         <div className="defect-empty" data-testid="defect-empty">
-          <p>尚未运行形式缺陷检查。</p>
-          <p className="defect-empty-hint">点击下方按钮，AI 将自动检测申请文件中的形式缺陷。</p>
+          <p>尚未运行缺陷复查。</p>
+          <p className="defect-empty-hint">点击下方按钮，AI 将自动检测本轮修改是否克服上次指出的形式缺陷。</p>
         </div>
       )}
 
@@ -152,7 +164,7 @@ export function DefectPanel({
         disabled={isLoading}
         data-testid="btn-run-defect-check"
       >
-        {isLoading ? "检测中..." : caseDefects.length > 0 ? "重新运行检测" : "运行形式缺陷检查"}
+        {isLoading ? "检测中..." : caseDefects.length > 0 ? "重新运行复查" : "运行缺陷复查"}
       </button>
     </div>
   );

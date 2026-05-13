@@ -64,8 +64,8 @@ describe("loadPresetCase", () => {
 
   it("creates application document and reference documents", async () => {
     await loadPresetCase();
-    // 1 application doc + 1 reference doc = 2 calls
-    expect(createDocument).toHaveBeenCalledTimes(2);
+    // 1 application doc + 2 reexam docs + 1 reference doc = 4 calls
+    expect(createDocument).toHaveBeenCalledTimes(4);
   });
 
   it("creates claim nodes", async () => {

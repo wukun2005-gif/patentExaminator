@@ -166,7 +166,7 @@ searchRouter.post("/search-references", async (req, res) => {
           .map((m) => m.replace(/^"|"$/g, ""))
           .filter((q) => {
             if (/^(queries|query|title|summary|score|date|url|reason|publicationNumber|publicationDate|relevanceScore|recommendationReason|sourceUrl)$/i.test(q)) return false;
-            if (/^[{}\[\]:,]/.test(q)) return false;
+            if (/^[{}[\]:,]/.test(q)) return false;
             return true;
           })
           .slice(0, 5);
@@ -180,7 +180,7 @@ searchRouter.post("/search-references", async (req, res) => {
           .filter((s) => {
             if (s.length < 3) return false;
             if (s.startsWith("```")) return false;
-            if (/^[{}\[\]":,]/.test(s)) return false;
+            if (/^[{}[\]":,]/.test(s)) return false;
             if (/^(queries|query):/i.test(s)) return false;
             return true;
           })

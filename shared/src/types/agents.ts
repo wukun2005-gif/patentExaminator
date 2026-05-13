@@ -23,7 +23,7 @@ export interface ProviderConnection {
   enabled: boolean;
 }
 
-export type AgentKey = "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat" | "search-references" | "defects" | "extract-case-fields";
+export type AgentKey = "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat" | "search-references" | "defects" | "extract-case-fields" | "opinion-analysis" | "argument-analysis" | "reexam-draft";
 
 export interface AgentAssignment {
   agent: AgentKey;

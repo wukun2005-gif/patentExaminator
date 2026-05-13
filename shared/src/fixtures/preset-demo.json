@@ -9,6 +9,7 @@
     "textVersion": "original",
     "targetClaimNumber": 1,
     "guidelineVersion": "2023",
+    "reexaminationRound": 1,
     "workflowState": "export-ready",
     "examinerNotes": "预置演示案例，用于体验完整审查流程。",
     "createdAt": "2024-03-15T10:00:00.000Z",
@@ -37,6 +38,46 @@
       "lineMap": []
     },
     "createdAt": "2024-03-15T10:00:00.000Z"
+  },
+  "officeActionDoc": {
+    "id": "preset-demo-001-office-action",
+    "caseId": "preset-demo-001",
+    "role": "office-action",
+    "fileName": "第一次审查意见通知书.txt",
+    "fileType": "txt",
+    "textLayerStatus": "present",
+    "ocrStatus": "not-needed",
+    "textStatus": "confirmed",
+    "extractedText": "第一次审查意见通知书\n\n一、关于新颖性。权利要求1相对于对比文件D1（CN108XXXXXXA）不具备新颖性。D1公开了LED散热装置中的铝合金基板和散热翅片。\n\n二、关于创造性。即使认为权利要求1与D1存在区别，该区别也可由D2关于石墨烯导热膜的公开得到启示，本领域技术人员容易想到将其用于LED散热装置。\n\n三、关于清楚性。从属权利要求2和3的引用关系不明确。",
+    "textIndex": {
+      "pages": [{ "pageNumber": 1, "startOffset": 0, "endOffset": 260 }],
+      "paragraphs": [
+        { "id": "oa-p-1", "page": 1, "paragraphNumber": "1", "text": "权利要求1相对于对比文件D1（CN108XXXXXXA）不具备新颖性。", "startOffset": 15, "endOffset": 60 },
+        { "id": "oa-p-2", "page": 1, "paragraphNumber": "2", "text": "该区别也可由D2关于石墨烯导热膜的公开得到启示。", "startOffset": 95, "endOffset": 145 }
+      ],
+      "lineMap": []
+    },
+    "createdAt": "2024-03-18T10:00:00.000Z"
+  },
+  "officeActionResponseDoc": {
+    "id": "preset-demo-001-response",
+    "caseId": "preset-demo-001",
+    "role": "office-action-response",
+    "fileName": "意见陈述书.txt",
+    "fileType": "txt",
+    "textLayerStatus": "present",
+    "ocrStatus": "not-needed",
+    "textStatus": "confirmed",
+    "extractedText": "意见陈述书\n\n申请人认为，D1未公开本申请修改后权利要求1中散热翅片与基板通过压铸一体成型工艺制成且翅片间距为2-5mm的技术特征，因此新颖性驳回理由不能成立。\n\n关于创造性，D2主要用于CPU散热，与LED灯具散热的结构和工作环境不同，本领域技术人员没有动机将D2应用于D1。",
+    "textIndex": {
+      "pages": [{ "pageNumber": 1, "startOffset": 0, "endOffset": 210 }],
+      "paragraphs": [
+        { "id": "resp-p-1", "page": 1, "paragraphNumber": "1", "text": "D1未公开本申请修改后权利要求1中散热翅片与基板通过压铸一体成型工艺制成且翅片间距为2-5mm的技术特征。", "startOffset": 8, "endOffset": 82 },
+        { "id": "resp-p-2", "page": 1, "paragraphNumber": "2", "text": "D2主要用于CPU散热，与LED灯具散热的结构和工作环境不同。", "startOffset": 105, "endOffset": 150 }
+      ],
+      "lineMap": []
+    },
+    "createdAt": "2024-03-19T10:00:00.000Z"
   },
   "referenceDocs": [
     {

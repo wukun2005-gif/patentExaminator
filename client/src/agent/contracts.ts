@@ -20,6 +20,8 @@ export interface NoveltyRequest {
   features: Array<{ featureCode: string; description: string }>;
   referenceId: string;
   referenceText: string;
+  applicantArguments?: string;
+  amendedClaimText?: string;
 }
 
 export interface NoveltyResponse {
@@ -38,6 +40,8 @@ export interface NoveltyResponse {
   }>;
   differenceFeatureCodes: string[];
   pendingSearchQuestions: string[];
+  applicantArguments?: string;
+  examinerResponse?: string;
   legalCaution: string;
 }
 
@@ -51,6 +55,8 @@ export interface InventiveRequest {
     excerpt: string;
   }>;
   closestPriorArtId?: string;
+  applicantArguments?: string;
+  amendedClaimText?: string;
 }
 
 export interface InventiveResponse {
@@ -58,6 +64,8 @@ export interface InventiveResponse {
   closestPriorArtId?: string;
   sharedFeatureCodes: string[];
   distinguishingFeatureCodes: string[];
+  applicantArguments?: string;
+  examinerResponse?: string;
   objectiveTechnicalProblem?: string;
   motivationEvidence: Array<{
     referenceId: string;
@@ -112,6 +120,8 @@ export interface DefectResponse {
     description: string;
     location?: string;
     severity: "error" | "warning" | "info";
+    previouslyRaised?: boolean;
+    overcomeStatus?: "overcome" | "not-overcome" | "partially-overcome";
   }>;
   warnings: string[];
   legalCaution: string;
@@ -170,4 +180,88 @@ export interface InterpretRequest {
 
 export interface InterpretResponse {
   reply: string;
+}
+
+// ── 复审 Agent 契约 ──────────────────────────────────
+
+export interface OpinionAnalysisRequest {
+  caseId: string;
+  officeActionText: string;
+  documentId: string;
+}
+
+export interface OpinionAnalysisResponse {
+  documentId: string;
+  rejectionGrounds: Array<{
+    code: string;
+    category: "novelty" | "inventive" | "clarity" | "support" | "amendment" | "other";
+    claimNumbers: number[];
+    summary: string;
+    legalBasis: string;
+    originalText?: string;
+  }>;
+  citedReferences: Array<{
+    publicationNumber: string;
+    rejectionGroundCodes: string[];
+    featureMapping: string;
+  }>;
+  legalCaution: string;
+}
+
+export interface ArgumentAnalysisRequest {
+  caseId: string;
+  rejectionGrounds: OpinionAnalysisResponse["rejectionGrounds"];
+  responseText: string;
+  amendedClaimsText?: string;
+}
+
+export interface ArgumentAnalysisResponse {
+  mappings: Array<{
+    rejectionGroundCode: string;
+    applicantArgument: string;
+    argumentSummary: string;
+    confidence: "high" | "medium" | "low";
+    amendedClaims?: Array<{
+      claimNumber: number;
+      originalText: string;
+      amendedText: string;
+      changeDescription: string;
+    }>;
+    newEvidence?: string;
+  }>;
+  unmappedGrounds?: string[];
+  legalCaution: string;
+}
+
+export interface ReexamDraftRequest {
+  caseId: string;
+  claimNumber: number;
+  rejectionGrounds: OpinionAnalysisResponse["rejectionGrounds"];
+  argumentMappings: ArgumentAnalysisResponse["mappings"];
+  noveltyResults?: string;
+  inventiveResults?: string;
+  defectResults?: string;
+}
+
+export interface ReexamDraftResponse {
+  claimNumber: number;
+  responseItems: Array<{
+    rejectionGroundCode: string;
+    category: string;
+    applicantArgumentSummary: string;
+    examinerResponse: string;
+    conclusion:
+      | "argument-accepted"
+      | "argument-partially-accepted"
+      | "argument-rejected"
+      | "needs-further-review";
+    supportingEvidence?: Array<{
+      label: string;
+      quote?: string;
+      confidence: "high" | "medium" | "low";
+    }>;
+  }>;
+  overallAssessment: string;
+  defectReviewSummary?: string;
+  legalCaution: string;
 }

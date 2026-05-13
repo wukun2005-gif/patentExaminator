@@ -26,6 +26,12 @@
  * 【Interpret 测试】修改 interpret/文档解读相关时运行
  * └── testMockInterpret_G1         - G1 → 解读输出非空
  *
+ * 【复审 Agent 测试】修改 opinion-analysis/argument-analysis/reexam-draft 时运行
+ * ├── testMockOpinionAnalysis_G1   - G1 → 驳回理由解析
+ * ├── testMockArgumentAnalysis_G1  - G1 → 答辩映射
+ * ├── testMockReexamDraft_G1       - G1 → 复审意见草稿
+ * └── testFullPipelineMock_Reexam_G1 - G1: 审查意见→答辩→复审草稿
+ *
  * 【Search References 测试】修改 search/文献检索相关时运行
  * ├── testMockSearchReferences_G1  - G1 → 候选文献列表
  * └── testSchemaSearchReferences   - Schema 校验
@@ -269,6 +275,51 @@ function validateSearchReferencesOutput(data) {
   return { valid: errors.length === 0, errors };
 }
 
+function validateOpinionAnalysisOutput(data) {
+  if (!data || typeof data !== "object") return { valid: false, errors: ["not an object"] };
+  const errors = [];
+  if (!Array.isArray(data.rejectionGrounds)) errors.push("rejectionGrounds must be array");
+  else {
+    for (const g of data.rejectionGrounds) {
+      if (typeof g.code !== "string") errors.push("ground missing code");
+      if (!["novelty", "inventive", "clarity", "support", "amendment", "other"].includes(g.category)) {
+        errors.push(`invalid category: ${g.category}`);
+      }
+      if (!Array.isArray(g.claimNumbers)) errors.push("claimNumbers must be array");
+      if (typeof g.legalBasis !== "string") errors.push("ground missing legalBasis");
+    }
+  }
+  if (!Array.isArray(data.citedReferences)) errors.push("citedReferences must be array");
+  return { valid: errors.length === 0, errors };
+}
+
+function validateArgumentMappingOutput(data) {
+  if (!data || typeof data !== "object") return { valid: false, errors: ["not an object"] };
+  const errors = [];
+  if (!Array.isArray(data.mappings)) errors.push("mappings must be array");
+  else {
+    for (const m of data.mappings) {
+      if (typeof m.rejectionGroundCode !== "string") errors.push("mapping missing code");
+      if (!["high", "medium", "low"].includes(m.confidence)) errors.push(`invalid confidence: ${m.confidence}`);
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+function validateReexamDraftOutput(data) {
+  if (!data || typeof data !== "object") return { valid: false, errors: ["not an object"] };
+  const errors = [];
+  if (typeof data.claimNumber !== "number") errors.push("missing claimNumber");
+  if (!Array.isArray(data.responseItems)) errors.push("responseItems must be array");
+  else {
+    const validConclusions = ["argument-accepted", "argument-partially-accepted", "argument-rejected", "needs-further-review"];
+    for (const item of data.responseItems) {
+      if (!validConclusions.includes(item.conclusion)) errors.push(`invalid conclusion: ${item.conclusion}`);
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
+
 // ── Mock Request Builder ─────────────────────────────────────────────
 
 function mockRequest(agent, caseId, moduleScope = "claim-chart", extra = {}) {
@@ -403,6 +454,50 @@ async function testMockInterpret_G1() {
     `length=${response?.length || 0}`);
 }
 
+// ── Mock: Reexamination Agents ───────────────────────────────────────
+
+async function testMockOpinionAnalysis_G1() {
+  const res = await postJSON("/ai/run", mockRequest("opinion-analysis", "g1-led", "opinion-analysis"));
+  const data = await res.json();
+  log("Mock OpinionAnalysis G1 ok", data.ok === true, `ok=${data.ok}`);
+  log("Mock OpinionAnalysis G1 has outputJson", data.outputJson != null);
+
+  const result = validateOpinionAnalysisOutput(data.outputJson);
+  log("Mock OpinionAnalysis G1 schema valid", result.valid, result.errors.join("; "));
+
+  const grounds = data.outputJson?.rejectionGrounds;
+  log("Mock OpinionAnalysis G1 has rejectionGrounds",
+    Array.isArray(grounds) && grounds.length >= 1, `count=${grounds?.length}`);
+}
+
+async function testMockArgumentAnalysis_G1() {
+  const res = await postJSON("/ai/run", mockRequest("argument-analysis", "g1-led", "argument-mapping"));
+  const data = await res.json();
+  log("Mock ArgumentAnalysis G1 ok", data.ok === true, `ok=${data.ok}`);
+  log("Mock ArgumentAnalysis G1 has outputJson", data.outputJson != null);
+
+  const result = validateArgumentMappingOutput(data.outputJson);
+  log("Mock ArgumentAnalysis G1 schema valid", result.valid, result.errors.join("; "));
+
+  const mappings = data.outputJson?.mappings;
+  log("Mock ArgumentAnalysis G1 has mappings",
+    Array.isArray(mappings) && mappings.length >= 1, `count=${mappings?.length}`);
+}
+
+async function testMockReexamDraft_G1() {
+  const res = await postJSON("/ai/run", mockRequest("reexam-draft", "g1-led", "draft"));
+  const data = await res.json();
+  log("Mock ReexamDraft G1 ok", data.ok === true, `ok=${data.ok}`);
+  log("Mock ReexamDraft G1 has outputJson", data.outputJson != null);
+
+  const result = validateReexamDraftOutput(data.outputJson);
+  log("Mock ReexamDraft G1 schema valid", result.valid, result.errors.join("; "));
+
+  const items = data.outputJson?.responseItems;
+  log("Mock ReexamDraft G1 has responseItems",
+    Array.isArray(items) && items.length >= 1, `count=${items?.length}`);
+}
+
 // ── Schema Validation ────────────────────────────────────────────────
 
 async function testSchemaClaimChart() {
@@ -503,6 +598,27 @@ async function testFullPipelineMock_G2() {
   log("Pipeline G2 Inventive", invOk);
 
   log("Pipeline G2 complete", chartOk && invOk);
+}
+
+async function testFullPipelineMock_Reexam_G1() {
+  console.log("  [Pipeline Reexam G1] OpinionAnalysis → ArgumentAnalysis → ReexamDraft...");
+
+  const oaRes = await postJSON("/ai/run", mockRequest("opinion-analysis", "g1-led", "opinion-analysis"));
+  const oaData = await oaRes.json();
+  const oaOk = oaData.ok && validateOpinionAnalysisOutput(oaData.outputJson).valid;
+  log("Pipeline Reexam G1 OpinionAnalysis", oaOk);
+
+  const argRes = await postJSON("/ai/run", mockRequest("argument-analysis", "g1-led", "argument-mapping"));
+  const argData = await argRes.json();
+  const argOk = argData.ok && validateArgumentMappingOutput(argData.outputJson).valid;
+  log("Pipeline Reexam G1 ArgumentAnalysis", argOk);
+
+  const draftRes = await postJSON("/ai/run", mockRequest("reexam-draft", "g1-led", "draft"));
+  const draftData = await draftRes.json();
+  const draftOk = draftData.ok && validateReexamDraftOutput(draftData.outputJson).valid;
+  log("Pipeline Reexam G1 ReexamDraft", draftOk);
+
+  log("Pipeline Reexam G1 complete", oaOk && argOk && draftOk);
 }
 
 // ── Real Mode: Provider Connectivity ─────────────────────────────────
@@ -954,6 +1070,12 @@ async function main() {
       console.log("\n--- Interpret (Mock) ---");
       await maybe(testMockInterpret_G1);
 
+      // Reexamination Agents
+      console.log("\n--- Reexamination Agents (Mock) ---");
+      await maybe(testMockOpinionAnalysis_G1);
+      await maybe(testMockArgumentAnalysis_G1);
+      await maybe(testMockReexamDraft_G1);
+
       // Schema
       console.log("\n--- Schema Validation ---");
       await maybe(testSchemaClaimChart);
@@ -971,6 +1093,7 @@ async function main() {
       console.log("\n--- Full Pipeline ---");
       await maybe(testFullPipelineMock_G1);
       await maybe(testFullPipelineMock_G2);
+      await maybe(testFullPipelineMock_Reexam_G1);
 
       // Real mode tests (optional, auto-skip if no key)
       if (GEMINI_KEY) {

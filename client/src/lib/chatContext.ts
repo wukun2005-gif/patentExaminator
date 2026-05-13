@@ -70,14 +70,14 @@ export function buildContextSummary(caseId: string, moduleScope: ModuleScope): s
 
     case "inventive": {
       const analyses = useInventiveStore.getState().analyses.filter((a) => a.caseId === caseId);
-      if (analyses.length > 0) {
-        const a = analyses[0];
-        lines.push(`创造性分析: 候选结论 ${a.candidateAssessment}`);
-        lines.push(`最接近现有技术: ${a.closestPriorArtId ?? "未选定"}`);
-        lines.push(`共有特征: ${a.sharedFeatureCodes.join(", ") || "无"}`);
-        lines.push(`区别特征: ${a.distinguishingFeatureCodes.join(", ") || "无"}`);
-        if (a.objectiveTechnicalProblem) {
-          lines.push(`客观技术问题: ${a.objectiveTechnicalProblem}`);
+      const analysis = analyses[0];
+      if (analysis) {
+        lines.push(`创造性分析: 候选结论 ${analysis.candidateAssessment}`);
+        lines.push(`最接近现有技术: ${analysis.closestPriorArtId ?? "未选定"}`);
+        lines.push(`共有特征: ${analysis.sharedFeatureCodes.join(", ") || "无"}`);
+        lines.push(`区别特征: ${analysis.distinguishingFeatureCodes.join(", ") || "无"}`);
+        if (analysis.objectiveTechnicalProblem) {
+          lines.push(`客观技术问题: ${analysis.objectiveTechnicalProblem}`);
         }
       } else {
         lines.push("创造性分析: 尚未运行");
@@ -100,7 +100,8 @@ export function buildContextSummary(caseId: string, moduleScope: ModuleScope): s
       const comps = useNoveltyStore.getState().comparisons.filter((c) => c.caseId === caseId);
       const analyses = useInventiveStore.getState().analyses.filter((a) => a.caseId === caseId);
       const defects = useDefectsStore.getState().defects.filter((d) => d.caseId === caseId);
-      lines.push(`特征: ${features.length} 个 | 对照: ${comps.length} 篇 | 创造性: ${analyses.length > 0 ? analyses[0].candidateAssessment : "未分析"} | 缺陷: ${defects.length} 项`);
+      const analysis = analyses[0];
+      lines.push(`特征: ${features.length} 个 | 对照: ${comps.length} 篇 | 创造性: ${analysis ? analysis.candidateAssessment : "未分析"} | 缺陷: ${defects.length} 项`);
       break;
     }
 

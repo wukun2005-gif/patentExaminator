@@ -8,8 +8,8 @@ interface ExportPanelProps {
   noveltyComparisons: NoveltyComparison[];
   differenceFeatureCodes: string[];
   pendingSearchQuestions: string[];
-  inventiveAnalysis?: InventiveStepAnalysis;
-  defects?: FormalDefect[];
+  inventiveAnalysis?: InventiveStepAnalysis | undefined;
+  defects?: FormalDefect[] | undefined;
 }
 
 export function ExportPanel({

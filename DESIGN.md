@@ -1,4 +1,4 @@
-# 专利审查助手 v0.1.0 详细设计文档
+# 专利复审 AI 助手 v0.1.0 详细设计文档
 
 <p align="right">版本 v0.1.0-r13 · 2026-05-09</p>
 
@@ -22,6 +22,7 @@
 | v0.1.0-r11 | 2026-05-09 | 三文档一致性审查第三轮修复（5 项）：§4.3.6 创造性三步法定位从壳子改为核心功能、§3.4 补充文档解读模块状态机说明、§6.4 补充 interpret 截断策略细节 |
 | v0.1.0-r12 | 2026-05-09 | 三文档一致性审查第四轮修复（3 项）：§3.4 状态转换图补充可选文档解读步骤、§6.1 Agent 映射补充创造性分析 Agent → `inventive` |
 | v0.1.0-r13 | 2026-05-09 | 新增 Deepseek Provider（5 家）：§1.1 架构图、§2 ADR-005、§3.3 ProviderId、§4.1 数据流图、§5.4 Provider 表 |
+| v0.1.0-r14 | 2026-05-13 | B-008: 产品转向复审 AI 助手 — 新增复审数据模型（OfficeActionAnalysis/ArgumentMapping）、opinion-analysis/argument-analysis/reexam-draft Agent、复审路由和逐条回应草稿；全系统影响（领域模型、Agent、路由、Prompt、Mock E2E、文档） |
 
 ---
 
@@ -336,11 +337,17 @@ erDiagram
 
 所有类型定义位于 `shared/src/types/domain.ts`，以下为核心接口摘要：
 
-**PatentCase（案件）：** 包含申请号、发明名称、申请人、申请日、优先权日、目标权利要求编号、工作流状态等字段。`workflowState` 驱动主流程状态机。
+**PatentCase（案件）：** 包含申请号、发明名称、申请人、申请日、优先权日、目标权利要求编号、复审轮次（`reexaminationRound`）、上一轮案件引用（`previousCaseId`）和工作流状态等字段。`workflowState` 驱动主流程状态机。
 
-**SourceDocument（源文档）：** 申请文件与对比文件的基础记录，包含文件类型、文字层状态（`textLayerStatus`：`"present"` / `"absent"` / `"unknown"`，`"unknown"` 为文档尚未处理时的初始值）、OCR 状态、抽取文本、文本索引。
+**SourceDocument（源文档）：** 申请文件、审查意见通知书（`role="office-action"`）、意见陈述书（`role="office-action-response"`）与对比文件的基础记录，包含文件类型、文字层状态（`textLayerStatus`：`"present"` / `"absent"` / `"unknown"`，`"unknown"` 为文档尚未处理时的初始值）、OCR 状态、抽取文本、文本索引。
 
 **ReferenceDocument（引用文献）：** 继承 SourceDocument，扩展公开日、公开日置信度、时间轴状态等字段。
+
+**OfficeActionAnalysis（审查意见解析）：** 由 `opinion-analysis` Agent 生成，包含驳回理由清单（`RejectionGround[]`）、引用文献清单（`RejectionCitedReference[]`）和状态字段。驳回理由按 `novelty` / `inventive` / `clarity` / `support` / `amendment` / `other` 分类。
+
+**ArgumentMapping（答辩理由映射）：** 由 `argument-analysis` Agent 生成，按驳回理由编号记录申请人答辩原文、AI 摘要、置信度、权利要求修改细节和新证据说明。
+
+**ReexamDraft（复审意见草稿输出）：** 由 `reexam-draft` Agent 生成，输出逐条回应项、综合评估、缺陷复查总结和法律警告。该输出不作为独立持久化领域实体，当前由 Draft 面板展示。
 
 **ClaimFeature（权利要求特征）：** 特征编号 (A/B/C)、特征描述、说明书出处 Citation 列表、出处确认状态、用户备注。
 
@@ -430,40 +437,43 @@ interface AppSettings {
 
 ### 3.4 工作流状态机
 
-案件生命周期由 `CaseWorkflowState` 驱动（完整联合类型）：
+案件生命周期由 `CaseWorkflowState` 驱动。B-008 后状态机切换为复审流程：
 
 ```
-"empty" | "case-ready" | "application-uploaded" | "text-extracted"
+"empty" | "case-ready" | "documents-uploaded" | "text-extracted"
 | "ocr-running" | "ocr-failed" | "ocr-review" | "text-confirmed"
-| "references-ready" | "timeline-checked" | "claim-chart-ready"
+| "opinion-analyzed" | "argument-mapped" | "references-ready" | "timeline-checked" | "claim-chart-ready"
 | "claim-chart-reviewed" | "novelty-ready" | "inventive-ready"
-| "export-ready"
+| "defects-ready" | "draft-ready" | "export-ready"
 ```
 
 状态转换图：
 
 ```
-empty → case-ready → application-uploaded
-  application-uploaded → text-extracted       （有文字层，直接抽取）
-  application-uploaded → ocr-running          （无文字层，启动 OCR）
+empty → case-ready → documents-uploaded
+  documents-uploaded → text-extracted         （有文字层，直接抽取）
+  documents-uploaded → ocr-running            （无文字层，启动 OCR）
   ocr-running → ocr-review                    （OCR 完成，用户确认质量）
   ocr-running → ocr-failed                    （OCR 失败：WASM 崩溃/内存不足/PDF 损坏）
-  ocr-failed → case-ready                     （恢复路径：用户重新上传文件，再经 case-ready → application-uploaded 回到正常流程；同时提供"手动粘贴文本"入口，允许用户绕过 OCR 直接输入权利要求文字，与 PRD §6.3 一致）
+  ocr-failed → case-ready                     （恢复路径：用户重新上传文件，再经 case-ready → documents-uploaded 回到正常流程；同时提供"手动粘贴文本"入口）
   ocr-review → text-confirmed                 （用户确认 OCR 质量）
   text-extracted → text-confirmed             （有文字层直接确认）
-  text-confirmed → [可选：AI 文档解读（§4.3.4.5）] → references-ready / claim-chart-ready
-  text-confirmed → references-ready           （上传/添加对比文件；解读步骤可在此前或跳过）
-  text-confirmed → claim-chart-ready          （零对比文件路径，跳过文献清单+时间轴）
+  text-confirmed → opinion-analyzed           （解析审查意见通知书）
+  opinion-analyzed → argument-mapped          （映射意见陈述书答辩理由）
+  argument-mapped → [可选：AI 文档解读（§4.3.4.5）] → references-ready / claim-chart-ready
+  argument-mapped → references-ready          （复审文献就绪；通常沿用上次对比文件，也允许补充）
+  argument-mapped → claim-chart-ready         （零新增对比文件路径，跳过文献清单+时间轴）
   references-ready → timeline-checked         （时间轴校验完成）
   timeline-checked → claim-chart-ready        （生成 Claim Chart）
   claim-chart-ready → claim-chart-reviewed    （用户编辑确认）
-  claim-chart-reviewed → novelty-ready        （新颖性对照）
-  novelty-ready → inventive-ready             （创造性分析，可选）
-  novelty-ready → export-ready                （跳过创造性）
-  inventive-ready → export-ready              （用户审核）
+  claim-chart-reviewed → novelty-ready        （新颖性复核）
+  novelty-ready → inventive-ready             （创造性复核）
+  inventive-ready → defects-ready             （缺陷复查）
+  defects-ready → draft-ready                 （复审意见草稿）
+  draft-ready → export-ready                  （用户审核后导出）
 ```
 
-> **文档解读步骤：** `text-confirmed` 后、进入权利要求拆解之前，用户可选择进行 AI 文档解读（§4.3.4.5）。此步骤复用 `chatSlice`（`moduleScope: "case"`），不引入独立工作流状态，用户可跳过直接进入拆解。
+> **文档解读步骤：** `argument-mapped` 后、进入权利要求拆解之前，用户可选择进行 AI 文档解读（§4.3.4.5）。此步骤复用 `chatSlice`（`moduleScope: "case"`），不引入独立工作流状态，用户可跳过直接进入拆解。
 
 **状态门禁规则：**
 - `canRunNovelty`：仅当 `claim-chart-reviewed` 且目标权要所有特征 `citationStatus !== "not-found"`。`needs-review` 特征不阻塞新颖性对照，但 UI 应高亮提醒存在待确认引用。
@@ -477,7 +487,9 @@ empty → case-ready → application-uploaded
 - 全部 Citation 为 `medium` 或 `low` 时，`citationStatus` 保持 `'needs-review'`，由用户手动确认。
 
 **状态转换由各模块驱动（参见 §4.3 各模块设计）：**
-- 文档导入模块 → `application-uploaded` → `text-extracted` / `ocr-running` / `ocr-failed` / `ocr-review` → `text-confirmed`（参见 §4.3.2）
+- 文档导入模块 → `documents-uploaded` → `text-extracted` / `ocr-running` / `ocr-failed` / `ocr-review` → `text-confirmed`（参见 §4.3.2）
+- 审查意见解析模块 → `opinion-analyzed`
+- 答辩理由映射模块 → `argument-mapped`
 - 文档解读模块 → `text-confirmed` 之后、权利要求拆解之前为可选步骤，用户可跳过直接进入拆解。解读模块复用 `chatSlice`（`moduleScope: "case"`），不引入独立工作流状态（参见 §4.3.4.5）
 - 文献清单模块 → `references-ready` → `timeline-checked`（参见 §4.3.3）
 - Claim Chart 模块 → `claim-chart-ready` → `claim-chart-reviewed`（参见 §4.3.4）
@@ -833,11 +845,14 @@ v0.1.0 的 Agent 为逻辑角色，通过 `AgentClient` 统一调度（架构参
 | claim-chart | §4.3.4 | 目标权利要求 + 说明书片段 | `claimChartSchema` | 1500 |
 | novelty | §4.3.5 | Claim Chart + 单篇对比文件 | `noveltySchema` | 2000 |
 | inventive | §4.3.6 | Claim Chart + 所有可用对比文件 | `inventiveSchema` | 2000 |
+| opinion-analysis | §4.3 | 审查意见通知书文本 | `opinionAnalysisSchema` | 1500 |
+| argument-analysis | §4.3 | 驳回理由清单 + 意见陈述书文本 + 可选修改后权利要求 | `argumentMappingSchema` | 1500 |
+| reexam-draft | §4.3 | 驳回理由 + 答辩映射 + 新颖性/创造性/缺陷复查结果 | `reexamDraftSchema` | 2000 |
 | summary | — | 已确认 ClaimChart + Citation | `summarySchema` | 800 |
 | draft | — | 四分区当前内容 | `draftSchema` | 1500 |
 | chat | §4.3.7 | 模块上下文 + 用户消息 | 自由文本 | 1200 |
 
-> **PRD Agent 名 ↔ Design Agent ID 映射：** PRD §5.4 图中的"文档解读 Agent"→ `interpret`（`moduleScope: "case"`）；"创新点研读 Agent"对应 `claim-chart` + `novelty` 两个 Agent；"创造性分析 Agent"→ `inventive`；"简述 Agent"→ `summary`；"审查意见素材 Agent"→ `draft`。HTML 格式转换不作为 Agent，由导出模块直接处理。Orchestrator 落地为前端 AgentClient + 后端 AI Gateway（见 ADR-001）。
+> **PRD Agent 名 ↔ Design Agent ID 映射：** B-008 后新增复审 Agent：审查意见解析 → `opinion-analysis`；答辩理由映射 → `argument-analysis`；复审意见草稿 → `reexam-draft`。文档解读 Agent → `interpret`（`moduleScope: "case"`）；创新点研读 Agent 对应 `claim-chart` + `novelty`；创造性复核 Agent → `inventive`；HTML 格式转换不作为 Agent，由导出模块直接处理。Orchestrator 落地为前端 AgentClient + 后端 AI Gateway（见 ADR-001）。
 
 ### 6.2 Prompt 设计原则
 
@@ -854,6 +869,9 @@ v0.1.0 的 Agent 为逻辑角色，通过 `AgentClient` 统一调度（架构参
 | `shared/src/prompts/claimChart.prompt.md` | 权利要求特征拆解 |
 | `shared/src/prompts/novelty.prompt.md` | 新颖性对照 |
 | `shared/src/prompts/inventive.prompt.md` | 创造性三步法 |
+| `shared/src/prompts/opinion-analysis.prompt.md` | 审查意见解析 |
+| `shared/src/prompts/argument-analysis.prompt.md` | 答辩理由映射 |
+| `shared/src/prompts/reexam-draft.prompt.md` | 复审意见草稿 |
 | `shared/src/prompts/summary.prompt.md` | 专利申请简述 |
 
 变量使用 `{{name}}` 格式，在 AgentClient 构造请求时展开。

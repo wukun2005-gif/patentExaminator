@@ -15,7 +15,13 @@ import type {
   ExtractCaseFieldsRequest,
   ExtractCaseFieldsResponse,
   InterpretRequest,
-  InterpretResponse
+  InterpretResponse,
+  OpinionAnalysisRequest,
+  OpinionAnalysisResponse,
+  ArgumentAnalysisRequest,
+  ArgumentAnalysisResponse,
+  ReexamDraftRequest,
+  ReexamDraftResponse
 } from "./contracts";
 import type { ClaimFeature } from "@shared/types/domain";
 import type { AiRunRequest, AiRunResponse } from "@shared/types/api";
@@ -31,7 +37,10 @@ const GATEWAY_AGENT_TO_KEY: Record<string, AgentAssignment["agent"]> = {
   draft: "draft",
   interpret: "interpret",
   "search-references": "search-references",
-  "extract-case-fields": "extract-case-fields"
+  "extract-case-fields": "extract-case-fields",
+  "opinion-analysis": "opinion-analysis",
+  "argument-analysis": "argument-analysis",
+  "reexam-draft": "reexam-draft"
 };
 
 /**
@@ -229,6 +238,59 @@ export class AgentClient {
     });
   }
 
+  async runOpinionAnalysis(
+    request: OpinionAnalysisRequest,
+    options?: AgentRunOptions
+  ): Promise<OpinionAnalysisResponse> {
+    if (this.mode === "mock") {
+      return this.callGatewayMock<OpinionAnalysisResponse>(
+        "opinion-analysis",
+        request.caseId,
+        "opinion-analysis"
+      );
+    }
+    const prompt = buildOpinionAnalysisPrompt(request);
+    return this.callGateway<OpinionAnalysisResponse>("opinion-analysis", prompt, {
+      caseId: request.caseId,
+      moduleScope: "opinion-analysis",
+      ...options
+    });
+  }
+
+  async runArgumentAnalysis(
+    request: ArgumentAnalysisRequest,
+    options?: AgentRunOptions
+  ): Promise<ArgumentAnalysisResponse> {
+    if (this.mode === "mock") {
+      return this.callGatewayMock<ArgumentAnalysisResponse>(
+        "argument-analysis",
+        request.caseId,
+        "argument-mapping"
+      );
+    }
+    const prompt = buildArgumentAnalysisPrompt(request);
+    return this.callGateway<ArgumentAnalysisResponse>("argument-analysis", prompt, {
+      caseId: request.caseId,
+      moduleScope: "argument-mapping",
+      ...options
+    });
+  }
+
+  async runReexamDraft(
+    request: ReexamDraftRequest,
+    options?: AgentRunOptions
+  ): Promise<ReexamDraftResponse> {
+    if (this.mode === "mock") {
+      return this.callGatewayMock<ReexamDraftResponse>("reexam-draft", request.caseId, "draft");
+    }
+    const prompt = buildReexamDraftPrompt(request);
+    return this.callGateway<ReexamDraftResponse>("reexam-draft", prompt, {
+      caseId: request.caseId,
+      moduleScope: "draft",
+      ...options
+    });
+  }
+
   private async callGateway<T>(
     agent: AiRunRequest["agent"],
     prompt: string,
@@ -289,6 +351,31 @@ export class AgentClient {
     }
     throw new Error("Empty response from gateway");
   }
+
+  private async callGatewayMock<T>(
+    agent: AiRunRequest["agent"],
+    caseId: string,
+    moduleScope: string
+  ): Promise<T> {
+    const res = await fetch(`${this.gatewayUrl}/ai/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent,
+        providerPreference: ["gemini"],
+        modelId: "mock",
+        prompt: `[Mock] ${agent}`,
+        sanitized: false,
+        mock: true,
+        metadata: { caseId, moduleScope, tokenEstimate: 0 }
+      })
+    });
+    const data = (await res.json()) as AiRunResponse;
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error?.message ?? `Mock gateway error: ${res.status}`);
+    }
+    return data.outputJson as T;
+  }
 }
 
 function mockClaimChart(request: ClaimChartRequest): ClaimChartResponse {
@@ -320,7 +407,7 @@ function mockClaimChart(request: ClaimChartRequest): ClaimChartResponse {
 }
 
 function buildNoveltyPrompt(request: NoveltyRequest): string {
-  return [
+  const parts = [
     `案件 ID: ${request.caseId}`,
     `权利要求号: ${request.claimNumber}`,
     `技术特征:`,
@@ -329,11 +416,18 @@ function buildNoveltyPrompt(request: NoveltyRequest): string {
     `对比文件 ID: ${request.referenceId}`,
     `对比文件内容:`,
     request.referenceText.slice(0, 8000)
-  ].join("\n");
+  ];
+  if (request.applicantArguments) {
+    parts.push(``, `申请人答辩理由:`, request.applicantArguments);
+  }
+  if (request.amendedClaimText) {
+    parts.push(``, `修改后权利要求:`, request.amendedClaimText.slice(0, 4000));
+  }
+  return parts.join("\n");
 }
 
 function buildInventivePrompt(request: InventiveRequest): string {
-  return [
+  const parts = [
     `案件 ID: ${request.caseId}`,
     `权利要求号: ${request.claimNumber}`,
     `技术特征:`,
@@ -343,7 +437,14 @@ function buildInventivePrompt(request: InventiveRequest): string {
     ...request.availableReferences.map((r) => `  ${r.label} (${r.referenceId}): ${r.excerpt.slice(0, 500)}`),
     ``,
     `用户指定最接近现有技术: ${request.closestPriorArtId ?? "由 AI 推荐"}`
-  ].join("\n");
+  ];
+  if (request.applicantArguments) {
+    parts.push(``, `申请人答辩理由:`, request.applicantArguments);
+  }
+  if (request.amendedClaimText) {
+    parts.push(``, `修改后权利要求:`, request.amendedClaimText.slice(0, 4000));
+  }
+  return parts.join("\n");
 }
 
 function stripCodeFences(text: string): string {
@@ -439,6 +540,49 @@ function buildInterpretPrompt(request: InterpretRequest): string {
   ].join("\n");
 }
 
+function buildOpinionAnalysisPrompt(request: OpinionAnalysisRequest): string {
+  return [
+    `案件 ID: ${request.caseId}`,
+    `文档 ID: ${request.documentId}`,
+    ``,
+    `审查意见通知书文本:`,
+    request.officeActionText.slice(0, 12000)
+  ].join("\n");
+}
+
+function buildArgumentAnalysisPrompt(request: ArgumentAnalysisRequest): string {
+  return [
+    `案件 ID: ${request.caseId}`,
+    ``,
+    `驳回理由清单:`,
+    ...request.rejectionGrounds.map((g) => `  ${g.code} (${g.category}): ${g.summary}`),
+    ``,
+    `意见陈述书文本:`,
+    request.responseText.slice(0, 12000),
+    ...(request.amendedClaimsText
+      ? [``, `修改后权利要求:`, request.amendedClaimsText.slice(0, 4000)]
+      : [])
+  ].join("\n");
+}
+
+function buildReexamDraftPrompt(request: ReexamDraftRequest): string {
+  return [
+    `案件 ID: ${request.caseId}`,
+    `权利要求号: ${request.claimNumber}`,
+    ``,
+    `驳回理由清单:`,
+    ...request.rejectionGrounds.map((g) => `  ${g.code} (${g.category}): ${g.summary}`),
+    ``,
+    `答辩映射:`,
+    ...request.argumentMappings.map(
+      (m) => `  ${m.rejectionGroundCode}: ${m.argumentSummary} [${m.confidence}]`
+    ),
+    ...(request.noveltyResults ? [``, `新颖性复核:`, request.noveltyResults.slice(0, 4000)] : []),
+    ...(request.inventiveResults ? [``, `创造性复核:`, request.inventiveResults.slice(0, 4000)] : []),
+    ...(request.defectResults ? [``, `缺陷复查:`, request.defectResults.slice(0, 2000)] : [])
+  ].join("\n");
+}
+
 function mockChat(request: ChatRequest): ChatResponse {
   const msg = request.userMessage.toLowerCase();
   const scope = request.moduleScope;
@@ -529,7 +673,7 @@ function mockExtractCaseFields(request: ExtractCaseFieldsRequest): ExtractCaseFi
     null;
   // Application number: CN prefix, dotted format (202410567890.1), or plain digits
   const applicationNumber =
-    text.match(/申请号[：:\s]*([A-Z]{0,2}\d{9,14}[.\-]?\d{0,2}[A-Z]?)/)?.[1]?.trim() ??
+    text.match(/申请号[：:\s]*([A-Z]{0,2}\d{9,14}[.-]?\d{0,2}[A-Z]?)/)?.[1]?.trim() ??
     text.match(/\b(CN\d{9,13}[A-Z]?)\b/)?.[1] ??
     null;
   const applicant = text.match(/申请人[：:\s]*([^\n]+)/)?.[1]?.trim() ?? null;
@@ -553,7 +697,7 @@ function mockExtractCaseFields(request: ExtractCaseFieldsRequest): ExtractCaseFi
   };
 }
 
-function mockSearchReferences(request: SearchReferencesRequest): SearchReferencesResponse {
+function mockSearchReferences(_request: SearchReferencesRequest): SearchReferencesResponse {
   return {
     ok: true,
     candidates: [

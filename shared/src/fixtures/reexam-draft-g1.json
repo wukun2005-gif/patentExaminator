@@ -1,0 +1,43 @@
+{
+  "claimNumber": 1,
+  "responseItems": [
+    {
+      "rejectionGroundCode": "R1",
+      "category": "novelty",
+      "applicantArgumentSummary": "申请人强调一体成型工艺为区别特征",
+      "examinerResponse": "经复审，申请人修改后的权利要求1进一步限定了压铸一体成型工艺和翅片间距参数（2-5mm），该具体参数在D1中确未公开。修改后的权利要求1与D1的区别特征明确，新颖性驳回理由不再成立（候选，待审查员确认）。",
+      "conclusion": "argument-accepted",
+      "supportingEvidence": [
+        {
+          "label": "D1 §5",
+          "quote": "D1仅公开了'散热基板设有散热翅片'，未提及一体成型工艺",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "rejectionGroundCode": "R2",
+      "category": "inventive",
+      "applicantArgumentSummary": "申请人论证D2的技术领域与LED散热不同",
+      "examinerResponse": "关于技术领域差异的论证：D2虽主要用于CPU散热，但石墨烯导热膜的基本原理与应用场景具有通用性，LED散热与CPU散热同属电子器件散热领域。然而，申请人修改后新增的翅片间距参数（2-5mm）与石墨烯导热膜的厚度配合关系，在D1和D2中均未涉及，该配合关系可能构成非显而易见的技术方案（候选，待审查员确认）。",
+      "conclusion": "argument-partially-accepted",
+      "supportingEvidence": [
+        {
+          "label": "D2 §8",
+          "quote": "石墨烯导热膜用于CPU散热基板",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "rejectionGroundCode": "R3",
+      "category": "clarity",
+      "applicantArgumentSummary": "（申请人未回应此驳回理由）",
+      "examinerResponse": "申请人未在意见陈述书中回应从属权利要求2和3的引用关系问题，也未在修改后的权利要求中修正该缺陷。该形式缺陷仍然存在（候选，待审查员确认）。",
+      "conclusion": "argument-rejected"
+    }
+  ],
+  "overallAssessment": "综合以上逐条分析：R1新颖性驳回理由在修改后不再成立；R2创造性驳回理由部分成立，建议进一步审查翅片间距与导热膜厚度的配合关系；R3形式缺陷未解决。建议审查员重点关注修改后权利要求1的创造性判断（候选，待审查员确认）。",
+  "defectReviewSummary": "上次指出的形式缺陷：从属权利要求2和3的引用关系不明确（R3）→ 未克服。",
+  "legalCaution": "以上为复审意见草稿，不构成正式审查结论。"
+}

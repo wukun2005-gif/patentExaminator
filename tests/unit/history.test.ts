@@ -33,6 +33,7 @@ describe("Case store", () => {
       textVersion: "original" as const,
       targetClaimNumber: 1,
       guidelineVersion: "2023",
+      reexaminationRound: 1,
       workflowState: "empty" as const,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

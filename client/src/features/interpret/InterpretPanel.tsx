@@ -6,7 +6,7 @@ interface InterpretPanelProps {
   runInterpret: (prompt: string) => Promise<string>;
 }
 
-export function InterpretPanel({ caseId, documentText, runInterpret }: InterpretPanelProps) {
+export function InterpretPanel({ caseId: _caseId, documentText, runInterpret }: InterpretPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [summary, setSummary] = useState("");
   const [summarySaved, setSummarySaved] = useState(false);

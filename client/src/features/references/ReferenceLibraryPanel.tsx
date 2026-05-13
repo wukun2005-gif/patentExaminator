@@ -89,8 +89,8 @@ export function ReferenceLibraryPanel() {
         source: "user-upload",
         publicationDateConfidence: meta.publicationDate ? "medium" : "manual",
         timelineStatus: "needs-publication-date",
-        title: meta.title,
-        publicationNumber: meta.publicationNumber,
+        ...(meta.title ? { title: meta.title } : {}),
+        ...(meta.publicationNumber ? { publicationNumber: meta.publicationNumber } : {}),
         ...(meta.publicationDate ? { publicationDate: meta.publicationDate } : {}),
         createdAt: new Date().toISOString()
       };

@@ -37,5 +37,5 @@ module.exports = {
       parserOptions: { sourceType: "script" }
     }
   ],
-  ignorePatterns: ["node_modules", "dist", "*.config.ts", "*.config.js"]
+  ignorePatterns: ["node_modules", "dist", "*.config.ts", "*.config.js", "scripts/*.js"]
 };

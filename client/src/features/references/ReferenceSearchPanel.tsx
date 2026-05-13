@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import type { ReferenceDocument } from "@shared/types/domain";
-import type { SearchReferencesCandidate } from "../../agent/contracts";
+import type { SearchReferencesCandidate, SearchReferencesResponse } from "../../agent/contracts";
 import { classifyReferenceDate } from "../../lib/dateRules";
 import { TimelineStatusBadge } from "../../components/TimelineStatusBadge";
 import { useReferencesStore, useCaseStore, useSettingsStore } from "../../store";
@@ -69,7 +69,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
 
       // 合并结果，去重，取 top N
       const failedProviders = responses.filter((r) => !r.ok);
-      const okResponses = responses.filter((r) => r.ok);
+      const okResponses = responses.filter((r): r is SearchReferencesResponse => r.ok);
 
       // Show partial errors if some providers failed but others succeeded
       if (failedProviders.length > 0 && okResponses.length > 0) {

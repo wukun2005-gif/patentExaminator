@@ -1,7 +1,7 @@
 import type { ProviderId } from "./agents.js";
 
 export interface AiRunRequest {
-  agent: "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat" | "defects" | "search-references" | "extract-case-fields";
+  agent: "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat" | "defects" | "search-references" | "extract-case-fields" | "opinion-analysis" | "argument-analysis" | "reexam-draft";
   providerPreference: ProviderId[];
   modelId: string;
   reasoningLevel?: "low" | "medium" | "high";

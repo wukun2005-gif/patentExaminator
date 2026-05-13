@@ -20,6 +20,7 @@ export function NewCasePage() {
       textVersion: "original",
       targetClaimNumber: 1,
       guidelineVersion: "2023",
+      reexaminationRound: 1,
       workflowState: "empty",
       createdAt: now,
       updatedAt: now
@@ -36,17 +37,17 @@ export function NewCasePage() {
 
   return (
     <div className="new-case-page" data-testid="new-case-page">
-      <h2>新建案件</h2>
-      <p>创建一个新的专利审查案件，然后在案件基本信息页面填写相关信息。</p>
+      <h2>新建复审案件</h2>
+      <p>创建一个新的专利复审案件，然后导入申请文件、审查意见通知书和意见陈述书。</p>
       <button
         type="button"
         onClick={handleCreate}
         data-testid="btn-create-case"
       >
-        创建新案件
+        创建复审案件
       </button>
       <div className="new-case-page__preset">
-        <p>或者加载一个预置案例，快速体验完整审查流程：</p>
+        <p>或者加载一个预置案例，快速体验完整复审流程：</p>
         <button
           type="button"
           className="btn-secondary"

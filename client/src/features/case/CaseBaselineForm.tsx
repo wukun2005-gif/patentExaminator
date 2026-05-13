@@ -84,6 +84,7 @@ export function CaseBaselineForm() {
         textVersion: watchAll.textVersion as PatentCase["textVersion"],
         targetClaimNumber: watchAll.targetClaimNumber,
         guidelineVersion: "2023",
+        reexaminationRound: currentCase?.reexaminationRound ?? 1,
         workflowState: (currentCase?.workflowState ?? "empty") as PatentCase["workflowState"],
         createdAt: currentCase?.createdAt ?? now,
         updatedAt: now,

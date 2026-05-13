@@ -14,6 +14,7 @@ import { type InventiveSlice, createInventiveSlice } from "./features/inventive/
 import { type DefectsSlice, createDefectsSlice } from "./features/defects/defectsSlice";
 import { type ChatSlice, createChatSlice } from "./features/chat/chatSlice";
 import { type SettingsSlice, createSettingsSlice } from "./features/settings/settingsSlice";
+import { type OpinionSlice, createOpinionSlice } from "./features/opinion/opinionSlice";
 
 export type AppStore = CaseSlice &
   DocumentsSlice &
@@ -23,7 +24,8 @@ export type AppStore = CaseSlice &
   InventiveSlice &
   DefectsSlice &
   ChatSlice &
-  SettingsSlice;
+  SettingsSlice &
+  OpinionSlice;
 
 export const useStore = create<AppStore>()((set, get) => ({
   ...createCaseSlice(set, get),
@@ -34,7 +36,8 @@ export const useStore = create<AppStore>()((set, get) => ({
   ...createInventiveSlice(set, get),
   ...createDefectsSlice(set, get),
   ...createChatSlice(set, get),
-  ...createSettingsSlice(set, get)
+  ...createSettingsSlice(set, get),
+  ...createOpinionSlice(set, get)
 }));
 
 export {
@@ -73,3 +76,7 @@ export {
   useSettingsStore,
   createSettingsSlice
 } from "./features/settings/settingsSlice";
+export {
+  useOpinionStore,
+  createOpinionSlice
+} from "./features/opinion/opinionSlice";

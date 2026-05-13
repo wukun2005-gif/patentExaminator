@@ -64,6 +64,7 @@ const testCase: PatentCase = {
   textVersion: "original",
   targetClaimNumber: 1,
   guidelineVersion: "2023",
+  reexaminationRound: 1,
   workflowState: "empty",
   createdAt: "2023-03-15T00:00:00.000Z",
   updatedAt: "2023-03-15T00:00:00.000Z"

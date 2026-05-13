@@ -33,7 +33,7 @@ export function ProvidersConfigPanel() {
 
   const handleAdd = (id: ProviderId) => {
     if (settings.providers.some((p) => p.providerId === id)) return;
-    const models = DEFAULT_MODELS[id];
+    const models = DEFAULT_MODELS[id].map((model) => model.id);
     const conn: ProviderConnection = {
       providerId: id,
       apiKeyRef: "",

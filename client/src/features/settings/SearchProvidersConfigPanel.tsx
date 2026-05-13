@@ -75,9 +75,14 @@ export function SearchProvidersConfigPanel() {
         })
       });
       const data = await res.json() as VerifyResult & { providerId?: string };
+      const result: VerifyResult = {
+        ok: data.ok,
+        ...(data.message ? { message: data.message } : {}),
+        ...(data.error ? { error: data.error } : {})
+      };
       setVerifyResult((prev) => ({
         ...prev,
-        [provider.providerId]: { ok: data.ok, message: data.message, error: data.error }
+        [provider.providerId]: result
       }));
     } catch (err) {
       setVerifyResult((prev) => ({

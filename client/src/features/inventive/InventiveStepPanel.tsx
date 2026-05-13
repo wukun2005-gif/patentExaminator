@@ -8,6 +8,8 @@ interface InventiveStepPanelProps {
   claimNumber: number;
   features: Array<{ featureCode: string; description: string }>;
   references: ReferenceDocument[];
+  applicantArguments?: string | undefined;
+  amendedClaimText?: string | undefined;
   runInventive: (request: InventiveRequest) => Promise<InventiveResponse>;
 }
 
@@ -23,6 +25,8 @@ export function InventiveStepPanel({
   claimNumber,
   features,
   references,
+  applicantArguments,
+  amendedClaimText,
   runInventive
 }: InventiveStepPanelProps) {
   const { analyses, addAnalysis, updateAnalysis, isLoading, setLoading } = useInventiveStore();
@@ -57,10 +61,13 @@ export function InventiveStepPanel({
           label: r.title ?? r.publicationNumber ?? r.fileName,
           excerpt: r.extractedText.slice(0, 2000)
         })),
-        ...(selectedClosestId ? { closestPriorArtId: selectedClosestId } : {})
+        ...(selectedClosestId ? { closestPriorArtId: selectedClosestId } : {}),
+        ...(applicantArguments ? { applicantArguments } : {}),
+        ...(amendedClaimText ? { amendedClaimText } : {})
       };
 
       const response = await runInventive(request);
+      const appliedApplicantArguments = response.applicantArguments ?? applicantArguments;
 
       const newAnalysis: InventiveStepAnalysis = {
         id: `inventive-${caseId}-${claimNumber}`,
@@ -75,6 +82,8 @@ export function InventiveStepPanel({
         candidateAssessment: response.candidateAssessment,
         cautions: response.cautions,
         legalCaution: response.legalCaution,
+        ...(appliedApplicantArguments ? { applicantArguments: appliedApplicantArguments } : {}),
+        ...(response.examinerResponse ? { examinerResponse: response.examinerResponse } : {}),
         ...(response.closestPriorArtId ? { closestPriorArtId: response.closestPriorArtId } : {}),
         ...(response.objectiveTechnicalProblem
           ? { objectiveTechnicalProblem: response.objectiveTechnicalProblem }
@@ -101,14 +110,9 @@ export function InventiveStepPanel({
     );
   };
 
-  const closestRefName = analysis?.closestPriorArtId
-    ? availableRefs.find((r) => r.id === analysis.closestPriorArtId)?.title
-      ?? availableRefs.find((r) => r.id === analysis.closestPriorArtId)?.publicationNumber
-      ?? analysis.closestPriorArtId
-    : null;
-
   return (
     <div className="inventive-step-panel" data-testid="inventive-step-panel">
+      <h2>创造性复核</h2>
       {analysis && (
         <div data-testid="inventive-legal-caution" className="legal-caution">
           {analysis.legalCaution}
@@ -253,13 +257,26 @@ export function InventiveStepPanel({
         </div>
       </div>
 
+      {(analysis?.applicantArguments ?? applicantArguments) && (
+        <div className="reexam-context" data-testid="inventive-reexam-context">
+          <h4>申请人答辩理由</h4>
+          <blockquote>{analysis?.applicantArguments ?? applicantArguments}</blockquote>
+          {analysis?.examinerResponse && (
+            <>
+              <h4>审查员回应（AI 草稿）</h4>
+              <p>{analysis.examinerResponse}</p>
+            </>
+          )}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={handleRun}
         disabled={isLoading || availableRefs.length === 0}
         data-testid="btn-run-inventive"
       >
-        {isLoading ? "分析中..." : analysis ? "重新运行分析" : "运行创造性三步法"}
+        {isLoading ? "分析中..." : analysis ? "重新运行复核" : "运行创造性复核"}
       </button>
 
       {availableRefs.length === 0 && (
