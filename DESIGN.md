@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r13 · 2026-05-09</p>
+<p align="right">版本 v0.1.0-r15 · 2026-05-14</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -23,6 +23,7 @@
 | v0.1.0-r12 | 2026-05-09 | 三文档一致性审查第四轮修复（3 项）：§3.4 状态转换图补充可选文档解读步骤、§6.1 Agent 映射补充创造性分析 Agent → `inventive` |
 | v0.1.0-r13 | 2026-05-09 | 新增 Deepseek Provider（5 家）：§1.1 架构图、§2 ADR-005、§3.3 ProviderId、§4.1 数据流图、§5.4 Provider 表 |
 | v0.1.0-r14 | 2026-05-13 | B-008: 产品转向复审 AI 助手 — 新增复审数据模型（OfficeActionAnalysis/ArgumentMapping）、opinion-analysis/argument-analysis/reexam-draft Agent、复审路由和逐条回应草稿；全系统影响（领域模型、Agent、路由、Prompt、Mock E2E、文档） |
+| v0.1.0-r15 | 2026-05-14 | B-009: 新增阿里通义千问（Qwen）模型提供商 — ProviderId 追加 "qwen"、QwenAdapter（DashScope OpenAI 兼容端点）、registry 注册、QWEN_KEY 环境变量、modelCatalog 模型列表、设置面板 Provider 选项 |
 
 ---
 

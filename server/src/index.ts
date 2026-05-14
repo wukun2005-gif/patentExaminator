@@ -21,6 +21,10 @@ if (process.env.GEMINI_KEY) {
   setApiKey("gemini", process.env.GEMINI_KEY);
   console.log("Loaded GEMINI_KEY from environment");
 }
+if (process.env.QWEN_KEY) {
+  setApiKey("qwen", process.env.QWEN_KEY);
+  console.log("Loaded QWEN_KEY from environment");
+}
 
 app.use(express.json());
 

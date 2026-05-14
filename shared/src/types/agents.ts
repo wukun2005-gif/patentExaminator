@@ -1,6 +1,6 @@
 import type { AppMode } from "./domain.js";
 
-export type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek" | "gemini";
+export type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek" | "gemini" | "qwen";
 
 export interface ModelInfo {
   id: string;

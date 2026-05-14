@@ -21,7 +21,8 @@ const PROVIDER_NAMES: Record<ProviderId, string> = {
   kimi: "Kimi",
   glm: "GLM",
   minimax: "MiniMax",
-  deepseek: "DeepSeek"
+  deepseek: "DeepSeek",
+  qwen: "Qwen"
 };
 
 export function AgentsAssignmentPanel() {

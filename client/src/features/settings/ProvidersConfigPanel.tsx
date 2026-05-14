@@ -10,7 +10,8 @@ const PROVIDER_OPTIONS: Array<{ id: ProviderId; name: string; desc: string }> = 
   { id: "kimi", name: "Kimi", desc: "Moonshot / 月之暗面" },
   { id: "glm", name: "GLM", desc: "智谱 AI" },
   { id: "minimax", name: "MiniMax", desc: "MiniMax" },
-  { id: "deepseek", name: "DeepSeek", desc: "深度求索" }
+  { id: "deepseek", name: "DeepSeek", desc: "深度求索" },
+  { id: "qwen", name: "Qwen", desc: "阿里通义千问 (DashScope)" }
 ];
 
 export function ProvidersConfigPanel() {

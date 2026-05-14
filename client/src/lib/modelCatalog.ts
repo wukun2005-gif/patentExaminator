@@ -30,6 +30,12 @@ export const DEFAULT_MODELS: Record<ProviderId, ModelInfo[]> = {
   deepseek: [
     { id: "deepseek-chat", recommendation: "通用对话", rpm: 10, rpd: 500, tpm: "5.0M" },
     { id: "deepseek-reasoner", recommendation: "深度推理", rpm: 5, rpd: 200, tpm: "3.0M" }
+  ],
+  qwen: [
+    { id: "qwen-turbo", recommendation: "速度最快、配额最高", rpm: 15, rpd: 1000, tpm: "10.0M", inputTokenLimit: 131072, outputTokenLimit: 8192 },
+    { id: "qwen-plus", recommendation: "能力均衡", rpm: 10, rpd: 500, tpm: "5.0M", inputTokenLimit: 131072, outputTokenLimit: 8192 },
+    { id: "qwen-max", recommendation: "能力最强", rpm: 5, rpd: 200, tpm: "3.0M", inputTokenLimit: 32768, outputTokenLimit: 8192 },
+    { id: "qwen3-235b-a22b", recommendation: "最新旗舰 MoE", rpm: 5, rpd: 200, tpm: "3.0M", inputTokenLimit: 131072, outputTokenLimit: 8192 }
   ]
 };
 

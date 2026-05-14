@@ -6,6 +6,7 @@ import { MinimaxAdapter } from "./minimax.js";
 import { MimoAdapter } from "./mimo.js";
 import { DeepseekAdapter } from "./deepseek.js";
 import { GeminiAdapter } from "./gemini.js";
+import { QwenAdapter } from "./qwen.js";
 
 const MIMO_MODEL_FALLBACKS = ["MiMo-V2.5-Pro", "MiMo-V2.5", "MiMo-V2-Pro", "MiMo-V2-Omni"];
 const GEMINI_MODEL_FALLBACKS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
@@ -30,6 +31,7 @@ export class ProviderRegistry {
     this.register(new MimoAdapter());
     this.register(new DeepseekAdapter());
     this.register(new GeminiAdapter());
+    this.register(new QwenAdapter());
   }
 
   register(adapter: ProviderAdapter): void {
