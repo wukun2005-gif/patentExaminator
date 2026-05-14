@@ -1,12 +1,7 @@
 import { useState } from "react";
 import type { SearchProviderConnection, SearchProviderId } from "@shared/types/agents";
+import { PRESET_SEARCH_PROVIDERS } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
-
-const SEARCH_PROVIDER_OPTIONS: Array<{ id: SearchProviderId; name: string; desc: string; keyPlaceholder: string }> = [
-  { id: "tavily", name: "Tavily", desc: "免费额度 1000 次/月，注册地址: app.tavily.com", keyPlaceholder: "tvly-..." },
-  { id: "serpapi", name: "SerpAPI", desc: "Google 专利搜索 API，免费额度 100 次/月", keyPlaceholder: "your-serpapi-key" },
-  { id: "custom", name: "自定义", desc: "自定义搜索 API 端点", keyPlaceholder: "your-api-key" }
-];
 
 interface VerifyResult {
   ok: boolean;
@@ -23,40 +18,53 @@ export function SearchProvidersConfigPanel() {
 
   const searchProviders = settings.searchProviders ?? [];
 
-  const updateSearchProvider = (id: SearchProviderId, patch: Partial<SearchProviderConnection>) => {
-    setSettings({
-      ...settings,
-      searchProviders: searchProviders.map((p) =>
-        p.providerId === id ? { ...p, ...patch } : p
-      )
-    });
-  };
+  const getSearchProvider = (id: SearchProviderId): SearchProviderConnection | undefined =>
+    searchProviders.find((p) => p.providerId === id);
 
-  const handleAdd = (id: SearchProviderId) => {
-    if (searchProviders.some((p) => p.providerId === id)) return;
-    const opt = SEARCH_PROVIDER_OPTIONS.find((o) => o.id === id);
-    const conn: SearchProviderConnection = {
+  const ensureSearchProvider = (id: SearchProviderId): SearchProviderConnection => {
+    const existing = getSearchProvider(id);
+    if (existing) return existing;
+    const preset = PRESET_SEARCH_PROVIDERS.find((p) => p.id === id);
+    return {
       providerId: id,
-      name: opt?.name ?? id,
+      name: preset?.displayName ?? id,
       apiKeyRef: "",
-      enabled: true
+      enabled: false
     };
-    setSettings({ ...settings, searchProviders: [...searchProviders, conn] });
   };
 
-  const handleRemove = (id: SearchProviderId) => {
-    setSettings({ ...settings, searchProviders: searchProviders.filter((p) => p.providerId !== id) });
+  const updateSearchProvider = (id: SearchProviderId, patch: Partial<SearchProviderConnection>) => {
+    const existing = searchProviders.find((p) => p.providerId === id);
+    if (existing) {
+      setSettings({
+        ...settings,
+        searchProviders: searchProviders.map((p) =>
+          p.providerId === id ? { ...p, ...patch } : p
+        )
+      });
+    } else {
+      const preset = PRESET_SEARCH_PROVIDERS.find((p) => p.id === id);
+      if (!preset) return;
+      const conn: SearchProviderConnection = {
+        providerId: id,
+        name: preset.displayName,
+        apiKeyRef: "",
+        enabled: false,
+        ...patch
+      };
+      setSettings({ ...settings, searchProviders: [...searchProviders, conn] });
+    }
   };
 
   const handleToggle = (id: SearchProviderId) => {
-    updateSearchProvider(id, { enabled: !searchProviders.find((p) => p.providerId === id)?.enabled });
+    const provider = ensureSearchProvider(id);
+    updateSearchProvider(id, { enabled: !provider.enabled });
   };
 
   const handleSaveKey = (id: SearchProviderId) => {
     updateSearchProvider(id, { apiKeyRef: keyInput });
     setEditingKey(null);
     setKeyInput("");
-    // Clear previous verify result when key changes
     setVerifyResult((prev) => { const next = { ...prev }; delete next[id]; return next; });
   };
 
@@ -94,66 +102,66 @@ export function SearchProvidersConfigPanel() {
     }
   };
 
-  const available = SEARCH_PROVIDER_OPTIONS.filter(
-    (opt) => !searchProviders.some((p) => p.providerId === opt.id)
-  );
-
   return (
     <div className="providers-config-panel" data-testid="search-providers-config-panel">
       <p className="panel-desc">
-        配置专利文献搜索 API。AI 检索候选文献时会调用这些服务。至少需要配置一个搜索 API 才能使用 AI 检索功能。
+        配置专利文献搜索 API。AI 检索候选文献时会调用这些服务。搜索服务列表由系统预置，不可自行添加。
       </p>
 
       <div className="provider-cards">
-        {searchProviders.map((provider) => {
-          const info = SEARCH_PROVIDER_OPTIONS.find((o) => o.id === provider.providerId);
-          const vResult = verifyResult[provider.providerId];
+        {PRESET_SEARCH_PROVIDERS.map((preset) => {
+          const provider = ensureSearchProvider(preset.id);
+          const vResult = verifyResult[preset.id];
           return (
             <div
-              key={provider.providerId}
+              key={preset.id}
               className={`provider-card ${provider.enabled ? "" : "provider-card--disabled"}`}
-              data-testid={`search-provider-${provider.providerId}`}
+              data-testid={`search-provider-${preset.id}`}
             >
               <div className="provider-card__header">
                 <div>
-                  <strong>{provider.name}</strong>
-                  <span className="provider-card__desc">{info?.desc}</span>
+                  <strong>{preset.displayName}</strong>
+                  <span className="provider-card__desc">{preset.desc}</span>
                 </div>
                 <div className="provider-card__actions">
                   <label className="toggle-label">
                     <input
                       type="checkbox"
                       checked={provider.enabled}
-                      onChange={() => handleToggle(provider.providerId)}
-                      data-testid={`toggle-search-${provider.providerId}`}
+                      onChange={() => handleToggle(preset.id)}
+                      data-testid={`toggle-search-${preset.id}`}
                     />
                     启用
                   </label>
-                  <button
-                    type="button"
-                    className="btn-text btn-danger"
-                    onClick={() => handleRemove(provider.providerId)}
-                    data-testid={`btn-remove-search-${provider.providerId}`}
-                  >
-                    删除
-                  </button>
                 </div>
               </div>
 
               <div className="provider-card__body">
                 <div className="provider-card__field">
+                  <label>Endpoint</label>
+                  <input
+                    type="text"
+                    value={preset.baseUrl}
+                    readOnly
+                    disabled
+                    className="input-readonly"
+                    data-testid={`baseurl-search-${preset.id}`}
+                  />
+                </div>
+
+                <div className="provider-card__field">
                   <label>API Key</label>
-                  {editingKey === provider.providerId ? (
+                  {editingKey === preset.id ? (
                     <div className="inline-edit">
                       <input
                         type="password"
                         value={keyInput}
                         onChange={(e) => setKeyInput(e.target.value)}
-                        placeholder={info?.keyPlaceholder ?? "api-key"}
-                        data-testid={`input-search-key-${provider.providerId}`}
+                        placeholder={preset.keyPlaceholder}
+                        data-testid={`input-search-key-${preset.id}`}
                         autoFocus
                       />
-                      <button type="button" onClick={() => handleSaveKey(provider.providerId)}>
+                      <button type="button" onClick={() => handleSaveKey(preset.id)}>
                         保存
                       </button>
                       <button type="button" className="btn-text" onClick={() => { setEditingKey(null); setKeyInput(""); }}>
@@ -168,8 +176,8 @@ export function SearchProvidersConfigPanel() {
                       <button
                         type="button"
                         className="btn-text"
-                        onClick={() => { setEditingKey(provider.providerId); setKeyInput(provider.apiKeyRef); }}
-                        data-testid={`btn-edit-search-key-${provider.providerId}`}
+                        onClick={() => { setEditingKey(preset.id); setKeyInput(provider.apiKeyRef); }}
+                        data-testid={`btn-edit-search-key-${preset.id}`}
                       >
                         {provider.apiKeyRef ? "修改" : "填写"}
                       </button>
@@ -177,11 +185,11 @@ export function SearchProvidersConfigPanel() {
                         <button
                           type="button"
                           className="btn-text"
-                          disabled={verifying === provider.providerId}
+                          disabled={verifying === preset.id}
                           onClick={() => handleVerifyKey(provider)}
-                          data-testid={`btn-verify-search-key-${provider.providerId}`}
+                          data-testid={`btn-verify-search-key-${preset.id}`}
                         >
-                          {verifying === provider.providerId ? "验证中..." : "验证"}
+                          {verifying === preset.id ? "验证中..." : "验证"}
                         </button>
                       )}
                     </div>
@@ -192,39 +200,11 @@ export function SearchProvidersConfigPanel() {
                     </div>
                   )}
                 </div>
-
-                {provider.providerId === "custom" && (
-                  <div className="provider-card__field">
-                    <label>API 端点</label>
-                    <input
-                      type="text"
-                      value={provider.baseUrl ?? ""}
-                      onChange={(e) => updateSearchProvider(provider.providerId, { baseUrl: e.target.value })}
-                      placeholder="https://api.example.com/search"
-                      data-testid={`input-search-baseurl-${provider.providerId}`}
-                    />
-                  </div>
-                )}
               </div>
             </div>
           );
         })}
       </div>
-
-      {available.length > 0 && (
-        <div className="add-provider">
-          <select
-            value=""
-            onChange={(e) => { if (e.target.value) handleAdd(e.target.value as SearchProviderId); }}
-            data-testid="select-add-search-provider"
-          >
-            <option value="">+ 添加搜索服务</option>
-            {available.map((opt) => (
-              <option key={opt.id} value={opt.id}>{opt.name} — {opt.desc}</option>
-            ))}
-          </select>
-        </div>
-      )}
     </div>
   );
 }

@@ -1026,6 +1026,17 @@
   min-width: 180px;
 }
 
+.input-readonly {
+  padding: 6px 10px;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  font-size: 13px;
+  background: #f5f5f5;
+  color: #999;
+  min-width: 280px;
+  cursor: not-allowed;
+}
+
 .inline-edit {
   display: flex;
   gap: 8px;

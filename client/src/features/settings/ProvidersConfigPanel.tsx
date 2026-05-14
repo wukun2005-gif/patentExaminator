@@ -1,18 +1,9 @@
 import { useState, useRef } from "react";
 import type { ProviderConnection, ProviderId } from "@shared/types/agents";
+import { PRESET_MODEL_PROVIDERS } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
 import { fetchModels } from "../../lib/api";
 import { DEFAULT_MODELS, getModelMeta } from "../../lib/modelCatalog";
-
-const PROVIDER_OPTIONS: Array<{ id: ProviderId; name: string; desc: string }> = [
-  { id: "gemini", name: "Gemini", desc: "Google AI Studio (免费)" },
-  { id: "mimo", name: "MiMo", desc: "小米 Token Plan" },
-  { id: "kimi", name: "Kimi", desc: "Moonshot / 月之暗面" },
-  { id: "glm", name: "GLM", desc: "智谱 AI" },
-  { id: "minimax", name: "MiniMax", desc: "MiniMax" },
-  { id: "deepseek", name: "DeepSeek", desc: "深度求索" },
-  { id: "qwen", name: "Qwen", desc: "阿里通义千问 (DashScope)" }
-];
 
 export function ProvidersConfigPanel() {
   const { settings, setSettings } = useSettingsStore();
@@ -23,41 +14,56 @@ export function ProvidersConfigPanel() {
   const dragItem = useRef<{ providerId: string; index: number } | null>(null);
   const dragOverItem = useRef<{ providerId: string; index: number } | null>(null);
 
-  const updateProvider = (id: string, patch: Partial<ProviderConnection>) => {
-    setSettings({
-      ...settings,
-      providers: settings.providers.map((p) =>
-        p.providerId === id ? { ...p, ...patch } : p
-      )
-    });
-  };
+  const getProvider = (id: ProviderId): ProviderConnection | undefined =>
+    settings.providers.find((p) => p.providerId === id);
 
-  const handleAdd = (id: ProviderId) => {
-    if (settings.providers.some((p) => p.providerId === id)) return;
-    const models = DEFAULT_MODELS[id].map((model) => model.id);
-    const conn: ProviderConnection = {
+  const ensureProvider = (id: ProviderId): ProviderConnection => {
+    const existing = getProvider(id);
+    if (existing) return existing;
+    const models = DEFAULT_MODELS[id as ProviderId].map((model: { id: string }) => model.id);
+    return {
       providerId: id,
       apiKeyRef: "",
       modelIds: models,
       defaultModelId: models[0] ?? "",
       modelFallbacks: models,
-      enabled: true
+      enabled: false
     };
-    setSettings({ ...settings, providers: [...settings.providers, conn] });
   };
 
-  const handleRemove = (id: string) => {
-    setSettings({ ...settings, providers: settings.providers.filter((p) => p.providerId !== id) });
+  const updateProvider = (id: string, patch: Partial<ProviderConnection>) => {
+    const existing = settings.providers.find((p) => p.providerId === id);
+    if (existing) {
+      setSettings({
+        ...settings,
+        providers: settings.providers.map((p) =>
+          p.providerId === id ? { ...p, ...patch } : p
+        )
+      });
+    } else {
+      const preset = PRESET_MODEL_PROVIDERS.find((p) => p.id === id);
+      if (!preset) return;
+      const models = DEFAULT_MODELS[id as ProviderId].map((model: { id: string }) => model.id);
+      const conn: ProviderConnection = {
+        providerId: id as ProviderId,
+        apiKeyRef: "",
+        modelIds: models,
+        defaultModelId: models[0] ?? "",
+        modelFallbacks: models,
+        enabled: false,
+        ...patch
+      };
+      setSettings({ ...settings, providers: [...settings.providers, conn] });
+    }
   };
 
   const handleToggle = (id: string) => {
-    updateProvider(id, { enabled: !settings.providers.find((p) => p.providerId === id)?.enabled });
+    const provider = ensureProvider(id as ProviderId);
+    updateProvider(id, { enabled: !provider.enabled });
   };
 
   const handleSelectDefault = (providerId: string, modelId: string) => {
-    const provider = settings.providers.find((p) => p.providerId === providerId);
-    if (!provider) return;
-    // Move selected model to front of fallbacks
+    const provider = ensureProvider(providerId as ProviderId);
     const fallbacks = (provider.modelFallbacks ?? provider.modelIds).filter((m) => m !== modelId);
     updateProvider(providerId, {
       defaultModelId: modelId,
@@ -79,9 +85,7 @@ export function ProvidersConfigPanel() {
     if (dragItem.current.providerId !== providerId) return;
     if (dragItem.current.index === dragOverItem.current.index) return;
 
-    const provider = settings.providers.find((p) => p.providerId === providerId);
-    if (!provider) return;
-
+    const provider = ensureProvider(providerId as ProviderId);
     const list = [...(provider.modelFallbacks ?? provider.modelIds)];
     const fromIndex = dragItem.current.index;
     const toIndex = dragOverItem.current.index;
@@ -107,8 +111,8 @@ export function ProvidersConfigPanel() {
   };
 
   const handleQueryModels = async (id: string) => {
-    const provider = settings.providers.find((p) => p.providerId === id);
-    if (!provider?.apiKeyRef) return;
+    const provider = ensureProvider(id as ProviderId);
+    if (!provider.apiKeyRef) return;
     setLoadingModels(id);
     setModelError((prev) => ({ ...prev, [id]: "" }));
     try {
@@ -127,71 +131,71 @@ export function ProvidersConfigPanel() {
     }
   };
 
-  const available = PROVIDER_OPTIONS.filter(
-    (opt) => !settings.providers.some((p) => p.providerId === opt.id)
-  );
-
   return (
     <div className="providers-config-panel" data-testid="providers-config-panel">
       <p className="panel-desc">
-        添加 AI 服务商并填入 API Key，然后查询可用模型。切换到「真实模式」后，系统会通过这些连接调用大模型。
+        配置 AI 服务商的 API Key 以启用模型连接。服务商列表由系统预置，不可自行添加。
       </p>
 
       <div className="provider-cards">
-        {settings.providers.map((provider) => {
-          const info = PROVIDER_OPTIONS.find((o) => o.id === provider.providerId);
-          const isLoading = loadingModels === provider.providerId;
-          const error = modelError[provider.providerId];
+        {PRESET_MODEL_PROVIDERS.map((preset) => {
+          const provider = ensureProvider(preset.id);
+          const isLoading = loadingModels === preset.id;
+          const error = modelError[preset.id];
           const fallbackList = provider.modelFallbacks ?? provider.modelIds;
           const modelMetaMap = new Map(
-            fallbackList.map((id) => [id, getModelMeta(provider.providerId, id)])
+            fallbackList.map((id) => [id, getModelMeta(preset.id, id)])
           );
           return (
             <div
-              key={provider.providerId}
+              key={preset.id}
               className={`provider-card ${provider.enabled ? "" : "provider-card--disabled"}`}
-              data-testid={`provider-${provider.providerId}`}
+              data-testid={`provider-${preset.id}`}
             >
               <div className="provider-card__header">
                 <div>
-                  <strong>{info?.name ?? provider.providerId}</strong>
-                  <span className="provider-card__desc">{info?.desc}</span>
+                  <strong>{preset.displayName}</strong>
+                  <span className="provider-card__desc">{preset.desc}</span>
                 </div>
                 <div className="provider-card__actions">
                   <label className="toggle-label">
                     <input
                       type="checkbox"
                       checked={provider.enabled}
-                      onChange={() => handleToggle(provider.providerId)}
-                      data-testid={`toggle-${provider.providerId}`}
+                      onChange={() => handleToggle(preset.id)}
+                      data-testid={`toggle-${preset.id}`}
                     />
                     启用
                   </label>
-                  <button
-                    type="button"
-                    className="btn-text btn-danger"
-                    onClick={() => handleRemove(provider.providerId)}
-                    data-testid={`btn-remove-${provider.providerId}`}
-                  >
-                    删除
-                  </button>
                 </div>
               </div>
 
               <div className="provider-card__body">
                 <div className="provider-card__field">
+                  <label>Base URL</label>
+                  <input
+                    type="text"
+                    value={preset.baseUrl}
+                    readOnly
+                    disabled
+                    className="input-readonly"
+                    data-testid={`baseurl-${preset.id}`}
+                  />
+                </div>
+
+                <div className="provider-card__field">
                   <label>API Key</label>
-                  {editingKey === provider.providerId ? (
+                  {editingKey === preset.id ? (
                     <div className="inline-edit">
                       <input
                         type="password"
                         value={keyInput}
                         onChange={(e) => setKeyInput(e.target.value)}
-                        placeholder="sk-..."
-                        data-testid={`input-api-key-${provider.providerId}`}
+                        placeholder={preset.keyPlaceholder}
+                        data-testid={`input-api-key-${preset.id}`}
                         autoFocus
                       />
-                      <button type="button" onClick={() => handleSaveKey(provider.providerId)}>
+                      <button type="button" onClick={() => handleSaveKey(preset.id)}>
                         保存
                       </button>
                       <button type="button" className="btn-text" onClick={() => { setEditingKey(null); setKeyInput(""); }}>
@@ -206,8 +210,8 @@ export function ProvidersConfigPanel() {
                       <button
                         type="button"
                         className="btn-text"
-                        onClick={() => { setEditingKey(provider.providerId); setKeyInput(provider.apiKeyRef); }}
-                        data-testid={`btn-edit-key-${provider.providerId}`}
+                        onClick={() => { setEditingKey(preset.id); setKeyInput(provider.apiKeyRef); }}
+                        data-testid={`btn-edit-key-${preset.id}`}
                       >
                         {provider.apiKeyRef ? "修改" : "填写"}
                       </button>
@@ -221,9 +225,9 @@ export function ProvidersConfigPanel() {
                     <button
                       type="button"
                       className="btn-text"
-                      onClick={() => handleQueryModels(provider.providerId)}
+                      onClick={() => handleQueryModels(preset.id)}
                       disabled={isLoading}
-                      data-testid={`btn-query-models-${provider.providerId}`}
+                      data-testid={`btn-query-models-${preset.id}`}
                     >
                       {isLoading ? "查询中…" : "查询可用模型"}
                     </button>
@@ -241,7 +245,7 @@ export function ProvidersConfigPanel() {
                   <div className="provider-card__field provider-card__field--fallback">
                     <label>默认模型</label>
                     <div className="fallback-table-wrap">
-                      <table className="fallback-table" data-testid={`fallback-table-${provider.providerId}`}>
+                      <table className="fallback-table" data-testid={`fallback-table-${preset.id}`}>
                         <thead>
                           <tr>
                             <th className="fallback-table__handle-col" />
@@ -261,11 +265,11 @@ export function ProvidersConfigPanel() {
                                 key={model}
                                 className={`fallback-model-row ${isDefault ? "fallback-model-row--selected" : ""}`}
                                 draggable
-                                onDragStart={() => handleDragStart(provider.providerId, i)}
-                                onDragOver={(e) => handleDragOver(e, provider.providerId, i)}
-                                onDrop={() => handleDrop(provider.providerId)}
+                                onDragStart={() => handleDragStart(preset.id, i)}
+                                onDragOver={(e) => handleDragOver(e, preset.id, i)}
+                                onDrop={() => handleDrop(preset.id)}
                                 onDragEnd={handleDragEnd}
-                                data-testid={`fallback-row-${provider.providerId}-${i}`}
+                                data-testid={`fallback-row-${preset.id}-${i}`}
                               >
                                 <td className="fallback-table__handle-col">
                                   <span className="drag-handle" aria-label="拖拽排序">⠿</span>
@@ -288,8 +292,8 @@ export function ProvidersConfigPanel() {
                                     <button
                                       type="button"
                                       className="btn-text"
-                                      onClick={() => handleSelectDefault(provider.providerId, model)}
-                                      data-testid={`btn-select-default-${provider.providerId}-${i}`}
+                                      onClick={() => handleSelectDefault(preset.id, model)}
+                                      data-testid={`btn-select-default-${preset.id}-${i}`}
                                     >
                                       设为默认
                                     </button>
@@ -308,21 +312,6 @@ export function ProvidersConfigPanel() {
           );
         })}
       </div>
-
-      {available.length > 0 && (
-        <div className="add-provider">
-          <select
-            value=""
-            onChange={(e) => { if (e.target.value) handleAdd(e.target.value as ProviderId); }}
-            data-testid="select-add-provider"
-          >
-            <option value="">+ 添加服务商</option>
-            {available.map((opt) => (
-              <option key={opt.id} value={opt.id}>{opt.name} — {opt.desc}</option>
-            ))}
-          </select>
-        </div>
-      )}
     </div>
   );
 }
