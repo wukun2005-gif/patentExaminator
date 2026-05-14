@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import type { AgentAssignment, ProviderId } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
 import { getModelMeta } from "../../lib/modelCatalog";
@@ -27,6 +28,21 @@ const PROVIDER_NAMES: Record<ProviderId, string> = {
 
 export function AgentsAssignmentPanel() {
   const { settings, setSettings } = useSettingsStore();
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null);
+        setSearchQuery("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const enabledProviders = settings.providers.filter((p) => p.enabled);
 
@@ -56,10 +72,33 @@ export function AgentsAssignmentPanel() {
       };
       setSettings({ ...settings, agents: [...settings.agents, newAgent] });
     }
+    setOpenDropdown(null);
+    setSearchQuery("");
   };
 
   const handleReset = (agentId: string) => {
     setSettings({ ...settings, agents: settings.agents.filter((a) => a.agent !== agentId) });
+  };
+
+  const toggleProviderExpand = (providerId: string) => {
+    setExpandedProviders((prev) => {
+      const next = new Set(prev);
+      if (next.has(providerId)) {
+        next.delete(providerId);
+      } else {
+        next.add(providerId);
+      }
+      return next;
+    });
+  };
+
+  const filterModels = (providerId: ProviderId, models: string[]) => {
+    if (!searchQuery) return models;
+    const q = searchQuery.toLowerCase();
+    return models.filter((m) => {
+      const meta = getModelMeta(providerId, m);
+      return m.toLowerCase().includes(q) || (meta?.recommendation ?? "").toLowerCase().includes(q);
+    });
   };
 
   if (enabledProviders.length === 0) {
@@ -91,8 +130,13 @@ export function AgentsAssignmentPanel() {
         </div>
         {AGENT_OPTIONS.map((agentOpt) => {
           const assignment = getAssignment(agentOpt.id);
-          const currentProvider = assignment?.providerOrder[0] ?? enabledProviders[0]?.providerId;
+          const currentProvider = (assignment?.providerOrder[0] ?? enabledProviders[0]?.providerId) as ProviderId;
           const currentModel = assignment?.modelId ?? "";
+          const isOpen = openDropdown === agentOpt.id;
+
+          const selectedLabel = currentProvider && currentModel
+            ? `${PROVIDER_NAMES[currentProvider]} / ${currentModel}`
+            : "使用默认";
 
           return (
             <div
@@ -102,30 +146,128 @@ export function AgentsAssignmentPanel() {
             >
               <span className="agent-table__name">{agentOpt.name}</span>
               <span className="agent-table__desc">{agentOpt.desc}</span>
-              <span>
-                <select
-                  value={currentProvider && currentModel ? `${currentProvider}:${currentModel}` : ""}
-                  onChange={(e) => {
-                    const [pid, mid] = e.target.value.split(":");
-                    if (pid && mid) handleModelChange(agentOpt.id, pid as ProviderId, mid);
-                  }}
-                  data-testid={`select-model-${agentOpt.id}`}
-                >
-                  {!assignment && <option value="">使用默认</option>}
-                  {enabledProviders.map((p) => {
-                    const defaultModel = getDefaultModel(p.providerId);
-                    const models = p.modelIds;
-                    return models.map((model) => {
-                      const meta = getModelMeta(p.providerId, model);
-                      const rec = meta?.recommendation ? ` [${meta.recommendation}]` : "";
-                      return (
-                        <option key={`${p.providerId}:${model}`} value={`${p.providerId}:${model}`}>
-                          {PROVIDER_NAMES[p.providerId]} / {model}{rec}{model === defaultModel ? " (默认)" : ""}
-                        </option>
-                      );
-                    });
-                  })}
-                </select>
+              <span className="agent-table__model" ref={isOpen ? dropdownRef : undefined}>
+                <div className="model-select" data-testid={`select-model-${agentOpt.id}`}>
+                  <button
+                    type="button"
+                    className="model-select__trigger"
+                    onClick={() => {
+                      if (isOpen) {
+                        setOpenDropdown(null);
+                        setSearchQuery("");
+                      } else {
+                        setOpenDropdown(agentOpt.id);
+                      }
+                    }}
+                  >
+                    <span className="model-select__label">{selectedLabel}</span>
+                    <span className={`model-select__arrow ${isOpen ? "model-select__arrow--open" : ""}`}>▼</span>
+                  </button>
+
+                  {isOpen && (
+                    <div className="model-select__dropdown">
+                      <div className="model-select__search">
+                        <input
+                          type="text"
+                          placeholder="搜索模型..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`search-model-${agentOpt.id}`}
+                        />
+                      </div>
+
+                      {!assignment && (
+                        <button
+                          type="button"
+                          className="model-select__option model-select__option--default"
+                          onClick={() => {
+                            setOpenDropdown(null);
+                            setSearchQuery("");
+                          }}
+                        >
+                          <span>使用默认</span>
+                          {!currentModel && <span className="model-select__check">✓</span>}
+                        </button>
+                      )}
+
+                      {enabledProviders.map((p) => {
+                        const filteredModels = filterModels(p.providerId, p.modelIds);
+                        if (filteredModels.length === 0) return null;
+
+                        const defaultModelId = getDefaultModel(p.providerId);
+                        const selectedModelId = currentProvider === p.providerId ? currentModel : null;
+                        const isExpanded = expandedProviders.has(p.providerId) || searchQuery.length > 0;
+
+                        const otherModels = filteredModels.filter(
+                          (m) => m !== selectedModelId
+                        );
+
+                        return (
+                          <div key={p.providerId} className="model-select__group">
+                            <div className="model-select__group-header">
+                              {PROVIDER_NAMES[p.providerId]}
+                            </div>
+
+                            {selectedModelId && filteredModels.includes(selectedModelId) && (
+                              <button
+                                type="button"
+                                className="model-select__option model-select__option--selected"
+                                onClick={() => handleModelChange(agentOpt.id, p.providerId, selectedModelId)}
+                              >
+                                <span>
+                                  {selectedModelId}
+                                  {selectedModelId === defaultModelId ? " (默认)" : ""}
+                                </span>
+                                <span className="model-select__check">✓</span>
+                              </button>
+                            )}
+
+                            {otherModels.length > 0 && !isExpanded && (
+                              <button
+                                type="button"
+                                className="model-select__option model-select__option--expand"
+                                onClick={() => toggleProviderExpand(p.providerId)}
+                              >
+                                其他模型 ({otherModels.length}) <span className="model-select__expand-arrow">▶</span>
+                              </button>
+                            )}
+
+                            {isExpanded && otherModels.map((model) => {
+                              const meta = getModelMeta(p.providerId, model);
+                              const rec = meta?.recommendation ? ` [${meta.recommendation}]` : "";
+                              return (
+                                <button
+                                  key={model}
+                                  type="button"
+                                  className={`model-select__option ${model === selectedModelId ? "model-select__option--selected" : ""}`}
+                                  onClick={() => handleModelChange(agentOpt.id, p.providerId, model)}
+                                >
+                                  <span>
+                                    {model}{rec}{model === defaultModelId ? " (默认)" : ""}
+                                  </span>
+                                  {model === selectedModelId && (
+                                    <span className="model-select__check">✓</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+
+                            {otherModels.length > 0 && isExpanded && !searchQuery && (
+                              <button
+                                type="button"
+                                className="model-select__option model-select__option--collapse"
+                                onClick={() => toggleProviderExpand(p.providerId)}
+                              >
+                                收起 <span className="model-select__expand-arrow model-select__expand-arrow--up">▲</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </span>
               <span>
                 {assignment && (
