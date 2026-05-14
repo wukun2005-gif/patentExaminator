@@ -21,3 +21,7 @@ Thumbs.db
 # Build cache
 *.tsbuildinfo
 B-008/
+
+# Project management (local only)
+backlog.md
+scripts/
