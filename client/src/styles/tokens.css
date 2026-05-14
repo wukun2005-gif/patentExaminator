@@ -1,0 +1,198 @@
+:root {
+  /* ── Color Palette ── */
+  --pex-color-primary: #1a73e8;
+  --pex-color-primary-hover: #1557b0;
+  --pex-color-primary-light: #e8f0fe;
+  --pex-color-primary-border: #c0d4f0;
+
+  --pex-color-text-primary: #1a1a1a;
+  --pex-color-text-secondary: #333;
+  --pex-color-text-tertiary: #555;
+  --pex-color-text-muted: #666;
+  --pex-color-text-placeholder: #888;
+  --pex-color-text-disabled: #999;
+  --pex-color-text-hint: #aaa;
+  --pex-color-text-empty: #bbb;
+
+  --pex-color-bg-page: #f9fafb;
+  --pex-color-bg-white: #fff;
+  --pex-color-bg-card: #fafbfc;
+  --pex-color-bg-input-readonly: #f5f5f5;
+  --pex-color-bg-code: #f5f5f5;
+
+  --pex-color-border-light: #eee;
+  --pex-color-border-default: #e0e0e0;
+  --pex-color-border-card: #e8e8e8;
+  --pex-color-border-section: #e8ecf1;
+  --pex-color-border-input: #d0d0d0;
+  --pex-color-border-focus: #4a90d9;
+
+  /* ── Status Colors ── */
+  --pex-color-success-bg: #e6f4ea;
+  --pex-color-success-text: #137333;
+  --pex-color-success-dark: #2e7d32;
+
+  --pex-color-warning-bg: #fff8e1;
+  --pex-color-warning-text: #e6a700;
+  --pex-color-warning-dark: #e65100;
+
+  --pex-color-error-bg: #fce8e6;
+  --pex-color-error-text: #c5221f;
+  --pex-color-error-dark: #c62828;
+  --pex-color-error: #d32f2f;
+
+  --pex-color-info-bg: #fff3cd;
+  --pex-color-info-text: #856404;
+
+  --pex-color-legal-caution-bg: #fff3cd;
+  --pex-color-legal-caution-text: #856404;
+
+  /* ── Confidence Colors ── */
+  --pex-color-conf-high-bg: #e8f5e9;
+  --pex-color-conf-high-text: #2e7d32;
+  --pex-color-conf-medium-bg: #fff3e0;
+  --pex-color-conf-medium-text: #e65100;
+  --pex-color-conf-low-bg: #fce4ec;
+  --pex-color-conf-low-text: #c62828;
+
+  /* ── Category Tag Colors ── */
+  --pex-color-cat-novelty-bg: #e3f2fd;
+  --pex-color-cat-novelty-text: #1565c0;
+  --pex-color-cat-inventive-bg: #e8f5e9;
+  --pex-color-cat-inventive-text: #2e7d32;
+  --pex-color-cat-clarity-bg: #fff3e0;
+  --pex-color-cat-clarity-text: #e65100;
+  --pex-color-cat-support-bg: #f3e5f5;
+  --pex-color-cat-support-text: #7b1fa2;
+  --pex-color-cat-amendment-bg: #fce4ec;
+  --pex-color-cat-amendment-text: #c62828;
+  --pex-color-cat-other-bg: #eceff1;
+  --pex-color-cat-other-text: #546e7a;
+
+  /* ── Typography ── */
+  --pex-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --pex-font-size-page-title: 22px;
+  --pex-font-size-section-title: 20px;
+  --pex-font-size-panel-title: 16px;
+  --pex-font-size-subtitle: 15px;
+  --pex-font-size-body: 14px;
+  --pex-font-size-body-sm: 13px;
+  --pex-font-size-caption: 12px;
+  --pex-font-size-tiny: 11px;
+  --pex-font-size-micro: 10px;
+
+  --pex-font-weight-bold: 700;
+  --pex-font-weight-semibold: 600;
+  --pex-font-weight-medium: 500;
+  --pex-font-weight-normal: 400;
+
+  --pex-line-height-body: 1.6;
+  --pex-line-height-compact: 1.5;
+
+  /* ── Spacing Scale ── */
+  --pex-space-xs: 4px;
+  --pex-space-sm: 6px;
+  --pex-space-md: 8px;
+  --pex-space-lg: 12px;
+  --pex-space-xl: 16px;
+  --pex-space-2xl: 20px;
+  --pex-space-3xl: 24px;
+
+  /* ── Border Radius ── */
+  --pex-radius-sm: 3px;
+  --pex-radius-md: 4px;
+  --pex-radius-lg: 6px;
+  --pex-radius-xl: 8px;
+  --pex-radius-2xl: 10px;
+  --pex-radius-3xl: 12px;
+  --pex-radius-pill: 10px;
+
+  /* ── Shadows ── */
+  --pex-shadow-focus: 0 0 0 2px rgba(74, 144, 217, 0.15);
+  --pex-shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.2);
+
+  /* ── Component Tokens ── */
+
+  /* Page */
+  --pex-page-max-width: 720px;
+  --pex-page-title-border: 2px solid var(--pex-color-border-default);
+
+  /* Card / Panel */
+  --pex-card-bg: var(--pex-color-bg-white);
+  --pex-card-border: 1px solid var(--pex-color-border-card);
+  --pex-card-radius: var(--pex-radius-xl);
+  --pex-card-padding: var(--pex-space-2xl) var(--pex-space-3xl);
+  --pex-card-gap: var(--pex-space-2xl);
+
+  /* Section */
+  --pex-section-bg: var(--pex-color-bg-white);
+  --pex-section-border: 1px solid var(--pex-color-border-section);
+  --pex-section-radius: var(--pex-radius-xl);
+  --pex-section-padding: 14px 16px;
+
+  /* Button - Primary */
+  --pex-btn-primary-padding: 10px 24px;
+  --pex-btn-primary-bg: var(--pex-color-primary);
+  --pex-btn-primary-color: #fff;
+  --pex-btn-primary-radius: var(--pex-radius-md);
+  --pex-btn-primary-font-size: var(--pex-font-size-body);
+
+  /* Button - Secondary */
+  --pex-btn-secondary-padding: 10px 24px;
+  --pex-btn-secondary-bg: #fff;
+  --pex-btn-secondary-color: var(--pex-color-primary);
+  --pex-btn-secondary-border: 1px solid var(--pex-color-primary);
+  --pex-btn-secondary-radius: var(--pex-radius-md);
+  --pex-btn-secondary-font-size: var(--pex-font-size-body);
+
+  /* Button - Text */
+  --pex-btn-text-color: var(--pex-color-primary);
+  --pex-btn-text-font-size: var(--pex-font-size-body-sm);
+
+  /* Button - Danger */
+  --pex-btn-danger-color: var(--pex-color-error);
+
+  /* Input */
+  --pex-input-padding: 6px 10px;
+  --pex-input-border: 1px solid var(--pex-color-border-input);
+  --pex-input-radius: var(--pex-radius-md);
+  --pex-input-font-size: var(--pex-font-size-body-sm);
+
+  /* Textarea */
+  --pex-textarea-padding: 10px 12px;
+  --pex-textarea-border: 1px solid var(--pex-color-border-input);
+  --pex-textarea-radius: var(--pex-radius-md);
+  --pex-textarea-font-size: var(--pex-font-size-body);
+
+  /* Table */
+  --pex-table-font-size: var(--pex-font-size-body-sm);
+  --pex-table-th-padding: 6px 8px;
+  --pex-table-th-bg: var(--pex-color-bg-input-readonly);
+  --pex-table-th-border: 2px solid var(--pex-color-border-default);
+  --pex-table-th-font-size: var(--pex-font-size-tiny);
+  --pex-table-th-color: var(--pex-color-text-muted);
+  --pex-table-td-padding: 6px 8px;
+  --pex-table-td-border: 1px solid #f0f0f0;
+
+  /* Badge / Tag */
+  --pex-badge-padding: 2px 8px;
+  --pex-badge-radius: var(--pex-radius-pill);
+  --pex-badge-font-size: var(--pex-font-size-tiny);
+
+  /* Legal Caution */
+  --pex-legal-caution-bg: var(--pex-color-legal-caution-bg);
+  --pex-legal-caution-color: var(--pex-color-legal-caution-text);
+  --pex-legal-caution-padding: 10px 14px;
+  --pex-legal-caution-radius: var(--pex-radius-md);
+  --pex-legal-caution-font-size: var(--pex-font-size-body-sm);
+
+  /* Empty State */
+  --pex-empty-icon-size: 28px;
+  --pex-empty-icon-color: #ccc;
+  --pex-empty-text-color: var(--pex-color-text-disabled);
+  --pex-empty-text-font-size: var(--pex-font-size-body);
+
+  /* Transition */
+  --pex-transition-fast: 0.15s;
+}
