@@ -49,6 +49,21 @@ export function ReferenceEditForm({ reference, onChange, onDelete }: ReferenceEd
         />
       </div>
 
+      {reference.sourceUrl && (
+        <div className="form-field">
+          <label htmlFor={`sourceUrl-${reference.id}`}>来源</label>
+          <a
+            id={`sourceUrl-${reference.id}`}
+            href={reference.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="source-url-link"
+          >
+            {reference.sourceUrl}
+          </a>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={onDelete}

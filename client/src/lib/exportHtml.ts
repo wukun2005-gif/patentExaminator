@@ -49,7 +49,7 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
   </div>
 
   <div class="section">
-    <h2>Claim Chart</h2>
+    <h2>权利要求特征表</h2>
     <table>
       <thead>
         <tr>

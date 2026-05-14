@@ -8,6 +8,8 @@ interface NoveltyAgentTriggerProps {
   claimNumber: number;
   features: ClaimFeature[];
   references: ReferenceDocument[];
+  applicantArguments?: string;
+  amendedClaimText?: string;
   runNovelty: (request: NoveltyRequest) => Promise<NoveltyResponse>;
 }
 
@@ -16,6 +18,8 @@ export function NoveltyAgentTrigger({
   claimNumber,
   features,
   references,
+  applicantArguments,
+  amendedClaimText,
   runNovelty
 }: NoveltyAgentTriggerProps) {
   const { addComparison, setLoading, isLoading } = useNoveltyStore();
@@ -40,7 +44,9 @@ export function NoveltyAgentTrigger({
           description: f.description
         })),
         referenceId: selectedRefId,
-        referenceText: ref.extractedText
+        referenceText: ref.extractedText,
+        ...(applicantArguments ? { applicantArguments } : {}),
+        ...(amendedClaimText ? { amendedClaimText } : {})
       };
 
       const response = await runNovelty(request);

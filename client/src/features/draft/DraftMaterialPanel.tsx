@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { useCaseStore, useClaimsStore, useNoveltyStore, useInventiveStore, useDefectsStore } from "../../store";
+import { useState, useEffect } from "react";
+import { useCaseStore, useClaimsStore, useNoveltyStore, useInventiveStore, useDefectsStore, useDraftStore } from "../../store";
 import type { ReexamDraftResponse } from "../../agent/contracts";
+import { InlineEdit } from "../../components/InlineEdit";
 
 interface DraftMaterialPanelProps {
   caseId: string;
@@ -33,9 +34,16 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
   const { comparisons } = useNoveltyStore();
   const { analyses } = useInventiveStore();
   const { defects } = useDefectsStore();
-  const [reexamDraft, setReexamDraft] = useState<ReexamDraftResponse | null>(null);
+  const { reexamDrafts, setReexamDraft } = useDraftStore();
+  const persistedDraft = reexamDrafts[caseId] ?? null;
+  const [reexamDraft, setReexamDraftLocal] = useState<ReexamDraftResponse | null>(persistedDraft);
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
+
+  // Restore persisted draft when caseId changes
+  useEffect(() => {
+    setReexamDraftLocal(persistedDraft);
+  }, [caseId]);
 
   const features = claimFeatures.filter((f) => f.caseId === caseId);
   const noveltyComparisons = comparisons.filter((c) => c.caseId === caseId);
@@ -56,7 +64,8 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
     setDraftError(null);
     try {
       const draft = await runReexamDraft();
-      setReexamDraft(draft);
+      setReexamDraftLocal(draft);
+      setReexamDraft(caseId, draft);
     } catch (err) {
       setDraftError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -91,7 +100,35 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
                 <div key={item.rejectionGroundCode} className="reexam-response-item">
                   <h4>{item.rejectionGroundCode} · {item.category}</h4>
                   <p><strong>申请人意见：</strong>{item.applicantArgumentSummary}</p>
-                  <p><strong>审查员回应草稿：</strong>{item.examinerResponse}</p>
+                  <p><strong>审查员回应草稿：</strong>
+                    <InlineEdit
+                      as="textarea"
+                      value={item.examinerResponse}
+                      rows={4}
+                      onSave={(v) => {
+                        setReexamDraftLocal((prev) => prev ? {
+                          ...prev,
+                          responseItems: prev.responseItems.map((ri) =>
+                            ri.rejectionGroundCode === item.rejectionGroundCode
+                              ? { ...ri, examinerResponse: v }
+                              : ri
+                          )
+                        } : null);
+                        if (reexamDraft) {
+                          setReexamDraft(caseId, {
+                            ...reexamDraft,
+                            responseItems: reexamDraft.responseItems.map((ri) =>
+                              ri.rejectionGroundCode === item.rejectionGroundCode
+                                ? { ...ri, examinerResponse: v }
+                                : ri
+                            )
+                          });
+                        }
+                      }}
+                    >
+                      <span>{item.examinerResponse}</span>
+                    </InlineEdit>
+                  </p>
                   <p><strong>候选结论：</strong>{REEXAM_CONCLUSION_LABELS[item.conclusion] ?? item.conclusion}</p>
                   {item.supportingEvidence && item.supportingEvidence.length > 0 && (
                     <ul>
@@ -107,7 +144,17 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
                 </div>
               ))}
               <h4>综合评估</h4>
-              <p>{reexamDraft.overallAssessment}</p>
+              <InlineEdit
+                as="textarea"
+                value={reexamDraft.overallAssessment}
+                rows={4}
+                onSave={(v) => {
+                  setReexamDraftLocal((prev) => prev ? { ...prev, overallAssessment: v } : null);
+                  setReexamDraft(caseId, { ...reexamDraft, overallAssessment: v });
+                }}
+              >
+                <p>{reexamDraft.overallAssessment}</p>
+              </InlineEdit>
               {reexamDraft.defectReviewSummary && (
                 <>
                   <h4>缺陷复查总结</h4>
@@ -130,7 +177,7 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
             )}
             {confirmedFeatures.length > 0 && (
               <div className="draft-features">
-                <h4>Claim Chart（{confirmedFeatures.length} 个已确认特征）</h4>
+                <h4>权利要求特征表（{confirmedFeatures.length} 个已确认特征）</h4>
                 <ul>
                   {confirmedFeatures.map((f) => (
                     <li key={f.id}>{f.featureCode}: {f.description}</li>
@@ -149,7 +196,7 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
               </div>
             )}
             {confirmedFeatures.length === 0 && noveltyComparisons.length === 0 && (
-              <p className="placeholder-hint">请先完成 Claim Chart 和新颖性分析。</p>
+              <p className="placeholder-hint">请先完成权利要求特征表和新颖性分析。</p>
             )}
           </div>
         </section>

@@ -1,6 +1,7 @@
 import { useDefectsStore } from "../../store";
 import type { DefectRequest, DefectResponse } from "../../agent/contracts";
 import type { FormalDefect } from "@shared/types/domain";
+import { InlineEdit } from "../../components/InlineEdit";
 
 interface DefectPanelProps {
   caseId: string;
@@ -29,7 +30,7 @@ export function DefectPanel({
   claimFeatures,
   runDefectCheck
 }: DefectPanelProps) {
-  const { defects, addDefect, updateDefect, isLoading, setLoading } =
+  const { defects, addDefect, updateDefect, removeDefect, isLoading, setLoading } =
     useDefectsStore();
 
   const caseDefects = defects.filter((d) => d.caseId === caseId);
@@ -76,6 +77,22 @@ export function DefectPanel({
     updateDefect({ ...defect, resolved: !defect.resolved });
   };
 
+  const handleDeleteDefect = (id: string) => {
+    removeDefect(id);
+  };
+
+  const handleAddDefect = () => {
+    const newDefect: FormalDefect = {
+      id: `defect-${caseId}-${Date.now()}`,
+      caseId,
+      category: "权利要求",
+      description: "",
+      severity: "warning",
+      resolved: false
+    };
+    addDefect(newDefect);
+  };
+
   // Group defects by category
   const grouped = new Map<string, FormalDefect[]>();
   for (const d of caseDefects) {
@@ -112,6 +129,7 @@ export function DefectPanel({
                     <th>上次已指出</th>
                     <th>克服状态</th>
                     <th className="defect-col-status">状态</th>
+                    <th className="defect-col-actions"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -122,15 +140,43 @@ export function DefectPanel({
                       data-testid={`defect-row-${d.id}`}
                     >
                       <td>
-                        <span
-                          className={`severity-badge severity-${d.severity}`}
-                          data-testid={`severity-${d.id}`}
+                        <InlineEdit
+                          as="select"
+                          value={d.severity}
+                          options={Object.entries(SEVERITY_LABELS).map(([value, label]) => ({ value, label }))}
+                          onSave={(v) => updateDefect({ ...d, severity: v as FormalDefect["severity"] })}
                         >
-                          {SEVERITY_LABELS[d.severity]}
-                        </span>
+                          <span
+                            className={`severity-badge severity-${d.severity}`}
+                            data-testid={`severity-${d.id}`}
+                          >
+                            {SEVERITY_LABELS[d.severity]}
+                          </span>
+                        </InlineEdit>
                       </td>
-                      <td className="defect-desc">{d.description}</td>
-                      <td className="defect-location">{d.location ?? "—"}</td>
+                      <td className="defect-desc">
+                        <InlineEdit
+                          as="textarea"
+                          value={d.description}
+                          rows={2}
+                          onSave={(v) => updateDefect({ ...d, description: v })}
+                        >
+                          <span>{d.description}</span>
+                        </InlineEdit>
+                      </td>
+                      <td className="defect-location">
+                        <InlineEdit
+                          value={d.location ?? ""}
+                          placeholder="无"
+                          onSave={(v) => {
+                            const patch: Partial<FormalDefect> = v ? { location: v } : {};
+                            if (!v) delete patch.location;
+                            updateDefect({ ...d, ...patch });
+                          }}
+                        >
+                          <span>{d.location || "—"}</span>
+                        </InlineEdit>
+                      </td>
                       <td>{d.previouslyRaised ? "是" : "否"}</td>
                       <td>{d.overcomeStatus ? OVERCOME_LABELS[d.overcomeStatus] : "—"}</td>
                       <td>
@@ -144,10 +190,29 @@ export function DefectPanel({
                           {d.resolved ? "已解决" : "未解决"}
                         </label>
                       </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn-delete-icon"
+                          onClick={() => handleDeleteDefect(d.id)}
+                          data-testid={`delete-defect-${d.id}`}
+                        >
+                          ✕
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <button
+                type="button"
+                className="btn-add-item"
+                onClick={handleAddDefect}
+                data-testid="add-defect"
+                style={{ marginTop: 8 }}
+              >
+                + 添加缺陷
+              </button>
             </div>
           ))}
         </div>

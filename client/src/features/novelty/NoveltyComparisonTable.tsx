@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNoveltyStore } from "../../store";
+import { InlineEdit } from "../../components/InlineEdit";
 
 interface NoveltyComparisonTableProps {
   comparisonId: string;
@@ -13,7 +14,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export function NoveltyComparisonTable({ comparisonId }: NoveltyComparisonTableProps) {
-  const { comparisons, updateComparison } = useNoveltyStore();
+  const { comparisons, updateComparison, removeComparison } = useNoveltyStore();
   const comparison = comparisons.find((c) => c.id === comparisonId);
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
   const [editingConclusions, setEditingConclusions] = useState<Record<number, string>>({});
@@ -58,6 +59,15 @@ export function NoveltyComparisonTable({ comparisonId }: NoveltyComparisonTableP
   return (
     <div className="novelty-comparison-table" data-testid="novelty-comparison-table">
       <h2>新颖性复核</h2>
+      <button
+        type="button"
+        className="btn-delete-icon"
+        onClick={() => removeComparison(comparison.id)}
+        data-testid="delete-novelty-comparison"
+        style={{ float: "right", marginTop: -4 }}
+      >
+        ✕ 删除此比较
+      </button>
       <div data-testid="novelty-legal-caution" className="legal-caution">
         以下为候选事实整理，不构成新颖性法律结论。审查员需结合对比文件全文进行独立判断。
       </div>
@@ -76,7 +86,23 @@ export function NoveltyComparisonTable({ comparisonId }: NoveltyComparisonTableP
             <tr key={row.featureCode} data-testid={`row-novelty-${row.featureCode}`}>
               <td>{row.featureCode}</td>
               <td data-testid={`cell-status-${row.featureCode}`}>
-                {STATUS_LABELS[row.disclosureStatus] ?? row.disclosureStatus}
+                <InlineEdit
+                  as="select"
+                  value={row.disclosureStatus}
+                  options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+                  onSave={(v) => {
+                    const updatedRows = comparison.rows.map((r) =>
+                      r.featureCode === row.featureCode
+                        ? { ...r, disclosureStatus: v as typeof row.disclosureStatus }
+                        : r
+                    );
+                    updateComparison({ ...comparison, rows: updatedRows });
+                  }}
+                >
+                  <span className={`disclosure-status-${row.disclosureStatus}`}>
+                    {STATUS_LABELS[row.disclosureStatus] ?? row.disclosureStatus}
+                  </span>
+                </InlineEdit>
               </td>
               <td>
                 {row.citations.length > 0

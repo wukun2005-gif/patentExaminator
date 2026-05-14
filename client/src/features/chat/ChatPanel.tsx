@@ -13,7 +13,7 @@ const MODULE_LABELS: Record<string, string> = {
   documents: "文档导入",
   references: "文献清单",
   interpret: "文档解读",
-  "claim-chart": "Claim Chart",
+  "claim-chart": "权利要求特征表",
   novelty: "新颖性对照",
   inventive: "创造性分析",
   defects: "形式缺陷",
@@ -402,16 +402,17 @@ export function ChatPanel() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
-              rows={2}
+              rows={3}
               data-testid="chat-input"
             />
             <button
               type="button"
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
+              title="发送 (Enter)"
               data-testid="btn-send-chat"
             >
-              发送
+              ↑
             </button>
           </div>
         </>

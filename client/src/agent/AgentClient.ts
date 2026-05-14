@@ -128,7 +128,7 @@ export class AgentClient {
     options?: AgentRunOptions
   ): Promise<InventiveResponse> {
     if (this.mode === "mock") {
-      throw new Error("mock-inventive-not-implemented-in-agent-client");
+      return mockInventive(request);
     }
     const prompt = buildInventivePrompt(request);
     return this.callGateway<InventiveResponse>("inventive", prompt, {
@@ -478,13 +478,17 @@ function mockDefectCheck(request: DefectRequest): DefectResponse {
       category: "权利要求",
       description: "权利要求引用关系不明确，缺少对独立权利要求的具体引用",
       location: "权利要求2",
-      severity: "error"
+      severity: "error",
+      previouslyRaised: true,
+      overcomeStatus: "not-overcome"
     },
     {
       category: "说明书",
       description: "具体实施方式中部分技术参数未公开具体数值范围",
       location: "说明书第4段",
-      severity: "warning"
+      severity: "warning",
+      previouslyRaised: true,
+      overcomeStatus: "partially-overcome"
     }
   ];
 
@@ -500,6 +504,56 @@ function mockDefectCheck(request: DefectRequest): DefectResponse {
     defects,
     warnings: [],
     legalCaution: "以下为 AI 辅助检测结果，需审查员逐项确认。"
+  };
+}
+
+function mockInventive(request: InventiveRequest): InventiveResponse {
+  const distCodes = request.features.map((f) => f.featureCode);
+  const sharedCodes = distCodes.slice(0, 1);
+  const diffCodes = distCodes.slice(1);
+
+  const motivation = request.availableReferences.length > 0
+    ? [{
+        referenceId: request.availableReferences[0]!.referenceId,
+        label: `${request.availableReferences[0]!.label} §5`,
+        quote: "对比文件公开了散热基板与散热翅片的结构组合",
+        confidence: "high" as const
+      }]
+    : [];
+
+  const assessment = request.applicantArguments
+    ? "possibly-inventive" as const
+    : "possibly-lacks-inventiveness" as const;
+
+  const examinerResponse = [
+    "【候选结论】" + (assessment === "possibly-inventive"
+      ? "修改后的权利要求可能具有创造性。"
+      : "权利要求可能缺乏创造性。"),
+    "",
+    "【技术启示分析】",
+    ...motivation.map((m) => `- ${m.label}：「${m.quote}」`),
+    request.applicantArguments
+      ? `\n申请人关于${request.applicantArguments.slice(0, 100)}...的答辩理由已纳入考量。`
+      : "",
+    "",
+    "【审查意见草稿（可直接修改）】",
+    "请在此处直接编辑您的审查意见回应草稿。",
+    "",
+    "（本分析为 AI 辅助候选，不构成正式审查结论。）"
+  ].join("\n");
+
+  return {
+    claimNumber: request.claimNumber,
+    closestPriorArtId: request.closestPriorArtId ?? request.availableReferences[0]?.referenceId,
+    sharedFeatureCodes: sharedCodes,
+    distinguishingFeatureCodes: diffCodes,
+    motivationEvidence: motivation,
+    candidateAssessment: assessment,
+    cautions: request.applicantArguments
+      ? ["申请人答辩可能改变创造性判断，建议进一步审查修改后的特征组合"]
+      : ["建议在对比文件中寻找区别特征的技术启示"],
+    examinerResponse,
+    legalCaution: "本分析为 AI 辅助候选，不构成创造性法律结论。"
   };
 }
 
@@ -590,7 +644,7 @@ function mockChat(request: ChatRequest): ChatResponse {
   // Detect action intent
   if (msg.includes("重新") && (msg.includes("claim") || msg.includes("特征"))) {
     return {
-      reply: "好的，我将为您重新生成 Claim Chart 的特征拆解。请点击下方按钮执行。",
+      reply: "好的，我将为您重新生成权利要求特征表的特征拆解。请点击下方按钮执行。",
       action: { type: "regenerate", target: "claim-chart" }
     };
   }
@@ -609,7 +663,7 @@ function mockChat(request: ChatRequest): ChatResponse {
 
   // Context-aware mock reply
   const scopeLabels: Record<string, string> = {
-    "claim-chart": "Claim Chart",
+    "claim-chart": "权利要求特征表",
     novelty: "新颖性对照",
     inventive: "创造性分析",
     defects: "形式缺陷",

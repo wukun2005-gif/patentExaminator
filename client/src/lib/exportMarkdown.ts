@@ -20,7 +20,7 @@ export function renderCaseMarkdown(viewModel: ExportViewModel): string {
     lines.push(`- 优先权日: ${caseData.priorityDate}`);
   }
   lines.push("");
-  lines.push("## Claim Chart");
+  lines.push("## 权利要求特征表");
   lines.push("");
   lines.push("| 特征代码 | 特征描述 | 引用状态 |");
   lines.push("|---------|---------|---------|");

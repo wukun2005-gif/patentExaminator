@@ -109,7 +109,9 @@ describe("InventiveStepPanel - 客观技术问题显示", () => {
       />
     );
 
-    expect(screen.getByTestId("distinguishing-features-result")).toBeTruthy();
+    // All features shown as checkboxes, distinguishing ones pre-checked
+    expect(screen.getByTestId("checkbox-feature-B")).toBeTruthy();
+    expect(screen.getByTestId("checkbox-feature-C")).toBeTruthy();
     expect(screen.getByText(/一体成型翅片/)).toBeTruthy();
     expect(screen.getByText(/纳米涂层/)).toBeTruthy();
   });

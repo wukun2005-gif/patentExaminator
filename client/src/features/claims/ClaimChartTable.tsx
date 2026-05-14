@@ -8,7 +8,7 @@ interface ClaimChartTableProps {
 }
 
 export function ClaimChartTable({ caseId, claimNumber }: ClaimChartTableProps) {
-  const { claimFeatures, updateClaimFeature } = useClaimsStore();
+  const { claimFeatures, updateClaimFeature, addClaimFeature, removeClaimFeature } = useClaimsStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -30,8 +30,30 @@ export function ClaimChartTable({ caseId, claimNumber }: ClaimChartTableProps) {
     setEditingId(null);
   };
 
+  const handleDelete = (id: string) => {
+    removeClaimFeature(id);
+  };
+
+  const handleAdd = () => {
+    const maxCode = features.reduce((max, f) => {
+      const n = parseInt(f.featureCode.replace(/[^0-9]/g, ""), 10);
+      return n > max ? n : max;
+    }, 0);
+    const newFeature: ClaimFeature = {
+      id: `feat-${caseId}-${Date.now()}`,
+      caseId,
+      claimNumber,
+      featureCode: `F${String(maxCode + 1).padStart(2, "0")}`,
+      description: "",
+      source: "user",
+      citationStatus: "needs-review",
+      specificationCitations: []
+    };
+    addClaimFeature(newFeature);
+  };
+
   if (features.length === 0) {
-    return <p data-testid="claim-chart-empty">尚未生成 Claim Chart</p>;
+    return <p data-testid="claim-chart-empty">尚未生成权利要求特征表</p>;
   }
 
   return (
@@ -86,11 +108,29 @@ export function ClaimChartTable({ caseId, claimNumber }: ClaimChartTableProps) {
                     编辑
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="btn-delete-icon"
+                  onClick={() => handleDelete(feature.id)}
+                  data-testid={`btn-delete-${feature.featureCode}`}
+                  style={{ marginLeft: 4 }}
+                >
+                  ✕
+                </button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <button
+        type="button"
+        className="btn-add-item"
+        onClick={handleAdd}
+        data-testid="add-claim-feature"
+        style={{ marginTop: 8 }}
+      >
+        + 添加特征
+      </button>
     </div>
   );
 }

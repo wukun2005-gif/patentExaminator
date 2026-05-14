@@ -254,6 +254,7 @@ export interface OfficeActionAnalysis {
   documentId: string;
   rejectionGrounds: RejectionGround[];
   citedReferences: RejectionCitedReference[];
+  legalCaution: string;
   status: "draft" | "user-reviewed" | "stale";
   createdAt: ISODateTimeString;
 }

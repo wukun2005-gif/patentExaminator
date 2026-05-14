@@ -265,7 +265,9 @@
       "description": "权利要求2-3引用关系不明确，缺少对权利要求1的具体引用",
       "location": "权利要求2、3",
       "severity": "error",
-      "resolved": false
+      "resolved": false,
+      "previouslyRaised": true,
+      "overcomeStatus": "not-overcome"
     },
     {
       "id": "defect-preset-demo-001-2",
@@ -274,7 +276,9 @@
       "description": "具体实施方式中未公开纳米碳化硅涂层的厚度参数范围",
       "location": "说明书第4段",
       "severity": "warning",
-      "resolved": false
+      "resolved": false,
+      "previouslyRaised": true,
+      "overcomeStatus": "partially-overcome"
     },
     {
       "id": "defect-preset-demo-001-3",
@@ -282,7 +286,8 @@
       "category": "说明书",
       "description": "摘要超过300字，建议精简",
       "severity": "info",
-      "resolved": false
+      "resolved": false,
+      "previouslyRaised": false
     }
   ],
   "chatSessions": [

@@ -69,7 +69,7 @@ export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartA
         disabled={isGenerating || !targetClaim}
         data-testid="btn-run-claim-chart"
       >
-        {isGenerating ? "生成中..." : "生成 Claim Chart"}
+        {isGenerating ? "生成中..." : "生成权利要求特征表"}
       </button>
       {error && <p className="error" data-testid="claim-chart-error">{error}</p>}
     </div>

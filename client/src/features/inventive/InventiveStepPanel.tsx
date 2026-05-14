@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { InventiveStepAnalysis, ReferenceDocument } from "@shared/types/domain";
 import type { InventiveRequest, InventiveResponse } from "../../agent/contracts";
 import { useInventiveStore } from "../../store";
+import { InlineEdit } from "../../components/InlineEdit";
 
 interface InventiveStepPanelProps {
   caseId: string;
@@ -36,7 +37,6 @@ export function InventiveStepPanel({
 
   const availableRefs = references.filter((r) => r.timelineStatus === "available");
 
-  // Initialize local state from existing analysis (computed, not useEffect)
   const [selectedClosestId, setSelectedClosestId] = useState<string>(
     () => analysis?.closestPriorArtId ?? ""
   );
@@ -45,6 +45,9 @@ export function InventiveStepPanel({
   );
   const [techProblem, setTechProblem] = useState<string>(
     () => analysis?.objectiveTechnicalProblem ?? ""
+  );
+  const [examinerResponse, setExaminerResponse] = useState<string>(
+    () => analysis?.examinerResponse ?? ""
   );
 
   const handleRun = async () => {
@@ -99,9 +102,31 @@ export function InventiveStepPanel({
       setSelectedClosestId(response.closestPriorArtId ?? "");
       setSelectedDistinguishing(response.distinguishingFeatureCodes);
       setTechProblem(response.objectiveTechnicalProblem ?? "");
+      if (response.examinerResponse) {
+        setExaminerResponse(response.examinerResponse);
+      } else {
+        const parts = [
+          `【候选结论】${ASSESSMENT_LABELS[response.candidateAssessment] ?? response.candidateAssessment}`,
+          "",
+          ...(response.motivationEvidence.length > 0
+            ? ["【技术启示】", ...response.motivationEvidence.map((e) =>
+                `- ${e.label}${e.quote ? `：「${e.quote}」` : ""} (${e.confidence})`
+              ), ""]
+            : []),
+          ...(response.cautions.length > 0
+            ? ["【注意事项】", ...response.cautions.map((c) => `- ${c}`), ""]
+            : []),
+          response.legalCaution ? `(${response.legalCaution})` : ""
+        ];
+        setExaminerResponse(parts.join("\n"));
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectClosest = (refId: string) => {
+    setSelectedClosestId(refId);
   };
 
   const handleToggleDistinguishing = (code: string) => {
@@ -110,12 +135,70 @@ export function InventiveStepPanel({
     );
   };
 
+  const handleSaveResponse = () => {
+    if (!analysis) return;
+    updateAnalysis({ ...analysis, examinerResponse });
+  };
+
+  const handleUpdateEvidence = (index: number, patch: Partial<{ label: string; quote: string; confidence: string }>) => {
+    if (!analysis) return;
+    const updated = [...analysis.motivationEvidence];
+    updated[index] = { ...updated[index], ...patch } as typeof updated[number];
+    updateAnalysis({ ...analysis, motivationEvidence: updated });
+  };
+
+  const handleDeleteEvidence = (index: number) => {
+    if (!analysis) return;
+    const updated = analysis.motivationEvidence.filter((_, i) => i !== index);
+    updateAnalysis({ ...analysis, motivationEvidence: updated });
+  };
+
+  const handleAddEvidence = () => {
+    if (!analysis) return;
+    const newEvidence = {
+      referenceId: "",
+      documentId: "",
+      label: "",
+      confidence: "medium" as const
+    };
+    updateAnalysis({
+      ...analysis,
+      motivationEvidence: [...analysis.motivationEvidence, newEvidence]
+    });
+  };
+
   return (
     <div className="inventive-step-panel" data-testid="inventive-step-panel">
       <h2>创造性复核</h2>
+
+      {/* Top toolbar — run button visible immediately */}
+      <div className="inventive-toolbar">
+        <button
+          type="button"
+          onClick={handleRun}
+          disabled={isLoading || availableRefs.length === 0}
+          data-testid="btn-run-inventive"
+        >
+          {isLoading ? "分析中..." : analysis ? "重新运行复核" : "运行创造性复核"}
+        </button>
+        {availableRefs.length === 0 && (
+          <span className="inventive-no-refs" data-testid="inventive-no-references">
+            未上传可用对比文件
+          </span>
+        )}
+      </div>
+
       {analysis && (
         <div data-testid="inventive-legal-caution" className="legal-caution">
           {analysis.legalCaution}
+        </div>
+      )}
+
+      {/* Applicant arguments context */}
+      {(analysis?.applicantArguments ?? applicantArguments) && (
+        <div className="reexam-context" data-testid="inventive-reexam-context">
+          <h4>申请人答辩理由</h4>
+          <blockquote>{analysis?.applicantArguments ?? applicantArguments}</blockquote>
         </div>
       )}
 
@@ -123,26 +206,20 @@ export function InventiveStepPanel({
         {/* Step 1: Closest Prior Art */}
         <div className="step" data-testid="step-1">
           <h3>Step 1：最接近现有技术</h3>
-          <p className="step-desc">AI 从可用对比文件中推荐最接近现有技术，您可点击更换。</p>
+          <p className="step-desc">AI 从可用对比文件中推荐最接近现有技术，点击可更换。</p>
           <div className="prior-art-list" data-testid="prior-art-list">
             {availableRefs.map((ref) => {
               const isRecommended = analysis?.closestPriorArtId === ref.id;
               const isSelected = selectedClosestId === ref.id || (!selectedClosestId && isRecommended);
               return (
-                <div
+                <button
+                  type="button"
                   key={ref.id}
                   className={`prior-art-item ${isSelected ? "prior-art-item--selected" : ""} ${isRecommended ? "prior-art-item--recommended" : ""}`}
-                  onClick={() => setSelectedClosestId(ref.id)}
+                  onClick={() => handleSelectClosest(ref.id)}
                   data-testid={`prior-art-${ref.id}`}
                 >
-                  <div className="prior-art-item__radio">
-                    <input
-                      type="radio"
-                      name="closest-prior-art"
-                      checked={isSelected}
-                      onChange={() => setSelectedClosestId(ref.id)}
-                    />
-                  </div>
+                  <div className={`prior-art-item__radio${isSelected ? " prior-art-item__radio--selected" : ""}`} />
                   <div className="prior-art-item__info">
                     <div className="prior-art-item__title">
                       {ref.title ?? ref.publicationNumber ?? ref.fileName}
@@ -152,7 +229,7 @@ export function InventiveStepPanel({
                       <div className="prior-art-item__summary">{ref.summary}</div>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -168,34 +245,23 @@ export function InventiveStepPanel({
         {/* Step 2: Distinguishing Features */}
         <div className="step" data-testid="step-2">
           <h3>Step 2：区别特征与客观技术问题</h3>
+          <p className="step-desc">勾选属于区别技术特征的条目，AI 将据此推导客观技术问题。</p>
 
           <div className="step2-content">
             <div className="step2-features">
               <strong>区别特征：</strong>
-              {analysis?.distinguishingFeatureCodes && analysis.distinguishingFeatureCodes.length > 0 ? (
-                <div className="distinguishing-features-display" data-testid="distinguishing-features-result">
-                  {features
-                    .filter((f) => analysis.distinguishingFeatureCodes.includes(f.featureCode))
-                    .map((f) => (
-                      <span key={f.featureCode} className="feature-tag">
-                        {f.featureCode}: {f.description}
-                      </span>
-                    ))}
-                </div>
-              ) : (
-                <div className="feature-checkboxes">
-                  {features.map((f) => (
-                    <label key={f.featureCode} data-testid={`checkbox-feature-${f.featureCode}`}>
-                      <input
-                        type="checkbox"
-                        checked={selectedDistinguishing.includes(f.featureCode)}
-                        onChange={() => handleToggleDistinguishing(f.featureCode)}
-                      />
-                      {f.featureCode}: {f.description}
-                    </label>
-                  ))}
-                </div>
-              )}
+              <div className="feature-checkboxes">
+                {features.map((f) => (
+                  <label key={f.featureCode} data-testid={`checkbox-feature-${f.featureCode}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedDistinguishing.includes(f.featureCode)}
+                      onChange={() => handleToggleDistinguishing(f.featureCode)}
+                    />
+                    {f.featureCode}: {f.description}
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div className="step2-tech-problem">
@@ -208,80 +274,109 @@ export function InventiveStepPanel({
                 value={techProblem}
                 onChange={(e) => setTechProblem(e.target.value)}
                 data-testid="input-objective-technical-problem"
-                placeholder="AI 将根据区别特征推导客观技术问题，您也可以手动修改。"
-                rows={4}
+                placeholder="根据区别特征推导客观技术问题，AI 运行后自动填充，也可手动输入。"
+                rows={3}
               />
             </div>
           </div>
         </div>
 
-        {/* Step 3: Technical Motivation */}
+        {/* Step 3: AI Draft — read-only display + one editable textarea */}
         <div className="step" data-testid="step-3">
-          <h3>Step 3：技术启示与结论</h3>
+          <h3>Step 3：审查员回应草稿</h3>
           {analysis ? (
-            <div className="step-result">
-              {analysis.motivationEvidence && analysis.motivationEvidence.length > 0 && (
-                <div className="motivation-evidence-list">
-                  <strong>现有技术启示：</strong>
-                  <ul>
-                    {analysis.motivationEvidence.map((evidence, i) => (
-                      <li key={i} data-testid={`motivation-evidence-${i}`}>
-                        {evidence.label}
-                        {evidence.quote && <span>：&ldquo;{evidence.quote}&rdquo;</span>}
-                        <span className="confidence">（置信度：{evidence.confidence}）</span>
-                      </li>
+            <div className="step3-draft">
+              <p className="step3-summary" data-testid="candidate-assessment">
+                {ASSESSMENT_LABELS[analysis.candidateAssessment] ?? analysis.candidateAssessment}
+                {analysis.motivationEvidence.length > 0 && (
+                  <span> · 技术启示 {analysis.motivationEvidence.length} 条</span>
+                )}
+                {analysis.cautions.length > 0 && (
+                  <span> · 注意事项 {analysis.cautions.length} 条</span>
+                )}
+              </p>
+
+              <textarea
+                id="examiner-response"
+                value={examinerResponse}
+                onChange={(e) => setExaminerResponse(e.target.value)}
+                placeholder="运行分析后，AI 将在此生成回应草稿..."
+                rows={12}
+                data-testid="edit-examiner-response"
+              />
+
+              {analysis.motivationEvidence.length > 0 && (
+                <div className="step3-evidence-editor">
+                  <h4>技术启示证据（可编辑）</h4>
+                  <div className="evidence-list">
+                    {analysis.motivationEvidence.map((ev, i) => (
+                      <div key={i} className="evidence-item" data-testid={`evidence-${i}`}>
+                        <div className="evidence-item__fields">
+                          <InlineEdit
+                            value={ev.label}
+                            onSave={(v) => handleUpdateEvidence(i, { label: v })}
+                          >
+                            <strong>{ev.label || "（空）"}</strong>
+                          </InlineEdit>
+                          <InlineEdit
+                            as="textarea"
+                            value={ev.quote ?? ""}
+                            onSave={(v) => handleUpdateEvidence(i, v ? { quote: v } : {})}
+                          >
+                            <span className="evidence-quote">{ev.quote ? `「${ev.quote}」` : "（无引用）"}</span>
+                          </InlineEdit>
+                          <InlineEdit
+                            as="select"
+                            value={ev.confidence}
+                            options={[
+                              { value: "high", label: "高" },
+                              { value: "medium", label: "中" },
+                              { value: "low", label: "低" }
+                            ]}
+                            onSave={(v) => handleUpdateEvidence(i, { confidence: v })}
+                          >
+                            <span className="evidence-confidence">置信度: {ev.confidence}</span>
+                          </InlineEdit>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-delete-icon"
+                          onClick={() => handleDeleteEvidence(i)}
+                          data-testid={`delete-evidence-${i}`}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-add-item"
+                    onClick={handleAddEvidence}
+                    data-testid="add-evidence"
+                    style={{ marginTop: 8 }}
+                  >
+                    + 添加证据
+                  </button>
                 </div>
               )}
-              <div className="candidate-assessment-display" data-testid="candidate-assessment">
-                <strong>候选结论：</strong>
-                <span className={`assessment-${analysis.candidateAssessment}`}>
-                  {ASSESSMENT_LABELS[analysis.candidateAssessment]}
-                </span>
-              </div>
-              {analysis.cautions && analysis.cautions.length > 0 && (
-                <div className="inventive-cautions" data-testid="inventive-cautions">
-                  <strong>注意事项：</strong>
-                  <ul>
-                    {analysis.cautions.map((c, i) => (
-                      <li key={i}>{c}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+
+              <button
+                type="button"
+                onClick={handleSaveResponse}
+                data-testid="btn-save-step3"
+                className="btn-save"
+              >
+                保存修改
+              </button>
             </div>
           ) : (
-            <p data-testid="no-motivation-evidence">运行分析后将显示技术启示和候选结论。</p>
+            <p className="placeholder-hint" data-testid="no-motivation-evidence">
+              运行分析后，AI 将在此直接生成可直接编辑的回应草稿。
+            </p>
           )}
         </div>
       </div>
-
-      {(analysis?.applicantArguments ?? applicantArguments) && (
-        <div className="reexam-context" data-testid="inventive-reexam-context">
-          <h4>申请人答辩理由</h4>
-          <blockquote>{analysis?.applicantArguments ?? applicantArguments}</blockquote>
-          {analysis?.examinerResponse && (
-            <>
-              <h4>审查员回应（AI 草稿）</h4>
-              <p>{analysis.examinerResponse}</p>
-            </>
-          )}
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={handleRun}
-        disabled={isLoading || availableRefs.length === 0}
-        data-testid="btn-run-inventive"
-      >
-        {isLoading ? "分析中..." : analysis ? "重新运行复核" : "运行创造性复核"}
-      </button>
-
-      {availableRefs.length === 0 && (
-        <p data-testid="inventive-no-references">未上传可用对比文件，无法运行三步法</p>
-      )}
     </div>
   );
 }

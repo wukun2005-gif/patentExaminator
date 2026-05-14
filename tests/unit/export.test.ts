@@ -70,7 +70,7 @@ describe("renderCaseHtml", () => {
     const html = renderCaseHtml(MOCK_VIEWMODEL);
     expect(html).toContain("CN202310001001");
     expect(html).toContain("不构成法律结论");
-    expect(html).toContain("Claim Chart");
+    expect(html).toContain("权利要求特征表");
     expect(html).toContain("<title>");
   });
 

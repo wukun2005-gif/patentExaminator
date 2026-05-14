@@ -10,11 +10,10 @@ interface AppShellProps {
 
 const CASE_NAV_ITEMS = [
   { path: "setup", label: "复审文件导入", icon: "📄" },
-  { path: "opinion-analysis", label: "审查意见解析", icon: "🧾" },
-  { path: "argument-mapping", label: "答辩理由映射", icon: "🔗" },
-  { path: "references", label: "文献清单", icon: "📚" },
   { path: "interpret", label: "文档解读", icon: "🔍" },
-  { path: "claim-chart", label: "Claim Chart", icon: "📊" },
+  { path: "opinion-comparison", label: "审查意见对照", icon: "🧾" },
+  { path: "references", label: "文献清单", icon: "📚" },
+  { path: "claim-chart", label: "权利要求特征表", icon: "📊" },
   { path: "novelty", label: "新颖性复核", icon: "⚖️" },
   { path: "inventive", label: "创造性复核", icon: "💡" },
   { path: "defects", label: "缺陷复查", icon: "⚠️" },

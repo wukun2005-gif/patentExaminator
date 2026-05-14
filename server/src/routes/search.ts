@@ -358,6 +358,44 @@ searchRouter.post("/search-references", async (req, res) => {
       logger.warn("Failed to parse LLM filter output as JSON", { rawText: filterRes.text.slice(0, 200) });
     }
 
+    // Enrich candidates with sourceUrl from the original search results.
+    // The LLM sometimes omits or garbles sourceUrl even though it's present
+    // in the prompt text. Programmatic recovery ensures every candidate
+    // that matches a real search result gets its correct URL.
+    const searchUrlLookup: Array<{ title: string; url: string }> = searchRes.results.map((r) => ({
+      title: (r.title ?? "").toLowerCase().trim(),
+      url: r.url
+    }));
+
+    candidates = candidates.map((candidate) => {
+      if (candidate.sourceUrl) return candidate;
+
+      const candTitle = (candidate.title ?? "").toLowerCase().trim();
+      const candPubNum = (candidate.publicationNumber ?? "").toLowerCase().trim();
+
+      // 1. Exact title match
+      let match = searchUrlLookup.find((s) => s.title === candTitle);
+
+      // 2. Title substring in either direction
+      if (!match) {
+        match = searchUrlLookup.find(
+          (s) => s.title.includes(candTitle) || candTitle.includes(s.title)
+        );
+      }
+
+      // 3. Publication number found in search result URL
+      if (!match && candPubNum) {
+        match = searchUrlLookup.find((s) =>
+          s.url.toLowerCase().includes(candPubNum)
+        );
+      }
+
+      if (match) {
+        return { ...candidate, sourceUrl: match.url };
+      }
+      return candidate;
+    });
+
     logger.info("Search references completed", {
       caseId: request.caseId,
       query: searchQuery,

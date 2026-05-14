@@ -49,13 +49,13 @@ export function ExportPanel({
       <h2>导出</h2>
 
       <div className="export-section">
-        <p>导出审查辅助材料，包含案件基本信息、Claim Chart、新颖性对照等内容。</p>
+        <p>导出审查辅助材料，包含案件基本信息、权利要求特征表、新颖性对照等内容。</p>
 
         <div className="export-preview">
           <h3>导出内容预览</h3>
           <ul>
             <li>案件基本信息</li>
-            <li>Claim Chart（{claimFeatures.filter((f) => f.citationStatus !== "not-found").length} 个已确认特征）</li>
+            <li>权利要求特征表（{claimFeatures.filter((f) => f.citationStatus !== "not-found").length} 个已确认特征）</li>
             {noveltyComparisons.length > 0 && (
               <li>新颖性对照（{noveltyComparisons.length} 篇对比文件）</li>
             )}

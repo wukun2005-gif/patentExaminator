@@ -11,17 +11,24 @@ import { extractCaseFields, extractCaseFieldsFallback, type ExtractedFields } fr
 import { createDocument, readDocumentsByCaseId } from "../../lib/repositories/documentRepo";
 import { createClaimNode } from "../../lib/repositories/claimRepo";
 import { readCaseById, createCase, updateCase } from "../../lib/repositories/caseRepo";
-import { useCaseStore, useDocumentsStore, useClaimsStore, useSettingsStore } from "../../store";
+import { useCaseStore, useDocumentsStore, useClaimsStore, useSettingsStore, useReferencesStore } from "../../store";
 import { AgentClient } from "../../agent/AgentClient";
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".html"];
 
-const DOCUMENT_ROLE_LABELS: Record<SourceDocument["role"], string> = {
-  application: "申请文件",
-  "office-action": "审查意见通知书",
-  "office-action-response": "意见陈述书",
-  reference: "对比文件"
+const ROLE_META: Record<SourceDocument["role"], { label: string; icon: string }> = {
+  application: { label: "申请文件", icon: "📄" },
+  "office-action": { label: "审查意见通知书", icon: "📋" },
+  "office-action-response": { label: "意见陈述书", icon: "✏️" },
+  reference: { label: "对比文件", icon: "📚" }
 };
+
+const ROLE_ORDER: SourceDocument["role"][] = [
+  "application",
+  "office-action",
+  "office-action-response",
+  "reference"
+];
 
 interface CaseFormValues {
   title: string;
@@ -49,7 +56,8 @@ export function CaseSetupPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const { currentCase, setCurrentCase } = useCaseStore();
   const { documents, addDocument, setDocuments } = useDocumentsStore();
-  const { setClaimNodes } = useClaimsStore();
+  const { claimNodes, setClaimNodes } = useClaimsStore();
+  const { references } = useReferencesStore();
   const { settings } = useSettingsStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -270,7 +278,12 @@ export function CaseSetupPage() {
     return true;
   };
 
-  const fieldHint = (field: string) => {
+  const handleRoleUpload = (role: SourceDocument["role"]) => {
+    setUploadRole(role);
+    fileInputRef.current?.click();
+  };
+
+  const renderFieldHint = (field: string) => {
     if (!extracted?.confidence[field]) return null;
     return <span className="field-hint">自动提取</span>;
   };
@@ -278,24 +291,72 @@ export function CaseSetupPage() {
   return (
     <div className="case-setup-page" data-testid="page-setup">
       <h2>案件基本信息导入</h2>
-      <p className="section-desc">上传申请文件、审查意见通知书和意见陈述书，建立复审分析上下文。</p>
+      <p className="section-desc">
+        上传申请文件、审查意见通知书和意见陈述书，建立复审分析上下文。
+      </p>
 
       {/* File upload section */}
       <section className="setup-section">
         <h3>上传复审文件</h3>
-        <p className="section-desc">支持 PDF、DOCX、TXT、HTML 格式；选择文件类型后可批量上传同类文件</p>
-        <label htmlFor="upload-role">文件类型</label>
-        <select
-          id="upload-role"
-          value={uploadRole}
-          onChange={(e) => setUploadRole(e.target.value as SourceDocument["role"])}
-          data-testid="select-upload-role"
-        >
-          <option value="application">申请文件 / 修改后权利要求</option>
-          <option value="office-action">审查意见通知书</option>
-          <option value="office-action-response">意见陈述书</option>
-          <option value="reference">对比文件</option>
-        </select>
+        <p className="section-desc">
+          支持 PDF、DOCX、TXT、HTML 格式，单类可批量上传
+        </p>
+
+        <div className="file-role-grid">
+          {ROLE_ORDER.map((role) => {
+            const roleDocs = documents.filter((d) => d.role === role);
+            const processingEntries = Object.entries(fileStatuses).filter(
+              ([name]) => !documents.some((d) => d.fileName === name)
+            );
+            const isCurrentRoleProcessing =
+              uploadRole === role && processingEntries.length > 0;
+
+            return (
+              <div key={role} className="file-role-card" data-testid={`role-card-${role}`}>
+                <div className="file-role-card__header">
+                  <span className="file-role-card__icon">{ROLE_META[role].icon}</span>
+                  <span className="file-role-card__label">{ROLE_META[role].label}</span>
+                  {roleDocs.length > 0 && (
+                    <span className="file-role-card__count">{roleDocs.length}</span>
+                  )}
+                </div>
+                <div className="file-role-card__body">
+                  {roleDocs.length === 0 && !isCurrentRoleProcessing && (
+                    <span className="file-role-empty">暂无文件</span>
+                  )}
+                  {roleDocs.map((doc) => (
+                    <div key={doc.id} className="file-role-file">
+                      <span className="file-role-file__name">{doc.fileName}</span>
+                      <span className="file-role-file__badge">已导入</span>
+                    </div>
+                  ))}
+                  {isCurrentRoleProcessing &&
+                    processingEntries.map(([name, status]) => (
+                      <div key={name} className="file-role-file file-role-file--processing">
+                        <span className="file-role-file__name">{name}</span>
+                        <span className={`file-role-file__badge ${
+                          status === "完成" ? "file-badge-ok" : status === "处理中..." ? "file-badge-processing" : "file-badge-error"
+                        }`}>
+                          {status}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+                <div className="file-role-card__footer">
+                  <button
+                    type="button"
+                    className="btn-upload"
+                    onClick={() => handleRoleUpload(role)}
+                    data-testid={`btn-upload-${role}`}
+                  >
+                    + 上传
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -303,31 +364,96 @@ export function CaseSetupPage() {
           multiple
           onChange={handleFileChange}
           data-testid="input-file-upload"
+          className="file-input-hidden"
         />
-        {(documents.length > 0 || Object.keys(fileStatuses).length > 0) && (
-          <ul className="file-status-list" data-testid="file-status-list">
-            {documents.map((doc) => (
-              <li key={doc.id} className="file-status-item">
-                <span className="file-name">{doc.fileName}</span>
-                <span className="file-role">{DOCUMENT_ROLE_LABELS[doc.role]}</span>
-                <span className="file-status status-ok">已导入</span>
-              </li>
-            ))}
-            {Object.entries(fileStatuses)
-              .filter(([name]) => !documents.some((d) => d.fileName === name))
-              .map(([name, status]) => (
-                <li key={name} className="file-status-item">
-                  <span className="file-name">{name}</span>
-                  <span className={`file-status ${status === "完成" ? "status-ok" : status === "处理中..." ? "status-processing" : "status-error"}`}>
-                    {status}
-                  </span>
-                </li>
-              ))}
-          </ul>
-        )}
       </section>
 
-      {/* AI extraction trigger — only show when documents exist */}
+      {/* Case overview — aggregated summary after documents are uploaded */}
+      {documents.length > 0 && (
+        <section className="setup-section case-overview" data-testid="case-overview">
+          <h3>案件总览</h3>
+          <p className="section-desc">
+            第 {currentCase?.reexaminationRound ?? 1} 轮复审 · 已上传 {documents.length} 份文件
+          </p>
+
+          <div className="overview-grid">
+            {/* Documents by role */}
+            {ROLE_ORDER.map((role) => {
+              const roleDocs = documents.filter((d) => d.role === role);
+              if (roleDocs.length === 0) return null;
+              return (
+                <div key={role} className="overview-card">
+                  <span className="overview-card__icon">{ROLE_META[role].icon}</span>
+                  <div className="overview-card__body">
+                    <span className="overview-card__label">
+                      {ROLE_META[role].label}
+                    </span>
+                    <span className="overview-card__count">{roleDocs.length} 份</span>
+                    <ul className="overview-card__files">
+                      {roleDocs.slice(0, 3).map((d) => (
+                        <li key={d.id}>
+                          {d.fileName}
+                          {d.textStatus === "extracted" || d.textStatus === "confirmed"
+                            ? " ✓"
+                            : d.textStatus === "empty"
+                              ? " ⚠"
+                              : ""}
+                        </li>
+                      ))}
+                      {roleDocs.length > 3 && (
+                        <li className="overview-card__more">… 还有 {roleDocs.length - 3} 份</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Claims summary */}
+            {(() => {
+              const caseClaimNodes = claimNodes.filter((n) => n.caseId === caseId);
+              if (caseClaimNodes.length === 0) return null;
+              const amended = (currentCase?.textVersion ?? "original") !== "original";
+              return (
+                <div className="overview-card">
+                  <span className="overview-card__icon">📝</span>
+                  <div className="overview-card__body">
+                    <span className="overview-card__label">权利要求</span>
+                    <span className="overview-card__count">
+                      {caseClaimNodes.length} 项
+                      {amended && <span className="overview-tag overview-tag--amended">已修改</span>}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* References summary */}
+            {(() => {
+              const caseRefs = references.filter((r) => r.caseId === caseId);
+              if (caseRefs.length === 0) return null;
+              return (
+                <div className="overview-card">
+                  <span className="overview-card__icon">📚</span>
+                  <div className="overview-card__body">
+                    <span className="overview-card__label">对比文件</span>
+                    <span className="overview-card__count">{caseRefs.length} 篇</span>
+                    <ul className="overview-card__files">
+                      {caseRefs.slice(0, 3).map((r) => (
+                        <li key={r.id}>{r.publicationNumber ?? r.fileName}</li>
+                      ))}
+                      {caseRefs.length > 3 && (
+                        <li className="overview-card__more">… 还有 {caseRefs.length - 3} 篇</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </section>
+      )}
+
       {/* Case baseline form */}
       <section className="setup-section">
         <div className="setup-section__header">
@@ -348,54 +474,52 @@ export function CaseSetupPage() {
             </button>
           )}
         </div>
-        {extractError && <p className="extract-error" data-testid="extract-error">{extractError}</p>}
+        {extractError && (
+          <p className="extract-error" data-testid="extract-error">{extractError}</p>
+        )}
         <p className="section-desc">
           上传申请文件后点击「AI 提取」自动填充，可手动修正
         </p>
         <form onSubmit={handleSubmit(() => {})} noValidate className="case-form">
-          <div className="form-field">
-            <label htmlFor="title">发明名称 *</label>
-            {fieldHint("title")}
-            <input id="title" data-testid="input-title" {...register("title", { validate: validateTitle })} maxLength={120} />
-            {errors.title && <span className="form-error">{errors.title.message}</span>}
+          <div className="case-form-grid">
+            <div className="form-field">
+              <label htmlFor="title">发明名称 * {renderFieldHint("title")}</label>
+              <input id="title" data-testid="input-title" {...register("title", { validate: validateTitle })} maxLength={120} />
+              {errors.title && <span className="form-error">{errors.title.message}</span>}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="applicationNumber">申请号 {renderFieldHint("applicationNumber")}</label>
+              <input id="applicationNumber" data-testid="input-application-number" {...register("applicationNumber", { validate: validateAppNumber })} />
+              {errors.applicationNumber && <span className="form-error">{errors.applicationNumber.message}</span>}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="applicant">申请人 {renderFieldHint("applicant")}</label>
+              <input id="applicant" data-testid="input-applicant" {...register("applicant")} maxLength={120} />
+              {errors.applicant && <span className="form-error">{errors.applicant.message}</span>}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="applicationDate">申请日 * {renderFieldHint("applicationDate")}</label>
+              <input id="applicationDate" data-testid="input-application-date" type="date" {...register("applicationDate", { validate: validateAppDate })} />
+              {errors.applicationDate && <span className="form-error">{errors.applicationDate.message}</span>}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="priorityDate">优先权日 {renderFieldHint("priorityDate")}</label>
+              <input id="priorityDate" data-testid="input-priority-date" type="date" {...register("priorityDate", { validate: validatePriorityDate })} />
+              {errors.priorityDate && <span className="form-error">{errors.priorityDate.message}</span>}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="targetClaimNumber">目标权利要求 * {renderFieldHint("targetClaimNumber")}</label>
+              <input id="targetClaimNumber" data-testid="input-target-claim" type="number" min={1} {...register("targetClaimNumber", { valueAsNumber: true })} />
+              {errors.targetClaimNumber && <span className="form-error">{errors.targetClaimNumber.message}</span>}
+            </div>
           </div>
 
-          <div className="form-field">
-            <label htmlFor="applicationNumber">申请号</label>
-            {fieldHint("applicationNumber")}
-            <input id="applicationNumber" data-testid="input-application-number" {...register("applicationNumber", { validate: validateAppNumber })} />
-            {errors.applicationNumber && <span className="form-error">{errors.applicationNumber.message}</span>}
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="applicant">申请人</label>
-            {fieldHint("applicant")}
-            <input id="applicant" data-testid="input-applicant" {...register("applicant")} maxLength={120} />
-            {errors.applicant && <span className="form-error">{errors.applicant.message}</span>}
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="applicationDate">申请日 *</label>
-            {fieldHint("applicationDate")}
-            <input id="applicationDate" data-testid="input-application-date" type="date" {...register("applicationDate", { validate: validateAppDate })} />
-            {errors.applicationDate && <span className="form-error">{errors.applicationDate.message}</span>}
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="priorityDate">优先权日</label>
-            {fieldHint("priorityDate")}
-            <input id="priorityDate" data-testid="input-priority-date" type="date" {...register("priorityDate", { validate: validatePriorityDate })} />
-            {errors.priorityDate && <span className="form-error">{errors.priorityDate.message}</span>}
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="targetClaimNumber">目标权利要求 *</label>
-            {fieldHint("targetClaimNumber")}
-            <input id="targetClaimNumber" data-testid="input-target-claim" type="number" min={1} {...register("targetClaimNumber", { valueAsNumber: true })} />
-            {errors.targetClaimNumber && <span className="form-error">{errors.targetClaimNumber.message}</span>}
-          </div>
-
-          <div className="form-field">
+          <div className="form-field case-form-full">
             <label htmlFor="textVersion">审查文本版本 *</label>
             <select id="textVersion" data-testid="input-text-version" {...register("textVersion")}>
               <option value="original">原始文本</option>
@@ -404,7 +528,7 @@ export function CaseSetupPage() {
             </select>
           </div>
 
-          <div className="form-field">
+          <div className="form-field case-form-full">
             <label htmlFor="examinerNotes">审查备注</label>
             <textarea id="examinerNotes" data-testid="input-examiner-notes" {...register("examinerNotes")} maxLength={2000} rows={4} />
             {errors.examinerNotes && <span className="form-error">{errors.examinerNotes.message}</span>}

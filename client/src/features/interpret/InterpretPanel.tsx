@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useInterpretStore } from "../../store";
 
 interface InterpretPanelProps {
   caseId: string;
@@ -6,39 +7,48 @@ interface InterpretPanelProps {
   runInterpret: (prompt: string) => Promise<string>;
 }
 
-export function InterpretPanel({ caseId: _caseId, documentText, runInterpret }: InterpretPanelProps) {
+export function InterpretPanel({ caseId, documentText, runInterpret }: InterpretPanelProps) {
+  const { interpretSummaries, setInterpretSummary } = useInterpretStore();
+  const persistedSummary = interpretSummaries[caseId] ?? "";
   const [isLoading, setIsLoading] = useState(false);
-  const [summary, setSummary] = useState("");
-  const [summarySaved, setSummarySaved] = useState(false);
+  const [summary, setSummary] = useState(persistedSummary);
   const [error, setError] = useState<string | null>(null);
   const autoTriggered = useRef(false);
 
+  // Restore from store when caseId changes
   useEffect(() => {
-    if (documentText && !summary && !isLoading && !autoTriggered.current) {
+    setSummary(persistedSummary);
+    autoTriggered.current = false;
+  }, [caseId]);
+
+  useEffect(() => {
+    if (documentText && !persistedSummary && !isLoading && !autoTriggered.current) {
       autoTriggered.current = true;
       doInterpret();
     }
-  }, [documentText]);
+  }, [documentText, persistedSummary]);
+
+  // Persist summary changes to store
+  useEffect(() => {
+    if (summary && summary !== persistedSummary) {
+      setInterpretSummary(caseId, summary);
+    }
+  }, [summary, caseId, setInterpretSummary, persistedSummary]);
 
   const doInterpret = async () => {
     if (!documentText || isLoading) return;
 
     setIsLoading(true);
-    setSummarySaved(false);
     setError(null);
     try {
       const response = await runInterpret(documentText);
       setSummary(response);
+      setInterpretSummary(caseId, response);
     } catch (err) {
       setError(`解读失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleSaveSummary = () => {
-    setSummarySaved(true);
-    setTimeout(() => setSummarySaved(false), 2000);
   };
 
   return (
@@ -56,13 +66,14 @@ export function InterpretPanel({ caseId: _caseId, documentText, runInterpret }: 
           <textarea
             className="interpret-summary"
             value={summary}
-            onChange={(e) => { setSummary(e.target.value); setSummarySaved(false); }}
+            onChange={(e) => setSummary(e.target.value)}
             placeholder={isLoading ? "AI 解读中…" : "AI 解读结果将显示在此处。"}
             data-testid="interpret-summary"
             readOnly={isLoading}
           />
           {error && <p className="extract-error" data-testid="interpret-error" style={{ color: "#c00", fontSize: "0.9em", margin: "4px 0" }}>{error}</p>}
           <div className="interpret-main__actions">
+            <span className="interpret-main__hint">内容自动保存</span>
             <button
               type="button"
               onClick={doInterpret}
@@ -70,14 +81,6 @@ export function InterpretPanel({ caseId: _caseId, documentText, runInterpret }: 
               data-testid="btn-reinterpret"
             >
               {isLoading ? "解读中…" : "重新解读"}
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveSummary}
-              disabled={!summary}
-              data-testid="btn-save-summary"
-            >
-              {summarySaved ? "已保存" : "保存解读"}
             </button>
           </div>
         </div>
