@@ -265,3 +265,26 @@ export interface ReexamDraftResponse {
   defectReviewSummary?: string;
   legalCaution: string;
 }
+
+export interface SummaryRequest {
+  caseId: string;
+  caseBaseline: string;
+  confirmedFeatures: string;
+  reviewedNoveltyComparisons: string;
+  inventiveAnalysis: string;
+}
+
+export interface SummaryResponse {
+  body: string;
+  aiNotes: string;
+  legalCaution: string;
+}
+
+export interface TranslateRequest {
+  caseId: string;
+  documentText: string;
+}
+
+export interface TranslateResponse {
+  translatedText: string;
+}

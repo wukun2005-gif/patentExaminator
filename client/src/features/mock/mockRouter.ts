@@ -1,4 +1,4 @@
-import type { ClaimChartResponse, NoveltyResponse, InventiveResponse } from "../../agent/contracts";
+import type { ClaimChartResponse, NoveltyResponse, InventiveResponse, ReexamDraftResponse, SummaryResponse, TranslateResponse } from "../../agent/contracts";
 
 // Import fixtures
 import g1Led from "@shared/fixtures/g1-led.json";
@@ -7,8 +7,11 @@ import g3Sensor from "@shared/fixtures/g3-sensor.json";
 import noveltyG1D1 from "@shared/fixtures/novelty-g1-d1.json";
 import inventiveG2 from "@shared/fixtures/inventive-g2.json";
 import interpretG1 from "@shared/fixtures/interpret-g1.json";
+import reexamDraftG1 from "@shared/fixtures/reexam-draft-g1.json";
+import summaryG1 from "@shared/fixtures/summary-g1.json";
+import translateG1 from "@shared/fixtures/translate-g1.json";
 
-const FIXTURES: Record<string, Record<string, ClaimChartResponse | NoveltyResponse | InventiveResponse | { response: string }>> = {
+const FIXTURES: Record<string, Record<string, ClaimChartResponse | NoveltyResponse | InventiveResponse | ReexamDraftResponse | SummaryResponse | TranslateResponse | { response: string }>> = {
   "claim-chart": {
     "g1-led": g1Led as unknown as ClaimChartResponse,
     "g2-battery": g2Battery as unknown as ClaimChartResponse,
@@ -22,6 +25,15 @@ const FIXTURES: Record<string, Record<string, ClaimChartResponse | NoveltyRespon
   },
   interpret: {
     "g1-led": interpretG1 as { response: string }
+  },
+  draft: {
+    "g1-led": reexamDraftG1 as unknown as ReexamDraftResponse
+  },
+  summary: {
+    "g1-led": summaryG1 as unknown as SummaryResponse
+  },
+  translate: {
+    "g1-led": translateG1 as unknown as TranslateResponse
   }
 };
 

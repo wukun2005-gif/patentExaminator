@@ -14,6 +14,7 @@ import { NoveltyAgentTrigger } from "./features/novelty/NoveltyAgentTrigger";
 import { InventiveStepPanel } from "./features/inventive/InventiveStepPanel";
 import { DefectPanel } from "./features/defects/DefectPanel";
 import { DraftMaterialPanel } from "./features/draft/DraftMaterialPanel";
+import { SummaryPanel } from "./features/summary/SummaryPanel";
 import { ExportPanel } from "./features/export/ExportPanel";
 import { OpinionAnalysisPanel } from "./features/opinion/OpinionAnalysisPanel";
 import { ArgumentMappingPanel } from "./features/argument/ArgumentMappingPanel";
@@ -25,6 +26,7 @@ import { useDocumentsStore } from "./store";
 import { useReferencesStore } from "./store";
 import { useInventiveStore } from "./store";
 import { useDefectsStore } from "./store";
+import { useDraftStore } from "./store";
 import { useSettingsStore } from "./store";
 import { useOpinionStore } from "./store";
 import { AgentClient } from "./agent/AgentClient";
@@ -51,6 +53,30 @@ function ClaimChartWrapper() {
       <ClaimChartTable caseId={caseId ?? ""} claimNumber={claimNumber} />
       <ClaimChartActions claimNodes={claimNodes} specificationText={specificationText} />
     </>
+  );
+}
+
+function SummaryWrapper() {
+  const { caseId } = useParams<{ caseId: string }>();
+  const { currentCase } = useCaseStore();
+  const { claimFeatures } = useClaimsStore();
+  const { comparisons } = useNoveltyStore();
+  const { analyses } = useInventiveStore();
+  const { settings } = useSettingsStore();
+  return (
+    <SummaryPanel
+      caseId={caseId ?? ""}
+      runSummary={async () => {
+        const client = new AgentClient(settings.mode, "/api", settings);
+        return client.runSummary({
+          caseId: caseId ?? "",
+          caseBaseline: JSON.stringify(currentCase ?? {}),
+          confirmedFeatures: JSON.stringify(claimFeatures.filter((f) => f.citationStatus === "confirmed")),
+          reviewedNoveltyComparisons: JSON.stringify(comparisons.filter((c) => c.caseId === caseId)),
+          inventiveAnalysis: JSON.stringify(analyses.filter((a) => a.caseId === caseId))
+        });
+      }}
+    />
   );
 }
 
@@ -163,6 +189,11 @@ function InterpretWrapper() {
         const client = new AgentClient(settings.mode, "/api", settings);
         const response = await client.runInterpret({ caseId: caseId ?? "", documentText: text });
         return response.reply;
+      }}
+      runTranslate={async (text: string) => {
+        const client = new AgentClient(settings.mode, "/api", settings);
+        const response = await client.runTranslate({ caseId: caseId ?? "", documentText: text });
+        return response.translatedText;
       }}
     />
   );
@@ -392,6 +423,7 @@ function ExportWrapper() {
   const { comparisons } = useNoveltyStore();
   const { analyses } = useInventiveStore();
   const { defects } = useDefectsStore();
+  const { reexamDrafts } = useDraftStore();
 
   if (!currentCase) {
     return (
@@ -410,6 +442,7 @@ function ExportWrapper() {
     (a) => a.caseId === caseId && a.id === `inventive-${caseId}-${claimNumber}`
   );
   const caseDefects = defects.filter((d) => d.caseId === caseId);
+  const reexamDraft = reexamDrafts[caseId ?? ""] ?? undefined;
 
   return (
     <ExportPanel
@@ -420,6 +453,7 @@ function ExportWrapper() {
       pendingSearchQuestions={[...new Set(searchQuestions)]}
       inventiveAnalysis={inventiveAnalysis}
       defects={caseDefects}
+      reexamDraft={reexamDraft}
     />
   );
 }
@@ -443,6 +477,7 @@ export const router = createBrowserRouter([
       { path: "cases/:caseId/inventive", element: <InventiveWrapper /> },
       { path: "cases/:caseId/defects", element: <DefectWrapper /> },
       { path: "cases/:caseId/draft", element: <DraftWrapper /> },
+      { path: "cases/:caseId/summary", element: <SummaryWrapper /> },
       { path: "cases/:caseId/response", element: <ShellPlaceholder title="答复审查" /> },
       { path: "cases/:caseId/interpret", element: <InterpretWrapper /> },
       { path: "cases/:caseId/export", element: <ExportWrapper /> },

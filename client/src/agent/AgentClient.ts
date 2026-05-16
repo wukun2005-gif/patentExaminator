@@ -14,6 +14,10 @@ import type {
   SearchReferencesResponse,
   ExtractCaseFieldsRequest,
   ExtractCaseFieldsResponse,
+  SummaryRequest,
+  SummaryResponse,
+  TranslateRequest,
+  TranslateResponse,
   InterpretRequest,
   InterpretResponse,
   OpinionAnalysisRequest,
@@ -287,6 +291,36 @@ export class AgentClient {
     return this.callGateway<ReexamDraftResponse>("reexam-draft", prompt, {
       caseId: request.caseId,
       moduleScope: "draft",
+      ...options
+    });
+  }
+
+  async runSummary(
+    request: SummaryRequest,
+    options?: AgentRunOptions
+  ): Promise<SummaryResponse> {
+    if (this.mode === "mock") {
+      return this.callGatewayMock<SummaryResponse>("summary", request.caseId, "summary");
+    }
+    const prompt = buildSummaryPrompt(request);
+    return this.callGateway<SummaryResponse>("summary", prompt, {
+      caseId: request.caseId,
+      moduleScope: "summary",
+      ...options
+    });
+  }
+
+  async runTranslate(
+    request: TranslateRequest,
+    options?: AgentRunOptions
+  ): Promise<TranslateResponse> {
+    if (this.mode === "mock") {
+      return this.callGatewayMock<TranslateResponse>("translate", request.caseId, "translate");
+    }
+    const prompt = buildTranslatePrompt(request);
+    return this.callGateway<TranslateResponse>("translate", prompt, {
+      caseId: request.caseId,
+      moduleScope: "translate",
       ...options
     });
   }
@@ -635,6 +669,25 @@ function buildReexamDraftPrompt(request: ReexamDraftRequest): string {
     ...(request.inventiveResults ? [``, `创造性复核:`, request.inventiveResults.slice(0, 4000)] : []),
     ...(request.defectResults ? [``, `缺陷复查:`, request.defectResults.slice(0, 2000)] : [])
   ].join("\n");
+}
+
+function buildSummaryPrompt(request: SummaryRequest): string {
+  return [
+    `案件基线: ${request.caseBaseline}`,
+    ``,
+    `Claim Chart（已确认特征）:`,
+    request.confirmedFeatures.slice(0, 4000),
+    ``,
+    `新颖性对照（已审核记录）:`,
+    request.reviewedNoveltyComparisons.slice(0, 4000),
+    ``,
+    `创造性分析:`,
+    request.inventiveAnalysis.slice(0, 4000),
+  ].join("\n");
+}
+
+function buildTranslatePrompt(request: TranslateRequest): string {
+  return request.documentText.slice(0, 12000);
 }
 
 function mockChat(request: ChatRequest): ChatResponse {

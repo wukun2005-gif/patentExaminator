@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const aiRunRequestSchema = z.object({
-  agent: z.enum(["interpret", "claim-chart", "novelty", "inventive", "summary", "draft", "chat", "defects", "search-references", "extract-case-fields", "opinion-analysis", "argument-analysis", "reexam-draft"]),
+  agent: z.enum(["interpret", "claim-chart", "novelty", "inventive", "summary", "draft", "chat", "defects", "search-references", "extract-case-fields", "opinion-analysis", "argument-analysis", "reexam-draft", "translate"]),
   providerPreference: z.array(z.string()).min(1),
   modelId: z.string().min(1),
   reasoningLevel: z.enum(["low", "medium", "high"]).optional(),
