@@ -55,6 +55,27 @@ export interface SourceDocument {
   extractedText: string;
   textIndex: TextIndex;
   createdAt: ISODateTimeString;
+  hasFigures?: boolean;
+}
+
+export interface DocumentFigure {
+  id: string;
+  documentId: string;
+  caseId: string;
+  figureNumber: number;
+  caption: string;
+  pageNumbers: number[];
+  imageDataUrl: string;
+  imageWidth: number;
+  imageHeight: number;
+  renderingMethod: "text-layer" | "full-page-render";
+}
+
+export interface MultimodalPart {
+  type: "text" | "image_url" | "inline_data";
+  text?: string;
+  image_url?: { url: string };
+  inline_data?: { mimeType: string; data: string };
 }
 
 export interface ReferenceDocument extends SourceDocument {

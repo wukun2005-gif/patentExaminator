@@ -15,7 +15,7 @@ const DEFAULT_MODELS = [
 
 // 排除：图片、音频、视频、嵌入、TTS等非文本模型
 const NON_TEXT_PATTERNS = [
-  /\bimage\b/i, /\bimagen\b/i, /\bnano\s*banana\b/i,
+  /\bimagen\b/i, /\bnano\s*banana\b/i,
   /\baudio\b/i, /\bspeech\b/i, /\btts\b/i,
   /\bembedding\b/i, /\bembed\b/i,
   /\bveo\b/i, /\bvideo\b/i, /\blyria\b/i, /\bmusic\b/i,
@@ -113,7 +113,30 @@ export class GeminiAdapter implements ProviderAdapter {
       .filter(m => m.role !== "system")
       .map(m => ({
         role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }]
+        parts: Array.isArray(m.content)
+          ? m.content.map(part => {
+              if (part.type === "text" && part.text != null) {
+                return { text: part.text };
+              }
+              if (part.type === "inline_data" && part.inline_data != null) {
+                return {
+                  inlineData: {
+                    mimeType: part.inline_data.mimeType,
+                    data: part.inline_data.data
+                  }
+                };
+              }
+              if (part.type === "image_url" && part.image_url != null) {
+                return {
+                  fileData: {
+                    mimeType: "image/png",
+                    fileUri: part.image_url.url
+                  }
+                };
+              }
+              return { text: "" };
+            })
+          : [{ text: m.content }]
       }));
 
     const systemInstruction = req.messages.find(m => m.role === "system");
@@ -127,7 +150,12 @@ export class GeminiAdapter implements ProviderAdapter {
     };
 
     if (systemInstruction) {
-      body.systemInstruction = { parts: [{ text: systemInstruction.content }] };
+      const sysContent = systemInstruction.content;
+      body.systemInstruction = {
+        parts: Array.isArray(sysContent)
+          ? sysContent.map(part => part.type === "text" && part.text != null ? { text: part.text } : { text: "" })
+          : [{ text: sysContent }]
+      };
     }
 
     let lastError: unknown;

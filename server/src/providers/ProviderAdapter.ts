@@ -1,4 +1,5 @@
 import type { ProviderId } from "@shared/types/agents";
+import type { MultimodalPart } from "@shared/types/domain";
 
 const NON_TEXT_PATTERNS = /embed|image|tts|audio|speech|whisper|dall|vision|moderation|rerank|code-search/i;
 
@@ -8,7 +9,7 @@ function isTextModel(id: string): boolean {
 
 export interface ChatRequest {
   modelId: string;
-  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string | MultimodalPart[] }>;
   temperature?: number;
   maxTokens?: number;
   apiKey: string;
