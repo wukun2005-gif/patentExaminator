@@ -320,6 +320,14 @@ function validateReexamDraftOutput(data) {
   return { valid: errors.length === 0, errors };
 }
 
+function validateSummaryOutput(data) {
+  if (!data || typeof data !== "object") return { valid: false, errors: ["not an object"] };
+  const errors = [];
+  if (typeof data.body !== "string" || data.body.length === 0) errors.push("missing or empty body");
+  if (typeof data.legalCaution !== "string") errors.push("missing legalCaution");
+  return { valid: errors.length === 0, errors };
+}
+
 // ── Mock Request Builder ─────────────────────────────────────────────
 
 function mockRequest(agent, caseId, moduleScope = "claim-chart", extra = {}) {
@@ -498,6 +506,166 @@ async function testMockReexamDraft_G1() {
     Array.isArray(items) && items.length >= 1, `count=${items?.length}`);
 }
 
+async function testMockSummary_G1() {
+  const res = await postJSON("/ai/run", mockRequest("summary", "g1-led", "summary"));
+  const data = await res.json();
+  log("Mock Summary G1 ok", data.ok === true, `ok=${data.ok}`);
+  log("Mock Summary G1 has outputJson", data.outputJson != null);
+
+  const result = validateSummaryOutput(data.outputJson);
+  log("Mock Summary G1 schema valid", result.valid, result.errors.join("; "));
+
+  const body = data.outputJson?.body;
+  log("Mock Summary G1 body non-empty", typeof body === "string" && body.length > 0);
+
+  const aiNotes = data.outputJson?.aiNotes;
+  log("Mock Summary G1 has aiNotes", typeof aiNotes === "string");
+}
+
+function validateTranslateOutput(data) {
+  if (!data || typeof data !== "object") return { valid: false, errors: ["not an object"] };
+  const errors = [];
+  if (typeof data.translatedText !== "string" || data.translatedText.length === 0) errors.push("missing or empty translatedText");
+  return { valid: errors.length === 0, errors };
+}
+
+async function testMockTranslate_G1() {
+  const res = await postJSON("/ai/run", mockRequest("translate", "g1-led", "translate"));
+  const data = await res.json();
+  log("Mock Translate G1 ok", data.ok === true, `ok=${data.ok}`);
+  log("Mock Translate G1 has outputJson", data.outputJson != null);
+
+  const result = validateTranslateOutput(data.outputJson);
+  log("Mock Translate G1 schema valid", result.valid, result.errors.join("; "));
+
+  const translatedText = data.outputJson?.translatedText;
+  log("Mock Translate G1 translatedText non-empty", typeof translatedText === "string" && translatedText.length > 0);
+}
+
+// ── Figure Extraction ────────────────────────────────────────────────
+
+function testFigureCaptionExtraction() {
+  const sampleText = `
+附图说明
+图1 是本发明实施例的结构示意图。
+图2 是散热翅片间距示意图。
+图3 是散热基板的俯视图。
+`;
+
+  const patterns = [/图\s*(\d+)\s*(?:是|为|示出了|表示|示出)?\s*(.{0,80})/g];
+  const results = [];
+  const seen = new Set();
+
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(sampleText)) !== null) {
+      const num = parseInt(match[1], 10);
+      if (!seen.has(num) && num > 0 && num <= 200) {
+        seen.add(num);
+        results.push({ number: num, caption: (match[2] || "").trim() });
+      }
+    }
+  }
+
+  results.sort((a, b) => a.number - b.number);
+
+  log("Figure caption extraction count", results.length === 3, `count=${results.length}`);
+  log("Figure caption extraction Fig1", results[0]?.number === 1, `fig1=${results[0]?.number}`);
+  log("Figure caption extraction Fig2", results[1]?.number === 2, `fig2=${results[1]?.number}`);
+  log("Figure caption extraction Fig3", results[2]?.number === 3, `fig3=${results[2]?.number}`);
+}
+
+function testFigureSectionDetection() {
+  const headers = ["附图说明", "说明书附图", "附图", "BRIEF DESCRIPTION OF THE DRAWINGS"];
+
+  log("Figure section '附图说明'", headers.some(h => "附图说明".includes(h)));
+  log("Figure section '说明书附图'", headers.some(h => "说明书附图".includes(h)));
+  log("Figure section 'BRIEF DESCRIPTION'", headers.some(h => "BRIEF DESCRIPTION OF THE DRAWINGS".toLowerCase().includes(h.toLowerCase())));
+}
+
+function testLikelyFigurePage() {
+  const emptyPage = "";
+  const shortPage = "图1";
+  const textPage = "本发明涉及一种LED散热装置，包括散热基板和散热翅片。散热基板通过压铸一体成型，散热翅片与散热基板一体成型，且散热翅片的间距为2-5mm。";
+
+  const MIN_TEXT = 50;
+
+  const isFigure1 = emptyPage.trim().length < MIN_TEXT;
+  const isFigure2 = shortPage.trim().length < MIN_TEXT;
+  const isFigure3 = textPage.trim().length < MIN_TEXT;
+
+  log("Likely figure page (empty)", isFigure1);
+  log("Likely figure page (short)", isFigure2);
+  log("Likely figure page (text)", !isFigure3);
+}
+
+// ── Import Gate ──────────────────────────────────────────────────────
+
+function testImportGateIncomplete() {
+  const REQUIRED = ["reexam-request", "rejection-decision", "original-application"];
+
+  const files = [
+    { id: "1", fileType: "reexam-request", required: true },
+  ];
+
+  const hasAllRequired = REQUIRED.every((type) => files.some((f) => f.fileType === type));
+  log("Import gate incomplete (missing files)", !hasAllRequired);
+
+  const missing = REQUIRED.filter((type) => !files.some((f) => f.fileType === type));
+  log("Import gate missing count", missing.length === 2, `missing=${missing.length}`);
+  log("Import gate missing rejection-decision", missing.includes("rejection-decision"));
+  log("Import gate missing original-application", missing.includes("original-application"));
+}
+
+function testImportGateReady() {
+  const REQUIRED = ["reexam-request", "rejection-decision", "original-application"];
+
+  const files = [
+    { id: "1", fileType: "reexam-request", required: true },
+    { id: "2", fileType: "rejection-decision", required: true },
+    { id: "3", fileType: "original-application", required: true },
+  ];
+
+  const hasAllRequired = REQUIRED.every((type) => files.some((f) => f.fileType === type));
+  log("Import gate ready (all required)", hasAllRequired);
+
+  const hasOptional = files.some((f) => f.fileType === "comparison-document");
+  log("Import gate warning (no optional)", !hasOptional);
+}
+
+function testImportGateWithOptional() {
+  const REQUIRED = ["reexam-request", "rejection-decision", "original-application"];
+
+  const files = [
+    { id: "1", fileType: "reexam-request", required: true },
+    { id: "2", fileType: "rejection-decision", required: true },
+    { id: "3", fileType: "original-application", required: true },
+    { id: "4", fileType: "comparison-document", required: false },
+  ];
+
+  const hasAllRequired = REQUIRED.every((type) => files.some((f) => f.fileType === type));
+  const hasOptional = files.some((f) => f.fileType === "comparison-document");
+  log("Import gate fully ready", hasAllRequired && hasOptional);
+}
+
+function testImportGateDeleteRestoresBlock() {
+  const REQUIRED = ["reexam-request", "rejection-decision", "original-application"];
+
+  let files = [
+    { id: "1", fileType: "reexam-request", required: true },
+    { id: "2", fileType: "rejection-decision", required: true },
+    { id: "3", fileType: "original-application", required: true },
+  ];
+
+  let hasAllRequired = REQUIRED.every((type) => files.some((f) => f.fileType === type));
+  log("Import gate before delete", hasAllRequired);
+
+  files = files.filter((f) => f.fileType !== "original-application");
+  hasAllRequired = REQUIRED.every((type) => files.some((f) => f.fileType === type));
+  log("Import gate after delete (blocked)", !hasAllRequired);
+}
+
 // ── Schema Validation ────────────────────────────────────────────────
 
 async function testSchemaClaimChart() {
@@ -560,8 +728,8 @@ async function testEmptyClaimText() {
 // ── Error: Mock Fixture Not Found ────────────────────────────────────
 
 async function testMockFixtureNotFound() {
-  // Use an agent that has no fixtures at all (summary has no mock fixture)
-  const res = await postJSON("/ai/run", mockRequest("summary", "nonexistent-case", "summary"));
+  // Use an agent that has no fixtures at all (search-references has no mock fixture)
+  const res = await postJSON("/ai/run", mockRequest("search-references", "nonexistent-case", "search-references"));
   log("Unknown mock fixture returns 400", res.status === 400, `status=${res.status}`);
 }
 
@@ -1075,6 +1243,21 @@ async function main() {
       await maybe(testMockOpinionAnalysis_G1);
       await maybe(testMockArgumentAnalysis_G1);
       await maybe(testMockReexamDraft_G1);
+      await maybe(testMockSummary_G1);
+      await maybe(testMockTranslate_G1);
+
+      // Figure Extraction
+      console.log("\n--- Figure Extraction ---");
+      testFigureCaptionExtraction();
+      testFigureSectionDetection();
+      testLikelyFigurePage();
+
+      // Import Gate
+      console.log("\n--- Import Gate ---");
+      testImportGateIncomplete();
+      testImportGateReady();
+      testImportGateWithOptional();
+      testImportGateDeleteRestoresBlock();
 
       // Schema
       console.log("\n--- Schema Validation ---");
