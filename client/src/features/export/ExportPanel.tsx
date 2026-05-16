@@ -1,4 +1,5 @@
 import type { PatentCase, ClaimFeature, NoveltyComparison, InventiveStepAnalysis, FormalDefect } from "@shared/types/domain";
+import type { ReexamDraftResponse, SummaryResponse } from "../../agent/contracts";
 import { renderCaseHtml, downloadHtml } from "../../lib/exportHtml";
 import { buildExportFileName } from "../../lib/fileNameSanitize";
 
@@ -10,6 +11,8 @@ interface ExportPanelProps {
   pendingSearchQuestions: string[];
   inventiveAnalysis?: InventiveStepAnalysis | undefined;
   defects?: FormalDefect[] | undefined;
+  reexamDraft?: ReexamDraftResponse | undefined;
+  summary?: SummaryResponse | undefined;
 }
 
 export function ExportPanel({
@@ -19,7 +22,9 @@ export function ExportPanel({
   differenceFeatureCodes,
   pendingSearchQuestions,
   inventiveAnalysis,
-  defects
+  defects,
+  reexamDraft,
+  summary
 }: ExportPanelProps) {
   const viewModel = {
     caseData,
@@ -28,7 +33,9 @@ export function ExportPanel({
     differenceFeatureCodes,
     pendingSearchQuestions,
     inventiveAnalysis,
-    defects
+    defects,
+    reexamDraft,
+    summary
   };
 
   const appNumber = caseData.applicationNumber ?? "unknown";
@@ -70,6 +77,12 @@ export function ExportPanel({
             )}
             {defects && defects.length > 0 && (
               <li>形式缺陷检查（{defects.length} 项，{defects.filter((d) => !d.resolved).length} 项未解决）</li>
+            )}
+            {reexamDraft && (
+              <li>复审意见草稿（{reexamDraft.responseItems.length} 条回应）</li>
+            )}
+            {summary && (
+              <li>审查意见简述（含原文引用）</li>
             )}
           </ul>
         </div>

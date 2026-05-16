@@ -18,6 +18,7 @@ const CASE_NAV_ITEMS = [
   { path: "inventive", label: "创造性复核", icon: "💡" },
   { path: "defects", label: "缺陷复查", icon: "⚠️" },
   { path: "draft", label: "复审意见草稿", icon: "✏️" },
+  { path: "summary", label: "审查意见简述", icon: "📝" },
   { path: "export", label: "导出", icon: "📤" }
 ];
 

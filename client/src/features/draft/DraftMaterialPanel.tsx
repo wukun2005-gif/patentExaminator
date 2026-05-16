@@ -131,15 +131,20 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
                   </p>
                   <p><strong>候选结论：</strong>{REEXAM_CONCLUSION_LABELS[item.conclusion] ?? item.conclusion}</p>
                   {item.supportingEvidence && item.supportingEvidence.length > 0 && (
-                    <ul>
+                    <div className="supporting-evidence">
+                      <strong>原文依据：</strong>
                       {item.supportingEvidence.map((evidence) => (
-                        <li key={`${item.rejectionGroundCode}-${evidence.label}`}>
-                          {evidence.label}
-                          {evidence.quote ? `：「${evidence.quote}」` : ""}
-                          （置信度：{evidence.confidence}）
-                        </li>
+                        <blockquote
+                          key={`${item.rejectionGroundCode}-${evidence.label}`}
+                          className={`citation-quote citation-quote--${evidence.confidence}`}
+                          data-testid={`citation-${evidence.confidence}`}
+                        >
+                          <cite>{evidence.label}</cite>
+                          {evidence.quote ? <p>「{evidence.quote}」</p> : <p className="citation-quote--missing">待补充原文依据</p>}
+                          <span className="citation-confidence">置信度：{evidence.confidence}</span>
+                        </blockquote>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </div>
               ))}

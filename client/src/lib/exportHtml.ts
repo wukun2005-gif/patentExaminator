@@ -1,4 +1,5 @@
 import type { PatentCase, ClaimFeature, NoveltyComparison, InventiveStepAnalysis, FormalDefect } from "@shared/types/domain";
+import type { ReexamDraftResponse, SummaryResponse } from "../agent/contracts";
 
 export interface ExportViewModel {
   caseData: PatentCase;
@@ -8,6 +9,8 @@ export interface ExportViewModel {
   pendingSearchQuestions: string[];
   inventiveAnalysis?: InventiveStepAnalysis | undefined;
   defects?: FormalDefect[] | undefined;
+  reexamDraft?: ReexamDraftResponse | undefined;
+  summary?: SummaryResponse | undefined;
 }
 
 const LEGAL_DISCLAIMER = "本文件为审查辅助素材，不构成法律结论。所有 AI 生成内容均为候选事实整理，需审查员确认。";
@@ -88,6 +91,7 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
         <tr>
           <th>特征代码</th>
           <th>公开状态</th>
+          <th>原文引用</th>
           <th>审查员备注</th>
         </tr>
       </thead>
@@ -98,6 +102,7 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
         <tr>
           <td>${row.featureCode}</td>
           <td>${DISCLOSURE_LABELS[row.disclosureStatus] ?? row.disclosureStatus}</td>
+          <td>${row.citations?.[0]?.quote ? `「${row.citations[0].quote}」` : "—"}</td>
           <td>${row.reviewerNotes ?? "—"}</td>
         </tr>`
           )
@@ -207,6 +212,65 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
       : ""
   }
 
+  ${
+    viewModel.reexamDraft
+      ? `
+  <div class="section">
+    <h2>复审意见草稿</h2>
+    ${viewModel.reexamDraft.responseItems
+      .map(
+        (item) => `
+    <h3>${item.rejectionGroundCode} · ${item.category}</h3>
+    <p><strong>申请人意见：</strong>${item.applicantArgumentSummary}</p>
+    <p><strong>审查员回应草稿：</strong>${item.examinerResponse}</p>
+    <p><strong>候选结论：</strong>${REEXAM_CONCLUSION_LABELS[item.conclusion] ?? item.conclusion}</p>
+    ${
+      item.supportingEvidence && item.supportingEvidence.length > 0
+        ? `<div class="supporting-evidence">
+    <strong>原文依据：</strong>
+    ${item.supportingEvidence
+      .map(
+        (e) => `<blockquote class="citation-quote">
+      <cite>${e.label}</cite>
+      ${e.quote ? `<p>「${e.quote}」</p>` : "<p>待补充原文依据</p>"}
+      <span>置信度：${e.confidence}</span>
+    </blockquote>`
+      )
+      .join("")}
+  </div>`
+        : ""
+    }`
+      )
+      .join("")}
+    <h3>综合评估</h3>
+    <p>${viewModel.reexamDraft.overallAssessment}</p>
+    ${
+      viewModel.reexamDraft.defectReviewSummary
+        ? `<h3>缺陷复查总结</h3><p>${viewModel.reexamDraft.defectReviewSummary}</p>`
+        : ""
+    }
+    <p><em>${viewModel.reexamDraft.legalCaution}</em></p>
+  </div>`
+      : ""
+  }
+
+  ${
+    viewModel.summary
+      ? `
+  <div class="section">
+    <h2>审查意见简述</h2>
+    <h3>正文</h3>
+    <div>${viewModel.summary.body}</div>
+    ${
+      viewModel.summary.aiNotes
+        ? `<h3>AI 备注</h3><div>${viewModel.summary.aiNotes}</div>`
+        : ""
+    }
+    <p><em>${viewModel.summary.legalCaution}</em></p>
+  </div>`
+      : ""
+  }
+
   <div class="legal-disclaimer">
     <strong>法律免责声明：</strong>${LEGAL_DISCLAIMER}
   </div>
@@ -250,4 +314,11 @@ const DISCLOSURE_LABELS: Record<string, string> = {
   "possibly-disclosed": "可能公开",
   "not-found": "未找到",
   "not-applicable": "不适用"
+};
+
+const REEXAM_CONCLUSION_LABELS: Record<string, string> = {
+  "argument-accepted": "答辩成立",
+  "argument-partially-accepted": "答辩部分成立",
+  "argument-rejected": "答辩不成立",
+  "needs-further-review": "需进一步审查"
 };
