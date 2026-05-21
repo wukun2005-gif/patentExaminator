@@ -1125,6 +1125,40 @@
   opacity: 0.6;
 }
 
+.provider-card--collapsed .provider-card__header {
+  margin-bottom: 0;
+}
+
+.provider-card__collapse-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+.provider-card__collapse-toggle .collapse-icon {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--pex-color-text-muted);
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.provider-card__collapse-toggle:hover .collapse-icon {
+  color: var(--pex-color-text-secondary);
+}
+
+.provider-card__collapse-toggle strong {
+  font-size: var(--pex-font-size-subtitle);
+}
+
 .provider-card__header {
   display: flex;
   justify-content: space-between;

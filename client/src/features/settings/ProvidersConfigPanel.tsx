@@ -1,9 +1,31 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { ProviderConnection, ProviderId } from "@shared/types/agents";
 import { PRESET_MODEL_PROVIDERS } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
 import { fetchModels } from "../../lib/api";
 import { DEFAULT_MODELS, getModelMeta } from "../../lib/modelCatalog";
+
+const PROVIDER_EXPANDED_KEY = "pex-provider-expanded";
+
+function loadExpandedState(): Record<string, boolean> {
+  try {
+    const saved = localStorage.getItem(PROVIDER_EXPANDED_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
+function saveExpandedState(state: Record<string, boolean>) {
+  try {
+    localStorage.setItem(PROVIDER_EXPANDED_KEY, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
+}
 
 export function ProvidersConfigPanel() {
   const { settings, setSettings } = useSettingsStore();
@@ -11,8 +33,22 @@ export function ProvidersConfigPanel() {
   const [keyInput, setKeyInput] = useState("");
   const [loadingModels, setLoadingModels] = useState<string | null>(null);
   const [modelError, setModelError] = useState<Record<string, string>>({});
+  const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
   const dragItem = useRef<{ providerId: string; index: number } | null>(null);
   const dragOverItem = useRef<{ providerId: string; index: number } | null>(null);
+
+  // Load expanded state from localStorage on mount
+  useEffect(() => {
+    setExpandedProviders(loadExpandedState());
+  }, []);
+
+  const toggleExpanded = (providerId: string) => {
+    setExpandedProviders((prev) => {
+      const next = { ...prev, [providerId]: !prev[providerId] };
+      saveExpandedState(next);
+      return next;
+    });
+  };
 
   const getProvider = (id: ProviderId): ProviderConnection | undefined =>
     settings.providers.find((p) => p.providerId === id);
@@ -146,17 +182,26 @@ export function ProvidersConfigPanel() {
           const modelMetaMap = new Map(
             fallbackList.map((id) => [id, getModelMeta(preset.id, id)])
           );
+          const isExpanded = expandedProviders[preset.id] ?? false;
           return (
             <div
               key={preset.id}
-              className={`provider-card ${provider.enabled ? "" : "provider-card--disabled"}`}
+              className={`provider-card ${provider.enabled ? "" : "provider-card--disabled"} ${isExpanded ? "provider-card--expanded" : "provider-card--collapsed"}`}
               data-testid={`provider-${preset.id}`}
             >
               <div className="provider-card__header">
-                <div>
+                <button
+                  type="button"
+                  className="provider-card__collapse-toggle"
+                  onClick={() => toggleExpanded(preset.id)}
+                  aria-expanded={isExpanded}
+                  aria-label={isExpanded ? "折叠" : "展开"}
+                  data-testid={`toggle-collapse-${preset.id}`}
+                >
+                  <span className="collapse-icon">{isExpanded ? "▼" : "▶"}</span>
                   <strong>{preset.displayName}</strong>
                   <span className="provider-card__desc">{preset.desc}</span>
-                </div>
+                </button>
                 <div className="provider-card__actions">
                   <label className="toggle-label">
                     <input
@@ -170,8 +215,9 @@ export function ProvidersConfigPanel() {
                 </div>
               </div>
 
-              <div className="provider-card__body">
-                <div className="provider-card__field">
+              {isExpanded && (
+                <div className="provider-card__body">
+                  <div className="provider-card__field">
                   <label>Base URL</label>
                   <input
                     type="text"
@@ -307,7 +353,8 @@ export function ProvidersConfigPanel() {
                     </div>
                   </div>
                 )}
-              </div>
+                </div>
+              )}
             </div>
           );
         })}
