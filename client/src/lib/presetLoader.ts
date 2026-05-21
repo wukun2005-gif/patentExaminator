@@ -11,7 +11,7 @@ import type {
   ReferenceDocument
 } from "@shared/types/domain";
 import { createCase, readCaseById } from "./repositories/caseRepo";
-import { createDocument } from "./repositories/documentRepo";
+import { createDocument, readDocumentsByCaseId } from "./repositories/documentRepo";
 import { createClaimNode, createClaimFeature } from "./repositories/claimRepo";
 import { createNovelty } from "./repositories/noveltyRepo";
 import { createInventive } from "./repositories/inventiveRepo";
@@ -111,9 +111,25 @@ export async function loadPresetCase(): Promise<string> {
     ...(data.officeActionDoc ? [data.officeActionDoc] : []),
     ...(data.officeActionResponseDoc ? [data.officeActionResponseDoc] : [])
   ]);
-  useReferencesStore.getState().setReferences(
-    data.referenceDocs as unknown as ReferenceDocument[]
-  );
+  
+  // References: preserve user-uploaded references on subsequent loads
+  if (isFirstLoad) {
+    useReferencesStore.getState().setReferences(
+      data.referenceDocs as unknown as ReferenceDocument[]
+    );
+  } else {
+    // Load existing references from IndexedDB to preserve user uploads
+    let existingRefs: ReferenceDocument[] = [];
+    try {
+      const allDocs = await readDocumentsByCaseId(theCase.id);
+      existingRefs = allDocs.filter((d): d is ReferenceDocument => 
+        d.role === "reference"
+      ) as ReferenceDocument[];
+    } catch {
+      existingRefs = data.referenceDocs as unknown as ReferenceDocument[];
+    }
+    useReferencesStore.getState().setReferences(existingRefs);
+  }
   useClaimsStore.getState().setClaimNodes(data.claimNodes);
   useClaimsStore.getState().setClaimFeatures(data.claimFeatures);
   useNoveltyStore.getState().setComparisons(data.noveltyComparisons);

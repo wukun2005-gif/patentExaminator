@@ -25,3 +25,7 @@ B-008/
 # Project management (local only)
 backlog.md
 scripts/
+
+# AI IDE configs (local only)
+.cline/
+.clinerules/

@@ -3,6 +3,15 @@ import type { ReferenceDocument, ClaimFeature } from "@shared/types/domain";
 import type { NoveltyRequest, NoveltyResponse } from "../../agent/contracts";
 import { useNoveltyStore } from "../../store";
 
+// DEBUG: 调试 bug 18 - 删除对比文件后无法再加载再比较
+const DEBUG_NOVELTY = true;
+
+function debugLog(...args: unknown[]) {
+  if (DEBUG_NOVELTY) {
+    console.log("[NoveltyAgentTrigger]", ...args);
+  }
+}
+
 interface NoveltyAgentTriggerProps {
   caseId: string;
   claimNumber: number;
@@ -25,16 +34,41 @@ export function NoveltyAgentTrigger({
   const { addComparison, setLoading, isLoading } = useNoveltyStore();
   const [selectedRefId, setSelectedRefId] = useState<string>("");
 
+  // DEBUG: 记录 props 变化
+  useEffect(() => {
+    debugLog("props更新:", {
+      caseId,
+      claimNumber,
+      featuresCount: features.length,
+      referencesCount: references.length,
+      referenceIds: references.map(r => r.id),
+      selectedRefId
+    });
+  }, [caseId, claimNumber, features, references, selectedRefId]);
+
   // 当删除文件时清除无效的 selectedRefId和相关 comparison
   useEffect(() => {
+    debugLog("useEffect触发 - 检查references变化:", {
+      selectedRefId,
+      referencesCount: references.length,
+      referenceIds: references.map(r => r.id)
+    });
+    
     if (selectedRefId && !references.find((r) => r.id === selectedRefId)) {
+      debugLog("selectedRefId无效，清空:", { oldSelectedRefId: selectedRefId });
       setSelectedRefId("");
     }
     // 清除引用已删除 reference 的 comparison
     const refIds = new Set(references.map((r) => r.id));
     const { comparisons, removeComparison } = useNoveltyStore.getState();
+    debugLog("检查comparisons:", {
+      comparisonsCount: comparisons.length,
+      comparisonReferenceIds: comparisons.map(c => c.referenceId),
+      validRefIds: [...refIds]
+    });
     for (const c of comparisons) {
       if (!refIds.has(c.referenceId)) {
+        debugLog("删除无效comparison:", { comparisonId: c.id, referenceId: c.referenceId });
         removeComparison(c.id);
       }
     }
@@ -43,11 +77,24 @@ export function NoveltyAgentTrigger({
   const availableRefs = references.filter((r) => r.timelineStatus === "available");
   const unavailableRefs = references.filter((r) => r.timelineStatus !== "available");
 
+  debugLog("references分类:", {
+    available: availableRefs.map(r => ({ id: r.id, title: r.title ?? r.fileName })),
+    unavailable: unavailableRefs.map(r => ({ id: r.id, title: r.title ?? r.fileName, status: r.timelineStatus }))
+  });
+
   const handleRun = async () => {
-    if (!selectedRefId || isLoading) return;
+    debugLog("handleRun触发:", { selectedRefId, isLoading });
+    if (!selectedRefId || isLoading) {
+      debugLog("handleRun提前返回:", { reason: !selectedRefId ? "无selectedRefId" : "isLoading" });
+      return;
+    }
 
     const ref = references.find((r) => r.id === selectedRefId);
-    if (!ref || ref.timelineStatus !== "available") return;
+    debugLog("查找reference:", { selectedRefId, found: !!ref, timelineStatus: ref?.timelineStatus });
+    if (!ref || ref.timelineStatus !== "available") {
+      debugLog("handleRun提前返回: ref无效或不可用");
+      return;
+    }
 
     setLoading(true);
     try {

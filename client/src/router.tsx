@@ -80,6 +80,15 @@ function SummaryWrapper() {
   );
 }
 
+// DEBUG: 调试 bug 18 - 删除对比文件后无法再加载再比较
+const DEBUG_NOVELTY_WRAPPER = true;
+
+function debugNoveltyLog(...args: unknown[]) {
+  if (DEBUG_NOVELTY_WRAPPER) {
+    console.log("[NoveltyWrapper]", ...args);
+  }
+}
+
 function NoveltyWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { currentCase } = useCaseStore();
@@ -93,6 +102,18 @@ function NoveltyWrapper() {
   const claimNumber = currentCase?.targetClaimNumber ?? 1;
   const features = claimFeatures.filter((f) => f.caseId === caseId && f.claimNumber === claimNumber);
   const caseRefs = references.filter((r) => r.caseId === caseId);
+
+  // DEBUG: 记录 NoveltyWrapper 状态
+  debugNoveltyLog("渲染状态:", {
+    caseId,
+    claimNumber,
+    allReferencesCount: references.length,
+    caseRefsCount: caseRefs.length,
+    caseRefsIds: caseRefs.map(r => r.id),
+    featuresCount: features.length,
+    comparisonsCount: comparisons.length,
+    hasComparison: !!comparison
+  });
 
   const noveltyArgumentCodes = new Set(
     officeActionAnalysis?.rejectionGrounds
@@ -146,6 +167,15 @@ function InventiveWrapper() {
     .filter((f) => f.caseId === caseId && f.claimNumber === claimNumber)
     .map((f) => ({ featureCode: f.featureCode, description: f.description }));
   const caseRefs = references.filter((r) => r.caseId === caseId);
+  
+  // DEBUG: Log all references in store and case-specific refs
+  console.log("[InventiveWrapper] Store references:", {
+    allReferencesCount: references.length,
+    allReferences: references.map(r => ({ id: r.id, caseId: r.caseId, title: r.title ?? r.fileName })),
+    caseId,
+    caseRefsCount: caseRefs.length,
+    caseRefs: caseRefs.map(r => ({ id: r.id, title: r.title ?? r.fileName, timelineStatus: r.timelineStatus }))
+  });
   const existingAnalysis = analyses.find(
     (a) => a.caseId === caseId && a.id === `inventive-${caseId}-${claimNumber}`
   );

@@ -40,6 +40,18 @@ export function InventiveStepPanel({
   const [selectedClosestId, setSelectedClosestId] = useState<string>(
     () => analysis?.closestPriorArtId ?? ""
   );
+  
+  // Debug: log available references and state
+  console.log("[InventiveStepPanel] Render state:", {
+    caseId,
+    claimNumber,
+    referencesCount: references.length,
+    availableRefsCount: availableRefs.length,
+    availableRefs: availableRefs.map(r => ({ id: r.id, title: r.title ?? r.publicationNumber, timelineStatus: r.timelineStatus })),
+    analysisExists: !!analysis,
+    analysisClosestPriorArtId: analysis?.closestPriorArtId,
+    selectedClosestId
+  });
   const [selectedDistinguishing, setSelectedDistinguishing] = useState<string[]>(
     () => analysis?.distinguishingFeatureCodes ?? []
   );
@@ -126,10 +138,20 @@ export function InventiveStepPanel({
   };
 
   const handleSelectClosest = (refId: string) => {
+    console.log("[InventiveStepPanel] handleSelectClosest called:", { 
+      refId, 
+      currentSelected: selectedClosestId,
+      analysisExists: !!analysis,
+      analysisId: analysis?.id,
+      analysisClosestPriorArtId: analysis?.closestPriorArtId
+    });
     setSelectedClosestId(refId);
     // 更新 analysis 中的 closestPriorArtId
     if (analysis) {
+      console.log("[InventiveStepPanel] Updating analysis with new closestPriorArtId:", refId);
       updateAnalysis({ ...analysis, closestPriorArtId: refId });
+    } else {
+      console.log("[InventiveStepPanel] No analysis to update");
     }
   };
 
