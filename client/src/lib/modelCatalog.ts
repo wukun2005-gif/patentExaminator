@@ -36,6 +36,14 @@ export const DEFAULT_MODELS: Record<ProviderId, ModelInfo[]> = {
     { id: "qwen-plus", recommendation: "能力均衡", rpm: 10, rpd: 500, tpm: "5.0M", inputTokenLimit: 131072, outputTokenLimit: 8192 },
     { id: "qwen-max", recommendation: "能力最强", rpm: 5, rpd: 200, tpm: "3.0M", inputTokenLimit: 32768, outputTokenLimit: 8192 },
     { id: "qwen3-235b-a22b", recommendation: "最新旗舰 MoE", rpm: 5, rpd: 200, tpm: "3.0M", inputTokenLimit: 131072, outputTokenLimit: 8192 }
+  ],
+  bedrock: [
+    { id: "anthropic.claude-3-5-sonnet-20241022-v2:0", recommendation: "Claude 3.5 Sonnet (最强)", inputTokenLimit: 200000, outputTokenLimit: 8192 },
+    { id: "anthropic.claude-3-5-haiku-20241022-v1:0", recommendation: "Claude 3.5 Haiku (快速)", inputTokenLimit: 200000, outputTokenLimit: 8192 },
+    { id: "anthropic.claude-3-sonnet-20240229-v1:0", recommendation: "Claude 3 Sonnet", inputTokenLimit: 200000, outputTokenLimit: 4096 },
+    { id: "anthropic.claude-3-haiku-20240307-v1:0", recommendation: "Claude 3 Haiku", inputTokenLimit: 200000, outputTokenLimit: 4096 },
+    { id: "meta.llama3-2-3b-instruct-v1:0", recommendation: "Llama 3.2 3B (轻量)", inputTokenLimit: 131072, outputTokenLimit: 2048 },
+    { id: "meta.llama3-2-1b-instruct-v1:0", recommendation: "Llama 3.2 1B (最小)", inputTokenLimit: 131072, outputTokenLimit: 2048 }
   ]
 };
 

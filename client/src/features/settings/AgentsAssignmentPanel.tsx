@@ -23,7 +23,8 @@ const PROVIDER_NAMES: Record<ProviderId, string> = {
   glm: "GLM",
   minimax: "MiniMax",
   deepseek: "DeepSeek",
-  qwen: "Qwen"
+  qwen: "Qwen",
+  bedrock: "Bedrock"
 };
 
 export function AgentsAssignmentPanel() {
