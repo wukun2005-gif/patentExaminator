@@ -117,7 +117,7 @@ export class AgentClient {
     options?: AgentRunOptions
   ): Promise<NoveltyResponse> {
     if (this.mode === "mock") {
-      throw new Error("mock-novelty-not-implemented-in-agent-client");
+      return this.callGatewayMock<NoveltyResponse>("novelty", request.caseId, "novelty");
     }
     const prompt = buildNoveltyPrompt(request);
     return this.callGateway<NoveltyResponse>("novelty", prompt, {
