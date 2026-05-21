@@ -24,10 +24,16 @@
     "test:watch": "vitest",
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "test:e2e": "node tests/e2e-real.mjs",
+    "test:e2e:check": "node tests/e2e-real.mjs --check",
     "test:e2e:real": "node tests/e2e-real.mjs --real",
+    "test:e2e:db": "node tests/e2e-real.mjs --only db",
+    "test:db": "vitest run --config vitest.integration.config.ts tests/integration/dbLogicChain.test.ts",
+    "test:db:scenario": "vitest run --config vitest.integration.config.ts tests/integration/dbScenario.test.ts",
+    "test:db:all": "vitest run --config vitest.integration.config.ts tests/integration/dbLogicChain.test.ts tests/integration/dbScenario.test.ts",
     "test:evaluation": "vitest run -c vitest.evaluation.config.ts",
     "test:ai-smoke": "node tests/developer-ai-smoke.mjs",
-    "verify": "npm run typecheck && npm run lint && npm test && npm run test:integration && npm run test:e2e && npm run test:evaluation",
+    "gate": "npm run typecheck && npm run lint",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run test:integration && npm run test:db:all && npm run test:e2e && npm run test:evaluation",
     "verify:precommit": "npm run verify && npm run test:ai-smoke"
   },
   "devDependencies": {

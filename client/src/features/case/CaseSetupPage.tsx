@@ -8,11 +8,12 @@ import { extractHtmlText } from "../../lib/htmlText";
 import { buildTextIndex } from "../../lib/textIndex";
 import { computeFileHash } from "../../lib/fileHash";
 import { extractCaseFields, extractCaseFieldsFallback, type ExtractedFields } from "../../lib/caseFieldExtractor";
-import { createDocument, readDocumentsByCaseId } from "../../lib/repositories/documentRepo";
+import { createDocument, readDocumentsByCaseId, updateDocument, deleteDocument } from "../../lib/repositories/documentRepo";
 import { createClaimNode } from "../../lib/repositories/claimRepo";
 import { readCaseById, createCase, updateCase } from "../../lib/repositories/caseRepo";
 import { useCaseStore, useDocumentsStore, useClaimsStore, useSettingsStore, useReferencesStore } from "../../store";
 import { AgentClient } from "../../agent/AgentClient";
+import type { DocumentClassification } from "../../agent/contracts";
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".html"];
 
@@ -60,12 +61,19 @@ export function CaseSetupPage() {
   const { references } = useReferencesStore();
   const { settings } = useSettingsStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const batchFileInputRef = useRef<HTMLInputElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fileStatuses, setFileStatuses] = useState<Record<string, string>>({});
   const [extracted, setExtracted] = useState<ExtractedFields | null>(null);
   const [extractingFields, setExtractingFields] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [uploadRole, setUploadRole] = useState<SourceDocument["role"]>("application");
+  // 新增：批量上传和分类相关状态
+  const [batchUploading, setBatchUploading] = useState(false);
+  const [classifying, setClassifying] = useState(false);
+  const [classifyError, setClassifyError] = useState<string | null>(null);
+  const [_pendingDocuments, setPendingDocuments] = useState<SourceDocument[]>([]);
+  const [draggedDoc, setDraggedDoc] = useState<SourceDocument | null>(null);
 
   const {
     register,
@@ -283,6 +291,205 @@ export function CaseSetupPage() {
     fileInputRef.current?.click();
   };
 
+  // ========== 批量上传和 AI 分类功能 ==========
+
+  // 批量上传处理：用户一次性上传所有文件，先存为 pending 状态
+  const handleBatchFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !caseId) return;
+
+    setBatchUploading(true);
+    setClassifyError(null);
+    const newPendingDocs: SourceDocument[] = [];
+
+    for (const file of Array.from(files)) {
+      const ext = getFileExtension(file.name);
+      if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+        setFileStatuses((prev) => ({ ...prev, [file.name]: `不支持的格式: ${ext}` }));
+        continue;
+      }
+
+      setFileStatuses((prev) => ({ ...prev, [file.name]: "处理中..." }));
+
+      try {
+        const fileHash = await computeFileHash(file);
+        let text = "";
+        let textStatus: SourceDocument["textStatus"] = "empty";
+        let textLayerStatus: SourceDocument["textLayerStatus"] = "unknown";
+
+        if (ext === ".pdf") {
+          const result = await extractPdfText(file);
+          text = result.text;
+          textLayerStatus = result.hasTextLayer ? "present" : "absent";
+          textStatus = result.text ? "extracted" : "empty";
+        } else if (ext === ".docx") {
+          const result = await extractDocxText(file);
+          text = result.text;
+          textStatus = result.text ? "extracted" : "empty";
+        } else if (ext === ".html") {
+          const result = extractHtmlText(await file.text());
+          text = result.text;
+          textStatus = result.text ? "extracted" : "empty";
+        } else if (ext === ".txt") {
+          text = await file.text();
+          textStatus = text ? "extracted" : "empty";
+        }
+
+        const textIndex = buildTextIndex(text);
+        // 批量上传时先使用 'reference' 作为默认角色，后续由 AI 分类
+        const doc: SourceDocument = {
+          id: `doc-${fileHash.slice(0, 8)}`,
+          caseId,
+          role: "reference", // 默认角色，待 AI 分类后更新
+          fileName: file.name,
+          fileType: ext.replace(".", "") as SourceDocument["fileType"],
+          fileHash,
+          textLayerStatus,
+          textStatus,
+          extractedText: text,
+          textIndex,
+          createdAt: new Date().toISOString()
+        };
+
+        newPendingDocs.push(doc);
+        setFileStatuses((prev) => ({ ...prev, [file.name]: "待分类" }));
+      } catch (err) {
+        setFileStatuses((prev) => ({ ...prev, [file.name]: `出错: ${err}` }));
+      }
+    }
+
+    setPendingDocuments(newPendingDocs);
+    setBatchUploading(false);
+
+    // 自动触发 AI 分类
+    if (newPendingDocs.length > 0) {
+      await classifyDocuments(newPendingDocs);
+    }
+
+    // Reset file input
+    if (batchFileInputRef.current) batchFileInputRef.current.value = "";
+  };
+
+  // AI 分类：调用 classify-documents Agent
+  const classifyDocuments = async (docs: SourceDocument[]) => {
+    if (!caseId || docs.length === 0) return;
+
+    setClassifying(true);
+    setClassifyError(null);
+
+    try {
+      const client = new AgentClient(settings.mode, "/api", settings);
+      
+      const request = {
+        caseId,
+        documents: docs.map((doc, index) => ({
+          fileIndex: index,
+          fileName: doc.fileName,
+          textSample: doc.extractedText.slice(0, 2000) // 取前 2000 字符用于分类
+        }))
+      };
+
+      const result = await client.runClassifyDocuments(request);
+      
+      // 根据分类结果更新文档角色
+      await applyClassificationResults(docs, result.classifications);
+      
+      // 清空待分类文档
+      setPendingDocuments([]);
+      
+      // 更新文件状态
+      for (const classification of result.classifications) {
+        setFileStatuses((prev) => ({ ...prev, [classification.fileName]: "已分类" }));
+      }
+      
+      // 显示警告（如有）
+      if (result.warnings && result.warnings.length > 0) {
+        console.warn("AI 分类警告:", result.warnings);
+      }
+    } catch (err) {
+      setClassifyError(`AI 分类失败: ${err instanceof Error ? err.message : String(err)}，所有文件已归入"对比文件"类别`);
+      // 分类失败时，将所有待分类文档保存为 reference
+      for (const doc of docs) {
+        await createDocument(doc);
+        addDocument(doc);
+      }
+      setPendingDocuments([]);
+    } finally {
+      setClassifying(false);
+    }
+  };
+
+  // 应用 AI 分类结果
+  const applyClassificationResults = async (
+    docs: SourceDocument[],
+    classifications: DocumentClassification[]
+  ) => {
+    for (const classification of classifications) {
+      const doc = docs[classification.fileIndex];
+      if (!doc) continue;
+      
+      // 更新文档角色
+      const updatedDoc: SourceDocument = {
+        ...doc,
+        role: classification.role
+      };
+      
+      // 保存到 IndexedDB
+      await createDocument(updatedDoc);
+      addDocument(updatedDoc);
+    }
+  };
+
+  // ========== 文件管理功能（删除、移动） ==========
+
+  // 删除文档
+  const handleDeleteDocument = async (docId: string) => {
+    try {
+      await deleteDocument(docId);
+      // 从 store 中移除
+      setDocuments(documents.filter((d) => d.id !== docId));
+    } catch (err) {
+      console.error("删除文档失败:", err);
+    }
+  };
+
+  // 移动文档到新的角色分类
+  const handleMoveDocument = async (docId: string, newRole: SourceDocument["role"]) => {
+    const doc = documents.find((d) => d.id === docId);
+    if (!doc) return;
+    
+    const updatedDoc: SourceDocument = {
+      ...doc,
+      role: newRole
+    };
+    
+    try {
+      await updateDocument(updatedDoc);
+      // 更新 store
+      setDocuments(documents.map((d) => (d.id === docId ? updatedDoc : d)));
+    } catch (err) {
+      console.error("移动文档失败:", err);
+    }
+  };
+
+  // 拖拽开始
+  const handleDragStart = (doc: SourceDocument) => {
+    setDraggedDoc(doc);
+  };
+
+  // 拖拽放置
+  const handleDrop = (targetRole: SourceDocument["role"]) => {
+    if (draggedDoc && draggedDoc.role !== targetRole) {
+      handleMoveDocument(draggedDoc.id, targetRole);
+    }
+    setDraggedDoc(null);
+  };
+
+  // 拖拽结束
+  const handleDragEnd = () => {
+    setDraggedDoc(null);
+  };
+
   const renderFieldHint = (field: string) => {
     if (!extracted?.confidence[field]) return null;
     return <span className="field-hint">自动提取</span>;
@@ -297,9 +504,27 @@ export function CaseSetupPage() {
 
       {/* File upload section */}
       <section className="setup-section">
-        <h3>上传复审文件</h3>
+        <div className="setup-section__header">
+          <h3>上传复审文件</h3>
+          <button
+            type="button"
+            className="btn-batch-upload"
+            onClick={() => batchFileInputRef.current?.click()}
+            disabled={batchUploading || classifying}
+            data-testid="btn-batch-upload"
+          >
+            {batchUploading || classifying ? (
+              <><span className="spinner" />{classifying ? "AI 分类中..." : "处理中..."}</>
+            ) : (
+              <><span className="icon-ai" />批量上传（AI 自动分类）</>
+            )}
+          </button>
+        </div>
+        {classifyError && (
+          <p className="classify-error" data-testid="classify-error">{classifyError}</p>
+        )}
         <p className="section-desc">
-          支持 PDF、DOCX、TXT、HTML 格式，单类可批量上传
+          支持 PDF、DOCX、TXT、HTML 格式。可批量上传让 AI 自动分类，也可在各类别中单独上传。
         </p>
 
         <div className="file-role-grid">
@@ -310,9 +535,22 @@ export function CaseSetupPage() {
             );
             const isCurrentRoleProcessing =
               uploadRole === role && processingEntries.length > 0;
+            const isDropTarget = draggedDoc && draggedDoc.role !== role;
 
             return (
-              <div key={role} className="file-role-card" data-testid={`role-card-${role}`}>
+              <div
+                key={role}
+                className={`file-role-card ${isDropTarget ? "file-role-card--drop-target" : ""}`}
+                data-testid={`role-card-${role}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleDrop(role);
+                }}
+              >
                 <div className="file-role-card__header">
                   <span className="file-role-card__icon">{ROLE_META[role].icon}</span>
                   <span className="file-role-card__label">{ROLE_META[role].label}</span>
@@ -322,12 +560,42 @@ export function CaseSetupPage() {
                 </div>
                 <div className="file-role-card__body">
                   {roleDocs.length === 0 && !isCurrentRoleProcessing && (
-                    <span className="file-role-empty">暂无文件</span>
+                    <span className="file-role-empty">
+                      {isDropTarget ? "拖放到此处移动" : "暂无文件"}
+                    </span>
                   )}
                   {roleDocs.map((doc) => (
-                    <div key={doc.id} className="file-role-file">
-                      <span className="file-role-file__name">{doc.fileName}</span>
-                      <span className="file-role-file__badge">已导入</span>
+                    <div
+                      key={doc.id}
+                      className="file-role-file file-role-file--draggable"
+                      draggable
+                      onDragStart={() => handleDragStart(doc)}
+                      onDragEnd={handleDragEnd}
+                      data-testid={`file-item-${doc.id}`}
+                    >
+                      <span className="file-role-file__name" title={doc.fileName}>
+                        {doc.fileName}
+                      </span>
+                      <div className="file-role-file__actions">
+                        <select
+                          className="file-role-select"
+                          value={doc.role}
+                          onChange={(e) => handleMoveDocument(doc.id, e.target.value as SourceDocument["role"])}
+                          title="移动到其他分类"
+                        >
+                          {ROLE_ORDER.map((r) => (
+                            <option key={r} value={r}>{ROLE_META[r].label}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="btn-file-delete"
+                          onClick={() => handleDeleteDocument(doc.id)}
+                          title="删除文件"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   ))}
                   {isCurrentRoleProcessing &&
@@ -335,7 +603,7 @@ export function CaseSetupPage() {
                       <div key={name} className="file-role-file file-role-file--processing">
                         <span className="file-role-file__name">{name}</span>
                         <span className={`file-role-file__badge ${
-                          status === "完成" ? "file-badge-ok" : status === "处理中..." ? "file-badge-processing" : "file-badge-error"
+                          status === "完成" || status === "已分类" ? "file-badge-ok" : status === "处理中..." || status === "待分类" ? "file-badge-processing" : "file-badge-error"
                         }`}>
                           {status}
                         </span>
@@ -364,6 +632,16 @@ export function CaseSetupPage() {
           multiple
           onChange={handleFileChange}
           data-testid="input-file-upload"
+          className="file-input-hidden"
+        />
+
+        <input
+          ref={batchFileInputRef}
+          type="file"
+          accept=".pdf,.docx,.txt,.html"
+          multiple
+          onChange={handleBatchFileChange}
+          data-testid="input-batch-upload"
           className="file-input-hidden"
         />
       </section>

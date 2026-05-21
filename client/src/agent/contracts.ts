@@ -288,3 +288,27 @@ export interface TranslateRequest {
 export interface TranslateResponse {
   translatedText: string;
 }
+
+// ── 文档分类 Agent 契约 ──────────────────────────────────
+
+export interface ClassifyDocumentsRequest {
+  caseId: string;
+  documents: Array<{
+    fileIndex: number;
+    fileName: string;
+    textSample: string;
+  }>;
+}
+
+export interface DocumentClassification {
+  fileIndex: number;
+  fileName: string;
+  role: "application" | "office-action" | "office-action-response" | "reference";
+  confidence: "high" | "medium" | "low";
+  reason: string;
+}
+
+export interface ClassifyDocumentsResponse {
+  classifications: DocumentClassification[];
+  warnings?: string[];
+}

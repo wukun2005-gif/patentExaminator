@@ -30,7 +30,7 @@ export function extractFigureCaptions(text: string): Array<{ number: number; cap
     pattern.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(text)) !== null) {
-      const num = parseInt(match[1], 10);
+      const num = parseInt(match[1]!, 10);
       if (!seen.has(num) && num > 0 && num <= 200) {
         seen.add(num);
         results.push({ number: num, caption: (match[2] ?? "").trim() });

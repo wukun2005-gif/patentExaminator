@@ -136,8 +136,8 @@ function NoveltyWrapper() {
         claimNumber={claimNumber}
         features={features}
         references={caseRefs}
-        applicantArguments={applicantArguments || undefined}
-        amendedClaimText={amendedClaimText}
+        {...(applicantArguments ? { applicantArguments } : {} as Record<string, never>)}
+        {...(amendedClaimText ? { amendedClaimText } : {} as Record<string, never>)}
         runNovelty={async (request) => {
           const client = new AgentClient(settings.mode, "/api", settings);
           return client.runNovelty(request);

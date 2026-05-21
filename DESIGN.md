@@ -23,6 +23,7 @@
 | v0.1.0-r12 | 2026-05-09 | 三文档一致性审查第四轮修复（3 项）：§3.4 状态转换图补充可选文档解读步骤、§6.1 Agent 映射补充创造性分析 Agent → `inventive` |
 | v0.1.0-r13 | 2026-05-09 | 新增 Deepseek Provider（5 家）：§1.1 架构图、§2 ADR-005、§3.3 ProviderId、§4.1 数据流图、§5.4 Provider 表 |
 | v0.1.0-r14 | 2026-05-13 | B-008: 产品转向复审 AI 助手 — 新增复审数据模型（OfficeActionAnalysis/ArgumentMapping）、opinion-analysis/argument-analysis/reexam-draft Agent、复审路由和逐条回应草稿；全系统影响（领域模型、Agent、路由、Prompt、Mock E2E、文档） |
+| v0.1.0-r19 | 2026-05-21 | B-028: AI 智能文档分类 — 新增 classify-documents Agent（prompt、schema、fixture）、CaseSetupPage 批量上传和 AI 分类功能、文档拖拽移动和删除、角色下拉选择分类 |
 | v0.1.0-r18 | 2026-05-14 | B-015: UI 风格统一 — 新增 tokens.css（--pex- 前缀 CSS 变量：颜色/字体/间距/圆角/阴影/组件 token）、app.css 全面替换硬编码色值为 CSS 变量（851 处引用）、main.tsx 导入 tokens.css |
 | v0.1.0-r17 | 2026-05-14 | B-013: 配置界面仅允许从预置 Provider 列表选取 — 新增 PRESET_MODEL_PROVIDERS/PRESET_SEARCH_PROVIDERS 常量、ProvidersConfigPanel 移除添加/删除按钮改为全量预置展示+Base URL 只读灰显、SearchProvidersConfigPanel 同样改造移除自定义选项、新增 input-readonly CSS |
 | v0.1.0-r16 | 2026-05-14 | B-010: 配置界面模型列表折叠 — AgentsAssignmentPanel 模型选择从原生 select 改为自定义下拉组件，按 Provider 分组、当前选中模型优先展示、其他模型折叠（"其他模型 (N)"）、支持搜索过滤、点击外部关闭 |

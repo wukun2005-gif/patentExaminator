@@ -10,6 +10,9 @@ const FIXTURE_MAP: Record<string, Record<string, string>> = {
     "g2-battery": "g2-battery.json",
     "g3-sensor": "g3-sensor.json",
   },
+  "classify-documents": {
+    "g1-led": "classify-documents-g1.json",
+  },
   novelty: {
     "g1-led:g1-ref-d1": "novelty-g1-d1.json",
     "preset-demo-001": "novelty-g1-d1.json",

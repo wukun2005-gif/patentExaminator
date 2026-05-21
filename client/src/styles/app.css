@@ -509,6 +509,156 @@
   padding: 0 14px 12px;
 }
 
+/* ── 批量上传和 AI 分类样式 ── */
+
+.btn-batch-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: var(--pex-font-size-body-sm);
+  font-weight: var(--pex-font-weight-medium);
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  border-radius: var(--pex-radius-md);
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.btn-batch-upload:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.btn-batch-upload:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-batch-upload .icon-ai::before {
+  content: "✨";
+}
+
+.btn-batch-upload .spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.setup-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--pex-space-md);
+}
+
+.classify-error {
+  padding: var(--pex-space-md) var(--pex-space-lg);
+  background: var(--pex-color-warning-bg);
+  border: 1px solid var(--pex-color-warning-dark);
+  border-radius: var(--pex-radius-md);
+  color: var(--pex-color-warning-dark);
+  font-size: var(--pex-font-size-body-sm);
+  margin-bottom: var(--pex-space-lg);
+}
+
+/* 文件卡片拖放目标高亮 */
+.file-role-card--drop-target {
+  background: var(--pex-color-primary-light);
+  border: 2px dashed var(--pex-color-primary);
+  box-shadow: 0 0 8px rgba(26, 115, 232, 0.2);
+}
+
+/* 可拖拽文件项 */
+.file-role-file--draggable {
+  cursor: grab;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.file-role-file--draggable:active {
+  cursor: grabbing;
+}
+
+.file-role-file--draggable:hover {
+  background: var(--pex-color-border-light);
+}
+
+/* 文件项操作区 */
+.file-role-file__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.file-role-file--draggable:hover .file-role-file__actions {
+  opacity: 1;
+}
+
+.file-role-select {
+  font-size: var(--pex-font-size-tiny);
+  padding: 2px 4px;
+  border: 1px solid var(--pex-color-border-default);
+  border-radius: var(--pex-radius-sm);
+  background: var(--pex-color-bg-white);
+  cursor: pointer;
+  max-width: 80px;
+  text-overflow: ellipsis;
+}
+
+.file-role-select:focus {
+  outline: none;
+  border-color: var(--pex-color-border-focus);
+}
+
+.btn-file-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 12px;
+  color: var(--pex-color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--pex-radius-sm);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-file-delete:hover {
+  background: var(--pex-color-error-bg);
+  color: var(--pex-color-error-dark);
+}
+
+/* 文件状态徽章 */
+.file-badge-ok {
+  background: var(--pex-color-success-bg);
+  color: var(--pex-color-success-text);
+}
+
+.file-badge-processing {
+  background: var(--pex-color-primary-light);
+  color: var(--pex-color-primary);
+}
+
+.file-badge-error {
+  background: var(--pex-color-error-bg);
+  color: var(--pex-color-error-text);
+}
+
 .btn-upload {
   display: block;
   width: 100%;

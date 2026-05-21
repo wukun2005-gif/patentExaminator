@@ -14,3 +14,4 @@ export * from "./schemas/export.schema.js";
 export * from "./schemas/opinionAnalysis.schema.js";
 export * from "./schemas/argumentMapping.schema.js";
 export * from "./schemas/reexamDraft.schema.js";
+export * from "./schemas/classifyDocuments.schema.js";

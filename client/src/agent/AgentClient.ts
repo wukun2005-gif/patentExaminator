@@ -25,7 +25,9 @@ import type {
   ArgumentAnalysisRequest,
   ArgumentAnalysisResponse,
   ReexamDraftRequest,
-  ReexamDraftResponse
+  ReexamDraftResponse,
+  ClassifyDocumentsRequest,
+  ClassifyDocumentsResponse
 } from "./contracts";
 import type { ClaimFeature } from "@shared/types/domain";
 import type { AiRunRequest, AiRunResponse } from "@shared/types/api";
@@ -44,7 +46,8 @@ const GATEWAY_AGENT_TO_KEY: Record<string, AgentAssignment["agent"]> = {
   "extract-case-fields": "extract-case-fields",
   "opinion-analysis": "opinion-analysis",
   "argument-analysis": "argument-analysis",
-  "reexam-draft": "reexam-draft"
+  "reexam-draft": "reexam-draft",
+  "classify-documents": "classify-documents"
 };
 
 /**
@@ -325,6 +328,25 @@ export class AgentClient {
     });
   }
 
+  async runClassifyDocuments(
+    request: ClassifyDocumentsRequest,
+    options?: AgentRunOptions
+  ): Promise<ClassifyDocumentsResponse> {
+    if (this.mode === "mock") {
+      return this.callGatewayMock<ClassifyDocumentsResponse>(
+        "classify-documents",
+        request.caseId,
+        "documents"
+      );
+    }
+    const prompt = buildClassifyDocumentsPrompt(request);
+    return this.callGateway<ClassifyDocumentsResponse>("classify-documents", prompt, {
+      caseId: request.caseId,
+      moduleScope: "documents",
+      ...options
+    });
+  }
+
   private async callGateway<T>(
     agent: AiRunRequest["agent"],
     prompt: string,
@@ -576,9 +598,11 @@ function mockInventive(request: InventiveRequest): InventiveResponse {
     "（本分析为 AI 辅助候选，不构成正式审查结论。）"
   ].join("\n");
 
+  const closestPriorArtId = request.closestPriorArtId ?? request.availableReferences[0]?.referenceId;
+
   return {
     claimNumber: request.claimNumber,
-    closestPriorArtId: request.closestPriorArtId ?? request.availableReferences[0]?.referenceId,
+    ...(closestPriorArtId ? { closestPriorArtId } : {}),
     sharedFeatureCodes: sharedCodes,
     distinguishingFeatureCodes: diffCodes,
     objectiveTechnicalProblem: `如何通过${diffCodes.join("、")}等技术特征的组合，解决现有技术中存在的效率低、成本高等问题`,
@@ -803,6 +827,49 @@ function mockExtractCaseFields(request: ExtractCaseFieldsRequest): ExtractCaseFi
       { claimNumber: 1, type: "independent", dependsOn: [], rawText: "（演示模式：权利要求1内容将在实际使用时由 AI 提取）" }
     ]
   };
+}
+
+function buildClassifyDocumentsPrompt(request: ClassifyDocumentsRequest): string {
+  const docSections = request.documents.map((doc) => {
+    return `=== 文件 ${doc.fileIndex}: ${doc.fileName} ===\n${doc.textSample}`;
+  });
+
+  return [
+    "你是一个专利文档分类助手。请根据以下文件的文件名和文本内容，识别每个文件的类型。",
+    "",
+    "## 文档类型定义",
+    "",
+    "| 类型 | 英文标识 | 识别特征 |",
+    "|------|---------|---------|",
+    "| 申请文件 | application | 包含'说明书'、'权利要求书'、'摘要'；文件名含'申请'、专利号格式 |",
+    "| 审查意见通知书 | office-action | 包含'审查意见通知书'；文件名含'审查意见'、'OA' |",
+    "| 意见陈述书 | office-action-response | 包含'意见陈述书'、'答复'；文件名含'意见陈述'、'答复' |",
+    "| 对比文件 | reference | 包含其他专利公开号；文件名含专利号格式 |",
+    "",
+    "## 分类规则",
+    "",
+    "1. 优先根据文件名判断：文件名明确包含关键词的直接分类",
+    "2. 无法识别的文件统一归类为'对比文件'(reference)",
+    "3. 权利要求书属于'申请文件'的一部分",
+    "",
+    "请严格返回 JSON 格式：",
+    JSON.stringify({
+      classifications: [
+        {
+          fileIndex: 0,
+          fileName: "文件名",
+          role: "application | office-action | office-action-response | reference",
+          confidence: "high | medium | low",
+          reason: "分类理由（一句话）"
+        }
+      ],
+      warnings: ["如果某文件难以分类，在此说明"]
+    }, null, 2),
+    "",
+    `案件 ID: ${request.caseId}`,
+    "",
+    ...docSections
+  ].join("\n");
 }
 
 function mockSearchReferences(_request: SearchReferencesRequest): SearchReferencesResponse {

@@ -1,0 +1,47 @@
+{
+  "classifications": [
+    {
+      "fileIndex": 0,
+      "fileName": "申请文件.pdf",
+      "role": "application",
+      "confidence": "high",
+      "reason": "文件名明确标识为申请文件"
+    },
+    {
+      "fileIndex": 1,
+      "fileName": "第一次审查意见通知书.pdf",
+      "role": "office-action",
+      "confidence": "high",
+      "reason": "文件名包含'审查意见通知书'关键词"
+    },
+    {
+      "fileIndex": 2,
+      "fileName": "意见陈述书.pdf",
+      "role": "office-action-response",
+      "confidence": "high",
+      "reason": "文件名包含'意见陈述书'关键词"
+    },
+    {
+      "fileIndex": 3,
+      "fileName": "修改后权利要求书.pdf",
+      "role": "application",
+      "confidence": "high",
+      "reason": "权利要求书属于申请文件的一部分"
+    },
+    {
+      "fileIndex": 4,
+      "fileName": "CN108XXXXXXA-散热器.pdf",
+      "role": "reference",
+      "confidence": "high",
+      "reason": "文件名包含专利号格式，为对比文件"
+    },
+    {
+      "fileIndex": 5,
+      "fileName": "CN109XXXXXXB-热管散热.pdf",
+      "role": "reference",
+      "confidence": "high",
+      "reason": "文件名包含专利号格式，为对比文件"
+    }
+  ],
+  "warnings": []
+}

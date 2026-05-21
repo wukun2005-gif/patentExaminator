@@ -71,6 +71,9 @@
  *   # 全量 Mock（默认，推荐日常开发）
  *   node tests/e2e-real.mjs
  *
+ *   # 带前置质量门禁（lint + typecheck，CI 必须）
+ *   node tests/e2e-real.mjs --check
+ *
  *   # 根据变更选择（开发时）
  *   node tests/e2e-real.mjs --only mock        # 所有 Mock 测试
  *   node tests/e2e-real.mjs --only claimChart  # claim chart 相关
@@ -82,10 +85,14 @@
  *   # Real 模式
  *   GEMINI_KEY=xxx node tests/e2e-real.mjs --real
  *   GEMINI_KEY=xxx node tests/e2e-real.mjs --only realClaimChart
+ *
+ *   # 快速 DB 完整性测试（开发时推荐）
+ *   node tests/e2e-real.mjs --only db
  */
 
 import fs from "fs";
 import path from "path";
+import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -167,6 +174,86 @@ function delay(ms) {
 
 function maskKey(key) {
   return key ? `...${key.slice(-4)}` : "(empty)";
+}
+
+// ── Quality Gate: Lint + TypeCheck ───────────────────────────────────
+
+function runQualityGate() {
+  console.log("=== Quality Gate: Lint + TypeCheck ===\n");
+  let gateFailed = false;
+
+  console.log("--- TypeCheck ---");
+  try {
+    execSync("npm run typecheck", {
+      cwd: PROJECT_ROOT,
+      stdio: "pipe",
+      timeout: 120000,
+      env: { ...process.env, FORCE_COLOR: "0" }
+    });
+    log("Quality Gate: TypeCheck", true);
+  } catch (err) {
+    gateFailed = true;
+    const stderr = err.stderr?.toString() || "";
+    const stdout = err.stdout?.toString() || "";
+    const output = (stderr + stdout).split("\n").filter(l => l.includes("error TS")).slice(0, 5).join(" | ");
+    log("Quality Gate: TypeCheck", false, output || "typecheck failed");
+  }
+
+  console.log("\n--- Lint ---");
+  try {
+    execSync("npm run lint", {
+      cwd: PROJECT_ROOT,
+      stdio: "pipe",
+      timeout: 60000,
+      env: { ...process.env, FORCE_COLOR: "0" }
+    });
+    log("Quality Gate: Lint", true);
+  } catch (err) {
+    gateFailed = true;
+    const stderr = err.stderr?.toString() || "";
+    const stdout = err.stdout?.toString() || "";
+    const errors = (stderr + stdout).split("\n").filter(l => l.includes(" error ") || l.includes(" Error ") || l.match(/^\s*\d+:\d+\s+error/)).slice(0, 5).join(" | ");
+    log("Quality Gate: Lint", false, errors || "lint failed");
+  }
+
+  if (gateFailed) {
+    console.log("\n[GATE FAILED] Lint 或 TypeCheck 未通过，终止测试。请先修复上述错误。\n");
+  } else {
+    console.log("\n[GATE PASSED] Lint + TypeCheck 全部通过\n");
+  }
+  return gateFailed;
+}
+
+// ── DB Logic-Chain Tests ─────────────────────────────────────────────
+
+function runDbLogicChainTests() {
+  console.log("\n--- DB Logic-Chain Tests (vitest) ---");
+  try {
+    execSync("npx vitest run --config vitest.integration.config.ts tests/integration/dbLogicChain.test.ts", {
+      cwd: PROJECT_ROOT,
+      stdio: "inherit",
+      timeout: 60000,
+      env: { ...process.env, FORCE_COLOR: "1" }
+    });
+    log("DB Logic-Chain Tests", true);
+  } catch (err) {
+    log("DB Logic-Chain Tests", false, err.message || "vitest failed");
+  }
+}
+
+function runDbScenarioTests() {
+  console.log("\n--- DB Scenario Regression Tests (vitest) ---");
+  try {
+    execSync("npx vitest run --config vitest.integration.config.ts tests/integration/dbScenario.test.ts", {
+      cwd: PROJECT_ROOT,
+      stdio: "inherit",
+      timeout: 60000,
+      env: { ...process.env, FORCE_COLOR: "1" }
+    });
+    log("DB Scenario Tests", true);
+  } catch (err) {
+    log("DB Scenario Tests", false, err.message || "vitest failed");
+  }
 }
 
 // ── HTTP Utilities ───────────────────────────────────────────────────
@@ -1148,13 +1235,23 @@ async function testRealSearchRateLimit() {
 async function main() {
   const args = process.argv.slice(2);
   const onlyReal = args.includes("--real");
+  const doCheck = args.includes("--check");
   const onlyIdx = args.indexOf("--only");
   const onlyPattern = onlyIdx !== -1 ? (args[onlyIdx + 1] || "").toLowerCase() : "";
 
   console.log("\n=== Patent Examiner E2E Functional Tests ===\n");
 
+  // ── Quality Gate (runs before all tests when --check) ──
+  if (doCheck) {
+    const gateFailed = runQualityGate();
+    if (gateFailed) {
+      process.exit(1);
+    }
+  }
+
   if (onlyReal) {
     console.log("Mode: Real (requires GEMINI_KEY + search keys)\n");
+    if (doCheck) console.log("Quality gate: passed\n");
   } else if (onlyPattern) {
     console.log(`Mode: Filtered by "${onlyPattern}"\n`);
   } else {
@@ -1277,6 +1374,14 @@ async function main() {
       await maybe(testFullPipelineMock_G1);
       await maybe(testFullPipelineMock_G2);
       await maybe(testFullPipelineMock_Reexam_G1);
+
+      // DB Logic-Chain tests (Store → Repo → IndexedDB, no UI)
+      console.log("\n--- DB Logic-Chain ---");
+      runDbLogicChainTests();
+
+      // DB Scenario regression tests (bugs 18/19/21/22 etc.)
+      console.log("\n--- DB Scenario Regression ---");
+      runDbScenarioTests();
 
       // Real mode tests (optional, auto-skip if no key)
       if (GEMINI_KEY) {
