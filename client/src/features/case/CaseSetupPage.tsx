@@ -396,12 +396,12 @@ export function CaseSetupPage() {
       
       // 清空待分类文档
       setPendingDocuments([]);
-      
+
       // 更新文件状态
       for (const classification of result.classifications) {
         setFileStatuses((prev) => ({ ...prev, [classification.fileName]: "已分类" }));
       }
-      
+
       // 显示警告（如有）
       if (result.warnings && result.warnings.length > 0) {
         console.warn("AI 分类警告:", result.warnings);
@@ -434,10 +434,13 @@ export function CaseSetupPage() {
         role: classification.role
       };
       
-      // 保存到 IndexedDB
+      // 保存到 IndexedDB（使用 put 操作，如果已存在则更新）
       await createDocument(updatedDoc);
-      addDocument(updatedDoc);
     }
+    
+    // 分类完成后，重新从 IndexedDB 加载所有文档，确保 store 与数据库同步
+    const allDocs = await readDocumentsByCaseId(caseId!);
+    setDocuments(allDocs);
   };
 
   // ========== 文件管理功能（删除、移动） ==========
