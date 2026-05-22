@@ -714,16 +714,47 @@ function mockInterpret(request: InterpretRequest): InterpretResponse {
 
 function buildOpinionAnalysisPrompt(request: OpinionAnalysisRequest): string {
   return [
+    `你是一位资深专利审查员，擅长分析审查意见通知书。`,
     `案件 ID: ${request.caseId}`,
     `文档 ID: ${request.documentId}`,
     ``,
     `审查意见通知书文本:`,
-    request.officeActionText.slice(0, 12000)
+    request.officeActionText.slice(0, 12000),
+    ``,
+    `请从以上审查意见通知书中提取驳回理由和引用文献，严格按以下 JSON 格式输出，不要输出其他内容：`,
+    `{`,
+    `  "documentId": "${request.documentId}",`,
+    `  "rejectionGrounds": [`,
+    `    {`,
+    `      "code": "唯一标识（如 RG-1、RG-2）",`,
+    `      "category": "novelty|inventive|clarity|support|amendment|other",`,
+    `      "claimNumbers": [权利要求编号数组],`,
+    `      "summary": "驳回理由摘要（50字以内）",`,
+    `      "legalBasis": "法律依据（如'专利法第22条第2款'）",`,
+    `      "originalText": "审查意见中相关段落的原文"`,
+    `    }`,
+    `  ],`,
+    `  "citedReferences": [`,
+    `    {`,
+    `      "publicationNumber": "引用文献公开号（如 CN108123456A）",`,
+    `      "rejectionGroundCodes": ["关联的驳回理由 code 数组"],`,
+    `      "featureMapping": "该文献公开了哪个技术特征"`,
+    `    }`,
+    `  ],`,
+    `  "legalCaution": "AI 分析法律风险提示"`,
+    `}`,
+    ``,
+    `注意：`,
+    `- 一个驳回理由可能对应多个权利要求编号`,
+    `- 一个引用文献可能被多条驳回理由引用`,
+    `- 务必使用双引号，字段名必须与示例完全一致`,
+    `- 如果审查意见中没有驳回理由，rejectionGrounds 返回空数组`
   ].join("\n");
 }
 
 function buildArgumentAnalysisPrompt(request: ArgumentAnalysisRequest): string {
-  return [
+  const parts = [
+    `你是一位资深专利审查员，擅长分析意见陈述书中的答辩理由与驳回理由之间的对应关系。`,
     `案件 ID: ${request.caseId}`,
     ``,
     `驳回理由清单:`,
@@ -733,8 +764,38 @@ function buildArgumentAnalysisPrompt(request: ArgumentAnalysisRequest): string {
     request.responseText.slice(0, 12000),
     ...(request.amendedClaimsText
       ? [``, `修改后权利要求:`, request.amendedClaimsText.slice(0, 4000)]
-      : [])
-  ].join("\n");
+      : []),
+    ``,
+    `请将每条驳回理由与意见陈述书中的答辩内容进行映射，严格按以下 JSON 格式输出，不要输出其他内容：`,
+    `{`,
+    `  "mappings": [`,
+    `    {`,
+    `      "rejectionGroundCode": "驳回理由的 code（如 RG-1）",`,
+    `      "applicantArgument": "申请人的答辩原文片段",`,
+    `      "argumentSummary": "答辩理由摘要（50字以内）",`,
+    `      "confidence": "high|medium|low",`,
+    `      "amendedClaims": [`,
+    `        {`,
+    `          "claimNumber": 权利要求编号,`,
+    `          "originalText": "修改前原文",`,
+    `          "amendedText": "修改后原文",`,
+    `          "changeDescription": "修改说明"`,
+    `        }`,
+    `      ],`,
+    `      "newEvidence": "申请人提交的新证据（如有）"`,
+    `    }`,
+    `  ],`,
+    `  "unmappedGrounds": ["未在意见陈述书中找到对应答辩的驳回理由 code 数组"],`,
+    `  "legalCaution": "AI 分析法律风险提示"`,
+    `}`,
+    ``,
+    `注意：`,
+    `- 如果某条驳回理由在意见陈述书中没有对应答辩，将其 code 加入 unmappedGrounds`,
+    `- amendedClaims 为可选字段，如果没有修改权利要求则不包含此字段`,
+    `- newEvidence 为可选字段，没有新证据时不包含此字段`,
+    `- 务必使用双引号，字段名必须与示例完全一致`
+  ];
+  return parts.join("\n");
 }
 
 function buildReexamDraftPrompt(request: ReexamDraftRequest): string {
