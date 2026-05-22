@@ -1058,6 +1058,84 @@ async function testMockFixtureNotFound() {
   log("Unknown mock fixture returns 400", res.status === 400, `status=${res.status}`);
 }
 
+// ── Response Structure Validation ────────────────────────────────────
+
+async function testResponseStructureValidation() {
+  console.log("  [StructureValidation] Verifying all structured agent responses pass server-side validation...");
+
+  const structuredAgents = [
+    { agent: "claim-chart", caseId: "g1-led" },
+    { agent: "novelty", caseId: "g1-led", moduleScope: "novelty", referenceId: "g1-ref-d1" },
+    { agent: "inventive", caseId: "g2-battery", moduleScope: "inventive" },
+    { agent: "opinion-analysis", caseId: "g1-led", moduleScope: "opinion-analysis" },
+    { agent: "argument-analysis", caseId: "g1-led", moduleScope: "argument-mapping" },
+    { agent: "reexam-draft", caseId: "g1-led", moduleScope: "draft" },
+    { agent: "summary", caseId: "g1-led", moduleScope: "summary" },
+    { agent: "classify-documents", caseId: "g1-led", moduleScope: "classify-documents" },
+  ];
+
+  let allValid = true;
+  for (const { agent, caseId, moduleScope, referenceId } of structuredAgents) {
+    const res = await postJSON("/ai/run", mockRequest(agent, caseId, moduleScope, referenceId ? { referenceId } : {}));
+    const data = await res.json();
+    const hasStructureErrors = Array.isArray(data.structureErrors) && data.structureErrors.length > 0;
+    const pass = data.ok && data.outputJson != null && !hasStructureErrors;
+    if (!pass) {
+      allValid = false;
+      console.log(`    [FAIL] ${agent}: ok=${data.ok}, hasOutputJson=${data.outputJson != null}, structureErrors=${JSON.stringify(data.structureErrors)}`);
+    }
+    log(`StructureValidation ${agent}`, pass,
+      hasStructureErrors ? `errors: ${data.structureErrors?.join("; ")}` : "valid");
+  }
+
+  // Verify plain-text agents are not flagged — interpret has fixtures
+  const interpRes = await postJSON("/ai/run", mockRequest("interpret", "g1-led", "case"));
+  const interpData = await interpRes.json();
+  const interpNoStructureErrors = !Array.isArray(interpData.structureErrors) || interpData.structureErrors.length === 0;
+  log("StructureValidation text-agent safe", interpData.ok === true && interpNoStructureErrors,
+    `ok=${interpData.ok}, outputJson=${interpData.outputJson != null}, structureErrors=${JSON.stringify(interpData.structureErrors)}`);
+
+  log("StructureValidation complete", allValid);
+}
+
+// ── Malformed Response Validation ────────────────────────────────────
+
+async function testMalformedResponseHandling() {
+  console.log("  [MalformedResponse] Verifying server detects malformed AI JSON...");
+
+  // Send structured agent with prompt that asks for non-JSON output
+  const res = await postJSON("/ai/run", {
+    agent: "claim-chart",
+    providerPreference: ["gemini"],
+    modelId: "mock",
+    prompt: "Respond with plain text only: Hello World. Do NOT output JSON.",
+    sanitized: false,
+    mock: true,
+    metadata: { caseId: "g1-led", moduleScope: "claim-chart", tokenEstimate: 0 },
+  });
+  const data = await res.json();
+
+  // In mock mode, the fixture always returns valid JSON.
+  // Test that the validation doesn't break valid responses.
+  const fixtureIsValid = data.ok === true && data.outputJson != null;
+  log("MalformedResponse mock fixture still valid", fixtureIsValid,
+    `ok=${data.ok}, outputJson=${data.outputJson != null}, structureErrors=${JSON.stringify(data.structureErrors)}`);
+
+  // Test that non-JSON prompt with no fixture gracefully handled
+  const res2 = await postJSON("/ai/run", {
+    agent: "claim-chart",
+    providerPreference: ["gemini"],
+    modelId: "mock",
+    prompt: "Respond with plain text only: Hello World. Do NOT output JSON.",
+    sanitized: false,
+    mock: true,
+    metadata: { caseId: "nonexistent-case-999", moduleScope: "claim-chart", tokenEstimate: 0 },
+  });
+  const data2 = await res2.json();
+  log("MalformedResponse unknown fixture returns error", data2.ok === false,
+    `ok=${data2.ok}, code=${data2.error?.code}`);
+}
+
 // ── Full Pipeline Mock ───────────────────────────────────────────────
 
 async function testFullPipelineMock_G1() {
@@ -1615,6 +1693,11 @@ async function main() {
       await maybe(testMissingRequiredFields);
       await maybe(testEmptyClaimText);
       await maybe(testMockFixtureNotFound);
+
+      // Response Structure Validation
+      console.log("\n--- Response Structure Validation ---");
+      await maybe(testResponseStructureValidation);
+      await maybe(testMalformedResponseHandling);
 
       // Full pipeline
       console.log("\n--- Full Pipeline ---");

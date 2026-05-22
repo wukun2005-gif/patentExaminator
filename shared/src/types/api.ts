@@ -25,6 +25,7 @@ export interface AiRunResponse {
   durationMs?: number;
   error?: { code: string; message: string; retryable: boolean; providerId?: ProviderId };
   attempts?: Array<{ providerId: ProviderId; ok: boolean; errorCode?: string }>;
+  structureErrors?: string[];
 }
 
 export interface SearchReferencesRequest {

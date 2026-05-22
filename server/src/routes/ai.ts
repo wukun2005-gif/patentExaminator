@@ -4,6 +4,7 @@ import { registry } from "../providers/registry.js";
 import { getApiKey } from "../security/keyStore.js";
 import { sanitizeText } from "../security/sanitize.js";
 import { logger } from "../lib/logger.js";
+import { isStructuredAgent, validateAgentResponse } from "@shared/lib/responseValidator.js";
 import type { AiRunResponse } from "@shared/types/api";
 import type { ProviderId } from "@shared/types/agents";
 
@@ -133,6 +134,20 @@ aiRouter.post("/ai/run", async (req, res) => {
       outputJson = undefined;
     }
 
+    // Validate response structure for structured agents
+    let structureErrors: string[] | undefined;
+    if (outputJson != null && isStructuredAgent(request.agent)) {
+      const validation = validateAgentResponse(request.agent, outputJson);
+      if (!validation.valid) {
+        logger.warn("AI response structure validation failed", {
+          agent: request.agent,
+          errors: validation.errors
+        });
+        structureErrors = validation.errors;
+        outputJson = undefined;
+      }
+    }
+
     logger.info("AI run succeeded", {
       agent: request.agent,
       provider: firstProvider,
@@ -147,6 +162,7 @@ aiRouter.post("/ai/run", async (req, res) => {
       outputJson,
       rawText: response.text,
       ...(response.tokenUsage ? { tokenUsage: response.tokenUsage } : {}),
+      ...(structureErrors ? { structureErrors } : {}),
       durationMs,
       attempts
     } satisfies AiRunResponse as AiRunResponse;
