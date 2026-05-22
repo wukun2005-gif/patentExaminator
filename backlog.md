@@ -1,7 +1,7 @@
 # Backlog
 44: 端到端业务流程全链路 non-UI 底层逻辑自动测试更新：像 43 这样直接报错的bug，类似的UI上直接报各种type undefine error map error的问题，查看所有的commit 历史，找出类似的这些问题，review这些问题的rootcause和fix，根据这些fix来完善现有的端到端业务流程全链路 non-UI 底层逻辑自动测试框架。目标是完全通过调用真实的AI API 和 samples/led-heatsink-mini 测试数据来自动测试覆盖住，根本不用延迟到非要在UI上看出来的时候。 全面深入仔细地排查一遍，类似这样的和UI相关的业务全流程全环节全链路功能，都要通过non-ui的底层逻辑功能自动测试覆盖住。
 
-43: bug: http://localhost:6173/cases/case-1779412386053/claim-chart: 点击“生成权利要求特征表”后，报错：“TypeError: response.features is not iterable” 
+43: ~~bug: http://localhost:6173/cases/case-1779412386053/claim-chart: 点击“生成权利要求特征表”后，报错：“TypeError: response.features is not iterable”~~ **Fixed: 2026-05-22** - ClaimChartActions 添加 response.features 数组防御性检查；AgentClient.callGateway 对 chat/interpret 以外的结构化 agent 在 AI 返回非 JSON 时抛出明确错误而非静默包装为 {reply}。(commit fda5ce7)
 
 42: ~~审查意见对照结果持久化~~ **Fixed: 2026-05-22** - 审查意见对照结果在页面刷新后丢失，需重新运行解析。修复：扩展 IndexedDB schema 新增 `opinionAnalyses` 和 `argumentMappings` stores；创建 `opinionRepo.ts` 提供 CRUD 操作；`OpinionComparisonWrapper` 在组件挂载时从 IndexedDB 加载历史数据；分析完成后自动保存到 IndexedDB。附带修复：`AgentsAssignmentPanel.tsx` 添加缺失的 openrouter provider 名称。(commit 678d241)
 
