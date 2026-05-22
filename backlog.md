@@ -1,16 +1,12 @@
 # Backlog
 
 37: bug-fix: 自动测试有个failure：“❯ tests/unit/agentClient.test.ts (6 tests | 1 failed) 5013ms
-   × AgentClient (mock mode) > real mode attempts gateway call 5007ms
-     → Test timed out in 5000ms.
-If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
 
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+**状态：** ✅ 已完成 (1db0f77)
 
- FAIL  tests/unit/agentClient.test.ts > AgentClient (mock mode) > real mode attempts gateway call
-Error: Test timed out in 5000ms.
-If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".”。 AI说“测试有一个超时失败，但这是已有的网络测试问题（`agentClient.test.ts` 中的 "real mode attempts gateway call" 测试），与我的修复无关。这是因为它尝试实际调用 API 但没有 mock，导致超时。
-”。 fix it。
+**修复方式：** Mock `globalThis.fetch` 在测试中立即 reject，避免依赖网络和服务器状态。
+
+---
 
 36： http://localhost:6173/cases/case-1779410645036/export：导出时报错：“Unexpected Application Error!
 Cannot read properties of undefined (reading 'length')
