@@ -1,5 +1,5 @@
 # Backlog
-37: 文档解读：现在解读的文本是markdown的raw格式，人类阅读很不友好，换成markdown preview模式，本地渲染一下，不要让AI API输出HTML，又慢又浪费token，就在本地将markdown raw text渲染成阅读舒适格式排版舒适的markdown preview mode或者HTML，倾向于markdown preview，格式排版都最友好。
+37: ~~文档解读：现在解读的文本是markdown的raw格式，人类阅读很不友好，换成markdown preview模式，本地渲染一下，不要让AI API输出HTML，又慢又浪费token，就在本地将markdown raw text渲染成阅读舒适格式排版舒适的markdown preview mode或者HTML，倾向于markdown preview，格式排版都最友好。~~ **Fixed: 2026-05-22** - 引入 `marked` 库本地渲染 markdown→HTML；综合解读汇总直接渲染，单个文档解读增加 编辑/预览 切换按钮；添加完整 CSS 排版样式（h1-h4、p、ul/ol、code/pre、blockquote、table、hr）(724bdf4)。
 
 36: ~~opinion-comparison 数据不显示~~ **Fixed: 2026-05-22** - 一次修复：server AI 路由始终解析 JSON（37fe619）。二次修复（根本原因）：opinion/argument analysis 的 prompt 未包含 JSON 输出指令，AI 返回自然语言而非结构化数据，client 端 fallback 包装为 `{ reply: text }` 导致 rejectionGrounds/mappings 为 undefined。修复：buildOpinionAnalysisPrompt / buildArgumentAnalysisPrompt 添加完整 JSON Schema 输出指令（70c20f3）。
 
