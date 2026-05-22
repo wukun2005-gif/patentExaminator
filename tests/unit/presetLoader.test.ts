@@ -75,7 +75,7 @@ describe("loadPresetCase", () => {
 
   it("creates claim features", async () => {
     await loadPresetCase();
-    expect(createClaimFeature).toHaveBeenCalledTimes(3); // A, B, C
+    expect(createClaimFeature).toHaveBeenCalledTimes(8); // A-H
   });
 
   it("creates novelty comparison", async () => {
@@ -83,7 +83,7 @@ describe("loadPresetCase", () => {
     expect(createNovelty).toHaveBeenCalledOnce();
     const arg = vi.mocked(createNovelty).mock.calls[0]![0];
     expect(arg.caseId).toBe("preset-demo-001");
-    expect(arg.differenceFeatureCodes).toEqual(["B", "C"]);
+    expect(arg.differenceFeatureCodes).toEqual(["E", "F", "G", "H"]);
   });
 
   it("creates inventive analysis", async () => {
@@ -105,7 +105,7 @@ describe("loadPresetCase", () => {
     await loadPresetCase();
     const state = useClaimsStore.getState();
     expect(state.claimNodes).toHaveLength(2);
-    expect(state.claimFeatures).toHaveLength(3);
+    expect(state.claimFeatures).toHaveLength(8);
     expect(state.claimFeatures[0]!.featureCode).toBe("A");
   });
 
@@ -113,13 +113,13 @@ describe("loadPresetCase", () => {
     await loadPresetCase();
     const state = useNoveltyStore.getState();
     expect(state.comparisons).toHaveLength(1);
-    expect(state.comparisons[0]!.differenceFeatureCodes).toEqual(["B", "C"]);
+    expect(state.comparisons[0]!.differenceFeatureCodes).toEqual(["E", "F", "G", "H"]);
   });
 
   it("hydrates inventive store", async () => {
     await loadPresetCase();
     const state = useInventiveStore.getState();
     expect(state.analyses).toHaveLength(1);
-    expect(state.analyses[0]!.distinguishingFeatureCodes).toEqual(["B", "C"]);
+    expect(state.analyses[0]!.distinguishingFeatureCodes).toEqual(["E", "F", "G", "H"]);
   });
 });
