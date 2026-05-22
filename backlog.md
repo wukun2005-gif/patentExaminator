@@ -1,8 +1,7 @@
 # Backlog
 37: 文档解读：现在解读的文本是markdown的raw格式，人类阅读很不友好，换成markdown preview模式，本地渲染一下，不要让AI API输出HTML，又慢又浪费token，就在本地将markdown raw text渲染成阅读舒适格式排版舒适的markdown preview mode或者HTML，倾向于markdown preview，格式排版都最友好。
 
-36: ~~http://localhost:6173/cases/case-1779412386053/opinion-comparison：点击"一键解析"后，没有任何审查意见对照信息，全都显示0. server端看到AI API的调用是成功的："[server] [2026-05-22T05:07:12.991Z] INFO AI run succeeded {"agent":"opinion-analysis","provider":"bedrock","durationMs":22785,"tokenUsage":{"input":904,"output":1646,"total":2550}}
-[server] [2026-05-22T05:07:30.270Z] INFO AI run succeeded {"agent":"argument-analysis","provider":"bedrock","durationMs":17271,"tokenUsage":{"input":1842,"output":1050,"total":2892}}"。~~ **Fixed: 2026-05-22** - 根因：server/src/routes/ai.ts 中 outputJson 只有在 expectedSchemaName 存在时才解析，但 AgentClient 没有传递该字段。修复：始终尝试解析 JSON 响应，并处理 markdown 代码块包裹的情况。
+36: ~~opinion-comparison 数据不显示~~ **Fixed: 2026-05-22** - 一次修复：server AI 路由始终解析 JSON（37fe619）。二次修复（根本原因）：opinion/argument analysis 的 prompt 未包含 JSON 输出指令，AI 返回自然语言而非结构化数据，client 端 fallback 包装为 `{ reply: text }` 导致 rejectionGrounds/mappings 为 undefined。修复：buildOpinionAnalysisPrompt / buildArgumentAnalysisPrompt 添加完整 JSON Schema 输出指令（70c20f3）。
 
 35: new feature: chat pannel 默认折叠起来，别打开。 **Fixed: 2026-05-22** - chatSlice.ts `isPanelOpen` 初始值改为 `false`
 
