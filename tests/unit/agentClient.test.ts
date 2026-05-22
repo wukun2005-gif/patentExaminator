@@ -1,8 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { AgentClient } from "@client/agent/AgentClient";
 import { estimateTokens } from "@client/agent/tokenEstimate";
 
 describe("AgentClient (mock mode)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("returns mock claim chart features", async () => {
     const client = new AgentClient("mock");
     const result = await client.runClaimChart({
@@ -18,6 +22,8 @@ describe("AgentClient (mock mode)", () => {
   });
 
   it("real mode attempts gateway call", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Connection refused"));
+
     const client = new AgentClient("real", "http://localhost:3000/api");
     await expect(
       client.runClaimChart({
