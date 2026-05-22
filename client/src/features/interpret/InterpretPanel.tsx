@@ -3,6 +3,7 @@ import { detectLanguage, LANGUAGE_LABELS } from "../../lib/languageDetect";
 import { LEGACY_INTERPRET_KEY, useInterpretStore } from "../../store";
 import type { DocumentFigure, SourceDocument } from "@shared/types/domain";
 import { FigureExtractPanel } from "./FigureExtractPanel";
+import { renderMarkdown } from "../../lib/markdown";
 
 export type InterpretDocumentType = "application" | "office-action" | "office-action-response";
 
@@ -65,6 +66,7 @@ interface DocumentCardState {
   isTranslating: boolean;
   translateError: string | null;
   showOriginal: boolean;
+  previewMode: boolean;
 }
 
 type ExpandedStateMap = Record<string, boolean>;
@@ -77,7 +79,8 @@ const EMPTY_CARD_STATE: DocumentCardState = {
   translatedText: "",
   isTranslating: false,
   translateError: null,
-  showOriginal: false
+  showOriginal: false,
+  previewMode: false
 };
 
 export function buildExpandedStateStorageKey(caseId: string) {
@@ -304,6 +307,16 @@ export function InterpretPanel({
     }));
   };
 
+  const togglePreviewMode = (documentId: string) => {
+    setCardStates((prev) => ({
+      ...prev,
+      [documentId]: {
+        ...(prev[documentId] ?? EMPTY_CARD_STATE),
+        previewMode: !prev[documentId]?.previewMode
+      }
+    }));
+  };
+
   const summarySections = buildCombinedSummarySections(groupedDocuments, cardStates);
 
   return (
@@ -331,7 +344,10 @@ export function InterpretPanel({
           {summarySections && (
             <section className="interpret-overview" data-testid="interpret-combined-summary">
               <h3>综合解读汇总</h3>
-              <pre className="interpret-summary interpret-summary--combined">{summarySections}</pre>
+              <div
+                className="interpret-summary interpret-summary--combined interpret-summary--rendered"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(summarySections) }}
+              />
             </section>
           )}
 
@@ -419,14 +435,21 @@ export function InterpretPanel({
                           <FigureExtractPanel figures={doc.figures} />
                         )}
 
-                        <textarea
-                          className="interpret-summary"
-                          value={state.summary}
-                          onChange={(e) => updateSummary(doc.id, e.target.value)}
-                          placeholder={state.isLoading ? "AI 解读中…" : "AI 解读结果将显示在此处。"}
-                          data-testid={`interpret-summary-${doc.id}`}
-                          readOnly={state.isLoading}
-                        />
+                        {state.previewMode ? (
+                          <div
+                            className="interpret-summary interpret-summary--rendered"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(state.summary) }}
+                          />
+                        ) : (
+                          <textarea
+                            className="interpret-summary"
+                            value={state.summary}
+                            onChange={(e) => updateSummary(doc.id, e.target.value)}
+                            placeholder={state.isLoading ? "AI 解读中…" : "AI 解读结果将显示在此处。"}
+                            data-testid={`interpret-summary-${doc.id}`}
+                            readOnly={state.isLoading}
+                          />
+                        )}
                         {state.error && (
                           <p className="extract-error" data-testid={`interpret-error-${doc.id}`} style={{ color: "#c00", fontSize: "0.9em", margin: "4px 0" }}>
                             {state.error}
@@ -434,6 +457,15 @@ export function InterpretPanel({
                         )}
                         <div className="interpret-main__actions">
                           <span className="interpret-main__hint">内容自动保存</span>
+                          {state.summary && (
+                            <button
+                              type="button"
+                              onClick={() => togglePreviewMode(doc.id)}
+                              data-testid={`interpret-preview-btn-${doc.id}`}
+                            >
+                              {state.previewMode ? "编辑" : "预览"}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => void doInterpret(doc)}

@@ -11,6 +11,7 @@
   "dependencies": {
     "idb": "^8.0.0",
     "mammoth": "^1.12.0",
+    "marked": "^18.0.4",
     "pdfjs-dist": "^5.7.284",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

@@ -1916,6 +1916,108 @@
   margin: 0;
 }
 
+.interpret-summary--rendered {
+  overflow-y: auto;
+  padding: 16px 20px;
+  line-height: 1.9;
+  color: var(--pex-color-text-primary);
+}
+
+.interpret-summary--rendered h1,
+.interpret-summary--rendered h2,
+.interpret-summary--rendered h3,
+.interpret-summary--rendered h4 {
+  margin-top: 1.2em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--pex-color-text-primary);
+}
+
+.interpret-summary--rendered h2 {
+  font-size: 1.2em;
+  border-bottom: 1px solid var(--pex-color-border-input);
+  padding-bottom: 0.3em;
+}
+
+.interpret-summary--rendered h3 {
+  font-size: 1.08em;
+}
+
+.interpret-summary--rendered p {
+  margin: 0.6em 0;
+}
+
+.interpret-summary--rendered ul,
+.interpret-summary--rendered ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.interpret-summary--rendered li {
+  margin: 0.25em 0;
+}
+
+.interpret-summary--rendered strong {
+  font-weight: 600;
+  color: var(--pex-color-text-primary);
+}
+
+.interpret-summary--rendered code {
+  background: var(--pex-color-bg-secondary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.9em;
+}
+
+.interpret-summary--rendered pre {
+  background: var(--pex-color-bg-secondary);
+  padding: 12px 16px;
+  border-radius: var(--pex-radius-md);
+  overflow-x: auto;
+  margin: 0.6em 0;
+}
+
+.interpret-summary--rendered pre code {
+  background: none;
+  padding: 0;
+}
+
+.interpret-summary--rendered blockquote {
+  border-left: 3px solid var(--pex-color-border-focus);
+  margin: 0.6em 0;
+  padding: 0.3em 0.8em;
+  color: var(--pex-color-text-secondary);
+  background: var(--pex-color-bg-subtle);
+  border-radius: 0 var(--pex-radius-sm) var(--pex-radius-sm) 0;
+}
+
+.interpret-summary--rendered table {
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  width: 100%;
+  font-size: 0.95em;
+}
+
+.interpret-summary--rendered th,
+.interpret-summary--rendered td {
+  border: 1px solid var(--pex-color-border-input);
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.interpret-summary--rendered th {
+  background: var(--pex-color-bg-secondary);
+  font-weight: 600;
+}
+
+.interpret-summary--rendered hr {
+  border: none;
+  border-top: 1px solid var(--pex-color-border-input);
+  margin: 1em 0;
+}
+
 .interpret-main__collapsed {
   padding: 12px 0 4px;
 }

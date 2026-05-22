@@ -66,11 +66,10 @@ describe("Interpret module", () => {
           documents: [{ id: "ref-1", fileName: "D1.pdf", role: "reference", documentType: "application", text: "" }]
         }
       ],
-      {
-        "app-1": { summary: "申请文件总结", error: null, isLoading: false, sourceLanguage: "zh", translatedText: "", isTranslating: false, translateError: null, showOriginal: false },
-        "oa-1": { summary: "审查意见总结", error: null, isLoading: false, sourceLanguage: "zh", translatedText: "", isTranslating: false, translateError: null, showOriginal: false },
-        "resp-1": { summary: "意见陈述总结", error: null, isLoading: false, sourceLanguage: "zh", translatedText: "", isTranslating: false, translateError: null, showOriginal: false },
-        "ref-1": { summary: "对比文件总结", error: null, isLoading: false, sourceLanguage: "zh", translatedText: "", isTranslating: false, translateError: null, showOriginal: false }
+      { "app-1": { summary: "申请文件总结", error: null, isLoading: false, sourceLanguage: "zh", translatedText: "", isTranslating: false, translateError: null, showOriginal: false, previewMode: false },
+        "oa-1": { summary: "审查意见总结", error: null, isLoading: false, sourceLanguage: "zh", translatedText: "", isTranslating: false, translateError: null, showOriginal: false, previewMode: false },
+        "resp-1": { summary: "意见陈述总结", error: null, isLoading: false, sourceLanguage: "zh", translatedText: "", isTranslating: false, translateError: null, showOriginal: false, previewMode: false },
+        "ref-1": { summary: "对比文件总结", error: null, isLoading: false, sourceLanguage: "zh", translatedText: "", isTranslating: false, translateError: null, showOriginal: false, previewMode: false }
       }
     );
 
