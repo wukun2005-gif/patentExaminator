@@ -28,7 +28,7 @@ export const createChatSlice = (
   sessions: [],
   messages: [],
   activeSessionId: null,
-  isPanelOpen: true,
+  isPanelOpen: false,
   isLoading: false,
 
   setSessions: (sessions) => set(() => ({ sessions })),
