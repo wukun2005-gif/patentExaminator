@@ -22,6 +22,7 @@
 | v0.1.0-r11 | 2026-05-09 | 三文档一致性审查第三轮修复（5 项）：§4.3.6 创造性三步法定位从壳子改为核心功能、§3.4 补充文档解读模块状态机说明、§6.4 补充 interpret 截断策略细节 |
 | v0.1.0-r12 | 2026-05-09 | 三文档一致性审查第四轮修复（3 项）：§3.4 状态转换图补充可选文档解读步骤、§6.1 Agent 映射补充创造性分析 Agent → `inventive` |
 | v0.1.0-r13 | 2026-05-09 | 新增 Deepseek Provider（5 家）：§1.1 架构图、§2 ADR-005、§3.3 ProviderId、§4.1 数据流图、§5.4 Provider 表 |
+| v0.1.0-r20 | 2026-05-22 | bug #39：文档解读扩展为案件级多文件分组解读（申请文件/审查意见书/意见陈述书/对比文件），解读结果按 documentId 持久化并在历史案件加载时恢复，综合视图明确列出文件名 |
 | v0.1.0-r14 | 2026-05-13 | B-008: 产品转向复审 AI 助手 — 新增复审数据模型（OfficeActionAnalysis/ArgumentMapping）、opinion-analysis/argument-analysis/reexam-draft Agent、复审路由和逐条回应草稿；全系统影响（领域模型、Agent、路由、Prompt、Mock E2E、文档） |
 | v0.1.0-r19 | 2026-05-21 | B-028: AI 智能文档分类 — 新增 classify-documents Agent（prompt、schema、fixture）、CaseSetupPage 批量上传和 AI 分类功能、文档拖拽移动和删除、角色下拉选择分类 |
 | v0.1.0-r18 | 2026-05-14 | B-015: UI 风格统一 — 新增 tokens.css（--pex- 前缀 CSS 变量：颜色/字体/间距/圆角/阴影/组件 token）、app.css 全面替换硬编码色值为 CSS 变量（851 处引用）、main.tsx 导入 tokens.css |
@@ -629,13 +630,14 @@ empty → case-ready → documents-uploaded
 
 #### 4.3.4.5 文档解读模块
 
-- **组件：** `InterpretPanel.tsx`（解读输出展示 + 追问输入框）
-- **Slice：** 复用 `chatSlice.ts`（`moduleScope: "case"`）
+- **组件：** `InterpretPanel.tsx`（案件文件总览 + 综合解读汇总 + 分组逐文件解读 + 追问输入框）
+- **Slice：** 复用 `chatSlice.ts`（`moduleScope: "case"`）和 `interpretSlice.ts`（逐文件解读结果持久化）
 - **触发时机：** 文字提取/OCR 确认后，权利要求拆解之前。用户可跳过。
-- **Agent 调用：** AgentClient 调用 `interpret` agent，输入为申请文件全文（经 TextIndex 按 token 预算裁剪后）。首次调用输出通俗语言的专利解读。
-- **交互模式：** 首次解读输出后，用户可在同一对话框中自由追问（不限轮数），上下文持续累积。复用 `AgentChatPanel.tsx` 的通用对话组件。
-- **解读输出结构（AI 自由文本，非 JSON）：** 技术方案概述 → 发明要解决的问题 → 关键技术手段 → 独立权利要求保护范围解读 → 初步创新点观察（标注"仅供参考"）。
-- **与后续模块的关系：** 此模块是"理解阶段"，Claim Chart 是"拆解阶段"。两者独立——解读不影响拆解结果，拆解也不依赖解读。解读对话记录持久化到 IndexedDB。
+- **Agent 调用：** AgentClient 对案件内每份可解读文件分别调用 `interpret` agent，输入包含当前文件全文、文件名和同案相关文件清单。申请文件、审查意见书、意见陈述书使用对应模板；对比文件沿用申请文件模板但保留文件名上下文。首次进入页面时按文件自动触发，已有持久化结果则直接恢复。
+- **交互模式：** 页面先展示案件文件总览和综合解读汇总，再按文件类别展示逐文件解读；每条解读必须显式包含被解读文件名。首次解读输出后，用户可在同一对话框中自由追问（不限轮数），上下文持续累积。复用 `AgentChatPanel.tsx` 的通用对话组件。
+- **解读输出结构（AI 自由文本，非 JSON）：** 单文件内容仍以技术方案概述 → 发明要解决的问题 → 关键技术手段 → 独立权利要求保护范围解读 → 初步创新点观察（标注"仅供参考"）为主；综合视图只负责汇总各文件结果，不再额外触发独立 Agent。
+- **持久化：** `interpretSummaries` 以 `caseId` 为主键保存 `{ documentId -> summary }` 映射；历史遗留的单字符串 summary 以兼容模式映射到申请文件。`loadCaseById` 恢复案件时同时恢复全部文档和逐文件解读。
+- **与后续模块的关系：** 此模块是"理解阶段"，Claim Chart 是"拆解阶段"。两者独立——解读不影响拆解结果，拆解也不依赖解读。解读对话记录与逐文件解读结果均持久化到 IndexedDB。
 - **Mock 模式：** G1/G2/G3 各有预置解读响应。
 
 #### 4.3.5 新颖性对照模块
@@ -1229,6 +1231,7 @@ Supabase（后端服务）
 | Object Store | keyPath | 主要索引 | 说明 |
 |-------------|---------|---------|------|
 | `cases` | `id` | `updatedAt` | PatentCase |
+| `interpretSummaries` | `caseId` | — | 文档解读持久化。v0.1.0-r20 起 `value.summaries` 保存 `documentId -> summary` 映射；兼容旧版单字符串 summary |
 | `documents` | `id` | `caseId`, `role`, `fileHash` | 源文档记录。`ReferenceDocument` 的扩展字段（`publicationDate`、`timelineStatus` 等）直接存储在同一记录中，通过 `role` 字段区分 `"application"` / `"reference"` / `"office-action-response"` |
 | `textIndex` | `documentId` | — | TextIndex 按需载入 |
 | `claimNodes` | `id` | `caseId` | ClaimNode |
@@ -1355,6 +1358,8 @@ Supabase（后端服务）
 ---
 
 ## 15. 变更记录
+
+2026-05-22 | bug #39 文档解读改为案件级多文件分组解读，结果按 documentId 持久化并在历史案件恢复时回填 | `client/src/features/interpret/InterpretPanel.tsx`、`client/src/router.tsx`、`client/src/store/features/interpret/interpretSlice.ts`、`client/src/lib/repositories/interpretRepo.ts`、`client/src/lib/caseLoader.ts` | 待提交
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|---------|

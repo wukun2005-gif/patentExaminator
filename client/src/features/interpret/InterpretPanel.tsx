@@ -1,196 +1,466 @@
-import { useState, useEffect, useRef } from "react";
-import { useInterpretStore } from "../../store";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { detectLanguage, LANGUAGE_LABELS } from "../../lib/languageDetect";
-import type { DocumentFigure } from "@shared/types/domain";
+import { LEGACY_INTERPRET_KEY, useInterpretStore } from "../../store";
+import type { DocumentFigure, SourceDocument } from "@shared/types/domain";
 import { FigureExtractPanel } from "./FigureExtractPanel";
 
 export type InterpretDocumentType = "application" | "office-action" | "office-action-response";
 
 export const DOCUMENT_TYPE_LABELS: Record<InterpretDocumentType, string> = {
-  "application": "专利申请文件",
+  application: "专利申请文件",
   "office-action": "审查意见通知书",
   "office-action-response": "意见陈述书"
 };
 
+type InterpretDocumentRole = SourceDocument["role"];
+
+const ROLE_ORDER: InterpretDocumentRole[] = [
+  "application",
+  "office-action",
+  "office-action-response",
+  "reference"
+];
+
+const ROLE_SECTION_LABELS: Record<InterpretDocumentRole, string> = {
+  application: "申请文件",
+  "office-action": "审查意见通知书",
+  "office-action-response": "意见陈述书",
+  reference: "对比文件"
+};
+
+const INTERPRET_DOCUMENT_TYPES: Record<InterpretDocumentRole, InterpretDocumentType | null> = {
+  application: "application",
+  "office-action": "office-action",
+  "office-action-response": "office-action-response",
+  reference: null
+};
+
+const INTERPRET_COLLAPSE_KEY = "pex-interpret-expanded";
+
+export interface InterpretableDocument {
+  id: string;
+  fileName: string;
+  role: InterpretDocumentRole;
+  documentType: InterpretDocumentType;
+  text: string;
+  figures?: DocumentFigure[];
+}
+
 interface InterpretPanelProps {
   caseId: string;
-  documentText?: string;
-  figures?: DocumentFigure[];
-  documentType?: InterpretDocumentType;
-  runInterpret: (prompt: string, documentType: InterpretDocumentType) => Promise<string>;
+  documents: InterpretableDocument[];
+  runInterpret: (
+    document: InterpretableDocument,
+    relatedDocuments: InterpretableDocument[]
+  ) => Promise<string>;
   runTranslate?: (text: string) => Promise<string>;
 }
 
-export function InterpretPanel({ caseId, documentText, figures, documentType = "application", runInterpret, runTranslate }: InterpretPanelProps) {
+interface DocumentCardState {
+  summary: string;
+  error: string | null;
+  isLoading: boolean;
+  sourceLanguage: "zh" | "en" | "other";
+  translatedText: string;
+  isTranslating: boolean;
+  translateError: string | null;
+  showOriginal: boolean;
+}
+
+type ExpandedStateMap = Record<string, boolean>;
+
+const EMPTY_CARD_STATE: DocumentCardState = {
+  summary: "",
+  error: null,
+  isLoading: false,
+  sourceLanguage: "zh",
+  translatedText: "",
+  isTranslating: false,
+  translateError: null,
+  showOriginal: false
+};
+
+export function buildExpandedStateStorageKey(caseId: string) {
+  return `${INTERPRET_COLLAPSE_KEY}:${caseId}`;
+}
+
+export function readExpandedState(caseId: string): ExpandedStateMap {
+  try {
+    const raw = localStorage.getItem(buildExpandedStateStorageKey(caseId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return typeof parsed === "object" && parsed ? parsed as ExpandedStateMap : {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeExpandedState(caseId: string, state: ExpandedStateMap) {
+  try {
+    localStorage.setItem(buildExpandedStateStorageKey(caseId), JSON.stringify(state));
+  } catch {
+    // Ignore localStorage write failures and fall back to in-memory state.
+  }
+}
+
+export function buildCombinedSummarySections(
+  groupedDocuments: Array<{ role: InterpretDocumentRole; title: string; documents: InterpretableDocument[] }>,
+  cardStates: Record<string, DocumentCardState>
+) {
+  return groupedDocuments
+    .map((group) => {
+      const groupSections = group.documents
+        .map((doc) => {
+          const summary = cardStates[doc.id]?.summary?.trim();
+          if (!summary) return null;
+          return `### ${doc.fileName}\n${summary}`;
+        })
+        .filter(Boolean);
+      if (groupSections.length === 0) return null;
+      return `## ${group.title}\n\n${groupSections.join("\n\n")}`;
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export function InterpretPanel({
+  caseId,
+  documents,
+  runInterpret,
+  runTranslate
+}: InterpretPanelProps) {
   const { interpretSummaries, setInterpretSummary } = useInterpretStore();
-  const persistedSummary = interpretSummaries[caseId] ?? "";
-  const [isLoading, setIsLoading] = useState(false);
-  const [summary, setSummary] = useState(persistedSummary);
-  const [error, setError] = useState<string | null>(null);
-  const autoTriggered = useRef(false);
+  const persistedSummaries = interpretSummaries[caseId] ?? {};
+  const [cardStates, setCardStates] = useState<Record<string, DocumentCardState>>({});
+  const [expandedDocuments, setExpandedDocuments] = useState<ExpandedStateMap>({});
+  const autoTriggered = useRef<Record<string, boolean>>({});
+  const translateTriggered = useRef<Record<string, boolean>>({});
 
-  const [sourceLanguage, setSourceLanguage] = useState<"zh" | "en" | "other">("zh");
-  const [translatedText, setTranslatedText] = useState("");
-  const [isTranslating, setIsTranslating] = useState(false);
-  const [translateError, setTranslateError] = useState<string | null>(null);
-  const [showOriginal, setShowOriginal] = useState(false);
-  const translateTriggered = useRef(false);
+  const groupedDocuments = useMemo(
+    () =>
+      ROLE_ORDER.map((role) => ({
+        role,
+        title: ROLE_SECTION_LABELS[role],
+        documents: documents.filter((doc) => doc.role === role)
+      })).filter((group) => group.documents.length > 0),
+    [documents]
+  );
 
   useEffect(() => {
-    setSummary(persistedSummary);
-    // 只有当 persistedSummary 为空时才重置 autoTriggered，避免重复自动解读
-    if (!persistedSummary) {
-      autoTriggered.current = false;
-    } else {
-      autoTriggered.current = true;
+    const persistedExpanded = readExpandedState(caseId);
+    const nextStates: Record<string, DocumentCardState> = {};
+    const nextExpanded: ExpandedStateMap = {};
+    for (const doc of documents) {
+      const persistedSummary = persistedSummaries[doc.id];
+      const legacySummary = doc.role === "application" ? persistedSummaries[LEGACY_INTERPRET_KEY] : undefined;
+      nextStates[doc.id] = {
+        ...EMPTY_CARD_STATE,
+        summary: persistedSummary ?? legacySummary ?? cardStates[doc.id]?.summary ?? ""
+      };
+      nextExpanded[doc.id] = persistedExpanded[doc.id] ?? false;
+      autoTriggered.current[doc.id] = Boolean(persistedSummary ?? legacySummary);
+      translateTriggered.current[doc.id] = false;
     }
-  }, [caseId]);
+    setCardStates(nextStates);
+    setExpandedDocuments(nextExpanded);
+  }, [caseId, documents, persistedSummaries]);
 
   useEffect(() => {
-    if (documentText) {
-      const lang = detectLanguage(documentText);
-      setSourceLanguage(lang);
-      if (lang !== "zh" && runTranslate && !translateTriggered.current) {
-        translateTriggered.current = true;
-        doTranslate();
+    writeExpandedState(caseId, expandedDocuments);
+  }, [caseId, expandedDocuments]);
+
+  useEffect(() => {
+    documents.forEach((doc) => {
+      const lang = detectLanguage(doc.text);
+      setCardStates((prev) => ({
+        ...prev,
+        [doc.id]: {
+          ...(prev[doc.id] ?? EMPTY_CARD_STATE),
+          sourceLanguage: lang
+        }
+      }));
+
+      if (lang !== "zh" && runTranslate && !translateTriggered.current[doc.id]) {
+        translateTriggered.current[doc.id] = true;
+        void doTranslate(doc);
       }
-    }
-  }, [documentText]);
 
-  useEffect(() => {
-    if (documentText && !persistedSummary && !isLoading && !autoTriggered.current) {
-      autoTriggered.current = true;
-      doInterpret();
-    }
-  }, [documentText, persistedSummary, translatedText]);
+      if (
+        doc.text &&
+        !persistedSummaries[doc.id] &&
+        !(doc.role === "application" && persistedSummaries[LEGACY_INTERPRET_KEY]) &&
+        !autoTriggered.current[doc.id]
+      ) {
+        autoTriggered.current[doc.id] = true;
+        void doInterpret(doc);
+      }
+    });
+  }, [documents, persistedSummaries, runTranslate]);
 
-  useEffect(() => {
-    if (summary && summary !== persistedSummary) {
-      setInterpretSummary(caseId, summary);
-    }
-  }, [summary, caseId, setInterpretSummary, persistedSummary]);
+  const doTranslate = async (doc: InterpretableDocument) => {
+    if (!runTranslate) return;
+    setCardStates((prev) => ({
+      ...prev,
+      [doc.id]: {
+        ...(prev[doc.id] ?? EMPTY_CARD_STATE),
+        isTranslating: true,
+        translateError: null
+      }
+    }));
 
-  const doTranslate = async () => {
-    if (!documentText || !runTranslate || isTranslating) return;
-
-    setIsTranslating(true);
-    setTranslateError(null);
     try {
-      const result = await runTranslate(documentText);
-      setTranslatedText(result);
+      const translatedText = await runTranslate(doc.text);
+      setCardStates((prev) => ({
+        ...prev,
+        [doc.id]: {
+          ...(prev[doc.id] ?? EMPTY_CARD_STATE),
+          translatedText,
+          isTranslating: false
+        }
+      }));
     } catch (err) {
-      setTranslateError(`翻译失败: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setIsTranslating(false);
+      setCardStates((prev) => ({
+        ...prev,
+        [doc.id]: {
+          ...(prev[doc.id] ?? EMPTY_CARD_STATE),
+          isTranslating: false,
+          translateError: `翻译失败: ${err instanceof Error ? err.message : String(err)}`
+        }
+      }));
     }
   };
 
-  const doInterpret = async () => {
-    if (!documentText || isLoading) return;
+  const doInterpret = async (doc: InterpretableDocument) => {
+    setCardStates((prev) => ({
+      ...prev,
+      [doc.id]: {
+        ...(prev[doc.id] ?? EMPTY_CARD_STATE),
+        isLoading: true,
+        error: null
+      }
+    }));
 
-    const textToInterpret = sourceLanguage !== "zh" && translatedText ? translatedText : documentText;
-
-    setIsLoading(true);
-    setError(null);
     try {
-      const response = await runInterpret(textToInterpret, documentType);
-      setSummary(response);
-      setInterpretSummary(caseId, response);
+      const response = await runInterpret(
+        doc,
+        documents.filter((item) => item.id !== doc.id)
+      );
+      setCardStates((prev) => ({
+        ...prev,
+        [doc.id]: {
+          ...(prev[doc.id] ?? EMPTY_CARD_STATE),
+          summary: response,
+          isLoading: false
+        }
+      }));
+      setInterpretSummary(caseId, doc.id, response);
     } catch (err) {
-      setError(`解读失败: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setIsLoading(false);
+      setCardStates((prev) => ({
+        ...prev,
+        [doc.id]: {
+          ...(prev[doc.id] ?? EMPTY_CARD_STATE),
+          isLoading: false,
+          error: `解读失败: ${err instanceof Error ? err.message : String(err)}`
+        }
+      }));
     }
   };
 
-  const needsTranslation = sourceLanguage !== "zh";
+  const updateSummary = (documentId: string, summary: string) => {
+    setCardStates((prev) => ({
+      ...prev,
+      [documentId]: {
+        ...(prev[documentId] ?? EMPTY_CARD_STATE),
+        summary
+      }
+    }));
+    setInterpretSummary(caseId, documentId, summary);
+  };
+
+  const toggleOriginal = (documentId: string) => {
+    setCardStates((prev) => ({
+      ...prev,
+      [documentId]: {
+        ...(prev[documentId] ?? EMPTY_CARD_STATE),
+        showOriginal: !prev[documentId]?.showOriginal
+      }
+    }));
+  };
+
+  const updateTranslatedText = (documentId: string, translatedText: string) => {
+    setCardStates((prev) => ({
+      ...prev,
+      [documentId]: {
+        ...(prev[documentId] ?? EMPTY_CARD_STATE),
+        translatedText
+      }
+    }));
+  };
+
+  const toggleDocumentExpanded = (documentId: string) => {
+    setExpandedDocuments((prev) => ({
+      ...prev,
+      [documentId]: !prev[documentId]
+    }));
+  };
+
+  const summarySections = buildCombinedSummarySections(groupedDocuments, cardStates);
 
   return (
     <div className="interpret-panel" data-testid="interpret-panel">
       <h2>文档解读</h2>
 
-      {!documentText ? (
-        <p data-testid="no-document">请先上传专利文档。</p>
+      {documents.length === 0 ? (
+        <p data-testid="no-document">请先上传需要解读的案件文件。</p>
       ) : (
-        <div className="interpret-main">
-          {needsTranslation && (
-            <div className="interpret-translation" data-testid="interpret-translation">
-              <div className="interpret-translation__header">
-                <h3>中文翻译</h3>
-                <span className="interpret-translation__lang" data-testid="source-language">
-                  源语言: {LANGUAGE_LABELS[sourceLanguage] ?? sourceLanguage}
-                </span>
-                <button
-                  type="button"
-                  className="btn-link"
-                  onClick={() => setShowOriginal(!showOriginal)}
-                  data-testid="btn-toggle-original"
-                >
-                  {showOriginal ? "收起原文" : "查看原文"}
-                </button>
+        <>
+          <section className="interpret-overview" data-testid="interpret-overview">
+            <h3>案件文件总览</h3>
+            {groupedDocuments.map((group) => (
+              <div key={group.role} className="interpret-overview__group">
+                <strong>{group.title}</strong>
+                <ul>
+                  {group.documents.map((doc) => (
+                    <li key={doc.id}>{doc.fileName}</li>
+                  ))}
+                </ul>
               </div>
+            ))}
+          </section>
 
-              {showOriginal && (
-                <div className="interpret-translation__original" data-testid="original-text">
-                  <pre>{documentText.slice(0, 5000)}{documentText.length > 5000 ? "\n…（原文过长，已截断）" : ""}</pre>
-                </div>
-              )}
-
-              <textarea
-                className="interpret-translation__textarea"
-                value={translatedText}
-                onChange={(e) => setTranslatedText(e.target.value)}
-                placeholder={isTranslating ? "翻译中…" : "中文翻译结果将显示在此处。"}
-                data-testid="translated-text"
-                readOnly={isTranslating}
-              />
-
-              {translateError && (
-                <p className="extract-error" data-testid="translate-error" style={{ color: "#c00", fontSize: "0.9em", margin: "4px 0" }}>
-                  {translateError}
-                </p>
-              )}
-
-              <button
-                type="button"
-                onClick={doTranslate}
-                disabled={!documentText || isTranslating}
-                data-testid="btn-retranslate"
-              >
-                {isTranslating ? "翻译中…" : "重新翻译"}
-              </button>
-            </div>
+          {summarySections && (
+            <section className="interpret-overview" data-testid="interpret-combined-summary">
+              <h3>综合解读汇总</h3>
+              <pre className="interpret-summary interpret-summary--combined">{summarySections}</pre>
+            </section>
           )}
 
-          {figures && figures.length > 0 && (
-            <FigureExtractPanel figures={figures} />
-          )}
+          {groupedDocuments.map((group) => (
+            <section key={group.role} className="interpret-group" data-testid={`interpret-group-${group.role}`}>
+              <h3>{group.title}</h3>
+              {group.documents.map((doc) => {
+                const state = cardStates[doc.id] ?? EMPTY_CARD_STATE;
+                const needsTranslation = state.sourceLanguage !== "zh";
+                const isExpanded = expandedDocuments[doc.id] ?? false;
 
-          <div className="interpret-main__header">
-            <h3>解读结果</h3>
-            <span className="interpret-main__hint">可直接编辑内容 · 如需追问请使用右侧 AI 助手</span>
-          </div>
-          <textarea
-            className="interpret-summary"
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            placeholder={isLoading ? "AI 解读中…" : "AI 解读结果将显示在此处。"}
-            data-testid="interpret-summary"
-            readOnly={isLoading}
-          />
-          {error && <p className="extract-error" data-testid="interpret-error" style={{ color: "#c00", fontSize: "0.9em", margin: "4px 0" }}>{error}</p>}
-          <div className="interpret-main__actions">
-            <span className="interpret-main__hint">内容自动保存</span>
-            <button
-              type="button"
-              onClick={doInterpret}
-              disabled={!documentText || isLoading}
-              data-testid="btn-reinterpret"
-            >
-              {isLoading ? "解读中…" : "重新解读"}
-            </button>
-          </div>
-        </div>
+                return (
+                  <article key={doc.id} className="interpret-main" data-testid={`interpret-doc-${doc.id}`}>
+                    <div className="interpret-main__header">
+                      <div>
+                        <h4>{doc.fileName}</h4>
+                        <span className="interpret-main__hint">{DOCUMENT_TYPE_LABELS[doc.documentType]}</span>
+                      </div>
+                      <div className="interpret-main__header-actions">
+                        <span className="interpret-main__hint">可直接编辑内容 · 自动保存</span>
+                        <button
+                          type="button"
+                          className="interpret-main__toggle"
+                          onClick={() => toggleDocumentExpanded(doc.id)}
+                          aria-expanded={isExpanded}
+                          data-testid={`toggle-interpret-doc-${doc.id}`}
+                        >
+                          {isExpanded ? "收起" : "展开"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {isExpanded ? (
+                      <>
+                        {needsTranslation && (
+                          <div className="interpret-translation" data-testid={`interpret-translation-${doc.id}`}>
+                            <div className="interpret-translation__header">
+                              <h4>中文翻译</h4>
+                              <span className="interpret-translation__lang" data-testid={`source-language-${doc.id}`}>
+                                源语言: {LANGUAGE_LABELS[state.sourceLanguage] ?? state.sourceLanguage}
+                              </span>
+                              <button
+                                type="button"
+                                className="btn-link"
+                                onClick={() => toggleOriginal(doc.id)}
+                                data-testid={`btn-toggle-original-${doc.id}`}
+                              >
+                                {state.showOriginal ? "收起原文" : "查看原文"}
+                              </button>
+                            </div>
+
+                            {state.showOriginal && (
+                              <div className="interpret-translation__original" data-testid={`original-text-${doc.id}`}>
+                                <pre>{doc.text.slice(0, 5000)}{doc.text.length > 5000 ? "\n…（原文过长，已截断）" : ""}</pre>
+                              </div>
+                            )}
+
+                            <textarea
+                              className="interpret-translation__textarea"
+                              value={state.translatedText}
+                              onChange={(e) => updateTranslatedText(doc.id, e.target.value)}
+                              placeholder={state.isTranslating ? "翻译中…" : "中文翻译结果将显示在此处。"}
+                              data-testid={`translated-text-${doc.id}`}
+                              readOnly={state.isTranslating}
+                            />
+
+                            {state.translateError && (
+                              <p className="extract-error" data-testid={`translate-error-${doc.id}`} style={{ color: "#c00", fontSize: "0.9em", margin: "4px 0" }}>
+                                {state.translateError}
+                              </p>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => void doTranslate(doc)}
+                              disabled={!runTranslate || state.isTranslating}
+                              data-testid={`btn-retranslate-${doc.id}`}
+                            >
+                              {state.isTranslating ? "翻译中…" : "重新翻译"}
+                            </button>
+                          </div>
+                        )}
+
+                        {doc.figures && doc.figures.length > 0 && (
+                          <FigureExtractPanel figures={doc.figures} />
+                        )}
+
+                        <textarea
+                          className="interpret-summary"
+                          value={state.summary}
+                          onChange={(e) => updateSummary(doc.id, e.target.value)}
+                          placeholder={state.isLoading ? "AI 解读中…" : "AI 解读结果将显示在此处。"}
+                          data-testid={`interpret-summary-${doc.id}`}
+                          readOnly={state.isLoading}
+                        />
+                        {state.error && (
+                          <p className="extract-error" data-testid={`interpret-error-${doc.id}`} style={{ color: "#c00", fontSize: "0.9em", margin: "4px 0" }}>
+                            {state.error}
+                          </p>
+                        )}
+                        <div className="interpret-main__actions">
+                          <span className="interpret-main__hint">内容自动保存</span>
+                          <button
+                            type="button"
+                            onClick={() => void doInterpret(doc)}
+                            disabled={!doc.text || state.isLoading}
+                            data-testid={`btn-reinterpret-${doc.id}`}
+                          >
+                            {state.isLoading ? "解读中…" : "重新解读"}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="interpret-main__collapsed" data-testid={`interpret-collapsed-${doc.id}`}>
+                        <span className="interpret-main__hint">
+                          {state.summary.trim()
+                            ? "已生成解读，点击展开查看和编辑。"
+                            : state.isLoading
+                              ? "AI 解读中，完成后可展开查看。"
+                              : "尚未展开查看解读。"}
+                        </span>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </section>
+          ))}
+        </>
       )}
     </div>
   );

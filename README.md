@@ -41,7 +41,7 @@ npm run dev
 | 审查意见解析 | 结构化提取驳回理由、法律依据、引用文献和事实认定 | `/cases/:id/opinion-analysis` |
 | 答辩理由映射 | 将意见陈述书中的答辩理由映射到驳回理由，标注置信度和未回应项 | `/cases/:id/argument-mapping` |
 | 文献清单 | 管理对比文件，查看时间轴状态 | `/cases/:id/references` |
-| 文档解读 | AI 交互式理解专利文档，支持追问 | `/cases/:id/interpret` |
+| 文档解读 | AI 按文件类别分组解读申请文件、审查意见书、意见陈述书和对比文件，并明确列出文件名，支持追问 | `/cases/:id/interpret` |
 | Claim Chart | 权利要求特征拆解，生成特征代码表 | `/cases/:id/claim-chart` |
 | 新颖性复核 | 结合申请人答辩逐特征复核公开状态，标记区别特征 | `/cases/:id/novelty` |
 | 创造性复核 | 最近现有技术→区别特征→技术启示，并回应创造性答辩 | `/cases/:id/inventive` |

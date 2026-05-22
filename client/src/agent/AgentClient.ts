@@ -1,4 +1,4 @@
-import type {
+import {
   ClaimChartRequest,
   ClaimChartResponse,
   NoveltyRequest,
@@ -49,6 +49,12 @@ const GATEWAY_AGENT_TO_KEY: Record<string, AgentAssignment["agent"]> = {
   "argument-analysis": "argument-analysis",
   "reexam-draft": "reexam-draft",
   "classify-documents": "classify-documents"
+};
+
+const INTERPRET_DOCUMENT_LABELS: Record<InterpretDocumentType, string> = {
+  application: "专利申请文件",
+  "office-action": "审查意见通知书",
+  "office-action-response": "意见陈述书"
 };
 
 /**
@@ -672,6 +678,9 @@ const INTERPRET_TEMPLATES: Record<InterpretDocumentType, { title: string; instru
 
 function buildInterpretPrompt(request: InterpretRequest): string {
   const template = INTERPRET_TEMPLATES[request.documentType] ?? INTERPRET_TEMPLATES.application;
+  const relatedDocuments = request.relatedDocuments?.length
+    ? request.relatedDocuments.map((doc) => `- ${doc.fileName}（${INTERPRET_DOCUMENT_LABELS[doc.documentType]}）`).join("\n")
+    : "无";
 
   return [
     `你是一个专利审查助手。请对以下${template.title}进行深度解读，从以下维度分析：`,
@@ -679,8 +688,15 @@ function buildInterpretPrompt(request: InterpretRequest): string {
     ...template.instructions,
     "",
     "请用中文回答，结构清晰，每个维度用标题分隔。",
+    "必须在开头明确写出当前解读文件名。",
+    "需要结合同案其它文件类型说明当前文件与案件整体的关联，但不得编造未出现在文本中的事实。",
     "",
     `案件 ID: ${request.caseId}`,
+    `文件 ID: ${request.documentId ?? "unknown-document"}`,
+    `文件名: ${request.fileName ?? "未命名文件"}`,
+    "",
+    "=== 同案相关文件 ===",
+    relatedDocuments,
     "",
     "=== 文档内容 ===",
     request.documentText.slice(0, 12000)

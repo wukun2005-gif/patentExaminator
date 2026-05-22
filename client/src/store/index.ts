@@ -87,6 +87,7 @@ export {
   createOpinionSlice
 } from "./features/opinion/opinionSlice";
 export {
+  LEGACY_INTERPRET_KEY,
   useInterpretStore,
   createInterpretSlice
 } from "./features/interpret/interpretSlice";

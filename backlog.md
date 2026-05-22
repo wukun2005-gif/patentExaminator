@@ -1,104 +1,11 @@
 # Backlog
-
-38: 文档解读：刷新页面后，从案件历史里面调阅出以前的案件，但是文档解读却是空白的。上次的文档解读内容丢失了，没有保存和恢复，反而要重新调用AI API来解读，浪费token。
-
-**状态：** ✅ 已完成
-
-**修复方式：**
-1. 在 `IndexedDB` schema 中添加 `interpretSummaries` object store（DB_VERSION 升级到 4）
-2. 创建 `interpretRepo.ts` 提供 `saveInterpretSummary`、`readInterpretSummary`、`deleteInterpretSummary` 数据库操作
-3. 修改 `interpretSlice.ts`：
-   - `setInterpretSummary` 在更新 Zustand store 后同步写入 IndexedDB
-   - 新增 `loadInterpretSummary` 方法用于从数据库加载（不触发二次保存）
-   - `clearInterpretData` 同时删除 IndexedDB 中的记录
-4. 修改 `caseLoader.ts` 的 `loadCaseById` 在加载案件时恢复 interpret 数据
-
----
-
-39: bug-fix: 文档解读：现在的文档解读只解读申请文件，没有解读所有其他类型的文件，比如审查意见书，答辩书，对比文件。需要分门别类而又相互联系地、全面深入仔细地、抽丝剥茧地、深入浅出地解读所有这些文件。而且每个文件的解读都要列出被解读的文件名，让用户知道解读了哪些文件。
-
-
-
-
-37: bug-fix: 自动测试有个failure：“❯ tests/unit/agentClient.test.ts (6 tests | 1 failed) 5013ms
-
-**状态：** ✅ 已完成 (1db0f77)
-
-**修复方式：** Mock `globalThis.fetch` 在测试中立即 reject，避免依赖网络和服务器状态。
-
----
-
-36： http://localhost:6173/cases/case-1779410645036/export：导出时报错：“Unexpected Application Error!
-Cannot read properties of undefined (reading 'length')
-TypeError: Cannot read properties of undefined (reading 'length')
-    at ExportPanel (http://localhost:6173/src/features/export/ExportPanel.tsx:134:39)
-    at renderWithHooks (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:11548:26)
-    at mountIndeterminateComponent (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:14926:21)
-    at beginWork (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:15914:22)
-    at beginWork$1 (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:19753:22)
-    at performUnitOfWork (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:19198:20)
-    at workLoopSync (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:19137:13)
-    at renderRootSync (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:19116:15)
-    at recoverFromConcurrentError (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:18736:28)
-    at performSyncWorkOnRoot (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:18879:28)
-💿 Hey developer 👋”
-
-You can provide a way better UX than this when your app throws errors by providing your own ErrorBoundary or errorElement prop on your route.
-
-
-35: http://localhost:6173/cases/case-1779410645036/draft：生成草稿时报错：“Unexpected Application Error!
-Cannot read properties of undefined (reading 'map')
-TypeError: Cannot read properties of undefined (reading 'map')
-    at DraftMaterialPanel (http://localhost:6173/src/features/draft/DraftMaterialPanel.tsx:120:37)
-    at renderWithHooks (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:11548:26)
-    at updateFunctionComponent (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:14582:28)
-    at beginWork (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:15924:22)
-    at beginWork$1 (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:19753:22)
-    at performUnitOfWork (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:19198:20)
-    at workLoopSync (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:19137:13)
-    at renderRootSync (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:19116:15)
-    at recoverFromConcurrentError (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:18736:28)
-    at performConcurrentWorkOnRoot (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=90cec3fb:18684:30)
-💿 Hey developer 👋
-
-You can provide a way better UX than this when your app throws errors by providing your own ErrorBoundary or errorElement prop on your route.”
-
-
-34: http://localhost:6173/cases/case-1779410645036/claim-chart：“生成权利表”按钮为灰色不可用。
-
-32: http://localhost:6173/cases/case-1779410645036/interpret：文档解读应该显示上一次的自动保存的结果，如果为空才自动触发AI解读；现在的bug是即使不为空也触发AI自动解读，浪费token。
-
-**状态：** ✅ 已完成 (88502e0)
+35: new feature: chat pannel 默认折叠起来，别打开。
 
 33: http://localhost:6173/cases/case-1779410645036/references：对比文件没有作为文献清单被自动load。AI 检索功能也消失不见了。
 
 31: bug: http://localhost:6173/cases/case-1779410645036/opinion-comparison：在真实模式下使用 sample data /Users/wukun/Documents/tmp/patentExaminator/samples/led-heatsink-mini 遇到的问题：点击“一键全解析”按钮后报错：“审查意见解析：Cannot read properties of undefined (reading 'map')
 答辩理由映射：Cannot read properties of undefined (reading 'map')”; 
 点击按钮“重新解析”报错”答辩理由映射：Cannot read properties of undefined (reading 'map')“
-
-
-30: http://localhost:6173/cases/preset-demo-001/claim-chart： 权利要求特征表，进入的时候已经有3个特征，“特征代码	特征描述	引用状态	来源	操作
-A	一种LED散热装置，包括基板，所述基板为铝合金材质	已确认	mock	编辑✕
-B	散热翅片，设置在所述基板上表面，所述散热翅片与所述基板一体成型	已确认	mock	编辑✕
-C	所述散热翅片表面设置有纳米涂层	已确认	mock	编辑” 用户没有做任何改动，直接点击“生成权利要求特征表“按钮后，又多出5个新特征”D	所述基板为铝合金材质	待确认	mock	编辑✕
-E	散热翅片	待确认	mock	编辑✕
-F	设置在所述基板上表面	待确认	mock	编辑✕
-G	所述散热翅片与所述基板一体成型	待确认	mock	编辑✕
-H	所述散热翅片表面设置有纳米涂层。	待确认	mock	编辑"。 既然用户啥改动都没有做，为啥不一上来就把8个特征直接生成出来呢？
-
-**状态：** ✅ 已完成 (f1cf7f3)
-
-29. [✅] 现在设置里面的provider名单太长，把每个provider的卡片都折叠起来，用户想打开的时候再打开，并记住用户的打开状态。折叠起来的时候，只露出provider name 和 启用还是没启用 这两个信息。
-
-28. [✅] feature new：http://localhost:6173/cases/case-1779368677110/setup：用户可以一次性批量上传所有的文件，AI自动识别并对文件分门别类放到四个文件分类 section 中。注意：权利要求书目前属于“申请文件”。在每个seciton中，用户可以删除既有的文件和上传新文件，或者手动拖拉文件在四个区中移动，用来手动修改AI分类的错误。无法识别的文件都放到“对比文件”section。 Mock模式和real模式都要支持。
-
-18. http://localhost:6173/cases/preset-demo-001/novelty：删除比较文件后，无法再加载再比较。按对照按钮也无法进行比较。即使重新回到权利要求特征表中生成特征拆解，然后选择对比文件运行新颖性分析，也没有再生成新颖性分析结果。
-Fix: AgentClient.ts `runNovelty` 在 mock 模式下直接抛错 `mock-novelty-not-implemented-in-agent-client`，改为调用 `callGatewayMock`。同时 `loadFixture.ts` 添加 `preset-demo-001` 作为 novelty fixture 的 fallback key。
-19. http://localhost:6173/cases/preset-demo-001/inventive: 在http://localhost:6173/cases/preset-demo-001/setup中有多个对比文件，但是在step1按照“AI 从可用对比文件中推荐最接近现有技术，点击可更换。”提示，点击后无法更换。
-
-
-t.b.d
-21. http://localhost:6173/cases/preset-demo-001/inventive；“技术启示证据（可编辑）”：点击“保存修改”按钮没有保存修改。
 
 
 ## B-001: AI 辅助文献检索（自动生成候选文献清单）

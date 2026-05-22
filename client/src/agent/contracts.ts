@@ -177,8 +177,14 @@ export type InterpretDocumentType = "application" | "office-action" | "office-ac
 
 export interface InterpretRequest {
   caseId: string;
+  documentId?: string;
+  fileName?: string;
   documentText: string;
   documentType: InterpretDocumentType;
+  relatedDocuments?: Array<{
+    fileName: string;
+    documentType: InterpretDocumentType;
+  }>;
 }
 
 export interface InterpretResponse {

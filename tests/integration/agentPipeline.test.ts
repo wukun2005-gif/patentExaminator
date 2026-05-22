@@ -502,21 +502,26 @@ describe("Agent Pipeline: Interpret (Mock)", () => {
     const client = makeMockClient();
     const resp = await client.runInterpret({
       caseId: CASE_ID,
+      documentId: "doc-app",
+      fileName: "申请文件.pdf",
       documentText: MOCK_SPEC_TEXT,
-      documentType: "application"
+      documentType: "application",
+      relatedDocuments: [{ fileName: "审查意见通知书.pdf", documentType: "office-action" }]
     });
 
     expect(resp.reply).toBeTruthy();
     expect(resp.reply).toContain("演示模式");
 
-    useInterpretStore.getState().setInterpretSummary(CASE_ID, resp.reply);
-    expect(useInterpretStore.getState().interpretSummaries[CASE_ID]).toBe(resp.reply);
+    useInterpretStore.getState().setInterpretSummary(CASE_ID, "doc-app", resp.reply);
+    expect(useInterpretStore.getState().interpretSummaries[CASE_ID]?.["doc-app"]).toBe(resp.reply);
   });
 
   it("runInterpret → 审查意见通知书类型 → 使用对应模板", async () => {
     const client = makeMockClient();
     const resp = await client.runInterpret({
       caseId: CASE_ID,
+      documentId: "doc-oa",
+      fileName: "审查意见通知书.pdf",
       documentText: "审查意见通知书内容...",
       documentType: "office-action"
     });
@@ -529,6 +534,8 @@ describe("Agent Pipeline: Interpret (Mock)", () => {
     const client = makeMockClient();
     const resp = await client.runInterpret({
       caseId: CASE_ID,
+      documentId: "doc-response",
+      fileName: "意见陈述书.pdf",
       documentText: "意见陈述书内容...",
       documentType: "office-action-response"
     });

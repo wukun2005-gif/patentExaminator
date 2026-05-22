@@ -1812,22 +1812,59 @@
   max-width: 960px;
 }
 
+.interpret-overview,
+.interpret-group {
+  margin-bottom: 20px;
+}
+
+.interpret-overview {
+  padding: 16px 18px;
+  border: 1px solid var(--pex-color-border-subtle);
+  border-radius: var(--pex-radius-xl);
+  background: var(--pex-color-surface-secondary);
+}
+
+.interpret-overview h3,
+.interpret-group h3,
+.interpret-main__header h4 {
+  margin: 0 0 10px;
+}
+
+.interpret-overview__group + .interpret-overview__group {
+  margin-top: 10px;
+}
+
+.interpret-overview__group ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
 .interpret-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: calc(100vh - 200px);
+  min-height: 320px;
+  padding: 16px 0;
+  border-top: 1px solid var(--pex-color-border-subtle);
 }
 
 .interpret-main__header {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 12px;
   margin-bottom: 8px;
 }
 
-.interpret-main__header h3 {
+.interpret-main__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.interpret-main__header h3,
+.interpret-main__header h4 {
   font-size: var(--pex-font-size-subtitle);
   margin: 0;
 }
@@ -1837,10 +1874,23 @@
   color: var(--pex-color-text-disabled);
 }
 
+.interpret-main__toggle {
+  padding: 6px 12px;
+  border: 1px solid var(--pex-color-border-input);
+  border-radius: var(--pex-radius-lg);
+  background: #fff;
+  font-size: var(--pex-font-size-body-sm);
+  cursor: pointer;
+}
+
+.interpret-main__toggle:hover {
+  border-color: var(--pex-color-border-focus);
+}
+
 .interpret-summary {
   flex: 1;
   width: 100%;
-  min-height: 400px;
+  min-height: 260px;
   padding: 14px 16px;
   border: 1px solid var(--pex-color-border-input);
   border-radius: var(--pex-radius-xl);
@@ -1861,10 +1911,20 @@
   color: var(--pex-color-text-empty);
 }
 
+.interpret-summary--combined {
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.interpret-main__collapsed {
+  padding: 12px 0 4px;
+}
+
 .interpret-main__actions {
   margin-top: 8px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .interpret-main__actions button {

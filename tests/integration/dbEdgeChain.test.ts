@@ -483,38 +483,40 @@ describe("Draft Store (Reexamination State)", () => {
 // ═══════════════════════════════════════════════════════════════
 describe("Interpret Store", () => {
   it("setInterpretSummary → 写入 → 回读", () => {
-    useInterpretStore.getState().setInterpretSummary("case-1", "LED散热装置解读摘要");
+    useInterpretStore.getState().setInterpretSummary("case-1", "doc-app", "LED散热装置解读摘要");
 
     const summaries = useInterpretStore.getState().interpretSummaries;
-    expect(summaries["case-1"]).toBe("LED散热装置解读摘要");
+    expect(summaries["case-1"]?.["doc-app"]).toBe("LED散热装置解读摘要");
   });
 
-  it("多个 case → 各自独立", () => {
-    useInterpretStore.getState().setInterpretSummary("case-1", "解读1");
-    useInterpretStore.getState().setInterpretSummary("case-2", "解读2");
+  it("多个 case 与多个文档 → 各自独立", () => {
+    useInterpretStore.getState().setInterpretSummary("case-1", "doc-app", "解读1");
+    useInterpretStore.getState().setInterpretSummary("case-1", "doc-oa", "解读1-2");
+    useInterpretStore.getState().setInterpretSummary("case-2", "doc-ref", "解读2");
 
     const summaries = useInterpretStore.getState().interpretSummaries;
     expect(Object.keys(summaries)).toHaveLength(2);
-    expect(summaries["case-1"]).toBe("解读1");
-    expect(summaries["case-2"]).toBe("解读2");
+    expect(summaries["case-1"]?.["doc-app"]).toBe("解读1");
+    expect(summaries["case-1"]?.["doc-oa"]).toBe("解读1-2");
+    expect(summaries["case-2"]?.["doc-ref"]).toBe("解读2");
   });
 
   it("覆盖已有 summary", () => {
-    useInterpretStore.getState().setInterpretSummary("case-1", "旧解读");
-    useInterpretStore.getState().setInterpretSummary("case-1", "新解读");
+    useInterpretStore.getState().setInterpretSummary("case-1", "doc-app", "旧解读");
+    useInterpretStore.getState().setInterpretSummary("case-1", "doc-app", "新解读");
 
-    expect(useInterpretStore.getState().interpretSummaries["case-1"]).toBe("新解读");
+    expect(useInterpretStore.getState().interpretSummaries["case-1"]?.["doc-app"]).toBe("新解读");
   });
 
   it("clearInterpretData → 指定 case → 其余不受影响", () => {
-    useInterpretStore.getState().setInterpretSummary("case-1", "解读1");
-    useInterpretStore.getState().setInterpretSummary("case-2", "解读2");
+    useInterpretStore.getState().setInterpretSummary("case-1", "doc-app", "解读1");
+    useInterpretStore.getState().setInterpretSummary("case-2", "doc-ref", "解读2");
 
     useInterpretStore.getState().clearInterpretData("case-1");
 
     const summaries = useInterpretStore.getState().interpretSummaries;
     expect(Object.keys(summaries)).toHaveLength(1);
-    expect(summaries["case-2"]).toBe("解读2");
+    expect(summaries["case-2"]?.["doc-ref"]).toBe("解读2");
     expect(summaries["case-1"]).toBeUndefined();
   });
 });

@@ -22,7 +22,9 @@ export interface PatentExaminerDB extends DBSchema {
   };
   interpretSummaries: {
     key: string; // caseId
-    value: { caseId: string; summary: string; updatedAt: string };
+    value:
+      | { caseId: string; summary: string; updatedAt: string }
+      | { caseId: string; summaries: Record<string, string>; updatedAt: string };
   };
   documents: {
     key: string;

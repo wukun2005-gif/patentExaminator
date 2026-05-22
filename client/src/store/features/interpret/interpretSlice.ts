@@ -1,11 +1,16 @@
 import { create } from "zustand";
-import { saveInterpretSummary, deleteInterpretSummary } from "../../../lib/repositories/interpretRepo.js";
+import {
+  saveInterpretSummaries,
+  deleteInterpretSummaries
+} from "../../../lib/repositories/interpretRepo.js";
+
+export const LEGACY_INTERPRET_KEY = "__legacy__";
 
 export interface InterpretSlice {
-  interpretSummaries: Record<string, string>; // caseId → summary
-  setInterpretSummary: (caseId: string, summary: string) => void;
+  interpretSummaries: Record<string, Record<string, string>>; // caseId → documentId → summary
+  setInterpretSummary: (caseId: string, documentId: string, summary: string) => void;
   clearInterpretData: (caseId: string) => void;
-  loadInterpretSummary: (caseId: string, summary: string) => void; // for loading from DB without re-saving
+  loadInterpretSummaries: (caseId: string, summaries: Record<string, string>) => void; // for loading from DB without re-saving
 }
 
 export const createInterpretSlice = (
@@ -14,20 +19,27 @@ export const createInterpretSlice = (
 ): InterpretSlice => ({
   interpretSummaries: {},
 
-  setInterpretSummary: (caseId, summary) => {
+  setInterpretSummary: (caseId, documentId, summary) => {
     // Update Zustand store
-    set((prev) => ({
-      interpretSummaries: { ...prev.interpretSummaries, [caseId]: summary }
-    }));
+    let nextSummaries: Record<string, string> = {};
+    set((prev) => {
+      nextSummaries = {
+        ...(prev.interpretSummaries[caseId] ?? {}),
+        [documentId]: summary
+      };
+      return {
+        interpretSummaries: { ...prev.interpretSummaries, [caseId]: nextSummaries }
+      };
+    });
     // Persist to IndexedDB (async, fire-and-forget)
-    saveInterpretSummary(caseId, summary).catch((err) => {
-      console.error(`Failed to save interpret summary for case ${caseId}:`, err);
+    saveInterpretSummaries(caseId, nextSummaries).catch((err) => {
+      console.error(`Failed to save interpret summaries for case ${caseId}:`, err);
     });
   },
 
-  loadInterpretSummary: (caseId, summary) =>
+  loadInterpretSummaries: (caseId, summaries) =>
     set((prev) => ({
-      interpretSummaries: { ...prev.interpretSummaries, [caseId]: summary }
+      interpretSummaries: { ...prev.interpretSummaries, [caseId]: summaries }
     })),
 
   clearInterpretData: (caseId) => {
@@ -37,8 +49,8 @@ export const createInterpretSlice = (
       return { interpretSummaries: next };
     });
     // Delete from IndexedDB (async, fire-and-forget)
-    deleteInterpretSummary(caseId).catch((err) => {
-      console.error(`Failed to delete interpret summary for case ${caseId}:`, err);
+    deleteInterpretSummaries(caseId).catch((err) => {
+      console.error(`Failed to delete interpret summaries for case ${caseId}:`, err);
     });
   }
 });

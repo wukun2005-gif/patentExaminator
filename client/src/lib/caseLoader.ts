@@ -7,7 +7,7 @@ import { readNoveltyByCaseId } from "./repositories/noveltyRepo";
 import { readInventiveByCaseId } from "./repositories/inventiveRepo";
 import { getDefectsByCaseId } from "./repositories/defectRepo";
 import { getSessionsByCaseId, getMessagesBySessionId } from "./repositories/chatRepo";
-import { readInterpretSummary } from "./repositories/interpretRepo";
+import { readInterpretSummaries } from "./repositories/interpretRepo";
 import {
   useCaseStore,
   useDocumentsStore,
@@ -29,7 +29,7 @@ export async function loadCaseById(caseId: string) {
   if (!theCase) return null;
 
   // Load all domain data in parallel
-  const [docs, refs, nodes, features, novelty, inventive, defects, sessions, interpretSummary] = await Promise.all([
+  const [docs, refs, nodes, features, novelty, inventive, defects, sessions, interpretSummaries] = await Promise.all([
     readDocumentsByCaseId(caseId),
     readReferencesByCaseId(caseId),
     readClaimNodesByCaseId(caseId),
@@ -38,7 +38,7 @@ export async function loadCaseById(caseId: string) {
     readInventiveByCaseId(caseId),
     getDefectsByCaseId(caseId),
     getSessionsByCaseId(caseId),
-    readInterpretSummary(caseId)
+    readInterpretSummaries(caseId)
   ]);
 
   // Load chat messages for all sessions
@@ -54,7 +54,7 @@ export async function loadCaseById(caseId: string) {
 
   // Hydrate Zustand stores
   useCaseStore.getState().setCurrentCase(theCase);
-  useDocumentsStore.getState().setDocuments(docs.filter((d) => d.role === "application"));
+  useDocumentsStore.getState().setDocuments(docs);
   useReferencesStore.getState().setReferences(refs as unknown as ReferenceDocument[]);
   useClaimsStore.getState().setClaimNodes(nodes);
   useClaimsStore.getState().setClaimFeatures(features);
@@ -64,9 +64,9 @@ export async function loadCaseById(caseId: string) {
   useChatStore.getState().setSessions(sessions);
   useChatStore.getState().setMessages(allMessages);
   useChatStore.getState().setActiveSessionId(sessions[0]?.id ?? null);
-  // Load interpret summary (use loadInterpretSummary to avoid re-saving to DB)
-  if (interpretSummary) {
-    useInterpretStore.getState().loadInterpretSummary(caseId, interpretSummary);
+  // Load interpret summaries (use loadInterpretSummaries to avoid re-saving to DB)
+  if (Object.keys(interpretSummaries).length > 0) {
+    useInterpretStore.getState().loadInterpretSummaries(caseId, interpretSummaries);
   }
 
   return theCase;

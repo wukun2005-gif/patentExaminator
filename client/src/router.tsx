@@ -32,7 +32,7 @@ import { useOpinionStore } from "./store";
 import { AgentClient } from "./agent/AgentClient";
 import type { ArgumentMapping, OfficeActionAnalysis } from "@shared/types/domain";
 
-function RootLayout() {
+export function RootLayout() {
   return (
     <AppShell>
       <Outlet />
@@ -40,7 +40,7 @@ function RootLayout() {
   );
 }
 
-function ClaimChartWrapper() {
+export function ClaimChartWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { currentCase } = useCaseStore();
   const { documents } = useDocumentsStore();
@@ -56,7 +56,7 @@ function ClaimChartWrapper() {
   );
 }
 
-function SummaryWrapper() {
+export function SummaryWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { currentCase } = useCaseStore();
   const { claimFeatures } = useClaimsStore();
@@ -89,7 +89,7 @@ function debugNoveltyLog(...args: unknown[]) {
   }
 }
 
-function NoveltyWrapper() {
+export function NoveltyWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { currentCase } = useCaseStore();
   const { comparisons } = useNoveltyStore();
@@ -154,7 +154,7 @@ function NoveltyWrapper() {
   );
 }
 
-function InventiveWrapper() {
+export function InventiveWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { currentCase } = useCaseStore();
   const { claimFeatures } = useClaimsStore();
@@ -203,20 +203,46 @@ function InventiveWrapper() {
   );
 }
 
-function InterpretWrapper() {
+export function InterpretWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
-  const { currentCase } = useCaseStore();
   const { documents } = useDocumentsStore();
+  const { references } = useReferencesStore();
   const { settings } = useSettingsStore();
-  const appDoc = documents.find((d) => d.caseId === caseId && d.role === "application");
-  const docText = appDoc?.extractedText || (currentCase?.title ? `案件：${currentCase.title}` : "");
+  const interpretDocuments: Parameters<typeof InterpretPanel>[0]["documents"] = Array.from(
+    new Map([...documents, ...references].map((doc) => [doc.id, doc])).values()
+  )
+    .filter((doc) => doc.caseId === caseId)
+    .filter((doc) => doc.extractedText.trim().length > 0)
+    .map((doc) => ({
+      id: doc.id,
+      fileName: doc.fileName,
+      role: doc.role,
+      documentType:
+        doc.role === "office-action"
+          ? "office-action"
+          : doc.role === "office-action-response"
+            ? "office-action-response"
+            : "application",
+      text: doc.extractedText
+    }));
+
   return (
     <InterpretPanel
       caseId={caseId ?? ""}
-      documentText={docText}
-      runInterpret={async (text: string, documentType: "application" | "office-action" | "office-action-response") => {
+      documents={interpretDocuments}
+      runInterpret={async (document, relatedDocuments) => {
         const client = new AgentClient(settings.mode, "/api", settings);
-        const response = await client.runInterpret({ caseId: caseId ?? "", documentText: text, documentType });
+        const response = await client.runInterpret({
+          caseId: caseId ?? "",
+          documentId: document.id,
+          fileName: document.fileName,
+          documentText: document.text,
+          documentType: document.documentType,
+          relatedDocuments: relatedDocuments.map((doc) => ({
+            fileName: doc.fileName,
+            documentType: doc.documentType
+          }))
+        });
         return response.reply;
       }}
       runTranslate={async (text: string) => {
@@ -228,7 +254,7 @@ function InterpretWrapper() {
   );
 }
 
-function OpinionAnalysisWrapper() {
+export function OpinionAnalysisWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { documents } = useDocumentsStore();
   const { settings } = useSettingsStore();
@@ -278,7 +304,7 @@ function OpinionAnalysisWrapper() {
   );
 }
 
-function ArgumentMappingWrapper() {
+export function ArgumentMappingWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { documents } = useDocumentsStore();
   const { settings } = useSettingsStore();
@@ -327,7 +353,7 @@ function ArgumentMappingWrapper() {
   );
 }
 
-function OpinionComparisonWrapper() {
+export function OpinionComparisonWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { documents } = useDocumentsStore();
   const { settings } = useSettingsStore();
@@ -445,7 +471,7 @@ function OpinionComparisonWrapper() {
   );
 }
 
-function ExportWrapper() {
+export function ExportWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { currentCase } = useCaseStore();
   const { claimFeatures } = useClaimsStore();
@@ -489,36 +515,7 @@ function ExportWrapper() {
   );
 }
 
-export const router = createBrowserRouter([
-  {
-    path: "/",
-    element: <RootLayout />,
-    children: [
-      { index: true, element: <Navigate to="/cases/new" replace /> },
-      { path: "cases/new", element: <NewCasePage /> },
-      { path: "cases/:caseId/setup", element: <CaseSetupPage /> },
-      { path: "cases/:caseId/baseline", element: <Navigate to="../setup" replace /> },
-      { path: "cases/:caseId/documents", element: <Navigate to="../setup" replace /> },
-      { path: "cases/:caseId/references", element: <ReferenceLibraryPanel /> },
-      { path: "cases/:caseId/opinion-comparison", element: <OpinionComparisonWrapper /> },
-      { path: "cases/:caseId/opinion-analysis", element: <OpinionAnalysisWrapper /> },
-      { path: "cases/:caseId/argument-mapping", element: <ArgumentMappingWrapper /> },
-      { path: "cases/:caseId/claim-chart", element: <ClaimChartWrapper /> },
-      { path: "cases/:caseId/novelty", element: <NoveltyWrapper /> },
-      { path: "cases/:caseId/inventive", element: <InventiveWrapper /> },
-      { path: "cases/:caseId/defects", element: <DefectWrapper /> },
-      { path: "cases/:caseId/draft", element: <DraftWrapper /> },
-      { path: "cases/:caseId/summary", element: <SummaryWrapper /> },
-      { path: "cases/:caseId/response", element: <ShellPlaceholder title="答复审查" /> },
-      { path: "cases/:caseId/interpret", element: <InterpretWrapper /> },
-      { path: "cases/:caseId/export", element: <ExportWrapper /> },
-      { path: "cases", element: <CaseHistoryPanel /> },
-      { path: "settings", element: <SettingsPage /> }
-    ]
-  }
-]);
-
-function DefectWrapper() {
+export function DefectWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { claimNodes, claimFeatures } = useClaimsStore();
   const { documents } = useDocumentsStore();
@@ -549,7 +546,7 @@ function DefectWrapper() {
   );
 }
 
-function DraftWrapper() {
+export function DraftWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
   const { currentCase } = useCaseStore();
   const { officeActionAnalysis, argumentMappings } = useOpinionStore();
@@ -576,3 +573,32 @@ function DraftWrapper() {
     />
   );
 }
+
+export const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <RootLayout />,
+    children: [
+      { index: true, element: <Navigate to="/cases/new" replace /> },
+      { path: "cases/new", element: <NewCasePage /> },
+      { path: "cases/:caseId/setup", element: <CaseSetupPage /> },
+      { path: "cases/:caseId/baseline", element: <Navigate to="../setup" replace /> },
+      { path: "cases/:caseId/documents", element: <Navigate to="../setup" replace /> },
+      { path: "cases/:caseId/references", element: <ReferenceLibraryPanel /> },
+      { path: "cases/:caseId/opinion-comparison", element: <OpinionComparisonWrapper /> },
+      { path: "cases/:caseId/opinion-analysis", element: <OpinionAnalysisWrapper /> },
+      { path: "cases/:caseId/argument-mapping", element: <ArgumentMappingWrapper /> },
+      { path: "cases/:caseId/claim-chart", element: <ClaimChartWrapper /> },
+      { path: "cases/:caseId/novelty", element: <NoveltyWrapper /> },
+      { path: "cases/:caseId/inventive", element: <InventiveWrapper /> },
+      { path: "cases/:caseId/defects", element: <DefectWrapper /> },
+      { path: "cases/:caseId/draft", element: <DraftWrapper /> },
+      { path: "cases/:caseId/summary", element: <SummaryWrapper /> },
+      { path: "cases/:caseId/response", element: <ShellPlaceholder title="答复审查" /> },
+      { path: "cases/:caseId/interpret", element: <InterpretWrapper /> },
+      { path: "cases/:caseId/export", element: <ExportWrapper /> },
+      { path: "cases", element: <CaseHistoryPanel /> },
+      { path: "settings", element: <SettingsPage /> }
+    ]
+  }
+]);
