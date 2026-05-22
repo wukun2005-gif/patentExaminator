@@ -3,7 +3,7 @@
 
 43: bug: http://localhost:6173/cases/case-1779412386053/claim-chart: 点击“生成权利要求特征表”后，报错：“TypeError: response.features is not iterable” 
 
-42: http://localhost:6173/cases/case-1779412386053/opinion-comparison：审查意见对照结果，每次刷新页面后，再调取历史案件的时候都无法恢复上次对照结果。都要重新运行一次解析和映射，费时费token。每一次的解析映射结果应该和案件一起存下来，除非以前从来没有对照过，否则都应该直接调取上一次的对照结果显示出来。
+42: ~~审查意见对照结果持久化~~ **Fixed: 2026-05-22** - 审查意见对照结果在页面刷新后丢失，需重新运行解析。修复：扩展 IndexedDB schema 新增 `opinionAnalyses` 和 `argumentMappings` stores；创建 `opinionRepo.ts` 提供 CRUD 操作；`OpinionComparisonWrapper` 在组件挂载时从 IndexedDB 加载历史数据；分析完成后自动保存到 IndexedDB。附带修复：`AgentsAssignmentPanel.tsx` 添加缺失的 openrouter provider 名称。(commit 678d241)
 
 41: bug: http://localhost:6173/cases/case-1779412386053/references:一点文献清单就报错“Unexpected Application Error!
 Cannot read properties of undefined (reading 'tip')
