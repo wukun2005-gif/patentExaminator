@@ -34,6 +34,43 @@ describe("AgentClient (mock mode)", () => {
       })
     ).rejects.toThrow();
   });
+
+  it("real mode maps schema output to ClaimFeature with ids", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          outputJson: {
+            claimNumber: 1,
+            features: [
+              {
+                featureCode: "A",
+                description: "基板",
+                specificationCitations: [{ label: "[0001]", confidence: "high" }],
+                citationStatus: "confirmed"
+              }
+            ],
+            warnings: [{ type: "other", message: "功能语言" }],
+            pendingSearchQuestions: ["待查 D1"],
+            legalCaution: "候选事实"
+          }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const client = new AgentClient("real", "http://localhost:3000/api");
+    const result = await client.runClaimChart({
+      caseId: "case-1",
+      claimText: "一种装置，包括基板",
+      claimNumber: 1,
+      specificationText: "[0001] 基板说明"
+    });
+
+    expect(result.features[0]!.id).toBe("case-1-chart-1-A");
+    expect(result.features[0]!.source).toBe("ai");
+    expect(result.warnings).toEqual(["功能语言"]);
+  });
 });
 
 describe("estimateTokens", () => {

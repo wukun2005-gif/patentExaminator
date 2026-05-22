@@ -1361,6 +1361,7 @@ Supabase（后端服务）
 
 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|---------|---------|------------|
+| 2026-05-22 | bug #47 claim-chart 真实模式 JSON 解析失败：runClaimChart 改为 buildClaimChartPrompt 含 JSON Schema 指令；mapClaimChartOutput 将 AI 输出映射为 ClaimFeature；callGateway 透传 structureErrors | `client/src/agent/AgentClient.ts`、`shared/src/prompts/claimChart.prompt.md`、单元测试 | 待提交 |
 | 2026-05-22 | feature #37 文档解读 markdown preview：引入 `marked` 库本地渲染 markdown→HTML，替换 raw text 的 textarea/pre 显示；综合解读直接渲染，单个文档增加编辑/预览切换 | `client/src/lib/markdown.ts`、`client/src/features/interpret/InterpretPanel.tsx`、`client/src/styles/app.css`、`client/package.json` | 待提交 |
 | 2026-05-22 | bug #36 二次修复：opinion/argument analysis prompt 添加 JSON Schema 输出指令 | `client/src/agent/AgentClient.ts` | 70c20f3 |
 | 2026-05-22 | bug #36 修复：server AI 路由始终尝试解析 JSON 响应，处理 markdown 代码块 | `server/src/routes/ai.ts` | 37fe619 |

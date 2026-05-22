@@ -115,11 +115,13 @@ export class AgentClient {
     if (this.mode === "mock") {
       return mockClaimChart(request);
     }
-    return this.callGateway<ClaimChartResponse>("claim-chart", request.claimText, {
+    const prompt = buildClaimChartPrompt(request);
+    const raw = await this.callGateway<unknown>("claim-chart", prompt, {
       caseId: request.caseId,
       moduleScope: "claim-chart",
       ...options
     });
+    return mapClaimChartOutput(request.caseId, request.claimNumber, raw);
   }
 
   async runNovelty(
@@ -401,6 +403,13 @@ export class AgentClient {
       throw new Error(`${msg}${detail}`);
     }
 
+    if (data.structureErrors?.length) {
+      const detail = data.structureErrors.slice(0, 3).join("; ");
+      throw new Error(
+        `AI 返回结构校验失败（${agent}）：${detail}。请确认 AI Provider 配置正确或切换为 Mock 模式重试。`
+      );
+    }
+
     if (data.outputJson) {
       return data.outputJson as T;
     }
@@ -444,6 +453,124 @@ export class AgentClient {
     }
     return data.outputJson as T;
   }
+}
+
+function buildClaimChartPrompt(request: ClaimChartRequest): string {
+  const specExcerpt = request.specificationText.slice(0, 8000);
+  return [
+    `你是一位资深专利审查员助理，任务是对权利要求 ${request.claimNumber} 进行技术特征拆解（Claim Chart）。`,
+    ``,
+    `约束：`,
+    `- 只能基于给定的权利要求文本与说明书片段；不得编造段落号或引用。`,
+    `- 每个技术特征必须给出可映射到说明书段落号的 specificationCitations；若无法定位，citationStatus 必须为 "needs-review"。`,
+    `- 不得输出新颖性/创造性等法律结论。`,
+    `- 严格按下方 JSON 格式输出，不要输出 markdown 代码块或任何解释性文字。`,
+    ``,
+    `权利要求 ${request.claimNumber} 文本：`,
+    request.claimText,
+    ``,
+    `说明书片段（含段落号，如有）：`,
+    specExcerpt || "（未提供说明书片段）",
+    ``,
+    `请严格输出以下 JSON 格式（字段名必须完全一致，使用双引号）：`,
+    `{`,
+    `  "claimNumber": ${request.claimNumber},`,
+    `  "features": [`,
+    `    {`,
+    `      "featureCode": "A",`,
+    `      "description": "技术特征描述",`,
+    `      "specificationCitations": [`,
+    `        { "label": "[0001]", "paragraph": "0001", "quote": "说明书原文摘录", "confidence": "high" }`,
+    `      ],`,
+    `      "citationStatus": "confirmed"`,
+    `    }`,
+    `  ],`,
+    `  "warnings": [`,
+    `    { "type": "other", "message": "可选警告说明" }`,
+    `  ],`,
+    `  "pendingSearchQuestions": ["待检索问题，最多5条"],`,
+    `  "legalCaution": "以上为候选事实整理，不构成法律结论。"`,
+    `}`,
+    ``,
+    `注意：`,
+    `- featureCode 使用大写字母 A、B、C…（从 A 起连续编号）`,
+    `- features 至少 1 项；citationStatus 只能是 confirmed / needs-review / not-found`,
+    `- specificationCitations 中 confidence 只能是 high / medium / low`,
+    `- warnings 可为空数组 []；pendingSearchQuestions 最多 5 条`
+  ].join("\n");
+}
+
+function mapClaimChartOutput(
+  caseId: string,
+  claimNumber: number,
+  raw: unknown
+): ClaimChartResponse {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("AI 未返回有效的权利要求特征数据，请确认 AI Provider 配置正确或切换为 Mock 模式重试。");
+  }
+  const obj = raw as Record<string, unknown>;
+  if (!Array.isArray(obj.features) || obj.features.length === 0) {
+    throw new Error("AI 未返回有效的权利要求特征数据，请确认 AI Provider 配置正确或切换为 Mock 模式重试。");
+  }
+
+  const features: ClaimFeature[] = (obj.features as unknown[]).map((item, index) => {
+    const feat = item as Record<string, unknown>;
+    if (
+      typeof feat.id === "string" &&
+      typeof feat.caseId === "string" &&
+      typeof feat.featureCode === "string"
+    ) {
+      return feat as unknown as ClaimFeature;
+    }
+    const code =
+      typeof feat.featureCode === "string" && feat.featureCode.length > 0
+        ? feat.featureCode
+        : String.fromCharCode(65 + index);
+    const status = feat.citationStatus;
+    const citationStatus: ClaimFeature["citationStatus"] =
+      status === "confirmed" || status === "needs-review" || status === "not-found"
+        ? status
+        : "needs-review";
+    const mapped: ClaimFeature = {
+      id: `${caseId}-chart-${claimNumber}-${code}`,
+      caseId,
+      claimNumber:
+        typeof feat.claimNumber === "number" ? feat.claimNumber : claimNumber,
+      featureCode: code,
+      description: String(feat.description ?? ""),
+      specificationCitations: Array.isArray(feat.specificationCitations)
+        ? (feat.specificationCitations as ClaimFeature["specificationCitations"])
+        : [],
+      citationStatus,
+      source: "ai" as const
+    };
+    if (typeof feat.userNotes === "string") {
+      mapped.userNotes = feat.userNotes;
+    }
+    return mapped;
+  });
+
+  const warnings = Array.isArray(obj.warnings)
+    ? obj.warnings.map((w) =>
+        typeof w === "string"
+          ? w
+          : typeof w === "object" && w !== null && "message" in w
+            ? String((w as { message: string }).message)
+            : String(w)
+      )
+    : [];
+
+  return {
+    features,
+    warnings,
+    pendingSearchQuestions: Array.isArray(obj.pendingSearchQuestions)
+      ? obj.pendingSearchQuestions.map(String)
+      : [],
+    legalCaution:
+      typeof obj.legalCaution === "string"
+        ? obj.legalCaution
+        : "以上为候选事实整理，不构成法律结论。"
+  };
 }
 
 function mockClaimChart(request: ClaimChartRequest): ClaimChartResponse {

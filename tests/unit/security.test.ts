@@ -30,7 +30,15 @@ describe("AgentClient real mode", () => {
       provider: "gemini",
       modelId: "gemini-2.5-flash-lite",
       outputJson: {
-        features: [],
+        claimNumber: 1,
+        features: [
+          {
+            featureCode: "A",
+            description: "散热基板",
+            specificationCitations: [],
+            citationStatus: "needs-review"
+          }
+        ],
         warnings: [],
         pendingSearchQuestions: [],
         legalCaution: "test"
@@ -53,7 +61,9 @@ describe("AgentClient real mode", () => {
       specificationText: "test spec"
     });
 
-    expect(result).toEqual(mockResponse.outputJson);
+    expect(result.features).toHaveLength(1);
+    expect(result.features[0]!.id).toBe("test-chart-1-A");
+    expect(result.features[0]!.source).toBe("ai");
     global.fetch = originalFetch;
   });
 
@@ -63,7 +73,23 @@ describe("AgentClient real mode", () => {
     global.fetch = async (_url, init) => {
       capturedBody = JSON.parse(init?.body as string);
       return new Response(
-        JSON.stringify({ ok: true, outputJson: { features: [] } }),
+        JSON.stringify({
+          ok: true,
+          outputJson: {
+            claimNumber: 1,
+            features: [
+              {
+                featureCode: "A",
+                description: "LED散热装置",
+                specificationCitations: [],
+                citationStatus: "needs-review"
+              }
+            ],
+            warnings: [],
+            pendingSearchQuestions: [],
+            legalCaution: "test"
+          }
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       );
     };
@@ -86,6 +112,10 @@ describe("AgentClient real mode", () => {
         moduleScope: "claim-chart"
       }
     });
+    const body = capturedBody as { prompt: string };
+    expect(body.prompt).toContain("严格输出以下 JSON");
+    expect(body.prompt).toContain("featureCode");
+    expect(body.prompt).not.toBe("一种LED散热装置");
 
     global.fetch = originalFetch;
   });
