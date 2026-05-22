@@ -45,7 +45,10 @@ export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartA
         removeClaimFeature(id);
       }
 
-      // Add new features
+      if (!response.features || !Array.isArray(response.features)) {
+        throw new Error("AI 未返回有效的权利要求特征数据，请确认 AI Provider 配置正确或切换为 Mock 模式重试。");
+      }
+
       for (const feature of response.features) {
         addClaimFeature(feature);
       }

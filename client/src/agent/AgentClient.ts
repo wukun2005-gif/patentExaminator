@@ -408,8 +408,13 @@ export class AgentClient {
       try {
         return JSON.parse(stripCodeFences(data.rawText)) as T;
       } catch {
-        // Plain text response (e.g. chat) — wrap as { reply: text }
-        return { reply: data.rawText } as T;
+        if (agent === "chat" || agent === "interpret") {
+          return { reply: data.rawText } as T;
+        }
+        throw new Error(
+          `AI 返回格式异常：未返回结构化 JSON 数据。` +
+          `Agent: ${agent}。请确认 AI Provider 配置正确或切换为 Mock 模式重试。`
+        );
       }
     }
     throw new Error("Empty response from gateway");
