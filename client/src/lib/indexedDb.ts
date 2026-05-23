@@ -23,7 +23,7 @@ export interface PatentExaminerDB extends DBSchema {
     indexes: { "by-updatedAt": string };
   };
   interpretSummaries: {
-    key: string; // caseId
+    key: string;
     value:
       | { caseId: string; summary: string; updatedAt: string }
       | { caseId: string; summaries: Record<string, string>; updatedAt: string };
@@ -105,21 +105,21 @@ export interface PatentExaminerDB extends DBSchema {
     indexes: { "by-caseId": string };
   };
   reexamDrafts: {
-    key: string; // caseId
+    key: string;
     value: { id: string; [key: string]: unknown };
   };
   summaries: {
-    key: string; // caseId
+    key: string;
     value: { id: string; [key: string]: unknown };
   };
 }
 
 const DB_NAME = "patent-examiner-v1";
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 export async function openPatentDB(): Promise<IDBPDatabase<PatentExaminerDB>> {
   return openDB<PatentExaminerDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
+    upgrade(db, oldVersion) {
       // cases
       if (!db.objectStoreNames.contains("cases")) {
         const caseStore = db.createObjectStore("cases", { keyPath: "id" });
@@ -183,6 +183,16 @@ export async function openPatentDB(): Promise<IDBPDatabase<PatentExaminerDB>> {
 
       // chatMessages
       if (!db.objectStoreNames.contains("chatMessages")) {
+        const chatStore = db.createObjectStore("chatMessages", { keyPath: "id" });
+        chatStore.createIndex("by-caseId", "caseId");
+        chatStore.createIndex("by-moduleScope", "moduleScope");
+        chatStore.createIndex("by-createdAt", "createdAt");
+        chatStore.createIndex("by-sessionId", "sessionId");
+      } else if (oldVersion < 7) {
+        // Version 7: Add by-sessionId index to existing chatMessages store
+        // Note: In upgrade callback, we must delete and recreate the store to add new index
+        // This is a limitation of IndexedDB - cannot add index to existing store in version change
+        db.deleteObjectStore("chatMessages");
         const chatStore = db.createObjectStore("chatMessages", { keyPath: "id" });
         chatStore.createIndex("by-caseId", "caseId");
         chatStore.createIndex("by-moduleScope", "moduleScope");
