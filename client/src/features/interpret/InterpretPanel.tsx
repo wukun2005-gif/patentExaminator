@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { detectLanguage, LANGUAGE_LABELS } from "../../lib/languageDetect";
 import { LEGACY_INTERPRET_KEY, useInterpretStore } from "../../store";
 import type { DocumentFigure, SourceDocument } from "@shared/types/domain";
@@ -52,7 +52,8 @@ interface InterpretPanelProps {
   documents: InterpretableDocument[];
   runInterpret: (
     document: InterpretableDocument,
-    relatedDocuments: InterpretableDocument[]
+    relatedDocuments: InterpretableDocument[],
+    options?: { signal?: AbortSignal }
   ) => Promise<string>;
   runTranslate?: (text: string) => Promise<string>;
 }
@@ -139,6 +140,9 @@ export function InterpretPanel({
   const [isCombinedReinterpreting, setIsCombinedReinterpreting] = useState(false);
   const autoTriggered = useRef<Record<string, boolean>>({});
   const translateTriggered = useRef<Record<string, boolean>>({});
+  // Track in-flight requests for cancellation on unmount
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
 
   const groupedDocuments = useMemo(
     () =>
@@ -172,6 +176,20 @@ export function InterpretPanel({
   useEffect(() => {
     writeExpandedState(caseId, expandedDocuments);
   }, [caseId, expandedDocuments]);
+
+  // Cleanup: cancel all in-flight requests on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // Abort all in-flight requests
+      abortControllersRef.current.forEach((controller, docId) => {
+        controller.abort();
+        console.log(`[InterpretPanel] Aborted request for document ${docId} on unmount`);
+      });
+      abortControllersRef.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     documents.forEach((doc) => {
@@ -234,7 +252,17 @@ export function InterpretPanel({
     }
   };
 
-  const doInterpret = async (doc: InterpretableDocument) => {
+  const doInterpret = useCallback(async (doc: InterpretableDocument) => {
+    // Cancel any existing request for this document
+    const existingController = abortControllersRef.current.get(doc.id);
+    if (existingController) {
+      existingController.abort();
+    }
+
+    // Create new AbortController for this request
+    const controller = new AbortController();
+    abortControllersRef.current.set(doc.id, controller);
+
     setCardStates((prev) => ({
       ...prev,
       [doc.id]: {
@@ -247,8 +275,18 @@ export function InterpretPanel({
     try {
       const response = await runInterpret(
         doc,
-        documents.filter((item) => item.id !== doc.id)
+        documents.filter((item) => item.id !== doc.id),
+        { signal: controller.signal }
       );
+
+      // Check if component is still mounted and request wasn't aborted
+      if (!isMountedRef.current || controller.signal.aborted) {
+        return;
+      }
+
+      // Clear the AbortController since request completed
+      abortControllersRef.current.delete(doc.id);
+
       setCardStates((prev) => ({
         ...prev,
         [doc.id]: {
@@ -259,6 +297,19 @@ export function InterpretPanel({
       }));
       setInterpretSummary(caseId, doc.id, response);
     } catch (err) {
+      // Don't show error if request was aborted (user navigated away)
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      // Clear the AbortController
+      abortControllersRef.current.delete(doc.id);
+
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) {
+        return;
+      }
+
       setCardStates((prev) => ({
         ...prev,
         [doc.id]: {
@@ -268,7 +319,7 @@ export function InterpretPanel({
         }
       }));
     }
-  };
+  }, [caseId, documents, runInterpret, setInterpretSummary]);
 
   const updateSummary = (documentId: string, summary: string) => {
     setCardStates((prev) => ({
@@ -355,12 +406,17 @@ export function InterpretPanel({
                   onClick={async () => {
                     setIsCombinedReinterpreting(true);
                     try {
-                      // Re-run interpretation for each document
-                      await Promise.all(
-                        documents.map(doc => doInterpret(doc))
-                      );
+                      // Re-run interpretation for each document sequentially
+                      // to avoid overwhelming the API
+                      for (const doc of documents) {
+                        if (isMountedRef.current) {
+                          await doInterpret(doc);
+                        }
+                      }
                     } finally {
-                      setIsCombinedReinterpreting(false);
+                      if (isMountedRef.current) {
+                        setIsCombinedReinterpreting(false);
+                      }
                     }
                   }}
                   disabled={isCombinedReinterpreting}

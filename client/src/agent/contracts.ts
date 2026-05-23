@@ -87,6 +87,8 @@ export interface AgentRunOptions {
   providerId?: string;
   modelId?: string;
   maxTokens?: number;
+  /** AbortSignal for request cancellation */
+  signal?: AbortSignal | null;
 }
 
 export interface ChatRequest {

@@ -237,7 +237,7 @@ export function InterpretWrapper() {
     <InterpretPanel
       caseId={caseId ?? ""}
       documents={interpretDocuments}
-      runInterpret={async (document, relatedDocuments) => {
+      runInterpret={async (document, relatedDocuments, options) => {
         const client = new AgentClient(settings.mode, "/api", settings);
         const response = await client.runInterpret({
           caseId: caseId ?? "",
@@ -249,7 +249,7 @@ export function InterpretWrapper() {
             fileName: doc.fileName,
             documentType: doc.documentType
           }))
-        });
+        }, options?.signal ? { signal: options.signal } : undefined);
         return response.reply;
       }}
       runTranslate={async (text: string) => {

@@ -359,7 +359,7 @@ export class AgentClient {
   private async callGateway<T>(
     agent: AiRunRequest["agent"],
     prompt: string,
-    meta: { caseId: string; moduleScope: string; providerId?: string; modelId?: string }
+    meta: { caseId: string; moduleScope: string; providerId?: string; modelId?: string; signal?: AbortSignal | null }
   ): Promise<T> {
     const resolved = meta.providerId && meta.modelId
       ? { providerId: meta.providerId as ProviderId, modelId: meta.modelId }
@@ -381,7 +381,8 @@ export class AgentClient {
     const res = await fetch(`${this.gatewayUrl}/ai/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request)
+      body: JSON.stringify(request),
+      ...(meta.signal ? { signal: meta.signal } : {})
     });
 
     if (!res.ok) {
