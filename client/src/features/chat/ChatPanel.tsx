@@ -55,7 +55,7 @@ export function ChatPanel() {
 
   const {
     sessions, messages, activeSessionId, isPanelOpen, isLoading,
-    setSessions, setMessages, addSession, removeSession, renameSession, setActiveSessionId, addMessage, setPanelOpen, setLoading
+    setSessions, setMessages, loadSessions, loadMessages, addSession, removeSession, renameSession, setActiveSessionId, addMessage, setPanelOpen, setLoading
   } = useChatStore();
 
   const [input, setInput] = useState("");
@@ -73,20 +73,23 @@ export function ChatPanel() {
     let cancelled = false;
     (async () => {
       try {
+        // First, get all sessions
         const storedSessions = await getSessionsByCaseId(caseId);
         if (cancelled) return;
-        setSessions(storedSessions);
+        loadSessions(storedSessions);
 
+        // Load messages for each session
         const allMessages: typeof messages = [];
         for (const s of storedSessions) {
           const msgs = await getMessagesBySessionId(s.id);
           allMessages.push(...msgs);
         }
         if (!cancelled) {
-          setMessages(allMessages);
+          loadMessages(allMessages);
         }
-      } catch {
-        // IndexedDB not available (test env) — store-only mode
+      } catch (error) {
+        console.error('ChatPanel: Failed to load chat history from IndexedDB', error);
+        // Fallback: use in-memory store only if IndexedDB fails
       }
     })();
     return () => { cancelled = true; };

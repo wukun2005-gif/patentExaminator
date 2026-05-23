@@ -13,6 +13,7 @@ export function SearchProvidersConfigPanel() {
   const { settings, setSettings } = useSettingsStore();
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
+  const [secretInput, setSecretInput] = useState("");
   const [verifying, setVerifying] = useState<string | null>(null);
   const [verifyResult, setVerifyResult] = useState<Record<string, VerifyResult>>({});
 
@@ -62,9 +63,11 @@ export function SearchProvidersConfigPanel() {
   };
 
   const handleSaveKey = (id: SearchProviderId) => {
-    updateSearchProvider(id, { apiKeyRef: keyInput });
+    const finalKey = id === "epo" ? `${keyInput}:${secretInput}` : keyInput;
+    updateSearchProvider(id, { apiKeyRef: finalKey });
     setEditingKey(null);
     setKeyInput("");
+    setSecretInput("");
     setVerifyResult((prev) => { const next = { ...prev }; delete next[id]; return next; });
   };
 
@@ -152,22 +155,56 @@ export function SearchProvidersConfigPanel() {
                 <div className="provider-card__field">
                   <label>API Key</label>
                   {editingKey === preset.id ? (
-                    <div className="inline-edit">
-                      <input
-                        type="password"
-                        value={keyInput}
-                        onChange={(e) => setKeyInput(e.target.value)}
-                        placeholder={preset.keyPlaceholder}
-                        data-testid={`input-search-key-${preset.id}`}
-                        autoFocus
-                      />
-                      <button type="button" onClick={() => handleSaveKey(preset.id)}>
-                        保存
-                      </button>
-                      <button type="button" className="btn-text" onClick={() => { setEditingKey(null); setKeyInput(""); }}>
-                        取消
-                      </button>
-                    </div>
+                    preset.id === "epo" ? (
+                      <div className="inline-edit">
+                        <div className="provider-card__field">
+                          <label>Consumer Key</label>
+                          <input
+                            type="password"
+                            value={keyInput}
+                            onChange={(e) => setKeyInput(e.target.value)}
+                            placeholder="输入 EPO Consumer Key"
+                            data-testid="input-epo-consumer-key"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="provider-card__field">
+                          <label>Consumer Secret</label>
+                          <input
+                            type="password"
+                            value={secretInput}
+                            onChange={(e) => setSecretInput(e.target.value)}
+                            placeholder="输入 EPO Consumer Secret"
+                            data-testid="input-epo-consumer-secret"
+                          />
+                        </div>
+                        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
+                          <button type="button" onClick={() => handleSaveKey(preset.id)}>
+                            保存
+                          </button>
+                          <button type="button" className="btn-text" onClick={() => { setEditingKey(null); setKeyInput(""); setSecretInput(""); }}>
+                            取消
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="inline-edit">
+                        <input
+                          type="password"
+                          value={keyInput}
+                          onChange={(e) => setKeyInput(e.target.value)}
+                          placeholder={preset.keyPlaceholder}
+                          data-testid={`input-search-key-${preset.id}`}
+                          autoFocus
+                        />
+                        <button type="button" onClick={() => handleSaveKey(preset.id)}>
+                          保存
+                        </button>
+                        <button type="button" className="btn-text" onClick={() => { setEditingKey(null); setKeyInput(""); }}>
+                          取消
+                        </button>
+                      </div>
+                    )
                   ) : (
                     <div className="inline-display">
                       <span className={provider.apiKeyRef ? "text-ok" : "text-muted"}>
@@ -176,7 +213,21 @@ export function SearchProvidersConfigPanel() {
                       <button
                         type="button"
                         className="btn-text"
-                        onClick={() => { setEditingKey(preset.id); setKeyInput(provider.apiKeyRef); }}
+                        onClick={() => {
+                          setEditingKey(preset.id);
+                          if (preset.id === "epo" && provider.apiKeyRef) {
+                            const colonIdx = provider.apiKeyRef.indexOf(":");
+                            if (colonIdx >= 0) {
+                              setKeyInput(provider.apiKeyRef.slice(0, colonIdx));
+                              setSecretInput(provider.apiKeyRef.slice(colonIdx + 1));
+                            } else {
+                              setKeyInput(provider.apiKeyRef);
+                              setSecretInput("");
+                            }
+                          } else {
+                            setKeyInput(provider.apiKeyRef);
+                          }
+                        }}
                         data-testid={`btn-edit-search-key-${preset.id}`}
                       >
                         {provider.apiKeyRef ? "修改" : "填写"}

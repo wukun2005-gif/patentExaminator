@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Link, useParams, useLocation } from "react-router-dom";
 import { ModeBanner } from "./ModeBanner";
@@ -22,6 +22,8 @@ const CASE_NAV_ITEMS = [
   { path: "export", label: "导出", icon: "📤" }
 ];
 
+const TOOLTIP_SHOW_DELAY_MS = 400;
+
 function showGuide() {
   localStorage.removeItem("patent-examiner-onboarding-done");
   window.dispatchEvent(new Event("show-onboarding"));
@@ -31,6 +33,38 @@ export function AppShell({ children }: AppShellProps) {
   const { caseId } = useParams<{ caseId: string }>();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
+  const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleItemHover = useCallback((itemPath: string) => {
+    setHoveredItem(itemPath);
+    // Start delay timer for tooltip visibility
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+    }
+    tooltipTimeoutRef.current = setTimeout(() => {
+      setTooltipVisible(itemPath);
+    }, TOOLTIP_SHOW_DELAY_MS);
+  }, []);
+
+  const handleItemLeave = useCallback(() => {
+    setHoveredItem(null);
+    setTooltipVisible(null);
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+      tooltipTimeoutRef.current = null;
+    }
+  }, []);
 
   return (
     <div className="app-shell">
@@ -52,6 +86,7 @@ export function AppShell({ children }: AppShellProps) {
       <div className="app-shell__body">
         <aside
           className={`app-shell__sidebar${sidebarCollapsed ? " app-shell__sidebar--collapsed" : ""}`}
+          style={{ position: 'relative' }}
           data-testid="sidebar"
         >
           <button
@@ -93,13 +128,31 @@ export function AppShell({ children }: AppShellProps) {
                     className={
                       location.pathname === `/cases/${caseId}/${item.path}` ? "active" : ""
                     }
+                    onMouseEnter={() => handleItemHover(item.path)}
+                    onMouseLeave={handleItemLeave}
                   >
-                      <span
-                        className="sidebar-nav__icon"
-                        title={sidebarCollapsed ? item.label : undefined}
-                      >
-                        {item.icon}
-                      </span>
+                    <span className="sidebar-nav__icon">
+                      {item.icon}
+                    </span>
+                    {sidebarCollapsed && tooltipVisible === item.path && (
+                      <div className="tooltip" style={{
+                        position: 'absolute',
+                        left: '60px',
+                        top: '0',
+                        background: '#333',
+                        color: '#fff',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                        whiteSpace: 'nowrap',
+                        zIndex: 1000,
+                        pointerEvents: 'none',
+                        transition: 'opacity 0.2s ease-in-out',
+                        opacity: 1
+                      }}>
+                        {item.label}
+                      </div>
+                    )}
                     {!sidebarCollapsed && item.label}
                   </Link>
                 ))}
