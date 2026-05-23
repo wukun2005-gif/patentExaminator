@@ -384,6 +384,21 @@ function runDbScenarioTests() {
   }
 }
 
+function runDbUpgradeTests() {
+  console.log("\n--- DB Schema Upgrade Tests (vitest) ---");
+  try {
+    execSync("npx vitest run --config vitest.integration.config.ts tests/integration/dbUpgrade.test.ts", {
+      cwd: PROJECT_ROOT,
+      stdio: "inherit",
+      timeout: 60000,
+      env: { ...process.env, FORCE_COLOR: "1" }
+    });
+    log("DB Upgrade Tests", true);
+  } catch (err) {
+    log("DB Upgrade Tests", false, err.message || "vitest failed");
+  }
+}
+
 // ── HTTP Utilities ───────────────────────────────────────────────────
 
 async function postJSON(pathname, body) {
@@ -2432,6 +2447,10 @@ async function main() {
       // DB Scenario regression tests (bugs 18/19/21/22 etc.)
       console.log("\n--- DB Scenario Regression ---");
       runDbScenarioTests();
+
+      // DB Schema upgrade regression tests (lesson-learned-57)
+      console.log("\n--- DB Schema Upgrade ---");
+      runDbUpgradeTests();
 
       // Real mode tests (optional, auto-skip if no key)
       if (GEMINI_KEY) {

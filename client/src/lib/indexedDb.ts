@@ -119,126 +119,82 @@ const DB_VERSION = 7;
 
 export async function openPatentDB(): Promise<IDBPDatabase<PatentExaminerDB>> {
   return openDB<PatentExaminerDB>(DB_NAME, DB_VERSION, {
-    upgrade(db, oldVersion) {
-      // cases
-      if (!db.objectStoreNames.contains("cases")) {
+    upgrade(db, oldVersion, newVersion) {
+      console.log(
+        `[IndexedDB] Upgrading patent-examiner-v1 from v${oldVersion} to v${newVersion}`
+      );
+
+      if (oldVersion < 1) {
         const caseStore = db.createObjectStore("cases", { keyPath: "id" });
         caseStore.createIndex("by-updatedAt", "updatedAt");
-      }
 
-      // interpretSummaries
-      if (!db.objectStoreNames.contains("interpretSummaries")) {
         db.createObjectStore("interpretSummaries", { keyPath: "caseId" });
-      }
 
-      // documents
-      if (!db.objectStoreNames.contains("documents")) {
         const docStore = db.createObjectStore("documents", { keyPath: "id" });
         docStore.createIndex("by-caseId", "caseId");
         docStore.createIndex("by-role", "role");
         docStore.createIndex("by-fileHash", "fileHash");
-      }
 
-      // textIndex
-      if (!db.objectStoreNames.contains("textIndex")) {
         db.createObjectStore("textIndex", { keyPath: "documentId" });
-      }
 
-      // claimNodes
-      if (!db.objectStoreNames.contains("claimNodes")) {
         const claimStore = db.createObjectStore("claimNodes", { keyPath: "id" });
         claimStore.createIndex("by-caseId", "caseId");
-      }
 
-      // claimCharts
-      if (!db.objectStoreNames.contains("claimCharts")) {
         const chartStore = db.createObjectStore("claimCharts", { keyPath: "id" });
         chartStore.createIndex("by-caseId", "caseId");
         chartStore.createIndex("by-claimNumber", "claimNumber");
-      }
 
-      // novelty
-      if (!db.objectStoreNames.contains("novelty")) {
         const noveltyStore = db.createObjectStore("novelty", { keyPath: "id" });
         noveltyStore.createIndex("by-caseId", "caseId");
         noveltyStore.createIndex("by-referenceId", "referenceId");
-      }
 
-      // inventive
-      if (!db.objectStoreNames.contains("inventive")) {
         const inventiveStore = db.createObjectStore("inventive", { keyPath: "id" });
         inventiveStore.createIndex("by-caseId", "caseId");
-      }
 
-      // defects
-      if (!db.objectStoreNames.contains("defects")) {
         const defectsStore = db.createObjectStore("defects", { keyPath: "id" });
         defectsStore.createIndex("by-caseId", "caseId");
-      }
 
-      // ocrCache
-      if (!db.objectStoreNames.contains("ocrCache")) {
         db.createObjectStore("ocrCache", { keyPath: "cacheKey" });
-      }
 
-      // chatMessages
-      if (!db.objectStoreNames.contains("chatMessages")) {
         const chatStore = db.createObjectStore("chatMessages", { keyPath: "id" });
         chatStore.createIndex("by-caseId", "caseId");
         chatStore.createIndex("by-moduleScope", "moduleScope");
         chatStore.createIndex("by-createdAt", "createdAt");
         chatStore.createIndex("by-sessionId", "sessionId");
-      } else if (oldVersion < 7) {
-        // Version 7: Add by-sessionId index to existing chatMessages store
-        // Note: In upgrade callback, we must delete and recreate the store to add new index
-        // This is a limitation of IndexedDB - cannot add index to existing store in version change
-        db.deleteObjectStore("chatMessages");
-        const chatStore = db.createObjectStore("chatMessages", { keyPath: "id" });
-        chatStore.createIndex("by-caseId", "caseId");
-        chatStore.createIndex("by-moduleScope", "moduleScope");
-        chatStore.createIndex("by-createdAt", "createdAt");
-        chatStore.createIndex("by-sessionId", "sessionId");
-      }
 
-      // chatSessions
-      if (!db.objectStoreNames.contains("chatSessions")) {
         const sessionStore = db.createObjectStore("chatSessions", { keyPath: "id" });
         sessionStore.createIndex("by-caseId", "caseId");
-      }
 
-      // feedback
-      if (!db.objectStoreNames.contains("feedback")) {
         const feedbackStore = db.createObjectStore("feedback", { keyPath: "id" });
         feedbackStore.createIndex("by-caseId", "caseId");
         feedbackStore.createIndex("by-subjectType", "subjectType");
         feedbackStore.createIndex("by-subjectId", "subjectId");
-      }
 
-      // settings
-      if (!db.objectStoreNames.contains("settings")) {
         db.createObjectStore("settings", { keyPath: "id" });
       }
 
-      // opinionAnalyses
-      if (!db.objectStoreNames.contains("opinionAnalyses")) {
+      if (oldVersion < 2) {
         const opinionStore = db.createObjectStore("opinionAnalyses", { keyPath: "id" });
         opinionStore.createIndex("by-caseId", "caseId");
-      }
 
-      // argumentMappings
-      if (!db.objectStoreNames.contains("argumentMappings")) {
         const argStore = db.createObjectStore("argumentMappings", { keyPath: "id" });
         argStore.createIndex("by-caseId", "caseId");
       }
 
-      // reexamDrafts
-      if (!db.objectStoreNames.contains("reexamDrafts")) {
+      if (oldVersion < 3) {
         db.createObjectStore("reexamDrafts", { keyPath: "id" });
+        db.createObjectStore("summaries", { keyPath: "id" });
       }
 
-      // summaries
-      if (!db.objectStoreNames.contains("summaries")) {
-        db.createObjectStore("summaries", { keyPath: "id" });
+      if (oldVersion < 7) {
+        if (db.objectStoreNames.contains("chatMessages")) {
+          db.deleteObjectStore("chatMessages");
+        }
+        const chatStore = db.createObjectStore("chatMessages", { keyPath: "id" });
+        chatStore.createIndex("by-caseId", "caseId");
+        chatStore.createIndex("by-moduleScope", "moduleScope");
+        chatStore.createIndex("by-createdAt", "createdAt");
+        chatStore.createIndex("by-sessionId", "sessionId");
       }
     }
   });
