@@ -33,6 +33,7 @@ export function NoveltyAgentTrigger({
 }: NoveltyAgentTriggerProps) {
   const { addComparison, setLoading, isLoading } = useNoveltyStore();
   const [selectedRefId, setSelectedRefId] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
 
   // DEBUG: 记录 props 变化
   useEffect(() => {
@@ -97,6 +98,7 @@ export function NoveltyAgentTrigger({
     }
 
     setLoading(true);
+    setError(null);
     try {
       const request: NoveltyRequest = {
         caseId,
@@ -136,6 +138,10 @@ export function NoveltyAgentTrigger({
       };
 
       addComparison(comparison);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "未知错误";
+      debugLog("handleRun错误:", message);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -177,6 +183,12 @@ export function NoveltyAgentTrigger({
       >
         {isLoading ? "对照中..." : `对 ${selectedRefId ? "D1" : "—"} 进行新颖性对照`}
       </button>
+
+      {error && (
+        <div className="alert alert--error" data-testid="novelty-error" style={{ marginTop: 12 }}>
+          {error}
+        </div>
+      )}
     </div>
   );
 }

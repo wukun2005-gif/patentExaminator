@@ -626,6 +626,21 @@ function mockClaimChart(request: ClaimChartRequest): ClaimChartResponse {
 
 function buildNoveltyPrompt(request: NoveltyRequest): string {
   const parts = [
+    `你是一名专利复审辅助系统，负责在复审阶段逐特征重新评估新颖性对照。`,
+    ``,
+    `## 复审上下文`,
+    `本次分析基于以下复审背景：`,
+    `- 审查意见通知书中的驳回理由`,
+    `- 申请人的答辩理由（如提供）`,
+    `- 申请人修改后的权利要求（如提供）`,
+    ``,
+    `## 公开状态四档语义`,
+    `- clearly-disclosed：对比文件明确公开了该技术特征`,
+    `- possibly-disclosed：对比文件可能公开了该技术特征，但需审查员确认`,
+    `- not-found：在对比文件中未找到该技术特征的公开内容`,
+    `- not-applicable：该特征不适用于本次对照`,
+    ``,
+    `## 输入数据`,
     `案件 ID: ${request.caseId}`,
     `权利要求号: ${request.claimNumber}`,
     `技术特征:`,
@@ -641,6 +656,40 @@ function buildNoveltyPrompt(request: NoveltyRequest): string {
   if (request.amendedClaimText) {
     parts.push(``, `修改后权利要求:`, request.amendedClaimText.slice(0, 4000));
   }
+  parts.push(
+    ``,
+    `## 输出要求`,
+    `严格按以下 JSON 格式输出，不要输出其他任何内容：`,
+    ``,
+    `{`,
+    `  "referenceId": "${request.referenceId}",`,
+    `  "claimNumber": ${request.claimNumber},`,
+    `  "rows": [`,
+    `    {`,
+    `      "featureCode": "A",`,
+    `      "disclosureStatus": "clearly-disclosed|possibly-disclosed|not-found|not-applicable",`,
+    `      "citations": [`,
+    `        {`,
+    `          "label": "[0005]",`,
+    `          "paragraph": "0005",`,
+    `          "quote": "引用原文",`,
+    `          "confidence": "high|medium|low"`,
+    `        }`,
+    `      ],`,
+    `      "mismatchNotes": "差异说明（可选）"`,
+    `    }`,
+    `  ],`,
+    `  "differenceFeatureCodes": ["B", "C"],`,
+    `  "pendingSearchQuestions": ["待检索问题（最多5条）"],`,
+    `  "legalCaution": "以上为候选事实整理，不构成新颖性法律结论。"`,
+    `}`,
+    ``,
+    `注意事项：`,
+    `- rows 数组必须包含每条输入的技术特征`,
+    `- citations 中必须包含 paragraph 字段`,
+    `- 如果提供了答辩理由，需在 mismatchNotes 中回应`,
+    `- 务必使用双引号，字段名必须与示例完全一致`
+  );
   return parts.join("\n");
 }
 
