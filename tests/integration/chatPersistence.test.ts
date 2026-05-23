@@ -4,48 +4,13 @@
 
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { setDBInstance } from "@client/lib/indexedDb";
+import { setDBInstance, openPatentDB } from "@client/lib/indexedDb";
 import { useChatStore } from "@client/store/features/chat/chatSlice";
 import * as chatRepo from "@client/lib/repositories/chatRepo";
 import type { ChatSession, ChatMessage } from "@shared/types/domain";
 
 const testCaseId = "test-case-persistence";
 const testSessionId = "test-session-persistence";
-
-beforeEach(async () => {
-  const { openPatentDB } = await import("@client/lib/indexedDb");
-  const db = await openPatentDB();
-  setDBInstance(db);
-
-  const storeNames = Array.from(db.objectStoreNames);
-  const tx = db.transaction(storeNames, "readwrite");
-  await Promise.all([...storeNames.map((s) => tx.objectStore(s).clear()), tx.done]);
-
-  useChatStore.setState({
-    sessions: [],
-    messages: [],
-    activeSessionId: null,
-    isPanelOpen: false,
-    isLoading: false
-  });
-});
-
-afterEach(async () => {
-  try {
-    await chatRepo.deleteMessagesBySessionId(testSessionId);
-    await chatRepo.deleteSession(testSessionId);
-  } catch {
-    // Ignore cleanup errors
-  }
-  try {
-    await chatRepo.deleteMessagesBySessionId(`${testSessionId}-1`);
-    await chatRepo.deleteMessagesBySessionId(`${testSessionId}-2`);
-    await chatRepo.deleteSession(`${testSessionId}-1`);
-    await chatRepo.deleteSession(`${testSessionId}-2`);
-  } catch {
-    // Ignore cleanup errors
-  }
-});
 
 function makeSession(overrides: Partial<ChatSession> = {}): ChatSession {
   return {
@@ -73,6 +38,37 @@ function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 }
 
 describe("Chat persistence scenarios", () => {
+  beforeEach(async () => {
+    const db = await openPatentDB();
+    setDBInstance(db);
+
+    const storeNames = Array.from(db.objectStoreNames);
+    const tx = db.transaction(storeNames, "readwrite");
+    await Promise.all([...storeNames.map((s) => tx.objectStore(s).clear()), tx.done]);
+
+    useChatStore.setState({
+      sessions: [],
+      messages: [],
+      activeSessionId: null,
+      isPanelOpen: false,
+      isLoading: false
+    });
+  });
+
+  afterEach(async () => {
+    try {
+      await chatRepo.deleteMessagesBySessionId(testSessionId);
+      await chatRepo.deleteSession(testSessionId);
+    } catch {
+    }
+    try {
+      await chatRepo.deleteMessagesBySessionId(`${testSessionId}-1`);
+      await chatRepo.deleteMessagesBySessionId(`${testSessionId}-2`);
+      await chatRepo.deleteSession(`${testSessionId}-1`);
+      await chatRepo.deleteSession(`${testSessionId}-2`);
+    } catch {
+    }
+  });
   it("should persist chat session to IndexedDB and retrieve it", async () => {
     const session = makeSession();
     await chatRepo.createSession(session);
@@ -194,5 +190,76 @@ describe("Chat persistence scenarios", () => {
     const msgs2 = await chatRepo.getMessagesBySessionId(`${testSessionId}-2`);
     expect(msgs2).toHaveLength(1);
     expect(msgs2[0]!.content).toBe("会话2的消息");
+  });
+});
+
+describe("Chat persistence: DB schema verification", () => {
+  it("chatMessages store should have by-sessionId index for session-scoped queries", async () => {
+    const db = await openPatentDB();
+
+    const tx = db.transaction("chatMessages", "readonly");
+    const store = tx.objectStore("chatMessages");
+    const indexNames: string[] = [];
+    for (let i = 0; i < store.indexNames.length; i++) {
+      indexNames.push(store.indexNames.item(i)!);
+    }
+    await tx.done;
+
+    expect(indexNames).toContain("by-sessionId");
+    expect(indexNames).toContain("by-caseId");
+    expect(indexNames).toContain("by-moduleScope");
+    expect(indexNames).toContain("by-createdAt");
+
+    db.close();
+  });
+
+  it("chatSessions store should have by-caseId index", async () => {
+    const db = await openPatentDB();
+
+    const tx = db.transaction("chatSessions", "readonly");
+    const store = tx.objectStore("chatSessions");
+    const indexNames: string[] = [];
+    for (let i = 0; i < store.indexNames.length; i++) {
+      indexNames.push(store.indexNames.item(i)!);
+    }
+    await tx.done;
+
+    expect(indexNames).toContain("by-caseId");
+
+    db.close();
+  });
+
+  it("should be able to query chat messages by session ID via by-sessionId index", async () => {
+    const db = await openPatentDB();
+    setDBInstance(db);
+
+    const session: ChatSession = {
+      id: "schema-verify-session",
+      caseId: "schema-verify-case",
+      moduleScope: "novelty",
+      title: "schema verification",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await chatRepo.createSession(session);
+
+    const msg: ChatMessage = {
+      id: "schema-verify-msg",
+      caseId: "schema-verify-case",
+      sessionId: "schema-verify-session",
+      moduleScope: "novelty",
+      role: "user",
+      content: "schema test",
+      createdAt: new Date().toISOString(),
+    };
+    await chatRepo.createMessage(msg);
+
+    const messages = await chatRepo.getMessagesBySessionId("schema-verify-session");
+    expect(messages).toHaveLength(1);
+    expect(messages[0]!.content).toBe("schema test");
+
+    await chatRepo.deleteMessagesBySessionId("schema-verify-session");
+    await chatRepo.deleteSession("schema-verify-session");
+    db.close();
   });
 });
