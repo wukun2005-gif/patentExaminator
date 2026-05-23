@@ -45,9 +45,23 @@ export interface SearchReferencesCandidate {
   sourceUrl?: string;
 }
 
+export interface SearchSummary {
+  /** 技术特征数量 */
+  featureCount: number;
+  /** 检索式数量 */
+  queryCount: number;
+  /** 数据源名称（如 "EPO"、"Tavily"、"SerpAPI"） */
+  dataSource: string;
+  /** 原始检索词列表（供折叠展示） */
+  queries: string[];
+}
+
 export interface SearchReferencesResponse {
   ok: boolean;
   candidates: SearchReferencesCandidate[];
+  /** @deprecated 使用 searchSummary 代替 */
   searchQuery?: string;
+  /** 检索摘要信息 */
+  searchSummary?: SearchSummary;
   error?: string;
 }

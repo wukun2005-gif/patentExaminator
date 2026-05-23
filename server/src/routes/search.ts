@@ -5,7 +5,7 @@ import { getApiKey } from "../security/keyStore.js";
 import { searchPatents } from "../services/webSearch.js";
 import { logger } from "../lib/logger.js";
 import { sanitizeText } from "../security/sanitize.js";
-import type { SearchReferencesResponse, SearchReferencesCandidate } from "@shared/types/api";
+import type { SearchReferencesResponse, SearchReferencesCandidate, SearchSummary } from "@shared/types/api";
 import type { ChatRequest } from "../providers/ProviderAdapter.js";
 
 export const searchRouter = Router();
@@ -295,12 +295,27 @@ searchRouter.post("/search-references", async (req, res) => {
       logger.info("  result", { title: r.title?.slice(0, 80), url: r.url?.slice(0, 100) });
     }
 
+    // Build search summary for better UX
+    const dataSourceName: Record<string, string> = {
+      tavily: "Tavily",
+      serpapi: "SerpAPI",
+      epo: "EPO",
+      custom: "自定义数据源"
+    };
+    const searchSummary: SearchSummary = {
+      featureCount: request.features.length,
+      queryCount: searchQueries.length,
+      dataSource: dataSourceName[searchProviderId] ?? searchProviderId.toUpperCase(),
+      queries: searchQueries
+    };
+
     if (searchRes.results.length === 0) {
       res.json({
         ok: true,
         candidates: [],
         searchQuery,
-        error: "未检索到相关专利文献，请尝试调整权利要求或手动上传。"
+        searchSummary,
+        error: `未在 ${searchSummary.dataSource} 数据库中找到与这些技术特征匹配的专利文献。`
       } satisfies SearchReferencesResponse);
       return;
     }
@@ -499,7 +514,8 @@ searchRouter.post("/search-references", async (req, res) => {
     res.json({
       ok: true,
       candidates,
-      searchQuery
+      searchQuery,
+      searchSummary
     } satisfies SearchReferencesResponse);
   } catch (error) {
     logger.error("Search references error", { error: String(error) });

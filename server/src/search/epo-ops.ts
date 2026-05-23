@@ -11,8 +11,10 @@ function containsChinese(text: string): boolean {
 /**
  * Translate Chinese search terms to English using LLM
  * EPO OPS only supports English/German/French in its indexes
+ * @deprecated Reserved for future use when translation is needed
  */
-async function translateToEnglish(
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function _translateToEnglish(
   searchTerms: string,
   translateFn: (text: string) => Promise<string>
 ): Promise<string> {

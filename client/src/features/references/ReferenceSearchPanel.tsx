@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import type { ReferenceDocument } from "@shared/types/domain";
-import type { SearchReferencesCandidate, SearchReferencesResponse } from "../../agent/contracts";
+import type { SearchReferencesCandidate, SearchReferencesResponse, SearchSummary } from "@shared/types/api";
 import { classifyReferenceDate } from "../../lib/dateRules";
 import { TimelineStatusBadge } from "../../components/TimelineStatusBadge";
 import { useReferencesStore, useCaseStore, useSettingsStore } from "../../store";
@@ -21,7 +21,8 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
   const { currentCase } = useCaseStore();
   const { settings } = useSettingsStore();
   const [error, setError] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchSummary, setSearchSummary] = useState<SearchSummary | null>(null);
+  const [showQueryDetails, setShowQueryDetails] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const baselineDate = currentCase?.priorityDate ?? currentCase?.applicationDate;
@@ -36,6 +37,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
     setError("");
     setIsSearching(true);
     setCandidates([]);
+    setSearchSummary(null);
 
     try {
       const agentClient = new AgentClient(settings.mode, "/api", settings);
@@ -82,8 +84,9 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
         return;
       }
 
-      const firstQuery = okResponses.find((r) => r.searchQuery)?.searchQuery;
-      if (firstQuery) setSearchQuery(firstQuery);
+      // Use searchSummary from the first successful response
+      const firstSummary = okResponses.find((r) => r.searchSummary)?.searchSummary;
+      if (firstSummary) setSearchSummary(firstSummary);
 
       const seen = new Set<string>();
       const merged: ReferenceDocument[] = [];
@@ -97,6 +100,11 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
         if (merged.length >= maxResults) break;
       }
       setCandidates(merged);
+
+      // If no candidates found but searchSummary exists, show informative message
+      if (merged.length === 0 && firstSummary) {
+        setError(`未在 ${firstSummary.dataSource} 数据库中找到与这些技术特征匹配的专利文献。`);
+      }
     } catch (err) {
       setError(String(err));
     } finally {
@@ -176,10 +184,30 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
         </p>
       )}
 
-      {searchQuery && (
-        <p className="search-query" data-testid="search-query">
-          检索式: {searchQuery}
-        </p>
+      {searchSummary && (
+        <div className="search-summary" data-testid="search-summary">
+          <p className="search-summary-text">
+            基于 {searchSummary.featureCount} 个技术特征生成了 {searchSummary.queryCount} 条检索式，在 {searchSummary.dataSource} 数据库中检索
+          </p>
+          <button
+            type="button"
+            className="btn-text btn-toggle-details"
+            onClick={() => setShowQueryDetails(!showQueryDetails)}
+            data-testid="btn-toggle-query-details"
+          >
+            {showQueryDetails ? "收起详情" : "查看检索词"}
+          </button>
+          {showQueryDetails && (
+            <div className="query-details" data-testid="query-details">
+              {searchSummary.queries.map((query, idx) => (
+                <div key={idx} className="query-item">
+                  <span className="query-index">{idx + 1}.</span>
+                  <span className="query-text">{query}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {candidates.length > 0 && (
