@@ -229,6 +229,56 @@ searchRouter.post("/search-references", async (req, res) => {
 
     // Limit to 5 queries max
     searchQueries = searchQueries.slice(0, 5);
+    
+    // Step 1.5: If using EPO, translate Chinese queries to English
+    // EPO OPS only indexes English/German/French - Chinese terms will return 0 results
+    if (searchProviderId === "epo") {
+      const chineseQueries = searchQueries.filter(q => /[\u4e00-\u9fff]/.test(q));
+      if (chineseQueries.length > 0) {
+        logger.info("EPO search detected Chinese queries, translating to English", { chineseQueries });
+        const translatePrompt = sanitizeText(
+          `你是专利检索专家。请将以下中文检索词翻译为英文，用于在 EPO（欧洲专利局）专利数据库中检索。\n\n` +
+          `中文检索词:\n${chineseQueries.map((q, i) => `${i + 1}. ${q}`).join("\n")}\n\n` +
+          `翻译要求:\n` +
+          `1. 使用专利领域的专业英文术语\n` +
+          `2. 保持检索意图不变，不要添加或删除技术特征\n` +
+          `3. 每个检索词单独翻译，不要合并\n\n` +
+          `输出 JSON 格式: {"translations":["英文检索词1","英文检索词2",...]}`
+        );
+        
+        const translateReq: ChatRequest = {
+          modelId: request.modelId,
+          messages: [{ role: "user", content: translatePrompt }],
+          maxTokens: 500,
+          apiKey
+        };
+        
+        try {
+          const { response: translateRes } = await registry.runWithFallback(
+            availableProviders as string[],
+            translateReq
+          );
+          
+          if (!translateRes.error && translateRes.text) {
+            const jsonMatch = translateRes.text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]) as { translations?: string[] };
+              if (parsed.translations && parsed.translations.length === chineseQueries.length) {
+                // Replace Chinese queries with English translations
+                let transIdx = 0;
+                searchQueries = searchQueries.map(q => 
+                  /[\u4e00-\u9fff]/.test(q) ? parsed.translations![transIdx++]! : q
+                );
+                logger.info("Translated Chinese queries for EPO", { translated: searchQueries });
+              }
+            }
+          }
+        } catch (err) {
+          logger.warn("EPO query translation failed, using original", { error: String(err) });
+        }
+      }
+    }
+    
     const searchQuery = searchQueries.join(" | ");
     logger.info("Extracted search queries", { searchQueries });
 

@@ -1,6 +1,45 @@
 import { logger } from "../lib/logger.js";
 import type { SearchResult } from "../services/webSearch.js";
 
+/**
+ * Detect if text contains Chinese characters
+ */
+function containsChinese(text: string): boolean {
+  return /[\u4e00-\u9fff]/.test(text);
+}
+
+/**
+ * Translate Chinese search terms to English using LLM
+ * EPO OPS only supports English/German/French in its indexes
+ */
+async function translateToEnglish(
+  searchTerms: string,
+  translateFn: (text: string) => Promise<string>
+): Promise<string> {
+  const terms = searchTerms
+    .split(/\s*\|\s*/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+
+  const translatedTerms: string[] = [];
+  for (const term of terms) {
+    if (containsChinese(term)) {
+      try {
+        const translated = await translateFn(term);
+        translatedTerms.push(translated.trim() || term);
+        logger.info("Translated Chinese search term", { original: term, translated });
+      } catch (err) {
+        logger.warn("Translation failed, using original term", { term, error: String(err) });
+        translatedTerms.push(term);
+      }
+    } else {
+      translatedTerms.push(term);
+    }
+  }
+
+  return translatedTerms.join(" | ");
+}
+
 interface EpoToken {
   accessToken: string;
   expiresAt: number;
