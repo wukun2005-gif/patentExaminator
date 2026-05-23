@@ -128,6 +128,7 @@ export function AppShell({ children }: AppShellProps) {
                     className={
                       location.pathname === `/cases/${caseId}/${item.path}` ? "active" : ""
                     }
+                    title={sidebarCollapsed ? item.label : undefined}
                     onMouseEnter={() => handleItemHover(item.path)}
                     onMouseLeave={handleItemLeave}
                   >
@@ -153,7 +154,9 @@ export function AppShell({ children }: AppShellProps) {
                         {item.label}
                       </div>
                     )}
-                    {!sidebarCollapsed && item.label}
+                    {!sidebarCollapsed && (
+                      <span className="sidebar-nav__label">{item.label}</span>
+                    )}
                   </Link>
                 ))}
               </div>
