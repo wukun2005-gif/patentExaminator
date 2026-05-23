@@ -1,0 +1,44 @@
+{
+  "ok": true,
+  "candidates": [
+    {
+      "title": "一种LED灯具散热结构",
+      "publicationNumber": "CN201510012345A",
+      "publicationDate": "2015-06-20",
+      "summary": "本发明公开了一种LED灯具散热结构，包括铝合金散热基板，基板上设有散热翅片，LED芯片通过导热硅脂层安装于基板上表面。散热方式为自然对流。",
+      "relevanceScore": 85,
+      "recommendationReason": "公开了LED灯具散热结构，包括散热基板、散热翅片，与权利要求1的散热装置相关。",
+      "sourceUrl": "https://patents.google.com/patent/CN201510012345A"
+    },
+    {
+      "title": "High Efficiency Thermal Management System for LED Arrays",
+      "publicationNumber": "US20200123456A1",
+      "publicationDate": "2020-05-15",
+      "summary": "A thermal management system using graphene-enhanced thermal interface material between LED array and aluminum substrate. The TIM comprises 8-12wt% graphene nanoplatelets dispersed in silicone matrix, achieving thermal conductivity of 600-1200W/(m·K).",
+      "relevanceScore": 90,
+      "recommendationReason": "公开了石墨烯增强导热界面材料，与权利要求1的导热界面层高度相关。",
+      "sourceUrl": "https://patents.google.com/patent/US20200123456A1"
+    },
+    {
+      "title": "一种LED散热装置及其制造方法",
+      "publicationNumber": "CN201610987654B",
+      "publicationDate": "2017-08-18",
+      "summary": "一种LED散热装置，包括铝合金基座和散热翅片，基座底部设有风扇安装槽，可安装主动散热风扇以提高散热效率。",
+      "relevanceScore": 78,
+      "recommendationReason": "公开了LED散热装置的散热翅片和风扇配合结构，与权利要求1的风冷模块相关。",
+      "sourceUrl": "https://patents.google.com/patent/CN201610987654B"
+    }
+  ],
+  "searchSummary": {
+    "featureCount": 3,
+    "queryCount": 5,
+    "dataSource": "Tavily",
+    "queries": [
+      "LED散热模组 相变材料",
+      "散热翅片 铝合金基板",
+      "LED heatsink graphene TIM",
+      "离心风扇 导风罩 LED",
+      "thermal management LED array"
+    ]
+  }
+}
