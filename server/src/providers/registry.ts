@@ -15,6 +15,7 @@ const GEMINI_MODEL_FALLBACKS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite"
 
 const BACKOFF_DELAYS = [500, 1500, 3000];
 const MAX_RETRIES = 2;
+const MAX_TOTAL_ATTEMPTS = 5;
 const TIMEOUT_MS = 60_000;
 
 export interface AttemptRecord {
@@ -59,6 +60,7 @@ export class ProviderRegistry {
     mimoModelFallbacks?: string[]
   ): Promise<{ response: ChatResponse; attempts: AttemptRecord[] }> {
     const attempts: AttemptRecord[] = [];
+    let totalAttempts = 0;
 
     for (const pid of providerPreference) {
       const providerId = pid as ProviderId;
@@ -72,6 +74,13 @@ export class ProviderRegistry {
       if (pid === "mimo") {
         const models = mimoModelFallbacks ?? MIMO_MODEL_FALLBACKS;
         for (const modelId of models) {
+          totalAttempts++;
+          if (totalAttempts > MAX_TOTAL_ATTEMPTS) {
+            return {
+              response: buildMaxAttemptsError(attempts),
+              attempts
+            };
+          }
           try {
             const response = await this.executeWithRetry(adapter, { ...req, modelId });
             attempts.push({ providerId, ok: true });
@@ -82,7 +91,6 @@ export class ProviderRegistry {
             if (errInfo.code === "auth-failed") {
               return { response: buildErrorResponse(errInfo), attempts };
             }
-            // quota-exceeded / other errors: try next model (different models may have separate quotas)
           }
         }
         continue;
@@ -92,6 +100,13 @@ export class ProviderRegistry {
       if (pid === "gemini") {
         const models = GEMINI_MODEL_FALLBACKS;
         for (const modelId of models) {
+          totalAttempts++;
+          if (totalAttempts > MAX_TOTAL_ATTEMPTS) {
+            return {
+              response: buildMaxAttemptsError(attempts),
+              attempts
+            };
+          }
           try {
             const response = await adapter.chat({ ...req, modelId });
             attempts.push({ providerId, ok: true });
@@ -105,6 +120,14 @@ export class ProviderRegistry {
           }
         }
         continue;
+      }
+
+      totalAttempts++;
+      if (totalAttempts > MAX_TOTAL_ATTEMPTS) {
+        return {
+          response: buildMaxAttemptsError(attempts),
+          attempts
+        };
       }
 
       try {
@@ -200,6 +223,21 @@ function buildErrorResponse(errInfo: ErrorInfo): ChatResponse {
     text: "",
     rawResponse: null,
     error: { code: errInfo.code, message: errInfo.message, retryable: errInfo.retryable }
+  };
+}
+
+function buildMaxAttemptsError(attempts: AttemptRecord[]): ChatResponse {
+  const summary = attempts
+    .map((a) => `${a.providerId}(${a.errorCode ?? "unknown"})`)
+    .join(", ");
+  return {
+    text: "",
+    rawResponse: null,
+    error: {
+      code: "max-attempts-reached",
+      message: `Max total attempts (${MAX_TOTAL_ATTEMPTS}) reached: ${summary}`,
+      retryable: false
+    }
   };
 }
 

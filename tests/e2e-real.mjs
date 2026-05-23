@@ -47,6 +47,14 @@
  * ├── testRealSearchReferences_G1   - 真实搜索流程
  * └── testRealSearchRateLimit       - 搜索频率限制验证
  *
+ * 【EPO 真实搜索测试】修改 EPO Provider 时运行（需 EPO_CONSUMER_KEY + EPO_CONSUMER_SECRET_KEY + GEMINI_KEY）
+ * └── testEpoSearchWithEnv          - EPO 真实搜索 + candidates 非空断言
+ *
+ * 【Quality Gate 测试】修改 Provider Registry/fallback/retry 时运行
+ * ├── gateway.test.ts T-GW-005       - per-agent max total attempts 上限
+ * ├── Mock 测试 structureErrors 断言  - 所有 mock agents 的 structureErrors.length === 0
+ * └── EPO candidates.length > 0     - 搜索返回非空候选文献列表
+ *
  * 【Export 测试】修改 export/导出相关时运行
  * └── testMockExportHtml_G1        - G1 → HTML 结构 + legalCaution
  *
@@ -674,6 +682,9 @@ async function testMockModeEnabled() {
   const data = await res.json();
   log("Mock /ai/run returns 200", res.status === 200, `status=${res.status}`);
   log("Mock /ai/run returns ok:true", data.ok === true, `ok=${data.ok}`);
+  log("Mock mode no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 }
 
 // ── Mock: Claim Chart ────────────────────────────────────────────────
@@ -683,6 +694,9 @@ async function testMockClaimChart_G1() {
   const data = await res.json();
   log("Mock ClaimChart G1 ok", data.ok === true, `ok=${data.ok}`);
   log("Mock ClaimChart G1 has outputJson", data.outputJson != null);
+  log("Mock ClaimChart G1 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const result = validateClaimChartOutput(data.outputJson);
   log("Mock ClaimChart G1 schema valid", result.valid, result.errors.join("; "));
@@ -700,6 +714,9 @@ async function testMockClaimChart_G3() {
   const data = await res.json();
   log("Mock ClaimChart G3 ok", data.ok === true, `ok=${data.ok}`);
   log("Mock ClaimChart G3 has outputJson", data.outputJson != null);
+  log("Mock ClaimChart G3 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const result = validateClaimChartOutput(data.outputJson);
   log("Mock ClaimChart G3 schema valid", result.valid, result.errors.join("; "));
@@ -716,6 +733,9 @@ async function testMockNovelty_G1() {
     { expectedSchemaName: "novelty", referenceId: "g1-ref-d1" }));
   const data = await res.json();
   log("Mock Novelty G1 ok", data.ok === true, `ok=${data.ok}`);
+  log("Mock Novelty G1 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const result = validateNoveltyOutput(data.outputJson);
   log("Mock Novelty G1 schema valid", result.valid, result.errors.join("; "));
@@ -735,6 +755,9 @@ async function testMockInventive_G2() {
   const res = await postJSON("/ai/run", mockRequest("inventive", "g2-battery", "inventive"));
   const data = await res.json();
   log("Mock Inventive G2 ok", data.ok === true, `ok=${data.ok}`);
+  log("Mock Inventive G2 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const result = validateInventiveOutput(data.outputJson);
   log("Mock Inventive G2 schema valid", result.valid, result.errors.join("; "));
@@ -754,6 +777,10 @@ async function testMockInventive_G3_NoRef() {
   const res = await postJSON("/ai/run", mockRequest("inventive", "g3-sensor", "inventive"));
   const data = await res.json();
   log("Mock Inventive G3 (no ref) ok", data.ok === true, `ok=${data.ok}`);
+  log("Mock Inventive G3 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
+
   const result = validateInventiveOutput(data.outputJson);
   log("Mock Inventive G3 schema valid", result.valid, result.errors.join("; "));
 }
@@ -765,6 +792,9 @@ async function testMockInterpret_G1() {
   const data = await res.json();
   log("Mock Interpret G1 ok", data.ok === true, `ok=${data.ok}`);
   log("Mock Interpret G1 has outputJson", data.outputJson != null);
+  log("Mock Interpret G1 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const response = data.outputJson?.response;
   log("Mock Interpret G1 has response text", typeof response === "string" && response.length > 50,
@@ -778,6 +808,9 @@ async function testMockOpinionAnalysis_G1() {
   const data = await res.json();
   log("Mock OpinionAnalysis G1 ok", data.ok === true, `ok=${data.ok}`);
   log("Mock OpinionAnalysis G1 has outputJson", data.outputJson != null);
+  log("Mock OpinionAnalysis G1 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const result = validateOpinionAnalysisOutput(data.outputJson);
   log("Mock OpinionAnalysis G1 schema valid", result.valid, result.errors.join("; "));
@@ -792,6 +825,9 @@ async function testMockArgumentAnalysis_G1() {
   const data = await res.json();
   log("Mock ArgumentAnalysis G1 ok", data.ok === true, `ok=${data.ok}`);
   log("Mock ArgumentAnalysis G1 has outputJson", data.outputJson != null);
+  log("Mock ArgumentAnalysis G1 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const result = validateArgumentMappingOutput(data.outputJson);
   log("Mock ArgumentAnalysis G1 schema valid", result.valid, result.errors.join("; "));
@@ -806,6 +842,9 @@ async function testMockReexamDraft_G1() {
   const data = await res.json();
   log("Mock ReexamDraft G1 ok", data.ok === true, `ok=${data.ok}`);
   log("Mock ReexamDraft G1 has outputJson", data.outputJson != null);
+  log("Mock ReexamDraft G1 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const result = validateReexamDraftOutput(data.outputJson);
   log("Mock ReexamDraft G1 schema valid", result.valid, result.errors.join("; "));
@@ -820,6 +859,9 @@ async function testMockSummary_G1() {
   const data = await res.json();
   log("Mock Summary G1 ok", data.ok === true, `ok=${data.ok}`);
   log("Mock Summary G1 has outputJson", data.outputJson != null);
+  log("Mock Summary G1 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const result = validateSummaryOutput(data.outputJson);
   log("Mock Summary G1 schema valid", result.valid, result.errors.join("; "));
@@ -843,6 +885,9 @@ async function testMockTranslate_G1() {
   const data = await res.json();
   log("Mock Translate G1 ok", data.ok === true, `ok=${data.ok}`);
   log("Mock Translate G1 has outputJson", data.outputJson != null);
+  log("Mock Translate G1 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const result = validateTranslateOutput(data.outputJson);
   log("Mock Translate G1 schema valid", result.valid, result.errors.join("; "));
@@ -873,6 +918,9 @@ async function testMockClassifyDocuments_G1() {
   const data = await res.json();
   log("Mock ClassifyDocuments G1 ok", data.ok === true, `ok=${data.ok}`);
   log("Mock ClassifyDocuments G1 has outputJson", data.outputJson != null);
+  log("Mock ClassifyDocuments G1 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
   const result = validateClassifyDocumentsOutput(data.outputJson);
   log("Mock ClassifyDocuments G1 schema valid", result.valid, result.errors.join("; "));
@@ -2116,6 +2164,11 @@ async function testEpoSearchWithEnv() {
     log("EPO real search ok", data.ok === true, `ok=${data.ok}, candidates=${data.candidates?.length ?? 0}`);
     if (data.error) {
       log("EPO real search error info", true, data.error);
+    }
+    if (data.ok) {
+      log("EPO real search candidates non-empty",
+        Array.isArray(data.candidates) && data.candidates.length > 0,
+        `candidates.length=${data.candidates?.length ?? 0}`);
     }
   } catch (err) {
     log("EPO real search", false, err.message);

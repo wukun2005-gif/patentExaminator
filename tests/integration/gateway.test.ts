@@ -164,6 +164,25 @@ describe("ProviderRegistry", () => {
     expect(response.error).toBeDefined();
     expect(response.error!.code).toBe("all-providers-failed");
   });
+
+  it("T-GW-005: enforces per-agent max total attempts", async () => {
+    const ids: ProviderId[] = [];
+    for (let i = 0; i < 10; i++) {
+      const adapter = new FailingAdapter(500);
+      adapter.id = `kimi` as ProviderId;
+      registry.register(adapter);
+      ids.push(adapter.id);
+    }
+
+    const { response, attempts } = await registry.runWithFallback(
+      ids,
+      { modelId: "test", messages: [{ role: "user", content: "test" }], apiKey: "test-key" }
+    );
+
+    expect(response.error).toBeDefined();
+    expect(response.error!.code).toBe("max-attempts-reached");
+    expect(attempts.length).toBeLessThanOrEqual(5);
+  }, 30000);
 });
 
 describe("sanitize", () => {
