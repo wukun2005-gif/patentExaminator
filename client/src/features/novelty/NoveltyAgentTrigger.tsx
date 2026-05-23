@@ -115,6 +115,14 @@ export function NoveltyAgentTrigger({
 
       const response = await runNovelty(request);
 
+      // 创建 featureCode 到 description 的映射
+      const featureDescriptionMap = new Map(
+        features.map((f) => [f.featureCode, f.description])
+      );
+
+      // 兼容旧数据：优先使用 reviewerConclusions，回退到 pendingSearchConclusions
+      const reviewerConclusions = response.reviewerConclusions ?? response.pendingSearchConclusions;
+
       const comparison = {
         id: `novelty-${caseId}-${selectedRefId}-${claimNumber}`,
         caseId,
@@ -122,8 +130,11 @@ export function NoveltyAgentTrigger({
         claimNumber,
         rows: response.rows.map((row) => {
           const { mismatchNotes, ...rest } = row;
+          const featureDescription = featureDescriptionMap.get(row.featureCode);
           return {
             ...rest,
+            // 只有当特征描述存在时才添加该属性
+            ...(featureDescription ? { featureDescription } : {}),
             citations: rest.citations.map((c) => ({
               ...c,
               documentId: selectedRefId
@@ -133,6 +144,9 @@ export function NoveltyAgentTrigger({
         }),
         differenceFeatureCodes: response.differenceFeatureCodes,
         pendingSearchQuestions: response.pendingSearchQuestions,
+        // 只有当值存在时才添加可选属性
+        ...(reviewerConclusions ? { reviewerConclusions } : {}),
+        ...(response.aiPreliminaryConclusions ? { aiPreliminaryConclusions: response.aiPreliminaryConclusions } : {}),
         status: "draft" as const,
         legalCaution: response.legalCaution
       };

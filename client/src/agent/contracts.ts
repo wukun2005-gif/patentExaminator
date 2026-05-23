@@ -40,6 +40,12 @@ export interface NoveltyResponse {
   }>;
   differenceFeatureCodes: string[];
   pendingSearchQuestions: string[];
+  /** @deprecated Use reviewerConclusions instead */
+  pendingSearchConclusions?: string[];
+  /** 审查员确认意见 */
+  reviewerConclusions?: string[];
+  /** AI 初步判断，供审查员参考 */
+  aiPreliminaryConclusions?: string[];
   applicantArguments?: string;
   examinerResponse?: string;
   legalCaution: string;

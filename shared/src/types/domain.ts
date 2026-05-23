@@ -157,7 +157,12 @@ export interface NoveltyComparison {
   rows: NoveltyComparisonRow[];
   differenceFeatureCodes: string[];
   pendingSearchQuestions: string[];
+  /** @deprecated Use reviewerConclusions instead */
   pendingSearchConclusions?: string[];
+  /** 审查员确认意见（原 pendingSearchConclusions） */
+  reviewerConclusions?: string[];
+  /** AI 初步判断，供审查员参考 */
+  aiPreliminaryConclusions?: string[];
   applicantArguments?: string;
   examinerResponse?: string;
   status: "draft" | "user-reviewed" | "stale";
@@ -166,6 +171,7 @@ export interface NoveltyComparison {
 
 export interface NoveltyComparisonRow {
   featureCode: string;
+  featureDescription?: string; // 特征描述，方便用户理解特征代码对应的内容
   disclosureStatus: "clearly-disclosed" | "possibly-disclosed" | "not-found" | "not-applicable";
   citations: Citation[];
   mismatchNotes?: string;
