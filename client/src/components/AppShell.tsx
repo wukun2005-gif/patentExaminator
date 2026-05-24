@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { Link, useParams, useLocation } from "react-router-dom";
 import { ModeBanner } from "./ModeBanner";
 import { ChatPanel } from "../features/chat/ChatPanel";
+import { useCaseStore } from "../store";
+import { loadCaseById } from "../lib/caseLoader";
 
 interface AppShellProps {
   children: ReactNode;
@@ -37,6 +39,8 @@ export function AppShell({ children }: AppShellProps) {
   const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
   const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const { currentCase } = useCaseStore();
+
   // Clear timeout on unmount
   useEffect(() => {
     return () => {
@@ -45,6 +49,16 @@ export function AppShell({ children }: AppShellProps) {
       }
     };
   }, []);
+
+  // Auto-restore all case data from IndexedDB on page load/navigation
+  // Solves bg-11 systemically — defect/novelty/inventive/draft results disappearing after refresh
+  useEffect(() => {
+    if (!caseId || caseId === "new") return;
+    if (currentCase?.id === caseId) return;
+    loadCaseById(caseId).catch((err) =>
+      console.error("[AppShell] Failed to restore case data:", err)
+    );
+  }, [caseId, currentCase?.id]);
 
   const handleItemHover = useCallback((itemPath: string) => {
     setHoveredItem(itemPath);

@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r22 · 2026-05-24</p>
+<p align="right">版本 v0.1.0-r23 · 2026-05-24</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -8,6 +8,7 @@
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|---------|
+| v0.1.0-r23 | 2026-05-24 | bg-11: 缺陷复查持久化 — systemic fix: AppShell 自动恢复 case 数据（覆盖所有模块） | AppShell.tsx |
 | v0.1.0-r22 | 2026-05-24 | bg-10: 审查意见简述正文格式优化 — 新增 26 条 CSS 规则为摘要面板提供卡片化布局、正文排版（行高 1.8、段落间距、列表缩进）、帮助区样式、法律声明样式 | app.css |
 | v0.1.0-r21 | 2026-05-24 | bg-9 补充: AI 备注区添加说明文字 + 支持编辑和清除 — SummaryPanel aiNotes 从只读改为 InlineEdit (textarea)、新增清除按钮、新增说明文字（"这是 AI 的辅助注释…"）、新增 `.summary-ai-notes-desc` CSS | SummaryPanel.tsx, app.css |
 | v0.1.0 | 2026-05-05 | 初稿 |
@@ -1363,6 +1364,7 @@ Supabase（后端服务）
 
 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|---------|---------|------------|
+| 2026-05-24 | fix(bg-11): 缺陷复查持久化 — 系统级根因修复。`loadCaseById()` 仅被 `CaseHistoryPanel` 调用，页面刷新时无法自动恢复 case 数据，影响所有模块（defects/novelty/inventive/draft/summary/opinion 等）。修复：AppShell 添加 `useEffect`，进入 case 页面时自动从 IndexedDB 恢复全部数据 | `client/src/components/AppShell.tsx` | 待提交 |
 | 2026-05-24 | fix(bg-5~bg-9): 多项复审意见草稿/简述 UI 修复。bg-5: category 英文改为中文 + 驳回理由卡片间距 CSS；bg-6: 审查意见简述 prompt 增加要求包含新颖性/创造性主要结论和关键依据；bg-7: conclusion 改为下拉选择 + supportingEvidence 可增删改；bg-8: "分析策略"标题改为"新颖性复核摘要"；bg-9: summary.body 添加 InlineEdit 支持编辑 | `client/src/features/draft/DraftMaterialPanel.tsx`、`client/src/features/summary/SummaryPanel.tsx`、`client/src/styles/app.css`、`client/src/agent/AgentClient.ts` | 待提交 |
 | 2026-05-24 | fix(td-3): 彻查所有 AI API 交互点的 JSON schema 约束。修复 buildReexamDraftPrompt/buildSummaryPrompt 缺少 JSON 格式输出指令的问题；将 draft agent 注册到 STRUCTURED_AGENT_SCHEMAS 防止未校验通过；修复 router.tsx lint error（unused existingDefects） | `client/src/agent/AgentClient.ts`、`shared/src/lib/responseValidator.ts`、`client/src/router.tsx` | 625e0e1 |
 | 2026-05-22 | bug #47 claim-chart 真实模式 JSON 解析失败：runClaimChart 改为 buildClaimChartPrompt 含 JSON Schema 指令；mapClaimChartOutput 将 AI 输出映射为 ClaimFeature；callGateway 透传 structureErrors；服务端校验通过后返回 Zod 转换后的 outputJson（paragraph 数字→字符串） | `client/src/agent/AgentClient.ts`、`server/src/routes/ai.ts`、`shared/src/lib/responseValidator.ts`、单元测试 | 6eea3ae+ |
