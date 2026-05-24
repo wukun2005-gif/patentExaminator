@@ -768,6 +768,7 @@ function estimateTokens(text: string): number {
 
 function buildDefectPrompt(request: DefectRequest): string {
   return [
+    `你是一位资深专利审查员，擅长识别专利申请文件中的形式缺陷。`,
     `案件 ID: ${request.caseId}`,
     ``,
     `权利要求文本:`,
@@ -777,7 +778,29 @@ function buildDefectPrompt(request: DefectRequest): string {
     request.specificationText.slice(0, 8000),
     ``,
     `技术特征:`,
-    ...request.claimFeatures.map((f) => `  ${f.featureCode}: ${f.description}`)
+    ...request.claimFeatures.map((f) => `  ${f.featureCode}: ${f.description}`),
+    ``,
+    `请根据以上内容检测形式缺陷，严格按以下 JSON 格式输出，不要输出其他内容：`,
+    `{`,
+    `  "defects": [`,
+    `    {`,
+    `      "category": "缺陷类别（如：权利要求、说明书、摘要）",`,
+    `      "description": "缺陷具体描述",`,
+    `      "location": "缺陷所在位置（可选）",`,
+    `      "severity": "error|warning|info",`,
+    `      "previouslyRaised": true或false（可选，是否曾被提出）,`,
+    `      "overcomeStatus": "overcome|not-overcome|partially-overcome（可选，克服状态）"`,
+    `    }`,
+    `  ],`,
+    `  "warnings": ["检测过程中的警告信息数组"],`,
+    `  "legalCaution": "AI 分析法律风险提示"`,
+    `}`,
+    ``,
+    `注意：`,
+    `- severity 只能是 error（错误）、warning（警告）或 info（提示）`,
+    `- 如果没有发现缺陷，defects 返回空数组`,
+    `- 务必使用双引号，字段名必须与示例完全一致`,
+    `- location、previouslyRaised、overcomeStatus 为可选字段，不适用时可不包含`
   ].join("\n");
 }
 

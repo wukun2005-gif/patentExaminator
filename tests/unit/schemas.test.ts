@@ -173,17 +173,16 @@ describe("inventiveSchema", () => {
 describe("summarySchema", () => {
   it("should parse valid summary", () => {
     const result = summarySchema.safeParse({
-      title: "测试发明",
-      problem: "解决的问题",
-      solution: "技术方案",
-      keyFeatures: [{ featureCode: "A", description: "特征A" }]
+      body: "简述正文内容",
+      aiNotes: "AI 备注内容",
+      legalCaution: "法律风险提示"
     });
     expect(result.success).toBe(true);
   });
 
   it("should reject missing required fields", () => {
     const result = summarySchema.safeParse({
-      title: "测试发明"
+      aiNotes: "AI 备注内容"
     });
     expect(result.success).toBe(false);
   });
