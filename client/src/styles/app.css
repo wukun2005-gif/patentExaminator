@@ -2937,6 +2937,60 @@
   font-style: italic;
 }
 
+.reexam-response-item {
+  border: 1px solid var(--pex-color-border-default);
+  border-radius: var(--pex-radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+  background: var(--pex-color-bg-card);
+}
+
+.reexam-response-item:last-child {
+  margin-bottom: 0;
+}
+
+.reexam-response-item h4 {
+  margin-top: 0;
+}
+
+.reexam-response-item .supporting-evidence {
+  margin-top: 12px;
+}
+
+.reexam-response-item .citation-quote {
+  margin: 8px 0;
+}
+
+.btn-evidence-add {
+  margin-top: 8px;
+  font-size: var(--pex-font-size-caption);
+  padding: 4px 12px;
+  cursor: pointer;
+  border: 1px dashed var(--pex-color-border-default);
+  border-radius: var(--pex-radius-sm);
+  background: transparent;
+  color: var(--pex-color-text-secondary);
+}
+
+.btn-evidence-add:hover {
+  border-color: var(--pex-color-primary);
+  color: var(--pex-color-primary);
+}
+
+.btn-evidence-remove {
+  margin-left: 8px;
+  font-size: var(--pex-font-size-caption);
+  padding: 0 6px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--pex-color-error);
+}
+
+.btn-evidence-remove:hover {
+  text-decoration: underline;
+}
+
 .case-ref {
   margin-top: 24px;
   font-size: var(--pex-font-size-caption);

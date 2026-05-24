@@ -15,6 +15,15 @@ const ASSESSMENT_LABELS: Record<string, string> = {
   "not-analyzed": "尚未分析"
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  novelty: "新颖性",
+  inventive: "创造性",
+  clarity: "清楚/支持",
+  support: "充分公开",
+  amendment: "修改超范围",
+  other: "其他"
+};
+
 const SEVERITY_LABELS: Record<string, string> = {
   error: "严重",
   warning: "警告",
@@ -74,6 +83,67 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
   const pendingQuestions = [...new Set(noveltyComparisons.flatMap((c) => c.pendingSearchQuestions))];
   const unresolvedDefects = caseDefects.filter((d) => !d.resolved);
 
+  const persistReexamDraft = (draft: ReexamDraftResponse) => {
+    setReexamDraftLocal(draft);
+    setReexamDraft(caseId, draft);
+  };
+
+  const updateItemResponse = (item: ReexamDraftResponse["responseItems"][number], field: string, value: string) => {
+    if (!reexamDraft) return;
+    const updated: ReexamDraftResponse = {
+      ...reexamDraft,
+      responseItems: reexamDraft.responseItems.map((ri) =>
+        ri.rejectionGroundCode === item.rejectionGroundCode ? { ...ri, [field]: value } : ri
+      )
+    };
+    persistReexamDraft(updated);
+  };
+
+  const updateEvidenceField = (item: ReexamDraftResponse["responseItems"][number], evIdx: number, field: string, value: string) => {
+    if (!reexamDraft) return;
+    const updated: ReexamDraftResponse = {
+      ...reexamDraft,
+      responseItems: reexamDraft.responseItems.map((ri) =>
+        ri.rejectionGroundCode === item.rejectionGroundCode
+          ? {
+              ...ri,
+              supportingEvidence: (ri.supportingEvidence ?? []).map((ev, i) =>
+                i === evIdx ? { ...ev, [field]: value } : ev
+              )
+            }
+          : ri
+      )
+    };
+    persistReexamDraft(updated);
+  };
+
+  const removeEvidence = (item: ReexamDraftResponse["responseItems"][number], evIdx: number) => {
+    if (!reexamDraft) return;
+    const updated: ReexamDraftResponse = {
+      ...reexamDraft,
+      responseItems: reexamDraft.responseItems.map((ri) =>
+        ri.rejectionGroundCode === item.rejectionGroundCode
+          ? { ...ri, supportingEvidence: (ri.supportingEvidence ?? []).filter((_, i) => i !== evIdx) }
+          : ri
+      )
+    };
+    persistReexamDraft(updated);
+  };
+
+  const addEvidence = (item: ReexamDraftResponse["responseItems"][number]) => {
+    if (!reexamDraft) return;
+    const newEvidence = { label: `新依据 (${(item.supportingEvidence?.length ?? 0) + 1})`, quote: "", confidence: "medium" as const };
+    const updated: ReexamDraftResponse = {
+      ...reexamDraft,
+      responseItems: reexamDraft.responseItems.map((ri) =>
+        ri.rejectionGroundCode === item.rejectionGroundCode
+          ? { ...ri, supportingEvidence: [...(ri.supportingEvidence ?? []), newEvidence] }
+          : ri
+      )
+    };
+    persistReexamDraft(updated);
+  };
+
   const handleGenerateReexamDraft = async () => {
     if (!runReexamDraft || loadingDraft) return;
 
@@ -127,7 +197,7 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
             <div className="section-content">
               {reexamDraft.responseItems.map((item) => (
                 <div key={item.rejectionGroundCode} className="reexam-response-item">
-                  <h4>{item.rejectionGroundCode} · {item.category}</h4>
+                  <h4>{item.rejectionGroundCode} · {CATEGORY_LABELS[item.category] ?? item.category}</h4>
                   <p><strong>申请人意见：</strong>{item.applicantArgumentSummary}</p>
                   <p><strong>审查员回应草稿：</strong>
                     <InlineEdit
@@ -135,46 +205,77 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
                       value={item.examinerResponse}
                       rows={4}
                       onSave={(v) => {
-                        setReexamDraftLocal((prev) => prev ? {
-                          ...prev,
-                          responseItems: prev.responseItems.map((ri) =>
-                            ri.rejectionGroundCode === item.rejectionGroundCode
-                              ? { ...ri, examinerResponse: v }
-                              : ri
-                          )
-                        } : null);
-                        if (reexamDraft) {
-                          setReexamDraft(caseId, {
-                            ...reexamDraft,
-                            responseItems: reexamDraft.responseItems.map((ri) =>
-                              ri.rejectionGroundCode === item.rejectionGroundCode
-                                ? { ...ri, examinerResponse: v }
-                                : ri
-                            )
-                          });
-                        }
+                        updateItemResponse(item, "examinerResponse", v);
                       }}
                     >
                       <span>{item.examinerResponse}</span>
                     </InlineEdit>
                   </p>
-                  <p><strong>候选结论：</strong>{REEXAM_CONCLUSION_LABELS[item.conclusion] ?? item.conclusion}</p>
-                  {item.supportingEvidence && item.supportingEvidence.length > 0 && (
-                    <div className="supporting-evidence">
-                      <strong>原文依据：</strong>
-                      {item.supportingEvidence.map((evidence) => (
-                        <blockquote
-                          key={`${item.rejectionGroundCode}-${evidence.label}`}
-                          className={`citation-quote citation-quote--${evidence.confidence}`}
-                          data-testid={`citation-${evidence.confidence}`}
+                  <p><strong>候选结论：</strong>
+                    <InlineEdit
+                      as="select"
+                      value={item.conclusion}
+                      options={Object.entries(REEXAM_CONCLUSION_LABELS).map(([value, label]) => ({ value, label }))}
+                      onSave={(v) => {
+                        updateItemResponse(item, "conclusion", v);
+                      }}
+                    >
+                      <span>{REEXAM_CONCLUSION_LABELS[item.conclusion] ?? item.conclusion}</span>
+                    </InlineEdit>
+                  </p>
+                  <div className="supporting-evidence">
+                    <strong>原文依据：</strong>
+                    {item.supportingEvidence?.map((evidence, evIdx) => (
+                      <blockquote
+                        key={`${item.rejectionGroundCode}-${evidence.label}-${evIdx}`}
+                        className={`citation-quote citation-quote--${evidence.confidence}`}
+                        data-testid={`citation-${evidence.confidence}`}
+                      >
+                        <cite>
+                          <InlineEdit
+                            as="input"
+                            value={evidence.label}
+                            onSave={(v) => {
+                              updateEvidenceField(item, evIdx, "label", v);
+                            }}
+                          >
+                            <span>{evidence.label}</span>
+                          </InlineEdit>
+                        </cite>
+                        <InlineEdit
+                          as="textarea"
+                          value={evidence.quote ?? ""}
+                          rows={2}
+                          onSave={(v) => {
+                            updateEvidenceField(item, evIdx, "quote", v);
+                          }}
                         >
-                          <cite>{evidence.label}</cite>
                           {evidence.quote ? <p>「{evidence.quote}」</p> : <p className="citation-quote--missing">待补充原文依据</p>}
-                          <span className="citation-confidence">置信度：{evidence.confidence}</span>
-                        </blockquote>
-                      ))}
-                    </div>
-                  )}
+                        </InlineEdit>
+                        <span className="citation-confidence">
+                          置信度：{evidence.confidence}
+                          <button
+                            type="button"
+                            className="btn-evidence-remove"
+                            onClick={() => removeEvidence(item, evIdx)}
+                            title="删除此原文依据"
+                          >
+                            删除
+                          </button>
+                        </span>
+                      </blockquote>
+                    ))}
+                    {(!item.supportingEvidence || item.supportingEvidence.length === 0) && (
+                      <p className="placeholder-hint">暂无原文依据。</p>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-evidence-add"
+                      onClick={() => addEvidence(item)}
+                    >
+                      + 添加原文依据
+                    </button>
+                  </div>
                 </div>
               ))}
               <h4>综合评估</h4>
@@ -266,9 +367,9 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
           </div>
         </section>
 
-        {/* Section 3: 分析策略 */}
+        {/* Section 3: 新颖性复核摘要 */}
         <section className="draft-section" data-testid="section-analysis-strategy">
-          <h3>分析策略</h3>
+          <h3>新颖性复核摘要</h3>
           <div className="section-content">
             {diffCodes.length > 0 && (
               <div>

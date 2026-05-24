@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { SummaryResponse } from "../../agent/contracts";
 import { useDraftStore } from "../../store";
+import { InlineEdit } from "../../components/InlineEdit";
 
 interface SummaryPanelProps {
   caseId: string;
@@ -63,7 +64,16 @@ export function SummaryPanel({ caseId, runSummary }: SummaryPanelProps) {
         <div className="summary-content">
           <section className="summary-section" data-testid="summary-body">
             <h3>正文</h3>
-            <div className="summary-body-text">{summary.body}</div>
+            <InlineEdit
+              as="textarea"
+              value={summary.body}
+              rows={8}
+              onSave={(v) => {
+                setSummary(caseId, { ...summary, body: v });
+              }}
+            >
+              <div className="summary-body-text">{summary.body}</div>
+            </InlineEdit>
           </section>
 
           {summary.aiNotes && (

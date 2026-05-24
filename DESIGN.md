@@ -1361,7 +1361,8 @@ Supabase（后端服务）
 
 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|---------|---------|------------|
-| 2026-05-24 | fix(td-3): 彻查所有 AI API 交互点的 JSON schema 约束。修复 buildReexamDraftPrompt/buildSummaryPrompt 缺少 JSON 格式输出指令的问题；将 draft agent 注册到 STRUCTURED_AGENT_SCHEMAS 防止未校验通过；修复 router.tsx lint error（unused existingDefects） | `client/src/agent/AgentClient.ts`、`shared/src/lib/responseValidator.ts`、`client/src/router.tsx` | 待提交 |
+| 2026-05-24 | fix(bg-5~bg-9): 多项复审意见草稿/简述 UI 修复。bg-5: category 英文改为中文 + 驳回理由卡片间距 CSS；bg-6: 审查意见简述 prompt 增加要求包含新颖性/创造性主要结论和关键依据；bg-7: conclusion 改为下拉选择 + supportingEvidence 可增删改；bg-8: "分析策略"标题改为"新颖性复核摘要"；bg-9: summary.body 添加 InlineEdit 支持编辑 | `client/src/features/draft/DraftMaterialPanel.tsx`、`client/src/features/summary/SummaryPanel.tsx`、`client/src/styles/app.css`、`client/src/agent/AgentClient.ts` | 待提交 |
+| 2026-05-24 | fix(td-3): 彻查所有 AI API 交互点的 JSON schema 约束。修复 buildReexamDraftPrompt/buildSummaryPrompt 缺少 JSON 格式输出指令的问题；将 draft agent 注册到 STRUCTURED_AGENT_SCHEMAS 防止未校验通过；修复 router.tsx lint error（unused existingDefects） | `client/src/agent/AgentClient.ts`、`shared/src/lib/responseValidator.ts`、`client/src/router.tsx` | 625e0e1 |
 | 2026-05-22 | bug #47 claim-chart 真实模式 JSON 解析失败：runClaimChart 改为 buildClaimChartPrompt 含 JSON Schema 指令；mapClaimChartOutput 将 AI 输出映射为 ClaimFeature；callGateway 透传 structureErrors；服务端校验通过后返回 Zod 转换后的 outputJson（paragraph 数字→字符串） | `client/src/agent/AgentClient.ts`、`server/src/routes/ai.ts`、`shared/src/lib/responseValidator.ts`、单元测试 | 6eea3ae+ |
 | 2026-05-22 | bug #47 回归修复（paragraph 类型）：claimChartSchema 接受 number/null/undefined 并转为 string | `shared/src/schemas/claimChart.schema.ts` | 4d3bb9a |
 | 2026-05-22 | feature #37 文档解读 markdown preview：引入 `marked` 库本地渲染 markdown→HTML，替换 raw text 的 textarea/pre 显示；综合解读直接渲染，单个文档增加编辑/预览切换 | `client/src/lib/markdown.ts`、`client/src/features/interpret/InterpretPanel.tsx`、`client/src/styles/app.css`、`client/package.json` | 待提交 |

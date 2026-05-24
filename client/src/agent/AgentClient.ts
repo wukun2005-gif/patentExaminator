@@ -1116,7 +1116,7 @@ function buildReexamDraftPrompt(request: ReexamDraftRequest): string {
 
 function buildSummaryPrompt(request: SummaryRequest): string {
   return [
-    `你是一位资深专利审查员，负责撰写专利申请技术简述。`,
+    `你是一位资深专利审查员，负责撰写审查意见简述。`,
     `案件基线: ${request.caseBaseline}`,
     ``,
     `Claim Chart（已确认特征）:`,
@@ -1128,15 +1128,16 @@ function buildSummaryPrompt(request: SummaryRequest): string {
     `创造性分析:`,
     request.inventiveAnalysis.slice(0, 4000),
     ``,
-    `请根据以上内容撰写技术简述，严格按以下 JSON 格式输出，不要输出其他内容：`,
+    `请根据以上内容撰写审查意见简述，严格按以下 JSON 格式输出，不要输出其他内容：`,
     `{`,
-    `  "body": "技术简述正文（用通俗易懂的语言描述申请的技术方案、发明要解决的问题、关键技术手段）",`,
+    `  "body": "简述正文：①简要概述专利申请的技术方案、发明要解决的问题和关键技术手段；②概述审查意见的核心要点，包含新颖性、创造性的主要结论和关键依据（援引对比文件和 Citation）",`,
     `  "aiNotes": "AI 备注（包括不确定性说明、需要人工确认的事项等）",`,
     `  "legalCaution": "法律风险提示"`,
     `}`,
     ``,
     `注意：`,
-    `- body 字段必须包含有效的简述正文`,
+    `- body 字段必须包含有效的简述正文，且必须同时包含技术方案概述和审查意见核心结论两部分`,
+    `- 审查意见结论需引用具体的对比文件和法律依据`,
     `- 务必使用双引号，字段名必须与示例完全一致`
   ].join("\n");
 }
