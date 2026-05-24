@@ -2991,6 +2991,18 @@
   text-decoration: underline;
 }
 
+/* ── Summary Panel ── */
+
+.summary-ai-notes-desc {
+  font-size: var(--pex-font-size-caption);
+  color: var(--pex-color-text-hint);
+  background: var(--pex-color-bg-page);
+  border-left: 3px solid var(--pex-color-warning);
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
 .case-ref {
   margin-top: 24px;
   font-size: var(--pex-font-size-caption);

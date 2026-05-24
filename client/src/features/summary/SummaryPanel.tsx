@@ -76,12 +76,39 @@ export function SummaryPanel({ caseId, runSummary }: SummaryPanelProps) {
             </InlineEdit>
           </section>
 
-          {summary.aiNotes && (
-            <section className="summary-section" data-testid="summary-ai-notes">
-              <h3>AI 备注</h3>
-              <div className="summary-ai-notes-text">{summary.aiNotes}</div>
-            </section>
-          )}
+          <section className="summary-section" data-testid="summary-ai-notes">
+            <h3>
+              AI 备注
+              {summary.aiNotes && (
+                <button
+                  type="button"
+                  className="btn-evidence-remove"
+                  onClick={() => setSummary(caseId, { ...summary, aiNotes: "" })}
+                  title="清除 AI 备注"
+                  style={{ float: "right", fontSize: "inherit" }}
+                >
+                  清除
+                </button>
+              )}
+            </h3>
+            <p className="summary-ai-notes-desc">
+              这是 AI 的辅助注释，未经出处验证，请谨慎参考。AI 备注区的内容与整个产品的"候选/待确认"设计语义一致——所有未经原文引用验证的信息都不会进入正文，只在此处展示供审查员参考。
+            </p>
+            {summary.aiNotes != null ? (
+              <InlineEdit
+                as="textarea"
+                value={summary.aiNotes}
+                rows={4}
+                onSave={(v) => {
+                  setSummary(caseId, { ...summary, aiNotes: v });
+                }}
+              >
+                <div className="summary-ai-notes-text">{summary.aiNotes || "（空）"}</div>
+              </InlineEdit>
+            ) : (
+              <p className="placeholder-hint">AI 未生成备注内容。</p>
+            )}
+          </section>
 
           <p className="legal-caution-text">
             <em>{summary.legalCaution}</em>
