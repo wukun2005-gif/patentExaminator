@@ -33,7 +33,7 @@ export function AppShell({ children }: AppShellProps) {
   const { caseId } = useParams<{ caseId: string }>();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [, setHoveredItem] = useState<string | null>(null);
   const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
   const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

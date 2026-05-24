@@ -14,7 +14,7 @@ export async function readReexamDraft(caseId: string): Promise<ReexamDraftRespon
   const record = await db.get(DRAFT_STORE, caseId);
   if (!record) return undefined;
   // Remove the id field that was added for storage
-  const { id, ...rest } = record as { id: string; [key: string]: unknown };
+  const { id: _id, ...rest } = record as { id: string; [key: string]: unknown };
   return rest as unknown as ReexamDraftResponse;
 }
 
@@ -32,8 +32,7 @@ export async function readSummary(caseId: string): Promise<SummaryResponse | und
   const db = await getDB();
   const record = await db.get(SUMMARY_STORE, caseId);
   if (!record) return undefined;
-  // Remove the id field that was added for storage
-  const { id, ...rest } = record as { id: string; [key: string]: unknown };
+  const { id: _id, ...rest } = record as { id: string; [key: string]: unknown };
   return rest as unknown as SummaryResponse;
 }
 

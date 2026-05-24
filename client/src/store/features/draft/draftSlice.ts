@@ -2,11 +2,7 @@ import { create } from "zustand";
 import type { ReexamDraftResponse, SummaryResponse } from "../../../agent/contracts";
 import {
   saveReexamDraft,
-  readReexamDraft,
-  deleteReexamDraft,
   saveSummary,
-  readSummary,
-  deleteSummary,
   clearDraftData
 } from "../../../lib/repositories/draftRepo.js";
 

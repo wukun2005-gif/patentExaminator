@@ -32,7 +32,7 @@ const CATEGORY_CLASS: Record<string, string> = {
 };
 
 export function OpinionAnalysisPanel({
-  caseId,
+  caseId: _caseId,
   officeActionText,
   documentId,
   initialResult,

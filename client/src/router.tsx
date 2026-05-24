@@ -166,7 +166,6 @@ export function InventiveWrapper() {
   const { currentCase } = useCaseStore();
   const { claimFeatures } = useClaimsStore();
   const { references } = useReferencesStore();
-  const { analyses } = useInventiveStore();
   const { officeActionAnalysis, argumentMappings } = useOpinionStore();
   const { settings } = useSettingsStore();
   const claimNumber = currentCase?.targetClaimNumber ?? 1;
@@ -183,9 +182,6 @@ export function InventiveWrapper() {
     caseRefsCount: caseRefs.length,
     caseRefs: caseRefs.map(r => ({ id: r.id, title: r.title ?? r.fileName, timelineStatus: r.timelineStatus }))
   });
-  const existingAnalysis = analyses.find(
-    (a) => a.caseId === caseId && a.id === `inventive-${caseId}-${claimNumber}`
-  );
   const inventiveArgumentCodes = new Set(
     (officeActionAnalysis?.rejectionGrounds ?? [])
       .filter((g) => g.category === "inventive")

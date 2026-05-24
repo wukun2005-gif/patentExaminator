@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { OpinionAnalysisResponse, ArgumentAnalysisResponse } from "../../agent/contracts";
-import type { RejectionGround, ArgumentMapping } from "@shared/types/domain";
+import type { ArgumentMapping } from "@shared/types/domain";
 import { useOpinionStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
 
@@ -53,7 +53,7 @@ const CONFIDENCE_CLASS: Record<string, string> = {
 };
 
 export function OpinionComparisonPanel({
-  caseId,
+  caseId: _caseId,
   officeActionText,
   documentId,
   responseText,

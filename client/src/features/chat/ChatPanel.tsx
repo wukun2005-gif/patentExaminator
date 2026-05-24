@@ -60,7 +60,7 @@ export function ChatPanel() {
 
   const {
     sessions, messages, activeSessionId, isPanelOpen, isLoading,
-    setSessions, setMessages, loadSessions, loadMessages, addSession, removeSession, renameSession, setActiveSessionId, addMessage, setPanelOpen, setLoading
+    loadSessions, loadMessages, addSession, removeSession, renameSession, setActiveSessionId, addMessage, setPanelOpen, setLoading
   } = useChatStore();
 
   const [input, setInput] = useState("");

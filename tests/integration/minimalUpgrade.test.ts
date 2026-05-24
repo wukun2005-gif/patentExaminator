@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { openDB, deleteDB } from "idb";
 
 const DB_NAME = "test-upgrade-db";

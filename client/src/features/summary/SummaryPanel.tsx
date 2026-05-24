@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { SummaryResponse } from "../../agent/contracts";
 import { useDraftStore } from "../../store";
 

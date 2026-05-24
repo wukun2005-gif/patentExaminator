@@ -29,13 +29,6 @@ const ROLE_SECTION_LABELS: Record<InterpretDocumentRole, string> = {
   reference: "对比文件"
 };
 
-const INTERPRET_DOCUMENT_TYPES: Record<InterpretDocumentRole, InterpretDocumentType | null> = {
-  application: "application",
-  "office-action": "office-action",
-  "office-action-response": "office-action-response",
-  reference: null
-};
-
 const INTERPRET_COLLAPSE_KEY = "pex-interpret-expanded";
 
 export interface InterpretableDocument {
