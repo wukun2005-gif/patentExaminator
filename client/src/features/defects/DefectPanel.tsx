@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDefectsStore } from "../../store";
 import type { DefectRequest, DefectResponse } from "../../agent/contracts";
 import type { FormalDefect } from "@shared/types/domain";
@@ -10,7 +10,7 @@ interface DefectPanelProps {
   claimText: string;
   specificationText: string;
   claimFeatures: Array<{ featureCode: string; description: string }>;
-  runDefectCheck: (request: DefectRequest) => Promise<DefectResponse>;
+  runDefectCheck: (request: DefectRequest, options?: { signal?: AbortSignal }) => Promise<DefectResponse>;
 }
 
 const SEVERITY_LABELS: Record<string, string> = {
@@ -35,18 +35,39 @@ export function DefectPanel({
   const { defects, addDefect, updateDefect, removeDefect, isLoading, setLoading } =
     useDefectsStore();
   const [showConfirm, setShowConfirm] = useState(false);
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller, key) => {
+        controller.abort();
+        console.log(`[DefectPanel] Aborted request ${key} on unmount`);
+      });
+      controllers.clear();
+    };
+  }, []);
 
   const caseDefects = defects.filter((d) => d.caseId === caseId);
   const unresolvedCount = caseDefects.filter((d) => !d.resolved).length;
 
   const handleRun = async () => {
     if (isLoading) return;
-    // 如果已有缺陷，显示确认对话框
     if (caseDefects.length > 0 && !showConfirm) {
       setShowConfirm(true);
       return;
     }
     setShowConfirm(false);
+
+    const existingController = abortControllersRef.current.get("defectCheck");
+    if (existingController) existingController.abort();
+
+    const controller = new AbortController();
+    abortControllersRef.current.set("defectCheck", controller);
+
     setLoading(true);
     try {
       const request: DefectRequest = {
@@ -56,7 +77,9 @@ export function DefectPanel({
         claimFeatures
       };
 
-      const response = await runDefectCheck(request);
+      const response = await runDefectCheck(request, { signal: controller.signal });
+
+      if (!isMountedRef.current || controller.signal.aborted) return;
 
       // === 缺陷保留策略 ===
       // 1. 用户手动添加的缺陷（ID 格式为 3 部分）：全部保留
@@ -137,7 +160,8 @@ export function DefectPanel({
         addDefect(userDefect);
       }
     } finally {
-      setLoading(false);
+      abortControllersRef.current.delete("defectCheck");
+      if (isMountedRef.current) setLoading(false);
     }
   };
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { InventiveStepAnalysis, ReferenceDocument } from "@shared/types/domain";
 import type { InventiveRequest, InventiveResponse } from "../../agent/contracts";
 import { useInventiveStore } from "../../store";
@@ -12,7 +12,7 @@ interface InventiveStepPanelProps {
   references: ReferenceDocument[];
   applicantArguments?: string | undefined;
   amendedClaimText?: string | undefined;
-  runInventive: (request: InventiveRequest) => Promise<InventiveResponse>;
+  runInventive: (request: InventiveRequest, options?: { signal?: AbortSignal }) => Promise<InventiveResponse>;
 }
 
 const ASSESSMENT_LABELS: Record<string, string> = {
@@ -35,6 +35,21 @@ export function InventiveStepPanel({
   const analysis = analyses.find(
     (a) => a.caseId === caseId && a.id === `inventive-${caseId}-${claimNumber}`
   );
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller, key) => {
+        controller.abort();
+        console.log(`[InventiveStepPanel] Aborted request ${key} on unmount`);
+      });
+      controllers.clear();
+    };
+  }, []);
 
   const availableRefs = references.filter((r) => r.timelineStatus === "available");
 
@@ -66,6 +81,12 @@ export function InventiveStepPanel({
   const handleRun = async () => {
     if (isLoading || availableRefs.length === 0) return;
 
+    const existingController = abortControllersRef.current.get("inventive");
+    if (existingController) existingController.abort();
+
+    const controller = new AbortController();
+    abortControllersRef.current.set("inventive", controller);
+
     setLoading(true);
     try {
       const request: InventiveRequest = {
@@ -82,7 +103,9 @@ export function InventiveStepPanel({
         ...(amendedClaimText ? { amendedClaimText } : {})
       };
 
-      const response = await runInventive(request);
+      const response = await runInventive(request, { signal: controller.signal });
+
+      if (!isMountedRef.current || controller.signal.aborted) return;
       const appliedApplicantArguments = response.applicantArguments ?? applicantArguments;
 
       const newAnalysis: InventiveStepAnalysis = {
@@ -134,7 +157,8 @@ export function InventiveStepPanel({
         setExaminerResponse(parts.join("\n"));
       }
     } finally {
-      setLoading(false);
+      abortControllersRef.current.delete("inventive");
+      if (isMountedRef.current) setLoading(false);
     }
   };
 

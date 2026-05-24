@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCaseStore, useClaimsStore, useNoveltyStore, useInventiveStore, useDefectsStore, useDraftStore } from "../../store";
 import type { ReexamDraftResponse } from "../../agent/contracts";
 import { InlineEdit } from "../../components/InlineEdit";
 
 interface DraftMaterialPanelProps {
   caseId: string;
-  runReexamDraft?: () => Promise<ReexamDraftResponse>;
+  runReexamDraft?: (options?: { signal?: AbortSignal }) => Promise<ReexamDraftResponse>;
 }
 
 const ASSESSMENT_LABELS: Record<string, string> = {
@@ -35,6 +35,22 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
   const { analyses } = useInventiveStore();
   const { defects } = useDefectsStore();
   const { reexamDrafts, setReexamDraft } = useDraftStore();
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller, key) => {
+        controller.abort();
+        console.log(`[DraftMaterialPanel] Aborted request ${key} on unmount`);
+      });
+      controllers.clear();
+    };
+  }, []);
+
   const persistedDraft = reexamDrafts[caseId] ?? null;
   const [reexamDraft, setReexamDraftLocal] = useState<ReexamDraftResponse | null>(persistedDraft);
   const [loadingDraft, setLoadingDraft] = useState(false);
@@ -60,16 +76,29 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
 
   const handleGenerateReexamDraft = async () => {
     if (!runReexamDraft || loadingDraft) return;
+
+    const existingController = abortControllersRef.current.get("reexamDraft");
+    if (existingController) existingController.abort();
+
+    const controller = new AbortController();
+    abortControllersRef.current.set("reexamDraft", controller);
+
     setLoadingDraft(true);
     setDraftError(null);
     try {
-      const draft = await runReexamDraft();
+      const draft = await runReexamDraft({ signal: controller.signal });
+
+      if (!isMountedRef.current || controller.signal.aborted) return;
+
       setReexamDraftLocal(draft);
       setReexamDraft(caseId, draft);
     } catch (err) {
+      if (controller.signal.aborted) return;
+      if (!isMountedRef.current) return;
       setDraftError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoadingDraft(false);
+      abortControllersRef.current.delete("reexamDraft");
+      if (isMountedRef.current) setLoadingDraft(false);
     }
   };
 

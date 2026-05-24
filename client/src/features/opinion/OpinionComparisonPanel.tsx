@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { OpinionAnalysisResponse, ArgumentAnalysisResponse } from "../../agent/contracts";
 import type { ArgumentMapping } from "@shared/types/domain";
 import { useOpinionStore } from "../../store";
@@ -12,9 +12,9 @@ interface Props {
   rejectionGrounds: OpinionAnalysisResponse["rejectionGrounds"];
   initialOpinionResult?: OpinionAnalysisResponse | null;
   initialArgumentResult?: ArgumentAnalysisResponse | null;
-  runOpinionAnalysis: () => Promise<OpinionAnalysisResponse>;
-  runArgumentAnalysis: () => Promise<ArgumentAnalysisResponse>;
-  runFullAnalysis: () => Promise<{
+  runOpinionAnalysis: (options?: { signal?: AbortSignal }) => Promise<OpinionAnalysisResponse>;
+  runArgumentAnalysis: (options?: { signal?: AbortSignal }) => Promise<ArgumentAnalysisResponse>;
+  runFullAnalysis: (options?: { signal?: AbortSignal }) => Promise<{
     opinionResult: OpinionAnalysisResponse;
     argumentResult: ArgumentAnalysisResponse;
   }>;
@@ -96,6 +96,22 @@ export function OpinionComparisonPanel({
     removeArgumentMapping
   } = useOpinionStore();
 
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller, key) => {
+        controller.abort();
+        console.log(`[OpinionComparisonPanel] Aborted request ${key} on unmount`);
+      });
+      controllers.clear();
+    };
+  }, []);
+
   const mappingByCode = new Map(mappings.map((m) => [m.rejectionGroundCode, m]));
   const unrespondedCodes = argumentResult?.unmappedGrounds
     ?? (mappings.length > 0
@@ -150,49 +166,85 @@ export function OpinionComparisonPanel({
   };
 
   const handleOpinionAnalysis = async () => {
+    const existingController = abortControllersRef.current.get("opinion");
+    if (existingController) existingController.abort();
+
+    const controller = new AbortController();
+    abortControllersRef.current.set("opinion", controller);
+
     setLoading("opinion");
     setOpinionError(null);
     try {
-      const result = await runOpinionAnalysis();
+      const result = await runOpinionAnalysis({ signal: controller.signal });
+
+      if (!isMountedRef.current || controller.signal.aborted) return;
+
       setOpinionResult(result);
       onOpinionComplete?.(result);
     } catch (err) {
+      if (controller.signal.aborted) return;
+      if (!isMountedRef.current) return;
       setOpinionError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(null);
+      abortControllersRef.current.delete("opinion");
+      if (isMountedRef.current) setLoading(null);
     }
   };
 
   const handleArgumentAnalysis = async () => {
+    const existingController = abortControllersRef.current.get("argument");
+    if (existingController) existingController.abort();
+
+    const controller = new AbortController();
+    abortControllersRef.current.set("argument", controller);
+
     setLoading("argument");
     setArgumentError(null);
     try {
-      const result = await runArgumentAnalysis();
+      const result = await runArgumentAnalysis({ signal: controller.signal });
+
+      if (!isMountedRef.current || controller.signal.aborted) return;
+
       setArgumentResult(result);
       onArgumentComplete?.(result);
     } catch (err) {
+      if (controller.signal.aborted) return;
+      if (!isMountedRef.current) return;
       setArgumentError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(null);
+      abortControllersRef.current.delete("argument");
+      if (isMountedRef.current) setLoading(null);
     }
   };
 
   const handleFullAnalysis = async () => {
+    const existingController = abortControllersRef.current.get("full");
+    if (existingController) existingController.abort();
+
+    const controller = new AbortController();
+    abortControllersRef.current.set("full", controller);
+
     setLoading("full");
     setOpinionError(null);
     setArgumentError(null);
     try {
-      const { opinionResult, argumentResult } = await runFullAnalysis();
+      const { opinionResult, argumentResult } = await runFullAnalysis({ signal: controller.signal });
+
+      if (!isMountedRef.current || controller.signal.aborted) return;
+
       setOpinionResult(opinionResult);
       setArgumentResult(argumentResult);
       onOpinionComplete?.(opinionResult);
       onArgumentComplete?.(argumentResult);
     } catch (err) {
+      if (controller.signal.aborted) return;
+      if (!isMountedRef.current) return;
       const msg = err instanceof Error ? err.message : String(err);
       setOpinionError(msg);
       setArgumentError(msg);
     } finally {
-      setLoading(null);
+      abortControllersRef.current.delete("full");
+      if (isMountedRef.current) setLoading(null);
     }
   };
 

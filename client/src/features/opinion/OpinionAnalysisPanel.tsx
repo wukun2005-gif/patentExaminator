@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { OpinionAnalysisResponse } from "../../agent/contracts";
 import type { RejectionGround, RejectionCitedReference } from "@shared/types/domain";
 import { useOpinionStore } from "../../store";
@@ -9,7 +9,7 @@ interface Props {
   officeActionText: string;
   documentId: string;
   initialResult?: OpinionAnalysisResponse | null;
-  runAnalysis: () => Promise<OpinionAnalysisResponse>;
+  runAnalysis: (options?: { signal?: AbortSignal }) => Promise<OpinionAnalysisResponse>;
   onComplete?: (result: OpinionAnalysisResponse) => void;
 }
 
@@ -51,6 +51,22 @@ export function OpinionAnalysisPanel({
     addCitedRef,
     removeCitedRef
   } = useOpinionStore();
+
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller, key) => {
+        controller.abort();
+        console.log(`[OpinionAnalysisPanel] Aborted request ${key} on unmount`);
+      });
+      controllers.clear();
+    };
+  }, []);
 
   const toggleOriginal = (code: string) => {
     setExpandedOriginals((prev) => {
@@ -106,16 +122,28 @@ export function OpinionAnalysisPanel({
   };
 
   const handleRun = async () => {
+    const existingController = abortControllersRef.current.get("opinionAnalysis");
+    if (existingController) existingController.abort();
+
+    const controller = new AbortController();
+    abortControllersRef.current.set("opinionAnalysis", controller);
+
     setLoading(true);
     setError(null);
     try {
-      const response = await runAnalysis();
+      const response = await runAnalysis({ signal: controller.signal });
+
+      if (!isMountedRef.current || controller.signal.aborted) return;
+
       setResult(response);
       onComplete?.(response);
     } catch (err) {
+      if (controller.signal.aborted) return;
+      if (!isMountedRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      abortControllersRef.current.delete("opinionAnalysis");
+      if (isMountedRef.current) setLoading(false);
     }
   };
 

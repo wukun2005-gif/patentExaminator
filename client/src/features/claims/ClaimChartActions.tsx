@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { AgentClient } from "../../agent/AgentClient";
 import { useClaimsStore, useCaseStore, useSettingsStore } from "../../store";
@@ -16,6 +16,21 @@ export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartA
   const { addClaimFeature } = useClaimsStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller, key) => {
+        controller.abort();
+        console.log(`[ClaimChartActions] Aborted request ${key} on unmount`);
+      });
+      controllers.clear();
+    };
+  }, []);
 
   const targetClaim = claimNodes.find(
     (n) => n.claimNumber === currentCase?.targetClaimNumber
@@ -23,6 +38,13 @@ export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartA
 
   const handleGenerate = async () => {
     if (!caseId || !targetClaim) return;
+
+    const existingController = abortControllersRef.current.get("claimChart");
+    if (existingController) existingController.abort();
+
+    const controller = new AbortController();
+    abortControllersRef.current.set("claimChart", controller);
+
     setIsGenerating(true);
     setError("");
 
@@ -33,9 +55,10 @@ export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartA
         claimText: targetClaim.rawText,
         claimNumber: targetClaim.claimNumber,
         specificationText
-      });
+      }, { signal: controller.signal });
 
-      // Clear old features for this claim
+      if (!isMountedRef.current || controller.signal.aborted) return;
+
       const { claimFeatures } = useClaimsStore.getState();
       const oldIds = claimFeatures
         .filter((f) => f.caseId === caseId && f.claimNumber === targetClaim.claimNumber)
@@ -53,9 +76,12 @@ export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartA
         addClaimFeature(feature);
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
+      if (!isMountedRef.current) return;
       setError(String(err));
     } finally {
-      setIsGenerating(false);
+      abortControllersRef.current.delete("claimChart");
+      if (isMountedRef.current) setIsGenerating(false);
     }
   };
 

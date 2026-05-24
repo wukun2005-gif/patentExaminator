@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { ArgumentAnalysisResponse, OpinionAnalysisResponse } from "../../agent/contracts";
 import type { ArgumentMapping } from "@shared/types/domain";
 import { useOpinionStore } from "../../store";
@@ -9,7 +9,7 @@ interface Props {
   rejectionGrounds: OpinionAnalysisResponse["rejectionGrounds"];
   responseText: string;
   initialResult?: ArgumentAnalysisResponse | null;
-  runAnalysis: () => Promise<ArgumentAnalysisResponse>;
+  runAnalysis: (options?: { signal?: AbortSignal }) => Promise<ArgumentAnalysisResponse>;
   onComplete?: (result: ArgumentAnalysisResponse) => void;
 }
 
@@ -37,6 +37,21 @@ export function ArgumentMappingPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedArgs, setExpandedArgs] = useState<Set<string>>(new Set());
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller, key) => {
+        controller.abort();
+        console.log(`[ArgumentMappingPanel] Aborted request ${key} on unmount`);
+      });
+      controllers.clear();
+    };
+  }, []);
 
   const { updateArgumentMapping, removeArgumentMapping, addArgumentMapping } = useOpinionStore();
 
@@ -81,16 +96,28 @@ export function ArgumentMappingPanel({
   };
 
   const handleRun = async () => {
+    const existingController = abortControllersRef.current.get("argumentMapping");
+    if (existingController) existingController.abort();
+
+    const controller = new AbortController();
+    abortControllersRef.current.set("argumentMapping", controller);
+
     setLoading(true);
     setError(null);
     try {
-      const response = await runAnalysis();
+      const response = await runAnalysis({ signal: controller.signal });
+
+      if (!isMountedRef.current || controller.signal.aborted) return;
+
       setResult(response);
       onComplete?.(response);
     } catch (err) {
+      if (controller.signal.aborted) return;
+      if (!isMountedRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      abortControllersRef.current.delete("argumentMapping");
+      if (isMountedRef.current) setLoading(false);
     }
   };
 

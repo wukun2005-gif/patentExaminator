@@ -145,9 +145,9 @@ export function NoveltyWrapper() {
         references={caseRefs}
         {...(applicantArguments ? { applicantArguments } : {} as Record<string, never>)}
         {...(amendedClaimText ? { amendedClaimText } : {} as Record<string, never>)}
-        runNovelty={async (request) => {
+        runNovelty={async (request, options) => {
           const client = new AgentClient(settings.mode, "/api", settings);
-          return client.runNovelty(request);
+          return client.runNovelty(request, { signal: options?.signal ?? null });
         }}
       />
       {comparison ? (
@@ -198,9 +198,9 @@ export function InventiveWrapper() {
       features={features}
       references={caseRefs}
       applicantArguments={applicantArguments || undefined}
-      runInventive={async (request) => {
+      runInventive={async (request, options) => {
         const client = new AgentClient(settings.mode, "/api", settings);
-        return client.runInventive(request);
+        return client.runInventive(request, { signal: options?.signal ?? null });
       }}
     />
   );
@@ -280,13 +280,13 @@ export function OpinionAnalysisWrapper() {
       documentId={officeActionDoc?.id ?? ""}
       officeActionText={officeActionDoc?.extractedText ?? ""}
       initialResult={initialResult}
-      runAnalysis={async () => {
+      runAnalysis={async (options) => {
         const client = new AgentClient(settings.mode, "/api", settings);
         return client.runOpinionAnalysis({
           caseId: caseId ?? "",
           documentId: officeActionDoc?.id ?? "office-action",
           officeActionText: officeActionDoc?.extractedText ?? ""
-        });
+        }, { signal: options?.signal ?? null });
       }}
       onComplete={(result) => {
         const now = new Date().toISOString();
@@ -326,14 +326,14 @@ export function ArgumentMappingWrapper() {
       caseId={caseId ?? ""}
       rejectionGrounds={rejectionGrounds}
       responseText={responseDoc?.extractedText ?? ""}
-      runAnalysis={async () => {
+      runAnalysis={async (options) => {
         const client = new AgentClient(settings.mode, "/api", settings);
         return client.runArgumentAnalysis({
           caseId: caseId ?? "",
           rejectionGrounds,
           responseText: responseDoc?.extractedText ?? "",
           ...(amendedDoc?.extractedText ? { amendedClaimsText: amendedDoc.extractedText } : {})
-        });
+        }, { signal: options?.signal ?? null });
       }}
       onComplete={(result) => {
         const now = new Date().toISOString();
@@ -429,36 +429,36 @@ export function OpinionComparisonWrapper() {
       rejectionGrounds={officeActionAnalysis?.rejectionGrounds ?? []}
       initialOpinionResult={initialOpinionResult}
       initialArgumentResult={initialArgumentResult}
-      runOpinionAnalysis={async () => {
+      runOpinionAnalysis={async (options) => {
         const client = new AgentClient(settings.mode, "/api", settings);
         return client.runOpinionAnalysis({
           caseId: caseId ?? "",
           documentId: officeActionDoc?.id ?? "office-action",
           officeActionText: officeActionDoc?.extractedText ?? ""
-        });
+        }, { signal: options?.signal ?? null });
       }}
-      runArgumentAnalysis={async () => {
+      runArgumentAnalysis={async (options) => {
         const client = new AgentClient(settings.mode, "/api", settings);
         return client.runArgumentAnalysis({
           caseId: caseId ?? "",
           rejectionGrounds: officeActionAnalysis?.rejectionGrounds ?? [],
           responseText: responseDoc?.extractedText ?? "",
           ...(amendedDoc?.extractedText ? { amendedClaimsText: amendedDoc.extractedText } : {})
-        });
+        }, { signal: options?.signal ?? null });
       }}
-      runFullAnalysis={async () => {
+      runFullAnalysis={async (options) => {
         const client = new AgentClient(settings.mode, "/api", settings);
         const opinionResult = await client.runOpinionAnalysis({
           caseId: caseId ?? "",
           documentId: officeActionDoc?.id ?? "office-action",
           officeActionText: officeActionDoc?.extractedText ?? ""
-        });
+        }, { signal: options?.signal ?? null });
         const argResult = await client.runArgumentAnalysis({
           caseId: caseId ?? "",
           rejectionGrounds: opinionResult.rejectionGrounds ?? [],
           responseText: responseDoc?.extractedText ?? "",
           ...(amendedDoc?.extractedText ? { amendedClaimsText: amendedDoc.extractedText } : {})
-        });
+        }, { signal: options?.signal ?? null });
         return { opinionResult, argumentResult: argResult };
       }}
       onOpinionComplete={(result) => {
@@ -573,9 +573,9 @@ export function DefectWrapper() {
       claimText={claimText}
       specificationText={specificationText}
       claimFeatures={features}
-      runDefectCheck={async (request) => {
+      runDefectCheck={async (request, options) => {
         const client = new AgentClient(settings.mode, "/api", settings);
-        return client.runDefectCheck(request);
+        return client.runDefectCheck(request, { signal: options?.signal ?? null });
       }}
     />
   );
@@ -593,7 +593,7 @@ export function DraftWrapper() {
   return (
     <DraftMaterialPanel
       caseId={caseId ?? ""}
-      runReexamDraft={async () => {
+      runReexamDraft={async (options) => {
         const client = new AgentClient(settings.mode, "/api", settings);
         return client.runReexamDraft({
           caseId: caseId ?? "",
@@ -603,7 +603,7 @@ export function DraftWrapper() {
           noveltyResults: JSON.stringify(comparisons.filter((c) => c.caseId === caseId)),
           inventiveResults: JSON.stringify(analyses.filter((a) => a.caseId === caseId)),
           defectResults: JSON.stringify(defects.filter((d) => d.caseId === caseId))
-        });
+        }, { signal: options?.signal ?? null });
       }}
     />
   );

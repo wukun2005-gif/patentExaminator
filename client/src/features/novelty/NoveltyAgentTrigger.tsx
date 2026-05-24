@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { ReferenceDocument, ClaimFeature } from "@shared/types/domain";
 import type { NoveltyRequest, NoveltyResponse } from "../../agent/contracts";
 import { useNoveltyStore } from "../../store";
@@ -19,7 +19,7 @@ interface NoveltyAgentTriggerProps {
   references: ReferenceDocument[];
   applicantArguments?: string;
   amendedClaimText?: string;
-  runNovelty: (request: NoveltyRequest) => Promise<NoveltyResponse>;
+  runNovelty: (request: NoveltyRequest, options?: { signal?: AbortSignal }) => Promise<NoveltyResponse>;
 }
 
 export function NoveltyAgentTrigger({
@@ -34,6 +34,21 @@ export function NoveltyAgentTrigger({
   const { addComparison, setLoading, isLoading } = useNoveltyStore();
   const [selectedRefId, setSelectedRefId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller, key) => {
+        controller.abort();
+        console.log(`[NoveltyAgentTrigger] Aborted request ${key} on unmount`);
+      });
+      controllers.clear();
+    };
+  }, []);
 
   // DEBUG: 记录 props 变化
   useEffect(() => {
@@ -97,6 +112,12 @@ export function NoveltyAgentTrigger({
       return;
     }
 
+    const existingController = abortControllersRef.current.get("novelty");
+    if (existingController) existingController.abort();
+
+    const controller = new AbortController();
+    abortControllersRef.current.set("novelty", controller);
+
     setLoading(true);
     setError(null);
     try {
@@ -113,14 +134,14 @@ export function NoveltyAgentTrigger({
         ...(amendedClaimText ? { amendedClaimText } : {})
       };
 
-      const response = await runNovelty(request);
+      const response = await runNovelty(request, { signal: controller.signal });
 
-      // 创建 featureCode 到 description 的映射
+      if (!isMountedRef.current || controller.signal.aborted) return;
+
       const featureDescriptionMap = new Map(
         features.map((f) => [f.featureCode, f.description])
       );
 
-      // 兼容旧数据：优先使用 reviewerConclusions，回退到 pendingSearchConclusions
       const reviewerConclusions = response.reviewerConclusions ?? response.pendingSearchConclusions;
 
       const comparison = {
@@ -133,7 +154,6 @@ export function NoveltyAgentTrigger({
           const featureDescription = featureDescriptionMap.get(row.featureCode);
           return {
             ...rest,
-            // 只有当特征描述存在时才添加该属性
             ...(featureDescription ? { featureDescription } : {}),
             citations: rest.citations.map((c) => ({
               ...c,
@@ -144,7 +164,6 @@ export function NoveltyAgentTrigger({
         }),
         differenceFeatureCodes: response.differenceFeatureCodes,
         pendingSearchQuestions: response.pendingSearchQuestions,
-        // 只有当值存在时才添加可选属性
         ...(reviewerConclusions ? { reviewerConclusions } : {}),
         ...(response.aiPreliminaryConclusions ? { aiPreliminaryConclusions: response.aiPreliminaryConclusions } : {}),
         status: "draft" as const,
@@ -153,11 +172,14 @@ export function NoveltyAgentTrigger({
 
       addComparison(comparison);
     } catch (err) {
+      if (controller.signal.aborted) return;
+      if (!isMountedRef.current) return;
       const message = err instanceof Error ? err.message : "未知错误";
       debugLog("handleRun错误:", message);
       setError(message);
     } finally {
-      setLoading(false);
+      abortControllersRef.current.delete("novelty");
+      if (isMountedRef.current) setLoading(false);
     }
   };
 
