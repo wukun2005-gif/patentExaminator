@@ -144,7 +144,10 @@ export async function syncProviderKeys(settings: AppSettings): Promise<void> {
 
 const ALL_STORES = [
   "cases", "documents", "textIndex", "claimNodes", "claimCharts",
-  "novelty", "inventive", "ocrCache", "chatMessages", "feedback", "settings"
+  "novelty", "inventive", "defects", "ocrCache",
+  "chatMessages", "chatSessions", "feedback", "settings",
+  "interpretSummaries", "opinionAnalyses", "argumentMappings",
+  "reexamDrafts", "summaries"
 ] as const;
 
 export async function clearAllLocalData(): Promise<void> {
