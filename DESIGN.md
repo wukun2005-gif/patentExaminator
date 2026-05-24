@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r21 · 2026-05-24</p>
+<p align="right">版本 v0.1.0-r22 · 2026-05-24</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -8,6 +8,7 @@
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|---------|
+| v0.1.0-r22 | 2026-05-24 | bg-10: 审查意见简述正文格式优化 — 新增 26 条 CSS 规则为摘要面板提供卡片化布局、正文排版（行高 1.8、段落间距、列表缩进）、帮助区样式、法律声明样式 | app.css |
 | v0.1.0-r21 | 2026-05-24 | bg-9 补充: AI 备注区添加说明文字 + 支持编辑和清除 — SummaryPanel aiNotes 从只读改为 InlineEdit (textarea)、新增清除按钮、新增说明文字（"这是 AI 的辅助注释…"）、新增 `.summary-ai-notes-desc` CSS | SummaryPanel.tsx, app.css |
 | v0.1.0 | 2026-05-05 | 初稿 |
 | v0.1.0-r1 | 2026-05-05 | 23 项修复：ocr-failed 状态、ProviderAdapter 接口、两级配置、6 条 ADR、Prompt 注入、错误处理、脱敏、Token 校准、导出、浏览器兼容、Zustand Slice、fixture 清单、Vite 代理、Pre-commit 门禁 |
