@@ -4,6 +4,8 @@ import { LEGACY_INTERPRET_KEY, useInterpretStore } from "../../store";
 import type { DocumentFigure, SourceDocument } from "@shared/types/domain";
 import { FigureExtractPanel } from "./FigureExtractPanel";
 import { renderMarkdown } from "../../lib/markdown";
+import { AiGatewayError, type AiErrorType } from "../../agent/contracts";
+import { formatAiErrorMessage } from "../../lib/errorDisplay";
 
 export type InterpretDocumentType = "application" | "office-action" | "office-action-response";
 
@@ -100,6 +102,8 @@ export function writeExpandedState(caseId: string, state: ExpandedStateMap) {
   }
 }
 
+export { formatAiErrorMessage } from "../../lib/errorDisplay";
+
 export function buildCombinedSummarySections(
   groupedDocuments: Array<{ role: InterpretDocumentRole; title: string; documents: InterpretableDocument[] }>,
   cardStates: Record<string, DocumentCardState>
@@ -131,6 +135,7 @@ export function InterpretPanel({
   const [cardStates, setCardStates] = useState<Record<string, DocumentCardState>>({});
   const [expandedDocuments, setExpandedDocuments] = useState<ExpandedStateMap>({});
   const [isCombinedReinterpreting, setIsCombinedReinterpreting] = useState(false);
+  const [systemicError, setSystemicError] = useState<{ message: string; guidance: string } | null>(null);
   const autoTriggered = useRef<Record<string, boolean>>({});
   const translateTriggered = useRef<Record<string, boolean>>({});
   // Track in-flight requests for cancellation on unmount
@@ -169,6 +174,36 @@ export function InterpretPanel({
   useEffect(() => {
     writeExpandedState(caseId, expandedDocuments);
   }, [caseId, expandedDocuments]);
+
+  // Detect systemic errors: when all documents fail with the same error type
+  useEffect(() => {
+    const docIds = documents.map((d) => d.id);
+    if (docIds.length === 0) {
+      setSystemicError(null);
+      return;
+    }
+    const errors = docIds
+      .map((id) => cardStates[id]?.error)
+      .filter(Boolean);
+    if (errors.length !== docIds.length) {
+      setSystemicError(null);
+      return;
+    }
+    const errorTypes = errors
+      .map((e) => formatAiErrorMessage(e ?? "").type);
+    const nonOtherTypes = errorTypes
+      .filter((t): t is Exclude<AiErrorType, "other"> => t !== "other");
+    if (nonOtherTypes.length === docIds.length) {
+      const dominantType = nonOtherTypes[0] as AiErrorType;
+      const allSame = nonOtherTypes.every((t) => t === dominantType);
+      if (allSame) {
+        const formatted = formatAiErrorMessage(new AiGatewayError(dominantType, ""));
+        setSystemicError({ message: formatted.message, guidance: formatted.guidance });
+        return;
+      }
+    }
+    setSystemicError(null);
+  }, [cardStates, documents]);
 
   // Cleanup: cancel all in-flight requests on unmount
   useEffect(() => {
@@ -374,7 +409,21 @@ export function InterpretPanel({
         <>
           <section className="interpret-overview" data-testid="interpret-overview">
             <h3>案件文件总览</h3>
-            {groupedDocuments.map((group) => (
+          {systemicError && (
+            <div className="interpret-systemic-error" style={{
+              background: "#fff3f3",
+              border: "1px solid #e00",
+              borderRadius: 6,
+              padding: "12px 16px",
+              marginBottom: 16,
+              color: "#c00"
+            }} data-testid="interpret-systemic-error">
+              <strong style={{ fontSize: "1.1em" }}>{systemicError.message}</strong>
+              <p style={{ margin: "4px 0 0", color: "#666", fontSize: "0.9em" }}>{systemicError.guidance}</p>
+            </div>
+          )}
+
+          {groupedDocuments.map((group) => (
               <div key={group.role} className="interpret-overview__group">
                 <strong>{group.title}</strong>
                 <ul>
@@ -520,11 +569,37 @@ export function InterpretPanel({
                             readOnly={state.isLoading}
                           />
                         )}
-                        {state.error && (
-                          <p className="extract-error" data-testid={`interpret-error-${doc.id}`} style={{ color: "#c00", fontSize: "0.9em", margin: "4px 0" }}>
-                            {state.error}
-                          </p>
-                        )}
+                        {state.error && (() => {
+                          const formatted = formatAiErrorMessage(
+                            state.error.startsWith("解读失败: ") && state.error.includes("AI")
+                              ? new Error(state.error.replace("解读失败: ", ""))
+                              : state.error
+                          );
+                          const colorMap: Record<string, string> = {
+                            quota: "#e65100",
+                            auth: "#c00",
+                            timeout: "#c00",
+                            network: "#c00",
+                            structure: "#c00",
+                            other: "#c00"
+                          };
+                          return (
+                            <div style={{
+                              background: "#fff3f3",
+                              border: `1px solid ${colorMap[formatted.type] ?? "#c00"}`,
+                              borderRadius: 4,
+                              padding: "8px 12px",
+                              margin: "4px 0"
+                            }} data-testid={`interpret-error-${doc.id}`}>
+                              <strong style={{ color: colorMap[formatted.type] ?? "#c00" }}>
+                                {formatted.message}
+                              </strong>
+                              <p style={{ margin: "4px 0 0", color: "#555", fontSize: "0.85em" }}>
+                                {formatted.guidance}
+                              </p>
+                            </div>
+                          );
+                        })()}
                         <div className="interpret-main__actions">
                           <span className="interpret-main__hint">内容自动保存</span>
                           {state.summary && (
@@ -554,7 +629,7 @@ export function InterpretPanel({
                             : state.isLoading
                               ? "AI 解读中，完成后可展开查看。"
                               : state.error
-                                ? "解读失败，请重试。"
+                                ? "解读失败，点击展开查看详情。"
                                 : "尚未开始解读。"}
                         </span>
                         {!state.isLoading && (

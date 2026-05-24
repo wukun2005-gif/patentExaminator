@@ -441,6 +441,63 @@ describe("ProviderRegistry", () => {
     expect(attempts[1]!.providerId).toBe("glm");
     expect(attempts[1]!.ok).toBe(true);
   });
+
+  it("T-GW-BG12-001: 所有 provider 均返回 quota-exceeded → all-providers-failed", async () => {
+    const kimiAdapter = new FailingAdapter(429);
+    kimiAdapter.id = "kimi";
+    const glmAdapter = new FailingAdapter(429);
+    glmAdapter.id = "glm";
+    registry.register(kimiAdapter);
+    registry.register(glmAdapter);
+
+    const { response, attempts } = await registry.runWithFallback(
+      ["kimi", "glm"],
+      { modelId: "test", messages: [{ role: "user", content: "test" }], apiKey: "test-key" }
+    );
+
+    expect(response.error).toBeDefined();
+    expect(response.error!.code).toBe("all-providers-failed");
+    expect(attempts.length).toBe(2);
+    expect(attempts.every((a) => a.errorCode === "quota-exceeded")).toBe(true);
+    expect(attempts.every((a) => !a.ok)).toBe(true);
+  });
+
+  it("T-GW-BG12-002: 所有 provider 均为 quota-exceeded，response.error.message 包含 quota 关键词", async () => {
+    const kimiAdapter = new FailingAdapter(429);
+    kimiAdapter.id = "kimi";
+    const glmAdapter = new FailingAdapter(429);
+    glmAdapter.id = "glm";
+    registry.register(kimiAdapter);
+    registry.register(glmAdapter);
+
+    const { response } = await registry.runWithFallback(
+      ["kimi", "glm"],
+      { modelId: "test", messages: [{ role: "user", content: "test" }], apiKey: "test-key" }
+    );
+
+    expect(response.error).toBeDefined();
+    expect(response.error!.message).toContain("quota-exceeded");
+  });
+
+  it("T-GW-BG12-003: 混合场景 - 一个 provider quota-exceeded，另一个 auth-failed → auth-failed 优先", async () => {
+    const kimiAdapter = new FailingAdapter(429);
+    kimiAdapter.id = "kimi";
+    const glmAdapter = new FailingAdapter(401);
+    glmAdapter.id = "glm";
+    registry.register(kimiAdapter);
+    registry.register(glmAdapter);
+
+    const { response, attempts } = await registry.runWithFallback(
+      ["kimi", "glm"],
+      { modelId: "test", messages: [{ role: "user", content: "test" }], apiKey: "test-key" }
+    );
+
+    expect(response.error).toBeDefined();
+    expect(response.error!.code).toBe("auth-failed");
+    expect(attempts.length).toBe(2);
+    expect(attempts[0]!.errorCode).toBe("quota-exceeded");
+    expect(attempts[1]!.errorCode).toBe("auth-failed");
+  });
 });
 
 describe("sanitize", () => {

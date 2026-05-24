@@ -110,6 +110,21 @@ aiRouter.post("/ai/run", async (req, res) => {
     const durationMs = Date.now() - startTime;
 
     if (response.error) {
+      const allQuotaExhausted = attempts.every((a) => a.errorCode === "quota-exceeded");
+      if (allQuotaExhausted || response.error.code === "quota-exceeded") {
+        logger.info("AI quota exhausted", { agent: request.agent, attempts });
+        res.status(429).json({
+          ok: false,
+          error: {
+            code: "quota-exceeded",
+            message: "所有 AI Provider 的额度均已用尽，请等待额度恢复或切换到演示模式。",
+            retryable: true
+          },
+          attempts,
+          durationMs
+        } satisfies AiRunResponse);
+        return;
+      }
       logger.warn("AI run failed", { agent: request.agent, attempts });
       res.status(response.error.code === "auth-failed" ? 401 : 502).json({
         ok: false,

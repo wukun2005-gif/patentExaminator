@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { AgentClient } from "../../agent/AgentClient";
 import { useClaimsStore, useCaseStore, useSettingsStore } from "../../store";
+import { ErrorBanner } from "../../lib/errorDisplay";
 import type { ClaimNode } from "@shared/types/domain";
 
 interface ClaimChartActionsProps {
@@ -102,7 +103,7 @@ export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartA
       >
         {isGenerating ? "生成中..." : "生成权利要求特征表"}
       </button>
-      {error && <p className="error" data-testid="claim-chart-error">{error}</p>}
+      {error && <ErrorBanner error={error} compact data-testid="claim-chart-error" />}
     </div>
   );
 }

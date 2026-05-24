@@ -3,6 +3,7 @@ import type { OpinionAnalysisResponse, ArgumentAnalysisResponse } from "../../ag
 import type { ArgumentMapping } from "@shared/types/domain";
 import { useOpinionStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
+import { ErrorBanner } from "../../lib/errorDisplay";
 
 interface Props {
   caseId: string;
@@ -299,9 +300,9 @@ export function OpinionComparisonPanel({
       </div>
 
       {(opinionError || argumentError) && (
-        <div className="alert alert--error" data-testid="comparison-error">
-          {opinionError && <div>审查意见解析：{opinionError}</div>}
-          {argumentError && <div>答辩理由映射：{argumentError}</div>}
+        <div data-testid="comparison-error">
+          {opinionError && <ErrorBanner error={opinionError} compact />}
+          {argumentError && <ErrorBanner error={argumentError} compact />}
         </div>
       )}
 

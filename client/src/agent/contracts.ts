@@ -329,3 +329,23 @@ export interface ClassifyDocumentsResponse {
   classifications: DocumentClassification[];
   warnings?: string[];
 }
+
+// ── AI Gateway 错误分类 ──────────────────────────────
+
+export type AiErrorType = "quota" | "auth" | "timeout" | "network" | "structure" | "other";
+
+export class AiGatewayError extends Error {
+  readonly type: AiErrorType;
+  readonly attempts: Array<{ providerId: string; errorCode?: string }> | undefined;
+
+  constructor(
+    type: AiErrorType,
+    message: string,
+    attempts?: Array<{ providerId: string; errorCode?: string }>
+  ) {
+    super(message);
+    this.name = "AiGatewayError";
+    this.type = type;
+    this.attempts = attempts;
+  }
+}

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { SummaryResponse } from "../../agent/contracts";
 import { useDraftStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
+import { ErrorBanner } from "../../lib/errorDisplay";
 
 function renderParagraphs(text: string): ReactNode {
   return text.split('\n\n').filter(Boolean).map((p, i) => (
@@ -18,7 +19,7 @@ export function SummaryPanel({ caseId, runSummary }: SummaryPanelProps) {
   const { summaries, setSummary } = useDraftStore();
   const summary = summaries[caseId] ?? null;
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   const handleGenerate = async () => {
     if (!runSummary || loading) return;
@@ -28,7 +29,7 @@ export function SummaryPanel({ caseId, runSummary }: SummaryPanelProps) {
       const result = await runSummary();
       setSummary(caseId, result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -62,9 +63,7 @@ export function SummaryPanel({ caseId, runSummary }: SummaryPanelProps) {
         </button>
       )}
 
-      {error && (
-        <div className="alert alert--error" data-testid="summary-error">{error}</div>
-      )}
+      {error != null && <ErrorBanner error={error} data-testid="summary-error" />}
 
       {summary ? (
         <div className="summary-content">

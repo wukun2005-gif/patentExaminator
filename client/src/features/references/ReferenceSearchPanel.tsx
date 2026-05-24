@@ -7,6 +7,7 @@ import { TimelineStatusBadge } from "../../components/TimelineStatusBadge";
 import { useReferencesStore, useCaseStore, useSettingsStore } from "../../store";
 import { createDocument } from "../../lib/repositories/documentRepo";
 import { AgentClient } from "../../agent/AgentClient";
+import { ErrorBanner } from "../../lib/errorDisplay";
 
 interface ReferenceSearchPanelProps {
   claimText: string;
@@ -178,11 +179,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
         <p className="search-hint">已达到文献数量上限（{MAX_REFERENCES}篇），无法继续检索。</p>
       )}
 
-      {error && (
-        <p className="search-error" data-testid="search-error">
-          {error}
-        </p>
-      )}
+      {error && <ErrorBanner error={error} data-testid="search-error" />}
 
       {searchSummary && (
         <div className="search-summary" data-testid="search-summary">

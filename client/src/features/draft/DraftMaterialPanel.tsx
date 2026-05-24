@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useCaseStore, useClaimsStore, useNoveltyStore, useInventiveStore, useDefectsStore, useDraftStore } from "../../store";
 import type { ReexamDraftResponse } from "../../agent/contracts";
 import { InlineEdit } from "../../components/InlineEdit";
+import { ErrorBanner } from "../../lib/errorDisplay";
 
 interface DraftMaterialPanelProps {
   caseId: string;
@@ -188,7 +189,7 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
           {loadingDraft ? "生成中..." : reexamDraft ? "重新生成复审意见草稿" : "生成复审意见草稿"}
         </button>
       )}
-      {draftError && <div className="alert alert--error" data-testid="draft-error">{draftError}</div>}
+      {draftError && <ErrorBanner error={draftError} data-testid="draft-error" />}
 
       <div className="draft-sections">
         {reexamDraft && (

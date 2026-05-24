@@ -28,7 +28,9 @@ import {
   ReexamDraftRequest,
   ReexamDraftResponse,
   ClassifyDocumentsRequest,
-  ClassifyDocumentsResponse
+  ClassifyDocumentsResponse,
+  AiGatewayError,
+  type AiErrorType
 } from "./contracts";
 import type { ClaimFeature } from "@shared/types/domain";
 import type { AiRunRequest, AiRunResponse } from "@shared/types/api";
@@ -378,35 +380,47 @@ export class AgentClient {
       }
     };
 
-    const res = await fetch(`${this.gatewayUrl}/ai/run`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-      ...(meta.signal ? { signal: meta.signal } : {})
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.gatewayUrl}/ai/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+        ...(meta.signal ? { signal: meta.signal } : {})
+      });
+    } catch {
+      throw new AiGatewayError(
+        "network",
+        "无法连接到 AI 服务，请检查网络连接和服务器状态。"
+      );
+    }
 
     if (!res.ok) {
       const errorBody = await res.json().catch(() => ({ error: { message: res.statusText } }));
       const msg = errorBody.error?.message ?? `Gateway error: ${res.status}`;
       const attempts = errorBody.attempts as AiRunResponse["attempts"] | undefined;
+      const errorType = classifyGatewayError(res.status, errorBody, attempts);
       const detail = attempts?.length
         ? ` (${attempts.map((a) => `${a.providerId}: ${a.errorCode ?? "failed"}`).join("; ")})`
         : "";
-      throw new Error(`${msg}${detail}`);
+      throw new AiGatewayError(errorType, `${msg}${detail}`, attempts);
     }
 
     const data = (await res.json()) as AiRunResponse;
     if (!data.ok) {
       const msg = data.error?.message ?? "Gateway returned error";
-      const detail = data.attempts?.length
-        ? ` (${data.attempts.map((a) => `${a.providerId}: ${a.errorCode ?? "failed"}`).join("; ")})`
+      const attempts = data.attempts;
+      const errorType = classifyGatewayError(res.status, data, attempts);
+      const detail = attempts?.length
+        ? ` (${attempts.map((a) => `${a.providerId}: ${a.errorCode ?? "failed"}`).join("; ")})`
         : "";
-      throw new Error(`${msg}${detail}`);
+      throw new AiGatewayError(errorType, `${msg}${detail}`, attempts);
     }
 
     if (data.structureErrors?.length) {
       const detail = data.structureErrors.slice(0, 3).join("; ");
-      throw new Error(
+      throw new AiGatewayError(
+        "structure",
         `AI 返回结构校验失败（${agent}）：${detail}。请确认 AI Provider 配置正确或切换为 Mock 模式重试。`
       );
     }
@@ -758,6 +772,28 @@ function buildInventivePrompt(request: InventiveRequest): string {
 
 function stripCodeFences(text: string): string {
   return text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "").trim();
+}
+
+function classifyGatewayError(
+  status: number,
+  errorBody: { error?: { code?: string } },
+  attempts?: AiRunResponse["attempts"]
+): AiErrorType {
+  if (attempts?.length) {
+    const errorCodes = attempts.map((a) => a.errorCode);
+    const allSame = (code: string) => errorCodes.every((c) => c === code);
+    if (allSame("quota-exceeded")) return "quota";
+    if (allSame("auth-failed")) return "auth";
+    if (allSame("timeout")) return "timeout";
+    if (errorCodes.every((c) => c === "network-error" || c === "server-error")) return "network";
+    const hasQuota = errorCodes.some((c) => c === "quota-exceeded");
+    if (hasQuota) return "quota";
+  }
+  if (errorBody.error?.code === "no-api-keys") return "auth";
+  if (errorBody.error?.code === "quota-exceeded" || status === 429) return "quota";
+  if (errorBody.error?.code === "auth-failed" || status === 401) return "auth";
+  if (status >= 500) return "network";
+  return "other";
 }
 
 function estimateTokens(text: string): number {

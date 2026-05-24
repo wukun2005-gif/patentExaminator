@@ -4,6 +4,7 @@ import type { DefectRequest, DefectResponse } from "../../agent/contracts";
 import type { FormalDefect } from "@shared/types/domain";
 import { InlineEdit } from "../../components/InlineEdit";
 import { ConfirmModal } from "../../components/ConfirmModal";
+import { ErrorBanner } from "../../lib/errorDisplay";
 
 interface DefectPanelProps {
   caseId: string;
@@ -35,7 +36,7 @@ export function DefectPanel({
   const { defects, addDefect, updateDefect, removeDefect, isLoading, setLoading, ranCases, addRanCase } =
     useDefectsStore();
   const [showConfirm, setShowConfirm] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const isMountedRef = useRef(true);
 
@@ -166,7 +167,7 @@ export function DefectPanel({
     } catch (err) {
       console.error("[DefectPanel] Error running defect check:", err);
       if (isMountedRef.current) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(err);
       }
     } finally {
       abortControllersRef.current.delete("defectCheck");
@@ -206,18 +207,7 @@ export function DefectPanel({
     <div className="defect-panel" data-testid="defect-panel">
       <h2>缺陷复查</h2>
 
-      {error && (
-        <div className="defect-error" data-testid="defect-error" style={{
-          background: "#fff0f0",
-          border: "1px solid #e00",
-          borderRadius: 4,
-          padding: "8px 12px",
-          marginBottom: 12,
-          color: "#c00"
-        }}>
-          <strong>运行失败：</strong>{error}
-        </div>
-      )}
+      {error != null && <ErrorBanner error={error} data-testid="defect-error" />}
 
       {caseDefects.length > 0 && (
         <div className="defect-legal-caution" data-testid="defect-legal-caution">

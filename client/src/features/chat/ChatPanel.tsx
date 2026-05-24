@@ -5,6 +5,7 @@ import { ChatBubble } from "./ChatBubble";
 import { buildContextSummary } from "../../lib/chatContext";
 import { AgentClient } from "../../agent/AgentClient";
 import { createSession, createMessage, deleteSession, deleteMessagesBySessionId, updateSession, getSessionsByCaseId, getMessagesBySessionId } from "../../lib/repositories/chatRepo";
+import { formatAiErrorMessage } from "../../lib/errorDisplay";
 import type { ChatMessage, ChatSession, ModuleScope } from "@shared/types/domain";
 import type { ChatRequest } from "../../agent/contracts";
 
@@ -271,13 +272,14 @@ export function ChatPanel() {
         log("createMessage error:", e);
       }
     } catch (err) {
+      const formatted = formatAiErrorMessage(err);
       const errorMsg: ChatMessage = {
         id: `msg-${Date.now()}-error`,
         caseId,
         sessionId,
         moduleScope,
         role: "assistant",
-        content: `请求失败: ${err instanceof Error ? err.message : String(err)}\n\n请检查 API Key 配置是否正确，或切换到演示模式。`,
+        content: `${formatted.message}\n\n${formatted.guidance}`,
         createdAt: new Date().toISOString()
       };
       addMessage(errorMsg);

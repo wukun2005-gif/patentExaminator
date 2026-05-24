@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { AgentClient } from "@client/agent/AgentClient";
+import { AiGatewayError } from "@client/agent/contracts";
 import { estimateTokens } from "@client/agent/tokenEstimate";
 
 describe("AgentClient (mock mode)", () => {

@@ -3,6 +3,7 @@ import type { ArgumentAnalysisResponse, OpinionAnalysisResponse } from "../../ag
 import type { ArgumentMapping } from "@shared/types/domain";
 import { useOpinionStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
+import { ErrorBanner } from "../../lib/errorDisplay";
 
 interface Props {
   caseId: string;
@@ -147,11 +148,7 @@ export function ArgumentMappingPanel({
         </button>
       </div>
 
-      {error && (
-        <div className="alert alert--error" data-testid="argument-error">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner error={error} data-testid="argument-error" />}
 
       {result && (
         <div className="argument-results" data-testid="argument-results">

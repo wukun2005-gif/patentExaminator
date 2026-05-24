@@ -13,6 +13,7 @@ import { createClaimNode } from "../../lib/repositories/claimRepo";
 import { readCaseById, createCase, updateCase } from "../../lib/repositories/caseRepo";
 import { useCaseStore, useDocumentsStore, useClaimsStore, useSettingsStore, useReferencesStore } from "../../store";
 import { AgentClient } from "../../agent/AgentClient";
+import { ErrorBanner } from "../../lib/errorDisplay";
 import type { DocumentClassification } from "../../agent/contracts";
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".html"];
@@ -523,9 +524,7 @@ export function CaseSetupPage() {
             )}
           </button>
         </div>
-        {classifyError && (
-          <p className="classify-error" data-testid="classify-error">{classifyError}</p>
-        )}
+        {classifyError && <ErrorBanner error={classifyError} data-testid="classify-error" />}
         <p className="section-desc">
           支持 PDF、DOCX、TXT、HTML 格式。可批量上传让 AI 自动分类，也可在各类别中单独上传。
         </p>
@@ -755,9 +754,7 @@ export function CaseSetupPage() {
             </button>
           )}
         </div>
-        {extractError && (
-          <p className="extract-error" data-testid="extract-error">{extractError}</p>
-        )}
+        {extractError && <ErrorBanner error={extractError} data-testid="extract-error" />}
         <p className="section-desc">
           上传申请文件后点击「AI 提取」自动填充，可手动修正
         </p>

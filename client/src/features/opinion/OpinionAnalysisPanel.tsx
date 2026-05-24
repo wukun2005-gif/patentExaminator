@@ -3,6 +3,7 @@ import type { OpinionAnalysisResponse } from "../../agent/contracts";
 import type { RejectionGround, RejectionCitedReference } from "@shared/types/domain";
 import { useOpinionStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
+import { ErrorBanner } from "../../lib/errorDisplay";
 
 interface Props {
   caseId: string;
@@ -172,11 +173,7 @@ export function OpinionAnalysisPanel({
         </button>
       </div>
 
-      {error && (
-        <div className="alert alert--error" data-testid="opinion-error">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner error={error} data-testid="opinion-error" />}
 
       {result && (
         <div className="opinion-results" data-testid="opinion-results">

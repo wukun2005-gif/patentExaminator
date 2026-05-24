@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import type { ReferenceDocument, ClaimFeature } from "@shared/types/domain";
 import type { NoveltyRequest, NoveltyResponse } from "../../agent/contracts";
 import { useNoveltyStore } from "../../store";
+import { ErrorBanner } from "../../lib/errorDisplay";
 
 // DEBUG: 调试 bug 18 - 删除对比文件后无法再加载再比较
 const DEBUG_NOVELTY = true;
@@ -33,7 +34,7 @@ export function NoveltyAgentTrigger({
 }: NoveltyAgentTriggerProps) {
   const { addComparison, setLoading, isLoading } = useNoveltyStore();
   const [selectedRefId, setSelectedRefId] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const isMountedRef = useRef(true);
 
@@ -174,9 +175,8 @@ export function NoveltyAgentTrigger({
     } catch (err) {
       if (controller.signal.aborted) return;
       if (!isMountedRef.current) return;
-      const message = err instanceof Error ? err.message : "未知错误";
-      debugLog("handleRun错误:", message);
-      setError(message);
+      debugLog("handleRun错误:", err instanceof Error ? err.message : err);
+      setError(err);
     } finally {
       abortControllersRef.current.delete("novelty");
       if (isMountedRef.current) setLoading(false);
@@ -220,10 +220,8 @@ export function NoveltyAgentTrigger({
         {isLoading ? "对照中..." : `对 ${selectedRefId ? "D1" : "—"} 进行新颖性对照`}
       </button>
 
-      {error && (
-        <div className="alert alert--error" data-testid="novelty-error" style={{ marginTop: 12 }}>
-          {error}
-        </div>
+      {error != null && (
+        <ErrorBanner error={error} compact data-testid="novelty-error" />
       )}
     </div>
   );

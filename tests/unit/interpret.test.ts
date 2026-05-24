@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MockProvider } from "@client/features/mock/MockProvider";
 import { useInterpretStore } from "@client/store";
+import { AiGatewayError, AiErrorType } from "@client/agent/contracts";
 import {
   buildCombinedSummarySections,
   buildExpandedStateStorageKey,
+  formatAiErrorMessage,
   readExpandedState,
   writeExpandedState
 } from "@client/features/interpret/InterpretPanel";
@@ -84,5 +86,109 @@ describe("Interpret module", () => {
       JSON.stringify({ "doc-1": true, "doc-2": false })
     );
     expect(readExpandedState("case-123")).toEqual({ "doc-1": true, "doc-2": false });
+  });
+});
+
+describe("AiGatewayError", () => {
+  it("creates error with type and message", () => {
+    const err = new AiGatewayError("quota", "All providers exhausted");
+    expect(err.type).toBe("quota");
+    expect(err.message).toBe("All providers exhausted");
+    expect(err.name).toBe("AiGatewayError");
+    expect(err).toBeInstanceOf(Error);
+  });
+
+  it("creates error with attempts metadata", () => {
+    const err = new AiGatewayError("timeout", "msg", [
+      { providerId: "bedrock", errorCode: "timeout" }
+    ]);
+    expect(err.attempts).toHaveLength(1);
+    expect(err.attempts![0]!.errorCode).toBe("timeout");
+  });
+
+  it("creates error without attempts", () => {
+    const err = new AiGatewayError("auth", "auth failed");
+    expect(err.attempts).toBeUndefined();
+  });
+});
+
+describe("formatAiErrorMessage", () => {
+  describe("AiGatewayError input", () => {
+    const types: AiErrorType[] = ["quota", "auth", "timeout", "network", "structure", "other"];
+    const expectedMarkers: Record<AiErrorType, string[]> = {
+      quota: ["配额"],
+      auth: ["认证"],
+      timeout: ["超时"],
+      network: ["网络"],
+      structure: ["格式"],
+      other: ["未知"]
+    };
+
+    for (const t of types) {
+      it(`handles type "${t}"`, () => {
+        const result = formatAiErrorMessage(new AiGatewayError(t, "test"));
+        expect(result.type).toBe(t);
+        expect(result.message).toContain(expectedMarkers[t][0]);
+        expect(result.guidance.length).toBeGreaterThan(0);
+      });
+    }
+  });
+
+  describe("string message input", () => {
+    it("detects quota-exceeded from string", () => {
+      const result = formatAiErrorMessage(
+        "All providers failed: bedrock(quota-exceeded); gemini(quota-exceeded)"
+      );
+      expect(result.type).toBe("quota");
+      expect(result.message).toContain("配额");
+    });
+
+    it("detects 429 from string", () => {
+      expect(formatAiErrorMessage("Gateway error: 429").type).toBe("quota");
+    });
+
+    it("detects auth-failed from string", () => {
+      expect(formatAiErrorMessage("auth-failed: invalid key").type).toBe("auth");
+    });
+
+    it("detects 401 from string", () => {
+      expect(formatAiErrorMessage("Gateway error: 401").type).toBe("auth");
+    });
+
+    it("detects timeout from string", () => {
+      expect(formatAiErrorMessage("timeout after 30s").type).toBe("timeout");
+    });
+
+    it("detects network error from string", () => {
+      expect(formatAiErrorMessage("server-error: bedrock").type).toBe("network");
+    });
+
+    it("detects 5xx from string", () => {
+      expect(formatAiErrorMessage("Gateway error: 503").type).toBe("network");
+    });
+
+    it("falls back to 'other' for unrecognized string", () => {
+      const result = formatAiErrorMessage("Something unexpected happened");
+      expect(result.type).toBe("other");
+    });
+  });
+
+  describe("other input types", () => {
+    it("handles null gracefully", () => {
+      const result = formatAiErrorMessage(null);
+      expect(result.type).toBe("other");
+      expect(result.message).toContain("未知");
+    });
+
+    it("handles undefined gracefully", () => {
+      const result = formatAiErrorMessage(undefined);
+      expect(result.type).toBe("other");
+    });
+
+    it("handles plain Error object", () => {
+      const result = formatAiErrorMessage(new Error("Custom error"));
+      expect(result.type).toBe("other");
+      expect(result.message).toContain("Custom error");
+    });
   });
 });
