@@ -1,5 +1,6 @@
 import { getDB } from "../indexedDb.js";
 import type { AppSettings } from "@shared/types/agents";
+import { waitForServerReady } from "../serverReady";
 
 const SETTINGS_ID = "app";
 const LS_KEY = "patent-examiner-settings";
@@ -128,6 +129,9 @@ export async function writeSettings(settings: AppSettings): Promise<void> {
  * The server needs these keys to make real AI calls.
  */
 export async function syncProviderKeys(settings: AppSettings): Promise<void> {
+  // Wait for server to be ready before syncing
+  await waitForServerReady("/api");
+  
   for (const provider of settings.providers) {
     if (!provider.enabled || !provider.apiKeyRef) continue;
     try {

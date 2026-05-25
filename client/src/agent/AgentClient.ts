@@ -34,7 +34,9 @@ import {
 } from "./contracts";
 import type { ClaimFeature } from "@shared/types/domain";
 import type { AiRunRequest, AiRunResponse } from "@shared/types/api";
-import type { ProviderId, AgentAssignment, AppSettings } from "@shared/types/agents";
+import type { ProviderId, ProviderConnection, AgentAssignment, AppSettings, ProviderErrorMessage } from "@shared/types/agents";
+import { useSettingsStore } from "../store/features/settings/settingsSlice";
+import { waitForServerReady } from "../lib/serverReady";
 
 const GATEWAY_AGENT_TO_KEY: Record<string, AgentAssignment["agent"]> = {
   "claim-chart": "claim-chart",
@@ -69,6 +71,8 @@ export class AgentClient {
   private fallbackProvider: ProviderId;
   private fallbackModel: string;
   private enabledProviders: ProviderId[];
+  private providerSettings: ProviderConnection[];
+  private enableProviderFallback: boolean;
   private llmApiKey: string;
 
   constructor(
@@ -81,6 +85,8 @@ export class AgentClient {
       this.fallbackProvider = "gemini";
       this.fallbackModel = "gemini-3.1-flash-lite-preview";
       this.enabledProviders = ["gemini", "bedrock"];
+      this.providerSettings = [];
+      this.enableProviderFallback = true;
       this.llmApiKey = "";
     } else if (settings) {
       this.agentAssignments = settings.agents ?? [];
@@ -89,12 +95,16 @@ export class AgentClient {
       this.fallbackProvider = (firstEnabled?.providerId as ProviderId) ?? "gemini";
       this.fallbackModel = firstEnabled?.defaultModelId ?? "gemini-3.1-flash-lite-preview";
       this.enabledProviders = enabled.map((p) => p.providerId as ProviderId);
+      this.providerSettings = settings.providers;
+      this.enableProviderFallback = settings.enableProviderFallback ?? true;
       this.llmApiKey = firstEnabled?.apiKeyRef ?? "";
     } else {
       this.agentAssignments = [];
       this.fallbackProvider = "gemini";
       this.fallbackModel = "gemini-3.1-flash-lite-preview";
       this.enabledProviders = ["gemini", "bedrock"];
+      this.providerSettings = [];
+      this.enableProviderFallback = true;
       this.llmApiKey = "";
     }
   }
@@ -193,6 +203,9 @@ export class AgentClient {
     if (this.mode === "mock") {
       return mockSearchReferences(request);
     }
+
+    // Wait for server to be ready before making API calls
+    await waitForServerReady(this.gatewayUrl);
 
     const searchResolved = options?.providerId && options?.modelId
       ? { providerId: options.providerId, modelId: options.modelId }
@@ -363,14 +376,30 @@ export class AgentClient {
     prompt: string,
     meta: { caseId: string; moduleScope: string; providerId?: string; modelId?: string; signal?: AbortSignal | null }
   ): Promise<T> {
+    // Wait for server to be ready before making API calls
+    await waitForServerReady(this.gatewayUrl);
+
     const resolved = meta.providerId && meta.modelId
       ? { providerId: meta.providerId as ProviderId, modelId: meta.modelId }
       : this.resolveAgent(agent) ?? { providerId: this.fallbackProvider, modelId: this.fallbackModel };
 
+    const modelFallbacks: Partial<Record<ProviderId, string[]>> = {};
+    const enableModelFallback: Partial<Record<ProviderId, boolean>> = {};
+    for (const p of this.providerSettings) {
+      modelFallbacks[p.providerId] = p.modelFallbacks ?? p.modelIds;
+      enableModelFallback[p.providerId] = p.enableModelFallback ?? true;
+    }
+
+    const providerPreference = this.enableProviderFallback
+      ? [resolved.providerId, ...this.enabledProviders.filter((p) => p !== resolved.providerId)]
+      : [resolved.providerId];
+
     const request: AiRunRequest = {
       agent,
-      providerPreference: [resolved.providerId, ...this.enabledProviders.filter((p) => p !== resolved.providerId)],
+      providerPreference: providerPreference as ProviderId[],
       modelId: resolved.modelId,
+      modelFallbacks,
+      enableModelFallback,
       prompt,
       sanitized: false,
       metadata: {
@@ -399,6 +428,7 @@ export class AgentClient {
       const errorBody = await res.json().catch(() => ({ error: { message: res.statusText } }));
       const msg = errorBody.error?.message ?? `Gateway error: ${res.status}`;
       const attempts = errorBody.attempts as AiRunResponse["attempts"] | undefined;
+      this.trackProviderErrors(attempts, agent, meta.caseId);
       const errorType = classifyGatewayError(res.status, errorBody, attempts);
       const detail = attempts?.length
         ? ` (${attempts.map((a) => `${a.providerId}: ${a.errorCode ?? "failed"}`).join("; ")})`
@@ -410,6 +440,7 @@ export class AgentClient {
     if (!data.ok) {
       const msg = data.error?.message ?? "Gateway returned error";
       const attempts = data.attempts;
+      this.trackProviderErrors(attempts, agent, meta.caseId);
       const errorType = classifyGatewayError(res.status, data, attempts);
       const detail = attempts?.length
         ? ` (${attempts.map((a) => `${a.providerId}: ${a.errorCode ?? "failed"}`).join("; ")})`
@@ -449,11 +480,39 @@ export class AgentClient {
     throw new Error("Empty response from gateway");
   }
 
+  private trackProviderErrors(
+    attempts: AiRunResponse["attempts"] | undefined,
+    agent: string,
+    caseId: string
+  ): void {
+    if (!attempts || attempts.length === 0) return;
+    try {
+      const store = useSettingsStore.getState();
+      for (const a of attempts) {
+        if (a.ok) continue;
+        store.addProviderError({
+          providerId: a.providerId as ProviderId,
+          errorCode: a.errorCode ?? "unknown",
+          message: `Provider ${a.providerId} failed: ${a.errorCode ?? "unknown error"}`,
+          timestamp: new Date().toISOString(),
+          read: false,
+          agent,
+          caseId
+        } as Omit<ProviderErrorMessage, "id">);
+      }
+    } catch {
+      // Silently ignore errors during error tracking
+    }
+  }
+
   private async callGatewayMock<T>(
     agent: AiRunRequest["agent"],
     caseId: string,
     moduleScope: string
   ): Promise<T> {
+    // Wait for server to be ready before making API calls
+    await waitForServerReady(this.gatewayUrl);
+
     const res = await fetch(`${this.gatewayUrl}/ai/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
