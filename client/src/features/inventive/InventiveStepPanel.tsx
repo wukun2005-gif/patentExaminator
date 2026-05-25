@@ -116,8 +116,27 @@ export function InventiveStepPanel({
 
       const response = await runInventive(request, { signal: controller.signal });
 
-      if (!isMountedRef.current || controller.signal.aborted) return;
+if (!isMountedRef.current || controller.signal.aborted) return;
       const appliedApplicantArguments = response.applicantArguments ?? applicantArguments;
+
+      // Generate examinerResponse if not provided by AI
+      let generatedResponse = response.examinerResponse;
+      if (!generatedResponse) {
+        const parts = [
+          `【候选结论】${ASSESSMENT_LABELS[response.candidateAssessment] ?? response.candidateAssessment}`,
+          "",
+          ...(response.motivationEvidence.length > 0
+            ? ["【技术启示】", ...response.motivationEvidence.map((e) =>
+                `- ${e.label}${e.quote ? `：「${e.quote}」` : ""} (${e.confidence})`
+              ), ""]
+            : []),
+          ...(response.cautions.length > 0
+            ? ["【注意事项】", ...response.cautions.map((c) => `- ${c}`), ""]
+            : []),
+          response.legalCaution ? `(${response.legalCaution})` : ""
+        ];
+        generatedResponse = parts.join("\n");
+      }
 
       const newAnalysis: InventiveStepAnalysis = {
         id: `inventive-${caseId}-${claimNumber}`,
@@ -132,8 +151,8 @@ export function InventiveStepPanel({
         candidateAssessment: response.candidateAssessment,
         cautions: response.cautions,
         legalCaution: response.legalCaution,
+        examinerResponse: generatedResponse,
         ...(appliedApplicantArguments ? { applicantArguments: appliedApplicantArguments } : {}),
-        ...(response.examinerResponse ? { examinerResponse: response.examinerResponse } : {}),
         ...(response.closestPriorArtId ? { closestPriorArtId: response.closestPriorArtId } : {}),
         ...(response.objectiveTechnicalProblem
           ? { objectiveTechnicalProblem: response.objectiveTechnicalProblem }
@@ -149,24 +168,7 @@ export function InventiveStepPanel({
       setSelectedClosestId(response.closestPriorArtId ?? "");
       setSelectedDistinguishing(response.distinguishingFeatureCodes);
       setTechProblem(response.objectiveTechnicalProblem ?? "");
-      if (response.examinerResponse) {
-        setExaminerResponse(response.examinerResponse);
-      } else {
-        const parts = [
-          `【候选结论】${ASSESSMENT_LABELS[response.candidateAssessment] ?? response.candidateAssessment}`,
-          "",
-          ...(response.motivationEvidence.length > 0
-            ? ["【技术启示】", ...response.motivationEvidence.map((e) =>
-                `- ${e.label}${e.quote ? `：「${e.quote}」` : ""} (${e.confidence})`
-              ), ""]
-            : []),
-          ...(response.cautions.length > 0
-            ? ["【注意事项】", ...response.cautions.map((c) => `- ${c}`), ""]
-            : []),
-          response.legalCaution ? `(${response.legalCaution})` : ""
-        ];
-        setExaminerResponse(parts.join("\n"));
-      }
+      setExaminerResponse(generatedResponse);
     } finally {
       abortControllersRef.current.delete("inventive");
       if (isMountedRef.current) setLoading(false);
