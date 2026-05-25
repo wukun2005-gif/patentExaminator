@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate, Outlet, useParams } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "./components/AppShell";
 import { ShellPlaceholder } from "./components/ShellPlaceholder";
 import { NewCasePage } from "./features/case/NewCasePage";
@@ -105,10 +105,22 @@ export function NoveltyWrapper() {
   const { settings } = useSettingsStore();
   const { officeActionAnalysis, argumentMappings } = useOpinionStore();
   const { documents } = useDocumentsStore();
-  const comparison = comparisons.find((c) => c.caseId === caseId);
   const claimNumber = currentCase?.targetClaimNumber ?? 1;
   const features = claimFeatures.filter((f) => f.caseId === caseId && f.claimNumber === claimNumber);
   const caseRefs = references.filter((r) => r.caseId === caseId);
+  const caseComparisons = comparisons.filter((c) => c.caseId === caseId);
+  const [selectedComparisonId, setSelectedComparisonId] = useState<string>("");
+  const comparisonIds = caseComparisons.map(c => c.id).join(",");
+
+  useEffect(() => {
+    const ids = comparisonIds ? comparisonIds.split(",") : [];
+    if (ids.length > 0 && !ids.includes(selectedComparisonId)) {
+      setSelectedComparisonId(ids[ids.length - 1]!);
+    }
+    if (ids.length === 0 && selectedComparisonId !== "") {
+      setSelectedComparisonId("");
+    }
+  }, [comparisonIds, selectedComparisonId, caseComparisons]);
 
   // DEBUG: 记录 NoveltyWrapper 状态
   debugNoveltyLog("渲染状态:", {
@@ -118,8 +130,9 @@ export function NoveltyWrapper() {
     caseRefsCount: caseRefs.length,
     caseRefsIds: caseRefs.map(r => r.id),
     featuresCount: features.length,
-    comparisonsCount: comparisons.length,
-    hasComparison: !!comparison
+    comparisonsCount: caseComparisons.length,
+    hasComparisons: caseComparisons.length > 0,
+    selectedComparisonId
   });
 
   const noveltyArgumentCodes = new Set(
@@ -136,6 +149,13 @@ export function NoveltyWrapper() {
   );
   const amendedClaimText = amendedDoc?.extractedText;
 
+  const activeComparison = caseComparisons.find(c => c.id === selectedComparisonId);
+
+  const getRefLabel = (referenceId: string) => {
+    const ref = caseRefs.find(r => r.id === referenceId);
+    return ref?.title ?? ref?.publicationNumber ?? ref?.fileName ?? referenceId;
+  };
+
   return (
     <>
       <NoveltyAgentTrigger
@@ -150,8 +170,25 @@ export function NoveltyWrapper() {
           return client.runNovelty(request, { signal: options?.signal ?? null });
         }}
       />
-      {comparison ? (
-        <NoveltyComparisonTable comparisonId={comparison.id} />
+      {caseComparisons.length > 0 ? (
+        <>
+          <div className="novelty-comparison-tabs" data-testid="novelty-comparison-tabs">
+            {caseComparisons.map((comp) => (
+              <button
+                key={comp.id}
+                type="button"
+                className={`novelty-comparison-tab${comp.id === selectedComparisonId ? " novelty-comparison-tab--active" : ""}`}
+                onClick={() => setSelectedComparisonId(comp.id)}
+                data-testid={`novelty-tab-${comp.referenceId}`}
+              >
+                {getRefLabel(comp.referenceId)}
+              </button>
+            ))}
+          </div>
+          {activeComparison ? (
+            <NoveltyComparisonTable comparisonId={activeComparison.id} />
+          ) : null}
+        </>
       ) : (
         <div data-testid="novelty-placeholder">
           <p>请先在权利要求特征表中生成特征拆解，然后选择对比文件运行新颖性分析。</p>
@@ -208,6 +245,12 @@ export function InventiveWrapper() {
 
 export function InterpretWrapper() {
   const { caseId } = useParams<{ caseId: string }>();
+  // Scroll to top when navigating to a new case's interpret page
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo(0, 0);
+    }
+  }, [caseId]);
   const { documents } = useDocumentsStore();
   const { references } = useReferencesStore();
   const { settings } = useSettingsStore();
