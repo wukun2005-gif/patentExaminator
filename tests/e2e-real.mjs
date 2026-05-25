@@ -153,9 +153,7 @@ const BASE = process.env.TEST_BASE || "http://localhost:3000/api";
 const GEMINI_KEY = process.env.GEMINI_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const SERP_API_KEY = process.env.SerpAPI_KEY;
-const BEDROCK_API_KEY = process.env.Bedrock_API_KEY;
 const GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || "gemini-3.1-flash-lite-preview";
-const BEDROCK_FALLBACK_MODEL_ID = process.env.BEDROCK_FALLBACK_MODEL_ID || "qwen.qwen3-vl-235b-a22b-instruct";
 const AI_RATE_LIMIT_DELAY = Number(process.env.GEMINI_RATE_LIMIT_DELAY) || 8000;
 const SEARCH_RATE_LIMIT_DELAY = Number(process.env.SEARCH_RATE_LIMIT_DELAY) || 15000;
 
@@ -442,7 +440,7 @@ function isAuthError(status) {
 
 // ── Schema Validation Helpers ────────────────────────────────────────
 
-function validateCitation(obj) {
+function _validateCitation(obj) {
   return typeof obj?.label === "string"
     && ["high", "medium", "low"].includes(obj?.confidence);
 }
@@ -564,7 +562,7 @@ function validateDefectsOutput(data) {
   if (!Array.isArray(data.defects)) errors.push("defects must be array");
   else {
     const validSeverities = ["error", "warning", "info"];
-    const validCategories = ["新颖性", "创造性", "清楚性", "支持", "修改超范围", "其他"];
+    const _validCategories = ["新颖性", "创造性", "清楚性", "支持", "修改超范围", "其他"];
     for (const d of data.defects) {
       if (typeof d.code !== "string") errors.push(`defect missing code`);
       if (typeof d.description !== "string") errors.push(`defect missing description`);
@@ -601,7 +599,7 @@ function validateInterpretOutput(data) {
 async function runRealAiAgentTest(label, agent, prompt, metadata, onResponse) {
   const body = {
     agent,
-    providerPreference: ["gemini", "bedrock"],
+    providerPreference: ["gemini", "openrouter"],
     modelId: GEMINI_MODEL_ID,
     prompt,
     sanitized: false,
@@ -664,51 +662,80 @@ async function runRealAiAgentTest(label, agent, prompt, metadata, onResponse) {
     }
   }
 
-  if (!BEDROCK_API_KEY) {
-    log(`${label} Bedrock fallback`, false, "BEDROCK_API_KEY not set");
-    return null;
+  const OPENROUTER_FALLBACK_MODELS = [
+    { id: "deepseek/deepseek-v4-flash:free", label: "DeepSeek V4" },
+    { id: "z-ai/glm-4.5-air:free", label: "GLM-4.5" },
+    { id: "qwen/qwen3-coder:free", label: "Qwen3 Coder" },
+    { id: "arcee-ai/trinity-large-thinking:free", label: "Trinity Large" },
+    { id: "google/gemma-4-31b-it:free", label: "Gemma-4" },
+    { id: "qwen/qwen3-next-80b-a3b-instruct:free", label: "Qwen3 Next" },
+    { id: "minimax/minimax-m2.5:free", label: "MiniMax M2.5" },
+    { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", label: "Nemotron" },
+    { id: "openai/gpt-oss-120b:free", label: "GPT-OSS" },
+  ];
+  const OPENROUTER_MAX_ATTEMPTS_PER_MODEL = 3;
+
+  for (const { id: openrouterModelId, label: openrouterLabel } of OPENROUTER_FALLBACK_MODELS) {
+    console.log(`  [${label}] switching to OpenRouter: ${openrouterLabel} (${openrouterModelId})`);
+    for (let openrouterAttempt = 0; openrouterAttempt < OPENROUTER_MAX_ATTEMPTS_PER_MODEL; openrouterAttempt++) {
+      try {
+        if (openrouterAttempt > 0) {
+          const waitMs = 10000 + openrouterAttempt * 5000;
+          console.log(`  [${label}] OpenRouter ${openrouterLabel} attempt ${openrouterAttempt + 1}/${OPENROUTER_MAX_ATTEMPTS_PER_MODEL}, waiting ${waitMs}ms...`);
+          await delay(waitMs);
+        }
+        const openrouterBody = {
+          ...body,
+          providerPreference: ["openrouter"],
+          modelId: openrouterModelId,
+        };
+        const res = await postJSON("/ai/run", openrouterBody);
+        const data = await res.json();
+
+        if (!data.ok) {
+          const errMsg = data.error?.message || "unknown error";
+          if (isRetryableErrorText(errMsg) && openrouterAttempt < OPENROUTER_MAX_ATTEMPTS_PER_MODEL - 1) {
+            console.log(`  [${label}] OpenRouter ${openrouterLabel} retryable error: ${errMsg}`);
+            continue;
+          }
+          console.log(`  [${label}] OpenRouter ${openrouterLabel} failed: ${errMsg}`);
+          break;
+        }
+
+        log(`${label} ok (OpenRouter)`, true, `model=${openrouterLabel}`);
+
+        if (data.ok && Array.isArray(data.structureErrors) && data.structureErrors.length > 0) {
+          log(`${label} (OpenRouter) output quality`, false,
+            `structure validation failed: ${data.structureErrors.join("; ")}`);
+        }
+
+        if (data.tokenUsage) {
+          log(`${label} token usage`, typeof data.tokenUsage.input === "number",
+            `in=${data.tokenUsage.input}, out=${data.tokenUsage.output}`);
+        }
+
+        if (onResponse) onResponse(data);
+
+        if (data.outputJson) {
+          const text = typeof data.outputJson === "string" ? data.outputJson : JSON.stringify(data.outputJson);
+          log(`${label} output not empty`, text.length > 5,
+            `length=${text.length}`);
+        }
+
+        return data;
+      } catch (err) {
+        if (openrouterAttempt < OPENROUTER_MAX_ATTEMPTS_PER_MODEL - 1) {
+          console.log(`  [${label}] OpenRouter ${openrouterLabel} error: ${err.message}, retrying...`);
+          continue;
+        }
+        console.log(`  [${label}] OpenRouter ${openrouterLabel} exhausted after ${OPENROUTER_MAX_ATTEMPTS_PER_MODEL} attempts: ${err.message}`);
+        break;
+      }
+    }
   }
 
-  console.log(`  [${label}] switching to Bedrock: ${BEDROCK_FALLBACK_MODEL_ID}`);
-  try {
-    const bedrockBody = {
-      ...body,
-      providerPreference: ["bedrock"],
-      modelId: BEDROCK_FALLBACK_MODEL_ID,
-    };
-    const res = await postJSON("/ai/run", bedrockBody);
-    const data = await res.json();
-
-    if (!data.ok) {
-      log(`${label} Bedrock fallback`, false, data.error?.message || "unknown error");
-      return null;
-    }
-
-    log(`${label} ok (Bedrock)`, true, `model=${BEDROCK_FALLBACK_MODEL_ID}`);
-
-    if (data.ok && Array.isArray(data.structureErrors) && data.structureErrors.length > 0) {
-      log(`${label} (Bedrock) output quality`, false,
-        `structure validation failed: ${data.structureErrors.join("; ")}`);
-    }
-
-    if (data.tokenUsage) {
-      log(`${label} token usage`, typeof data.tokenUsage.input === "number",
-        `in=${data.tokenUsage.input}, out=${data.tokenUsage.output}`);
-    }
-
-    if (onResponse) onResponse(data);
-
-    if (data.outputJson) {
-      const text = typeof data.outputJson === "string" ? data.outputJson : JSON.stringify(data.outputJson);
-      log(`${label} output not empty`, text.length > 5,
-        `length=${text.length}`);
-    }
-
-    return data;
-  } catch (err) {
-    log(`${label} Bedrock fallback`, false, err.message);
-    return null;
-  }
+  log(`${label} all providers exhausted`, false);
+  return null;
 }
 
 // ── Mock Request Builder ─────────────────────────────────────────────
@@ -960,6 +987,29 @@ async function testMockTranslate_G1() {
 
   const translatedText = data.outputJson?.translatedText;
   log("Mock Translate G1 translatedText non-empty", typeof translatedText === "string" && translatedText.length > 0);
+}
+
+// ── Mock: Case Field Extraction ──────────────────────────────────────
+
+async function testMockExtractCaseFields_G1() {
+  const res = await postJSON("/ai/run", mockRequest("extract-case-fields", "g1-led", "case"));
+  const data = await res.json();
+  log("Mock ExtractCaseFields G1 ok", data.ok === true, `ok=${data.ok}`);
+  log("Mock ExtractCaseFields G1 has outputJson", data.outputJson != null);
+  log("Mock ExtractCaseFields G1 no structureErrors",
+    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
+    `structureErrors=${JSON.stringify(data.structureErrors)}`);
+
+  const result = validateExtractCaseFieldsOutput(data.outputJson);
+  log("Mock ExtractCaseFields G1 schema valid", result.valid, result.errors.join("; "));
+
+  const claims = data.outputJson?.claims;
+  log("Mock ExtractCaseFields G1 has claims", Array.isArray(claims) && claims.length > 0,
+    `claims=${JSON.stringify(claims)}`);
+
+  const title = data.outputJson?.title;
+  log("Mock ExtractCaseFields G1 has title", typeof title === "string" && title.length > 0,
+    `title=${title}`);
 }
 
 // ── Mock: Classify Documents ────────────────────────────────────────
@@ -2393,6 +2443,10 @@ async function main() {
       // Interpret
       console.log("\n--- Interpret (Mock) ---");
       await maybe(testMockInterpret_G1);
+
+      // Case Field Extraction
+      console.log("\n--- Case Field Extraction (Mock) ---");
+      await maybe(testMockExtractCaseFields_G1);
 
       // Reexamination Agents
       console.log("\n--- Reexamination Agents (Mock) ---");

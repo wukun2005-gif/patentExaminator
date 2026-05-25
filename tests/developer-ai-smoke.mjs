@@ -10,7 +10,7 @@
  *
  * 环境变量：
  *   MODEL_ID              - 模型 ID（默认读取 .env 中的兜底模型）
- *   PROVIDER_PREFERENCE   - provider 优先级，逗号分隔（默认 "bedrock"）
+ *   PROVIDER_PREFERENCE   - provider 优先级，逗号分隔（默认 "openrouter"）
  *   FALLBACK_MODELS       - 备选模型列表，逗号分隔（默认与 MODEL_ID 相同）
  *   GEMINI_KEY            - （可选）仅用于 Gemini 模型列表接口测试
  *   TEST_BASE             - 测试服务器地址（默认 http://localhost:3000/api）
@@ -44,11 +44,24 @@ try {
 
 // ── 常量（优先级：环境变量 > .env > 硬编码兜底） ──
 const BASE = process.env.TEST_BASE || "http://localhost:3000/api";
-const MODEL_ID = process.env.MODEL_ID || process.env.GEMINI_MODEL_ID || envVars.MODEL_ID || envVars.GEMINI_MODEL_ID || "qwen.qwen3-vl-235b-a22b-instruct";
-const PROVIDER_PREFERENCE = (process.env.PROVIDER_PREFERENCE || "bedrock").split(",").map(s => s.trim()).filter(Boolean);
+const MODEL_ID = process.env.MODEL_ID || envVars.MODEL_ID || "deepseek/deepseek-v4-flash:free";
+const PROVIDER_PREFERENCE = (process.env.PROVIDER_PREFERENCE || "openrouter").split(",").map(s => s.trim()).filter(Boolean);
+const OPENROUTER_FALLBACK_MODELS = [
+  "deepseek/deepseek-v4-flash:free",
+  "z-ai/glm-4.5-air:free",
+  "qwen/qwen3-coder:free",
+  "arcee-ai/trinity-large-thinking:free",
+  "google/gemma-4-31b-it:free",
+  "qwen/qwen3-next-80b-a3b-instruct:free",
+  "minimax/minimax-m2.5:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  "openai/gpt-oss-120b:free",
+];
 const FALLBACK_MODELS = (
-  process.env.FALLBACK_MODELS || MODEL_ID
-).split(",").map(s => s.trim()).filter(Boolean);
+  process.env.FALLBACK_MODELS
+    ? process.env.FALLBACK_MODELS.split(",").map(s => s.trim()).filter(Boolean)
+    : OPENROUTER_FALLBACK_MODELS
+);
 const GEMINI_KEY = process.env.GEMINI_KEY || envVars.GEMINI_KEY || "";
 
 let currentModelIndex = 0;
