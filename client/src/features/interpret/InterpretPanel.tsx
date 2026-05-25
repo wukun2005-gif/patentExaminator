@@ -136,7 +136,7 @@ export function InterpretPanel({
   const [expandedDocuments, setExpandedDocuments] = useState<ExpandedStateMap>({});
   const [isCombinedReinterpreting, setIsCombinedReinterpreting] = useState(false);
   const [systemicError, setSystemicError] = useState<{ message: string; guidance: string } | null>(null);
-  const autoTriggered = useRef<Record<string, boolean>>({});
+  const [isBatchInterpreting, setIsBatchInterpreting] = useState(false);
   const translateTriggered = useRef<Record<string, boolean>>({});
   // Track in-flight requests for cancellation on unmount
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
@@ -164,7 +164,6 @@ export function InterpretPanel({
         summary: persistedSummary ?? legacySummary ?? cardStates[doc.id]?.summary ?? ""
       };
       nextExpanded[doc.id] = persistedExpanded[doc.id] ?? false;
-      autoTriggered.current[doc.id] = Boolean(persistedSummary ?? legacySummary);
       translateTriggered.current[doc.id] = false;
     }
     setCardStates(nextStates);
@@ -233,16 +232,6 @@ export function InterpretPanel({
       if (lang !== "zh" && runTranslate && !translateTriggered.current[doc.id]) {
         translateTriggered.current[doc.id] = true;
         void doTranslate(doc);
-      }
-
-      if (
-        doc.text &&
-        !persistedSummaries[doc.id] &&
-        !(doc.role === "application" && persistedSummaries[LEGACY_INTERPRET_KEY]) &&
-        !autoTriggered.current[doc.id]
-      ) {
-        autoTriggered.current[doc.id] = true;
-        void doInterpret(doc);
       }
     });
   }, [documents, persistedSummaries, runTranslate]);
@@ -349,6 +338,21 @@ export function InterpretPanel({
     }
   }, [caseId, documents, runInterpret, setInterpretSummary]);
 
+  const handleBatchInterpret = async () => {
+    setIsBatchInterpreting(true);
+    try {
+      for (const doc of documents) {
+        if (isMountedRef.current) {
+          await doInterpret(doc);
+        }
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsBatchInterpreting(false);
+      }
+    }
+  };
+
   const updateSummary = (documentId: string, summary: string) => {
     setCardStates((prev) => ({
       ...prev,
@@ -409,6 +413,27 @@ export function InterpretPanel({
         <>
           <section className="interpret-overview" data-testid="interpret-overview">
             <h3>案件文件总览</h3>
+          {(() => {
+            const hasUninterpreted = documents.some((doc) => !(cardStates[doc.id]?.summary?.trim() || cardStates[doc.id]?.isLoading));
+            if (!hasUninterpreted) return null;
+            return (
+              <div style={{ margin: "12px 0" }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleBatchInterpret}
+                  disabled={isBatchInterpreting}
+                  data-testid="btn-start-batch-interpret"
+                  style={{ fontSize: "1em", padding: "10px 24px" }}
+                >
+                  {isBatchInterpreting ? "AI 解读中…" : "开始文档解读"}
+                </button>
+                <span style={{ marginLeft: 12, color: "#888", fontSize: "0.9em" }}>
+                  点击后将依次解读所有文件，完成后显示综合汇总
+                </span>
+              </div>
+            );
+          })()}
           {systemicError && (
             <div className="interpret-systemic-error" style={{
               background: "#fff3f3",
@@ -617,7 +642,7 @@ export function InterpretPanel({
                             disabled={!doc.text || state.isLoading}
                             data-testid={`btn-reinterpret-${doc.id}`}
                           >
-                            {state.isLoading ? "解读中…" : "重新解读"}
+                            {state.isLoading ? "解读中…" : (state.summary.trim() ? "重新解读" : "开始解读")}
                           </button>
                         </div>
                       </>
@@ -630,7 +655,7 @@ export function InterpretPanel({
                               ? "AI 解读中，完成后可展开查看。"
                               : state.error
                                 ? "解读失败，点击展开查看详情。"
-                                : "尚未开始解读。"}
+                                : "点击开始文档解读，AI 将自动分析并生成解读内容。"}
                         </span>
                         {!state.isLoading && (
                           <button
@@ -639,7 +664,7 @@ export function InterpretPanel({
                             disabled={!doc.text}
                             data-testid={`btn-reinterpret-collapsed-${doc.id}`}
                           >
-                            重新解读
+                            {state.summary.trim() ? "重新解读" : "开始解读"}
                           </button>
                         )}
                       </div>
