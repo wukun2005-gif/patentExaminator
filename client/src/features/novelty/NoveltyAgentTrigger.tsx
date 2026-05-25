@@ -187,6 +187,9 @@ export function NoveltyAgentTrigger({
     return <p data-testid="novelty-no-references">未上传对比文件，跳过对照</p>;
   }
 
+  const selectedRef = selectedRefId ? references.find(r => r.id === selectedRefId) : undefined;
+  const selectedRefLabel = selectedRef?.title ?? selectedRef?.publicationNumber ?? selectedRef?.fileName ?? "D1";
+
   return (
     <div className="novelty-agent-trigger" data-testid="novelty-agent-trigger">
       <div>
@@ -217,7 +220,7 @@ export function NoveltyAgentTrigger({
         disabled={!selectedRefId || isLoading}
         data-testid={`btn-run-novelty-${selectedRefId || "none"}`}
       >
-        {isLoading ? "对照中..." : `对 ${selectedRefId ? "D1" : "—"} 进行新颖性对照`}
+        {isLoading ? "对照中..." : `对 ${selectedRefId ? selectedRefLabel : "—"} 进行新颖性对照`}
       </button>
 
       {error != null && (
