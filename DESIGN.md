@@ -1367,6 +1367,7 @@ Supabase（后端服务）
 
 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|---------|---------|------------|
+| 2026-05-25 | feat(nf-2): 文档解读手动触发 — 移除自动解读逻辑，新增顶部"开始文档解读"一键批处理按钮，单文件按钮根据摘要状态区分"开始解读"/"重新解读" | `client/src/features/interpret/InterpretPanel.tsx` | 待提交 |
 | 2026-05-24 | fix(bg-12): AI 配额不足无提示 — 新增共享错误展示库 (errorDisplay.tsx) 提供 formatAiErrorMessage 错误分类 + ErrorBanner 组件（compact/full 模式）；14 个 UI 组件统一使用 ErrorBanner 替代各自错误展示；服务端 AI 路由增加 quota-exceeded 特定 429 响应；新增 40 个测试用例（unit 23 + integration 3 + panel E2E 14） | `client/src/lib/errorDisplay.tsx`、`client/src/features/**/*.tsx`、`server/src/routes/ai.ts`、`server/src/providers/registry.ts`、`tests/unit/errorDisplay.test.tsx`、`tests/unit/panelErrors.test.tsx`、`tests/integration/gateway.test.ts` | b5355ad |
 | 2026-05-24 | fix(bg-11): 缺陷复查持久化 — 系统级根因修复。`loadCaseById()` 仅被 `CaseHistoryPanel` 调用，页面刷新时无法自动恢复 case 数据，影响所有模块（defects/novelty/inventive/draft/summary/opinion 等）。修复：AppShell 添加 `useEffect`，进入 case 页面时自动从 IndexedDB 恢复全部数据 | `client/src/components/AppShell.tsx` | 待提交 |
 | 2026-05-24 | fix(bg-5~bg-9): 多项复审意见草稿/简述 UI 修复。bg-5: category 英文改为中文 + 驳回理由卡片间距 CSS；bg-6: 审查意见简述 prompt 增加要求包含新颖性/创造性主要结论和关键依据；bg-7: conclusion 改为下拉选择 + supportingEvidence 可增删改；bg-8: "分析策略"标题改为"新颖性复核摘要"；bg-9: summary.body 添加 InlineEdit 支持编辑 | `client/src/features/draft/DraftMaterialPanel.tsx`、`client/src/features/summary/SummaryPanel.tsx`、`client/src/styles/app.css`、`client/src/agent/AgentClient.ts` | 待提交 |
