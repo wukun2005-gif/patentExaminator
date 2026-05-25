@@ -41,6 +41,9 @@ const FIXTURE_MAP: Record<string, Record<string, string>> = {
   translate: {
     "g1-led": "translate-g1.json",
   },
+  "extract-case-fields": {
+    "g1-led": "extract-case-fields-g1.json",
+  },
 };
 
 const FIXTURE_CACHE = new Map<string, unknown>();
