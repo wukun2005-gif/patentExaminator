@@ -1624,6 +1624,38 @@
   transform: rotate(0deg);
 }
 
+/* Novelty comparison tabs */
+.novelty-comparison-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--pex-color-border-default);
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.novelty-comparison-tab {
+  padding: 10px 18px;
+  background: none;
+  border: none;
+  font-size: var(--pex-font-size-body);
+  color: var(--pex-color-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.novelty-comparison-tab--active {
+  color: var(--pex-color-primary);
+  border-bottom-color: var(--pex-color-primary);
+  font-weight: var(--pex-font-weight-medium);
+}
+
+.novelty-comparison-tab:hover:not(.novelty-comparison-tab--active) {
+  color: var(--pex-color-text-secondary);
+}
+
 /* Claim chart & novelty tables */
 .claim-chart-table,
 .novelty-comparison-table {
