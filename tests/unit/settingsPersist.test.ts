@@ -182,4 +182,66 @@ describe("Settings persistence", () => {
     expect(restored.settings.providers[0]!.providerId).toBe("mimo");
     expect(restored.settings.mode).toBe("mock");
   });
+
+  it("readSettings returns enableProviderFallback from stored data", async () => {
+    mockGet.mockResolvedValueOnce({
+      id: "app",
+      mode: "real",
+      guidelineVersion: "2023",
+      providers: [
+        {
+          providerId: "mimo",
+          apiKeyRef: "test-key-123",
+          modelIds: ["MiMo-V2.5-Pro"],
+          defaultModelId: "MiMo-V2.5-Pro",
+          enabled: true
+        }
+      ],
+      agents: [],
+      persistKeysEncrypted: false,
+      enableProviderFallback: false
+    });
+
+    const result = await readSettings();
+    expect(result.enableProviderFallback).toBe(false);
+  });
+
+  it("readSettings defaults enableProviderFallback to true when not stored", async () => {
+    mockGet.mockResolvedValueOnce({
+      id: "app",
+      mode: "real",
+      guidelineVersion: "2023",
+      providers: [],
+      agents: [],
+      persistKeysEncrypted: false
+    });
+
+    const result = await readSettings();
+    expect(result.enableProviderFallback).toBe(true);
+  });
+
+  it("full cycle preserves enableProviderFallback", async () => {
+    const storeState = useSettingsStore.getState();
+    const newSettings = {
+      ...storeState.settings,
+      enableProviderFallback: false
+    };
+
+    storeState.setSettings(newSettings);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockPut).toHaveBeenCalledOnce();
+    const writtenData = mockPut.mock.calls[0]![1] as Record<string, unknown>;
+
+    mockGet.mockResolvedValueOnce(writtenData);
+
+    useSettingsStore.setState({
+      settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], persistKeysEncrypted: false },
+      isInitialized: false
+    });
+    await useSettingsStore.getState().loadFromDb();
+
+    const restored = useSettingsStore.getState();
+    expect(restored.settings.enableProviderFallback).toBe(false);
+  });
 });

@@ -75,7 +75,8 @@ const DEFAULT_SETTINGS: AppSettings = {
       enabled: true
     }
   ],
-  persistKeysEncrypted: false
+  persistKeysEncrypted: false,
+  enableProviderFallback: true
 };
 
 export async function readSettings(): Promise<AppSettings> {
@@ -90,10 +91,12 @@ export async function readSettings(): Promise<AppSettings> {
         providers: stored.providers,
         agents: stored.agents,
         searchProviders: stored.searchProviders ?? DEFAULT_SETTINGS.searchProviders,
-        persistKeysEncrypted: stored.persistKeysEncrypted
+        persistKeysEncrypted: stored.persistKeysEncrypted,
+        enableProviderFallback: stored.enableProviderFallback ?? true
       };
       if (stored.sanitizeRules) result.sanitizeRules = stored.sanitizeRules;
       if (stored.ocrQualityThresholds) result.ocrQualityThresholds = stored.ocrQualityThresholds;
+      if (stored.providerErrorMessages) result.providerErrorMessages = stored.providerErrorMessages;
       // Also sync to localStorage as backup
       try { localStorage.setItem(LS_KEY, JSON.stringify(result)); } catch { /* ignore */ }
       return result;
