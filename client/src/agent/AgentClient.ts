@@ -425,6 +425,16 @@ export class AgentClient {
       }
     };
 
+    console.log("[AgentClient] Calling gateway", {
+      agent,
+      providerPreference,
+      modelId: resolved.modelId,
+      enabledProviders: this.enabledProviders,
+      enableProviderFallback: this.enableProviderFallback,
+      hasProviderBaseUrls: Object.keys(providerBaseUrls).length > 0,
+      caseId: meta.caseId
+    });
+
     const doFetch = async (): Promise<Response> => {
       return fetch(`${this.gatewayUrl}/ai/run`, {
         method: "POST",

@@ -77,8 +77,14 @@ aiRouter.post("/ai/run", async (req, res) => {
     }
   }
 
-  // Filter to providers with keys
   const availableProviders = request.providerPreference.filter((p) => providerKeys.has(p));
+  logger.info("AI request received", {
+    agent: request.agent,
+    requestedProviders: request.providerPreference,
+    providersWithKeys: availableProviders,
+    providersMissingKeys: request.providerPreference.filter((p) => !providerKeys.has(p)),
+    modelId: request.modelId
+  });
 
   if (availableProviders.length === 0) {
     res.status(400).json({
@@ -100,8 +106,10 @@ aiRouter.post("/ai/run", async (req, res) => {
     // Create AbortController that listens for client disconnection
     const controller = new AbortController();
     req.on("close", () => {
-      controller.abort();
-      logger.info("Client disconnected, aborting AI request", { agent: request.agent });
+      if (!res.headersSent) {
+        controller.abort();
+        logger.info("Client disconnected, aborting AI request", { agent: request.agent });
+      }
     });
 
     const { response, attempts } = await registry.runWithFallback(
