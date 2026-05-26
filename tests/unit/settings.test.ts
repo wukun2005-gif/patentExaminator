@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import type { ProviderId } from "@shared/types/agents";
 
 describe("Settings module structure", () => {
   it("ProvidersConfigPanel can be imported", async () => {
@@ -18,6 +19,12 @@ describe("Settings module structure", () => {
     expect(mod.SettingsPage).toBeDefined();
     expect(typeof mod.SettingsPage).toBe("function");
   });
+
+  it("ProviderErrorBox can be imported", async () => {
+    const mod = await import("@client/features/settings/ProviderErrorBox");
+    expect(mod.ProviderErrorBox).toBeDefined();
+    expect(typeof mod.ProviderErrorBox).toBe("function");
+  });
 });
 
 describe("Settings slice", () => {
@@ -35,6 +42,58 @@ describe("Settings slice", () => {
     updateMode("real");
     expect(useSettingsStore.getState().settings.mode).toBe("real");
     updateMode("mock"); // Reset
+  });
+
+  it("can add provider error message and respects max limit", async () => {
+    const { useSettingsStore } = await import("@client/store");
+    const { addProviderError, setSettings, settings } = useSettingsStore.getState();
+
+    addProviderError({
+      providerId: "mimo" as ProviderId,
+      errorCode: "timeout",
+      message: "Provider mimo timed out",
+      timestamp: new Date().toISOString(),
+      read: false,
+      agent: "novelty",
+      caseId: "case-1"
+    });
+
+    const msgs = useSettingsStore.getState().settings.providerErrorMessages;
+    expect(msgs).toBeDefined();
+    expect(msgs!.length).toBe(1);
+    expect(msgs![0]!.providerId).toBe("mimo");
+    expect(msgs![0]!.errorCode).toBe("timeout");
+    expect(msgs![0]!.read).toBe(false);
+    expect(msgs![0]!.id).toBeDefined();
+    expect(typeof msgs![0]!.id).toBe("string");
+
+    setSettings({ ...settings, providerErrorMessages: [] });
+  });
+
+  it("provider error messages have unique ids", async () => {
+    const { useSettingsStore } = await import("@client/store");
+    const { addProviderError, setSettings, settings } = useSettingsStore.getState();
+
+    addProviderError({
+      providerId: "mimo" as ProviderId,
+      errorCode: "err-1",
+      message: "Error 1",
+      timestamp: new Date().toISOString(),
+      read: false
+    });
+    addProviderError({
+      providerId: "mimo" as ProviderId,
+      errorCode: "err-2",
+      message: "Error 2",
+      timestamp: new Date().toISOString(),
+      read: false
+    });
+
+    const msgs = useSettingsStore.getState().settings.providerErrorMessages ?? [];
+    expect(msgs.length).toBe(2);
+    expect(msgs[0]!.id).not.toBe(msgs[1]!.id);
+
+    setSettings({ ...settings, providerErrorMessages: [] });
   });
 
   it("can add provider", async () => {

@@ -4,6 +4,8 @@ export interface AiRunRequest {
   agent: "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat" | "defects" | "search-references" | "extract-case-fields" | "opinion-analysis" | "argument-analysis" | "reexam-draft" | "translate" | "classify-documents";
   providerPreference: ProviderId[];
   modelId: string;
+  modelFallbacks?: Partial<Record<ProviderId, string[]>>;
+  enableModelFallback?: Partial<Record<ProviderId, boolean>>;
   reasoningLevel?: "low" | "medium" | "high";
   prompt: string;
   expectedSchemaName?: string;

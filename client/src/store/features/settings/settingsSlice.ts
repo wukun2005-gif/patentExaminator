@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { AppMode } from "@shared/types/domain";
-import type { AppSettings } from "@shared/types/agents";
+import type { AppSettings, ProviderErrorMessage } from "@shared/types/agents";
 import { readSettings, writeSettings, syncProviderKeys } from "../../../lib/repositories/settingsRepo";
 
 export interface SettingsSlice {
@@ -12,6 +12,7 @@ export interface SettingsSlice {
   updateMode: (mode: AppMode) => void;
   setLoading: (v: boolean) => void;
   loadFromDb: () => Promise<void>;
+  addProviderError: (error: Omit<ProviderErrorMessage, "id">) => void;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -20,7 +21,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   providers: [],
   agents: [],
   searchProviders: [],
-  persistKeysEncrypted: false
+  persistKeysEncrypted: false,
+  enableProviderFallback: true,
+  providerErrorMessages: []
 };
 
 export const createSettingsSlice = (
@@ -49,6 +52,16 @@ export const createSettingsSlice = (
     });
   },
   setLoading: (v) => set(() => ({ isLoading: v })),
+  addProviderError: (error) => {
+    set((prev) => {
+      const id = `err-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const messages = prev.settings.providerErrorMessages ?? [];
+      const entry: ProviderErrorMessage = { ...error, id };
+      const updated = { ...prev.settings, providerErrorMessages: [entry, ...messages].slice(0, 50) };
+      writeSettings(updated).catch(console.error);
+      return { settings: updated };
+    });
+  },
   loadFromDb: async () => {
     try {
       const saved = await readSettings();

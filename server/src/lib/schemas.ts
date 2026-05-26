@@ -4,6 +4,8 @@ export const aiRunRequestSchema = z.object({
   agent: z.enum(["interpret", "claim-chart", "novelty", "inventive", "summary", "draft", "chat", "defects", "search-references", "extract-case-fields", "opinion-analysis", "argument-analysis", "reexam-draft", "translate", "classify-documents"]),
   providerPreference: z.array(z.string()).min(1),
   modelId: z.string().min(1),
+  modelFallbacks: z.record(z.string(), z.array(z.string())).optional(),
+  enableModelFallback: z.record(z.string(), z.boolean()).optional(),
   reasoningLevel: z.enum(["low", "medium", "high"]).optional(),
   prompt: z.string().min(1),
   expectedSchemaName: z.string().optional(),

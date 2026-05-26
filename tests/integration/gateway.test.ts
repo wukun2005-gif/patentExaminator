@@ -554,6 +554,40 @@ describe("aiRunRequestSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts optional model fallback fields", () => {
+    const result = aiRunRequestSchema.safeParse({
+      agent: "claim-chart",
+      providerPreference: ["mimo"],
+      modelId: "MiMo-V2.5-Pro",
+      prompt: "Analyze this claim",
+      sanitized: true,
+      metadata: { caseId: "test", moduleScope: "claim-chart", tokenEstimate: 100 },
+      modelFallbacks: { mimo: ["MiMo-V3-Flash", "MiMo-V2.5-Pro"] },
+      enableModelFallback: { mimo: true }
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelFallbacks).toEqual({ mimo: ["MiMo-V3-Flash", "MiMo-V2.5-Pro"] });
+      expect(result.data.enableModelFallback).toEqual({ mimo: true });
+    }
+  });
+
+  it("accepts request without fallback fields", () => {
+    const result = aiRunRequestSchema.safeParse({
+      agent: "claim-chart",
+      providerPreference: ["mimo"],
+      modelId: "MiMo-V2.5-Pro",
+      prompt: "Analyze this claim",
+      sanitized: true,
+      metadata: { caseId: "test", moduleScope: "claim-chart", tokenEstimate: 100 }
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelFallbacks).toBeUndefined();
+      expect(result.data.enableModelFallback).toBeUndefined();
+    }
+  });
 });
 
 describe("keyStore", () => {

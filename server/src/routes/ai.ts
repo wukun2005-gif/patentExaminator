@@ -97,14 +97,25 @@ aiRouter.post("/ai/run", async (req, res) => {
     const firstProvider = availableProviders[0]!;
     const apiKey = providerKeys.get(firstProvider)!;
 
+    // Create AbortController that listens for client disconnection
+    const controller = new AbortController();
+    req.on("close", () => {
+      controller.abort();
+      logger.info("Client disconnected, aborting AI request", { agent: request.agent });
+    });
+
     const { response, attempts } = await registry.runWithFallback(
       availableProviders as string[],
       {
         modelId: request.modelId,
         messages,
         maxTokens: 4096,
-        apiKey
-      }
+        apiKey,
+        signal: controller.signal
+      },
+      undefined,
+      request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
+      request.enableModelFallback as Partial<Record<string, boolean>> | undefined
     );
 
     const durationMs = Date.now() - startTime;

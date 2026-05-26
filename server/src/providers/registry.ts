@@ -59,7 +59,9 @@ export class ProviderRegistry {
   async runWithFallback(
     providerPreference: string[],
     req: ChatRequest,
-    mimoModelFallbacks?: string[]
+    mimoModelFallbacks?: string[],
+    modelFallbacks?: Partial<Record<string, string[]>>,
+    enableModelFallback?: Partial<Record<string, boolean>>
   ): Promise<{ response: ChatResponse; attempts: AttemptRecord[] }> {
     const attempts: AttemptRecord[] = [];
     let totalAttempts = 0;
@@ -72,9 +74,10 @@ export class ProviderRegistry {
         continue;
       }
 
-      // For mimo, try model fallbacks first
-      if (pid === "mimo") {
-        const models = mimoModelFallbacks ?? MIMO_MODEL_FALLBACKS;
+      const enabled = enableModelFallback?.[pid] ?? true;
+      const models = modelFallbacks?.[pid] ?? (pid === "mimo" ? (mimoModelFallbacks ?? MIMO_MODEL_FALLBACKS) : (pid === "gemini" ? GEMINI_MODEL_FALLBACKS : null));
+
+      if (enabled && models && models.length > 0) {
         for (const modelId of models) {
           totalAttempts++;
           if (totalAttempts > MAX_TOTAL_ATTEMPTS) {
@@ -95,32 +98,7 @@ export class ProviderRegistry {
             }
           }
         }
-        continue;
-      }
-
-      // For gemini, try model fallbacks first
-      if (pid === "gemini") {
-        const models = GEMINI_MODEL_FALLBACKS;
-        for (const modelId of models) {
-          totalAttempts++;
-          if (totalAttempts > MAX_TOTAL_ATTEMPTS) {
-            return {
-              response: buildMaxAttemptsError(attempts),
-              attempts
-            };
-          }
-          try {
-            const response = await adapter.chat({ ...req, modelId });
-            attempts.push({ providerId, ok: true });
-            return { response, attempts };
-          } catch (error) {
-            const errInfo = classifyError(error);
-            attempts.push({ providerId, ok: false, errorCode: errInfo.code });
-            if (errInfo.code === "auth-failed") {
-              return { response: buildErrorResponse(errInfo), attempts };
-            }
-          }
-        }
+        // All model fallbacks failed, try next provider
         continue;
       }
 
@@ -142,7 +120,6 @@ export class ProviderRegistry {
         if (errInfo.code === "auth-failed") {
           return { response: buildErrorResponse(errInfo), attempts };
         }
-        // For other errors, try next provider
       }
     }
 
@@ -172,13 +149,26 @@ export class ProviderRegistry {
       }
 
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        const timeoutController = new AbortController();
+        const timeout = setTimeout(() => timeoutController.abort(), TIMEOUT_MS);
+
+        // Merge client signal (for disconnection) with timeout signal
+        const clientSignal = req.signal;
+        if (clientSignal?.aborted) {
+          throw new Error("Request aborted by client");
+        }
+
+        // When client aborts, also abort the timeout controller
+        const onClientAbort = () => timeoutController.abort();
+        clientSignal?.addEventListener("abort", onClientAbort);
+
         try {
-          const response = await adapter.chat({ ...req, signal: controller.signal });
+          // Use timeout controller's signal so both client abort and timeout work
+          const response = await adapter.chat({ ...req, signal: timeoutController.signal });
           return response;
         } finally {
           clearTimeout(timeout);
+          clientSignal?.removeEventListener("abort", onClientAbort);
         }
       } catch (error) {
         lastError = error;

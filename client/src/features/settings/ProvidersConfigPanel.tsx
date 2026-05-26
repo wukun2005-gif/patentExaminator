@@ -4,6 +4,7 @@ import { PRESET_MODEL_PROVIDERS } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
 import { fetchModels } from "../../lib/api";
 import { DEFAULT_MODELS, getModelMeta } from "../../lib/modelCatalog";
+import { ProviderErrorBox } from "./ProviderErrorBox";
 
 const PROVIDER_EXPANDED_KEY = "pex-provider-expanded";
 const PROVIDER_ORDER_KEY = "pex-provider-order";
@@ -97,7 +98,8 @@ export function ProvidersConfigPanel() {
       modelIds: models,
       defaultModelId: models[0] ?? "",
       modelFallbacks: models,
-      enabled: false
+      enabled: false,
+      enableModelFallback: true
     };
   };
 
@@ -121,6 +123,7 @@ export function ProvidersConfigPanel() {
         defaultModelId: models[0] ?? "",
         modelFallbacks: models,
         enabled: false,
+        enableModelFallback: true,
         ...patch
       };
       setSettings({ ...settings, providers: [...settings.providers, conn] });
@@ -239,6 +242,18 @@ export function ProvidersConfigPanel() {
         配置 AI 服务商的 API Key 以启用模型连接。服务商列表由系统预置，不可自行添加。
       </p>
 
+      <div className="fallback-master-toggle">
+        <label className="toggle-label">
+          <input
+            type="checkbox"
+            checked={settings.enableProviderFallback ?? true}
+            onChange={() => setSettings({ ...settings, enableProviderFallback: !(settings.enableProviderFallback ?? true) })}
+            data-testid="toggle-provider-fallback"
+          />
+          启用 Provider 回退（失败时自动切换至下一个可用服务商）
+        </label>
+      </div>
+
       <div className="provider-cards">
         {sortedProviders.map((preset, index) => {
           const provider = ensureProvider(preset.id);
@@ -274,6 +289,15 @@ export function ProvidersConfigPanel() {
                   <span className="provider-card__desc">{preset.desc}</span>
                 </button>
                 <div className="provider-card__actions">
+                  <label className="toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={provider.enableModelFallback ?? true}
+                      onChange={() => updateProvider(preset.id, { enableModelFallback: !(provider.enableModelFallback ?? true) })}
+                      data-testid={`toggle-model-fallback-${preset.id}`}
+                    />
+                    Model 回退
+                  </label>
                   <label className="toggle-label">
                     <input
                       type="checkbox"
@@ -430,6 +454,8 @@ export function ProvidersConfigPanel() {
           );
         })}
       </div>
+
+      <ProviderErrorBox />
     </div>
   );
 }

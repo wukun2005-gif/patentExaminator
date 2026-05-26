@@ -21,6 +21,7 @@ export interface ProviderConnection {
   defaultModelId: string;
   modelFallbacks?: string[];
   enabled: boolean;
+  enableModelFallback?: boolean;
 }
 
 export type AgentKey = "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat" | "search-references" | "defects" | "extract-case-fields" | "opinion-analysis" | "argument-analysis" | "reexam-draft" | "classify-documents";
@@ -44,6 +45,18 @@ export interface SearchProviderConnection {
   enabled: boolean;
 }
 
+export interface ProviderErrorMessage {
+  id: string;
+  providerId: ProviderId;
+  modelId?: string;
+  errorCode: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  agent?: string;
+  caseId?: string;
+}
+
 export interface AppSettings {
   mode: AppMode;
   guidelineVersion: string;
@@ -53,6 +66,8 @@ export interface AppSettings {
   sanitizeRules?: Array<{ pattern: string; replace: string; note?: string }>;
   ocrQualityThresholds?: { good: number; poor: number };
   persistKeysEncrypted: boolean;
+  enableProviderFallback?: boolean;
+  providerErrorMessages?: ProviderErrorMessage[];
 }
 
 export interface PresetModelProvider {

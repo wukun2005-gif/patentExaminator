@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r25 · 2026-05-24</p>
+<p align="right">版本 v0.1.0-r27 · 2026-05-26</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -9,6 +9,8 @@
 | 版本 | 日期 | 变更摘要 |
 |------|------|---------|
 | v0.1.0-r25 | 2026-05-24 | nf-1: 新增 OpenCode Zen Provider — ProviderId 添加 "opencode"、PRESET_MODEL_PROVIDERS 添加 OpenCode Zen 条目、DEFAULT_MODELS 添加 opencode 模型列表、新增 OpencodeAdapter (OpenAI兼容)、registry 注册、OPENCODE_KEY 环境变量加载 | agents.ts, modelCatalog.ts, AgentsAssignmentPanel.tsx, opencode.ts, registry.ts, index.ts, .env.example |
+| v0.1.0-r26 | 2026-05-26 | bg-20 修复: 用户离开页面后 Agent 请求未取消 — server/src/routes/ai.ts 添加客户端断开监听，server/src/providers/registry.ts executeWithRetry 传递和响应 AbortSignal，确保客户端导航离开时服务器端AI请求正确取消 | ai.ts, registry.ts |
+| v0.1.0-r27 | 2026-05-26 | nf-4: AI Provider + Model ID 双Fallback配置 — AppSettings 新增 enableProviderFallback/providerErrorMessages、ProviderConnection 新增 enableModelFallback、AiRunRequest 新增 modelFallbacks/enableModelFallback、ProviderRegistry.runWithFallback 泛化为支持所有 provider 的 model 回退、settingsSlice 新增 addProviderError 方法、新增 ProviderErrorBox 组件展示错误消息、ProvidersConfigPanel 添加回退开关UI | agents.ts, api.ts, schemas.ts, registry.ts, ai.ts, settingsSlice.ts, ProvidersConfigPanel.tsx, ProviderErrorBox.tsx, app.css |
 | v0.1.0-r24 | 2026-05-24 | bg-11 举一反三: 3 模块空结果不持久化 — 新增 runMarkers IDB 存储 + 3 个 slice 的 ranCases 状态，修复 DefectPanel/ClaimChartTable/ArgumentMappingPanel 在 AI 返回空结果时刷新后显示"未运行"的问题 | defectsSlice.ts, claimsSlice.ts, opinionSlice.ts, DefectPanel.tsx, ClaimChartActions.tsx, ClaimChartTable.tsx, router.tsx, caseLoader.ts, runMarkerRepo.ts, indexedDb.ts |
 | v0.1.0-r23 | 2026-05-24 | bg-11: 缺陷复查持久化 — systemic fix: AppShell 自动恢复 case 数据（覆盖所有模块） | AppShell.tsx |
 | v0.1.0-r22 | 2026-05-24 | bg-10: 审查意见简述正文格式优化 — 新增 26 条 CSS 规则为摘要面板提供卡片化布局、正文排版（行高 1.8、段落间距、列表缩进）、帮助区样式、法律声明样式 | app.css |
