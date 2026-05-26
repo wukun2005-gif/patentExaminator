@@ -187,35 +187,19 @@ searchRouter.post("/search-references", async (req, res) => {
       searchQueries = [];
     }
 
-    // Fallback: if JSON parsing failed, extract meaningful lines or partial queries
+    // Fallback: if JSON parsing failed, extract meaningful lines
     if (searchQueries.length === 0) {
-      // First, try to extract quoted strings from incomplete JSON (handles truncation)
-      const partialMatches = rawText.match(/"([^"]{3,50})"/g);
-      if (partialMatches && partialMatches.length > 0) {
-        searchQueries = partialMatches
-          .map((m) => m.replace(/^"|"$/g, ""))
-          .filter((q) => {
-            if (/^(queries|query|title|summary|score|date|url|reason|publicationNumber|publicationDate|relevanceScore|recommendationReason|sourceUrl)$/i.test(q)) return false;
-            if (/^[{}[\]:,]/.test(q)) return false;
-            return true;
-          })
-          .slice(0, 5);
-      }
-
-      // If still no queries, try line-based extraction
-      if (searchQueries.length === 0) {
-        searchQueries = rawText
-          .split(/\n/)
-          .map((s) => s.replace(/^[-•*\d.)`\s]+/, "").trim())
-          .filter((s) => {
-            if (s.length < 3) return false;
-            if (s.startsWith("```")) return false;
-            if (/^[{}[\]":,]/.test(s)) return false;
-            if (/^(queries|query):/i.test(s)) return false;
-            return true;
-          })
-          .slice(0, 5);
-      }
+      searchQueries = rawText
+        .split(/\n/)
+        .map((s) => s.replace(/^[-•*\d.)`\s]+/, "").trim())
+        .filter((s) => {
+          if (s.length < 3) return false;
+          if (s.startsWith("```")) return false;
+          if (/^[{}[\]":,]/.test(s)) return false;
+          if (/^(queries|query):/i.test(s)) return false;
+          return true;
+        })
+        .slice(0, 5);
     }
 
     // Validate: each query must be at least 3 chars and not look like code
@@ -384,11 +368,10 @@ searchRouter.post("/search-references", async (req, res) => {
       return;
     }
 
-    // Parse LLM output — strip markdown code fences if present
+    // Parse LLM output
     let candidates: SearchReferencesCandidate[] = [];
     try {
       let jsonText = filterRes.text.trim();
-      // Remove ```json ... ``` or ``` ... ``` wrappers (relaxed patterns)
       const fencePatterns = [
         /^```(?:json)?\s*\n([\s\S]*?)\n\s*```$/m,
         /```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/,
@@ -397,52 +380,13 @@ searchRouter.post("/search-references", async (req, res) => {
         const m = jsonText.match(pat);
         if (m) { jsonText = m[1]!.trim(); break; }
       }
-      // Try to extract JSON array from the text
+
       const jsonMatch = jsonText.match(/\[[\s\S]*\]/) ?? jsonText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        // If no closing bracket found, try to repair truncated JSON
-        const openBracket = jsonText.indexOf("[");
-        if (openBracket !== -1) {
-          // Extract from opening [ to end, then try to close it
-          let partial = jsonText.slice(openBracket);
-          // Remove trailing incomplete element (after last complete })
-          const lastCompleteObj = partial.lastIndexOf("}");
-          if (lastCompleteObj !== -1) {
-            partial = partial.slice(0, lastCompleteObj + 1) + "]";
-          }
-          try {
-            const parsed = JSON.parse(partial);
-            const rawCandidates = Array.isArray(parsed) ? parsed : [];
-            logger.info("LLM filter returned (repaired)", { raw: rawCandidates.length });
-            candidates = rawCandidates
-              .filter((c: Record<string, unknown>) => c.title && c.publicationNumber)
-              .slice(0, request.maxResults)
-              .map((c: Record<string, unknown>) => ({
-                title: String(c.title),
-                publicationNumber: String(c.publicationNumber),
-                ...(c.publicationDate ? { publicationDate: String(c.publicationDate) } : {}),
-                summary: String(c.summary ?? ""),
-                relevanceScore: Number(c.relevanceScore) || 0,
-                recommendationReason: String(c.recommendationReason ?? ""),
-                ...(c.sourceUrl ? { sourceUrl: String(c.sourceUrl) } : {})
-              }));
-            logger.info("Final candidates", { count: candidates.length });
-          } catch {
-            logger.warn("Failed to parse repaired filter JSON", { partial: partial.slice(0, 200) });
-            // Fallback: extract individual candidates from raw text using regex
-            const fallbackCandidates = extractFallbackCandidates(filterRes.text);
-            if (fallbackCandidates.length > 0) {
-              candidates = fallbackCandidates.slice(0, request.maxResults);
-              logger.info("LLM filter repaired via fallback extraction", { count: candidates.length });
-            }
-          }
-        } else {
-          // No [ found at all, try regex fallback
-          const fallbackCandidates = extractFallbackCandidates(filterRes.text);
-          if (fallbackCandidates.length > 0) {
-            candidates = fallbackCandidates.slice(0, request.maxResults);
-            logger.info("LLM filter extracted via fallback (no brackets)", { count: candidates.length });
-          }
+        const fallbackCandidates = extractFallbackCandidates(filterRes.text);
+        if (fallbackCandidates.length > 0) {
+          candidates = fallbackCandidates.slice(0, request.maxResults);
+          logger.info("LLM filter extracted via fallback", { count: candidates.length });
         }
       } else {
         const parsed = JSON.parse(jsonMatch[0]);
@@ -464,6 +408,11 @@ searchRouter.post("/search-references", async (req, res) => {
       }
     } catch {
       logger.warn("Failed to parse LLM filter output as JSON", { rawText: filterRes.text.slice(0, 200) });
+      const fallbackCandidates = extractFallbackCandidates(filterRes.text);
+      if (fallbackCandidates.length > 0) {
+        candidates = fallbackCandidates.slice(0, request.maxResults);
+        logger.info("LLM filter extracted via catch fallback", { count: candidates.length });
+      }
     }
 
     // Enrich candidates with sourceUrl from the original search results.
