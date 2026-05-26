@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r28 · 2026-05-26</p>
+<p align="right">版本 v0.1.0-r29 · 2026-05-26</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -8,6 +8,8 @@
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|---------|
+| v0.1.0-r29 | 2026-05-26 | bg-21: serverReady 缓存失效与连接恢复 — 移除 localStorage 缓存（仅保留模块级缓存），新增 ECONNREFUSED 重试逻辑：在 callGateway 和 runSearchReferences 中，当 fetch 失败时自动清除缓存、强制检查服务器就绪并重试一次 | serverReady.ts, AgentClient.ts |
+| v0.1.0-r29 | 2026-05-26 | bg-25: 补充 BedrockAdapter 和 GeminiAdapter 的 baseUrl 支持 — 这两个适配器直接实现 ProviderAdapter 接口（不继承 OpenAICompatibleAdapter），因此 chat() 方法未使用 req.baseUrl，导致自定义 baseUrl 对 bedrock 和 gemini 不生效。修复两个 chat() 方法使用 req.baseUrl ?? defaultBaseUrl | bedrock.ts, gemini.ts |
 | v0.1.0-r28 | 2026-05-26 | bg-25: Provider 自定义 baseUrl 支持 — AiRunRequest 新增 providerBaseUrls 字段、ChatRequest 新增 baseUrl、AgentClient 收集 providerSettings.baseUrl 填入请求、ProviderRegistry.runWithFallback 传递 baseUrl 至 OpenAICompatibleAdapter.chat | api.ts, schemas.ts, AgentClient.ts, registry.ts, ai.ts, ProviderAdapter.ts |
 | v0.1.0-r28 | 2026-05-26 | td-4: 专利检索容错机制优化 — server/src/routes/search.ts JSON解析从4层简化为2层（移除截断JSON修复中间层）、查询词提取从3层简化为2层（移除引号字符串提取中间层），降低容错代码复杂度约60% | search.ts |
 | v0.1.0-r24 | 2026-05-24 | bg-11 举一反三: 3 模块空结果不持久化 — 新增 runMarkers IDB 存储 + 3 个 slice 的 ranCases 状态，修复 DefectPanel/ClaimChartTable/ArgumentMappingPanel 在 AI 返回空结果时刷新后显示"未运行"的问题 | defectsSlice.ts, claimsSlice.ts, opinionSlice.ts, DefectPanel.tsx, ClaimChartActions.tsx, ClaimChartTable.tsx, router.tsx, caseLoader.ts, runMarkerRepo.ts, indexedDb.ts |
