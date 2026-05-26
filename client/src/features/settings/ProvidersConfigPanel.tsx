@@ -200,6 +200,18 @@ export function ProvidersConfigPanel() {
 
     setProviderOrder(newOrder);
     saveProviderOrder(newOrder);
+
+    const providersMap = new Map(settings.providers.map((p) => [p.providerId, p]));
+    const reordered = newOrder
+      .filter((id) => providersMap.has(id))
+      .map((id) => providersMap.get(id)!);
+    for (const [id, p] of providersMap) {
+      if (!newOrder.includes(id)) {
+        reordered.push(p);
+      }
+    }
+    setSettings({ ...settings, providers: reordered });
+
     dragProviderItem.current = null;
     dragProviderOver.current = null;
   };

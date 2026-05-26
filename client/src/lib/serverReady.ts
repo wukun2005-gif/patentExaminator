@@ -8,7 +8,7 @@ async function checkServerHealth(url: string): Promise<boolean> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
     
-    const response = await fetch(`${url}/health`, {
+    const response = await fetch(url, {
       method: "GET",
       signal: controller.signal
     });

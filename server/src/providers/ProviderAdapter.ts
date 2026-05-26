@@ -1,5 +1,6 @@
 import type { ProviderId } from "@shared/types/agents";
 import type { MultimodalPart } from "@shared/types/domain";
+import { logger } from "../lib/logger.js";
 
 const NON_TEXT_PATTERNS = /embed|image|tts|audio|speech|whisper|dall|vision|moderation|rerank|code-search/i;
 
@@ -98,21 +99,39 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
       throw error;
     }
 
-    const data = (await res.json()) as {
-      choices: Array<{ message: { content: string } }>;
-      usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
-    };
+    const data = (await res.json()) as Record<string, unknown>;
+    const choices = Array.isArray(data.choices) ? data.choices : [];
+    const firstChoice = choices[0] as Record<string, unknown> | undefined;
+    const message = firstChoice?.message as Record<string, unknown> | undefined;
+    const text = (typeof message?.content === "string" ? message.content : "") as string;
 
-    const tokenUsage = data.usage
+    if (!text) {
+      const reasoningContent = typeof message?.reasoning_content === "string" ? message.reasoning_content : undefined;
+      logger.warn(`${this.id} returned empty or missing content in response`, {
+        model: req.modelId,
+        hasChoices: Array.isArray(data.choices),
+        choicesLength: choices.length,
+        firstChoiceKeys: firstChoice ? Object.keys(firstChoice) : [],
+        messageKeys: message ? Object.keys(message) : [],
+        contentType: typeof message?.content,
+        contentLen: typeof message?.content === "string" ? (message.content as string).length : -1,
+        hasReasoning: reasoningContent != null,
+        reasoningLen: reasoningContent?.length ?? -1,
+        finishReason: firstChoice?.finish_reason
+      });
+    }
+
+    const usage = data.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
+    const tokenUsage = usage
       ? {
-          input: data.usage.prompt_tokens,
-          output: data.usage.completion_tokens,
-          total: data.usage.total_tokens
+          input: usage.prompt_tokens ?? 0,
+          output: usage.completion_tokens ?? 0,
+          total: usage.total_tokens ?? 0
         }
       : undefined;
 
     return {
-      text: data.choices[0]?.message?.content ?? "",
+      text,
       ...(tokenUsage ? { tokenUsage } : {}),
       rawResponse: data
     };

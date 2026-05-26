@@ -1,5 +1,6 @@
 import type { ProviderId } from "@shared/types/agents";
 import type { ProviderAdapter, ChatRequest, ChatResponse } from "./ProviderAdapter.js";
+import { logger } from "../lib/logger.js";
 
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_MAX_RETRIES = 3;
@@ -192,9 +193,20 @@ export class GeminiAdapter implements ProviderAdapter {
         const data = await res.json() as {
           candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
           usageMetadata?: { promptTokenCount: number; candidatesTokenCount: number };
+          promptFeedback?: unknown;
         };
 
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+        if (!text) {
+          logger.warn("Gemini returned empty response", {
+            model: req.modelId,
+            hasCandidates: !!data.candidates,
+            candidateCount: data.candidates?.length ?? 0,
+            hasPromptFeedback: !!data.promptFeedback,
+            rawKeys: Object.keys(data)
+          });
+        }
         const usage = data.usageMetadata
           ? {
               input: data.usageMetadata.promptTokenCount,

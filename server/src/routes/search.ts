@@ -48,7 +48,10 @@ const searchRequestSchema = z.object({
   searchProviderId: z.string().optional(),
   searchApiKey: z.string().optional(),
   searchBaseUrl: z.string().optional(),
-  llmApiKey: z.string().optional()
+  llmApiKey: z.string().optional(),
+  modelFallbacks: z.record(z.string(), z.array(z.string())).optional(),
+  enableModelFallback: z.record(z.string(), z.boolean()).optional(),
+  providerBaseUrls: z.record(z.string(), z.string()).optional()
 });
 
 searchRouter.post("/search-references", async (req, res) => {
@@ -141,21 +144,36 @@ searchRouter.post("/search-references", async (req, res) => {
     const extractReq: ChatRequest = {
       modelId: request.modelId,
       messages: [{ role: "user", content: extractPrompt }],
-      maxTokens: 800,
+      maxTokens: 8192,
       apiKey
     };
 
-    const { response: extractRes } = await registry.runWithFallback(
+    const { response: extractRes, attempts: extractAttempts } = await registry.runWithFallback(
       availableProviders as string[],
-      extractReq
+      extractReq,
+      undefined,
+      request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
+      request.enableModelFallback as Partial<Record<string, boolean>> | undefined,
+      request.providerBaseUrls as Partial<Record<string, string>> | undefined,
+      Object.fromEntries(providerKeys) as Partial<Record<string, string>>
     );
 
     if (extractRes.error) {
-      logger.error("LLM extract search terms failed", { error: extractRes.error });
+      logger.error("LLM extract search terms failed", { error: extractRes.error, attempts: extractAttempts });
       res.status(502).json({
         ok: false,
         candidates: [],
         error: "AI 提取检索词失败，请稍后重试。"
+      } satisfies SearchReferencesResponse);
+      return;
+    }
+
+    if (!extractRes.text || !extractRes.text.trim()) {
+      logger.error("LLM extract returned empty text", { attempts: extractAttempts });
+      res.status(502).json({
+        ok: false,
+        candidates: [],
+        error: "AI 返回空内容，可能 API Key 无效或配额已用完。请检查 LLM 设置。"
       } satisfies SearchReferencesResponse);
       return;
     }
@@ -224,14 +242,19 @@ searchRouter.post("/search-references", async (req, res) => {
         const translateReq: ChatRequest = {
           modelId: request.modelId,
           messages: [{ role: "user", content: translatePrompt }],
-          maxTokens: 500,
+          maxTokens: 4096,
           apiKey
         };
         
         try {
           const { response: translateRes } = await registry.runWithFallback(
             availableProviders as string[],
-            translateReq
+            translateReq,
+            undefined,
+            request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
+            request.enableModelFallback as Partial<Record<string, boolean>> | undefined,
+            request.providerBaseUrls as Partial<Record<string, string>> | undefined,
+            Object.fromEntries(providerKeys) as Partial<Record<string, string>>
           );
           
           if (!translateRes.error && translateRes.text) {
@@ -339,13 +362,18 @@ searchRouter.post("/search-references", async (req, res) => {
     const filterReq: ChatRequest = {
       modelId: request.modelId,
       messages: [{ role: "user", content: filterPrompt }],
-      maxTokens: 2000,
+      maxTokens: 8192,
       apiKey
     };
 
     const { response: filterRes } = await registry.runWithFallback(
       availableProviders as string[],
-      filterReq
+      filterReq,
+      undefined,
+      request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
+      request.enableModelFallback as Partial<Record<string, boolean>> | undefined,
+      request.providerBaseUrls as Partial<Record<string, string>> | undefined,
+      Object.fromEntries(providerKeys) as Partial<Record<string, string>>
     );
 
     if (filterRes.error) {
@@ -355,6 +383,17 @@ searchRouter.post("/search-references", async (req, res) => {
         candidates: [],
         searchQuery,
         error: "AI 筛选结果失败，请稍后重试。"
+      } satisfies SearchReferencesResponse);
+      return;
+    }
+
+    if (!filterRes.text || !filterRes.text.trim()) {
+      logger.error("LLM filter returned empty text", { searchQuery });
+      res.status(502).json({
+        ok: false,
+        candidates: [],
+        searchQuery,
+        error: "AI 筛选文献返回空内容，请稍后重试。"
       } satisfies SearchReferencesResponse);
       return;
     }

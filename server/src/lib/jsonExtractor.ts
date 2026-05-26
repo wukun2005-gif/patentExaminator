@@ -16,7 +16,7 @@ function stripCodeFences(text: string): string {
 }
 
 function findBalancedJson(text: string): string | null {
-  const startIdx = text.search(/[\{\[]/);
+  const startIdx = text.search(/[{[[]/);
   if (startIdx === -1) return null;
 
   const open = text[startIdx]!;

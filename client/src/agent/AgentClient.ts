@@ -214,6 +214,17 @@ export class AgentClient {
           modelId: this.fallbackModel
         };
 
+    const modelFallbacks: Partial<Record<string, string[]>> = {};
+    const enableModelFallback: Partial<Record<string, boolean>> = {};
+    const providerBaseUrls: Partial<Record<string, string>> = {};
+    for (const p of this.providerSettings) {
+      modelFallbacks[p.providerId] = p.modelFallbacks ?? p.modelIds;
+      enableModelFallback[p.providerId] = p.enableModelFallback ?? true;
+      if (p.baseUrl) {
+        providerBaseUrls[p.providerId] = p.baseUrl;
+      }
+    }
+
     const doSearchFetch = async (): Promise<Response> => {
       return fetch(`${this.gatewayUrl}/search-references`, {
         method: "POST",
@@ -228,7 +239,10 @@ export class AgentClient {
           searchProviderId: request.searchProviderId,
           searchApiKey: request.searchApiKey,
           searchBaseUrl: request.searchBaseUrl,
-          llmApiKey: this.llmApiKey || undefined
+          llmApiKey: this.llmApiKey || undefined,
+          modelFallbacks,
+          enableModelFallback,
+          providerBaseUrls
         })
       });
     };

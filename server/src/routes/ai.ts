@@ -128,7 +128,8 @@ aiRouter.post("/ai/run", async (req, res) => {
       undefined,
       request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
       request.enableModelFallback as Partial<Record<string, boolean>> | undefined,
-      request.providerBaseUrls
+      request.providerBaseUrls,
+      Object.fromEntries(providerKeys) as Partial<Record<string, string>>
     );
 
     const durationMs = Date.now() - startTime;

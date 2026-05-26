@@ -62,7 +62,8 @@ export class ProviderRegistry {
     mimoModelFallbacks?: string[],
     modelFallbacks?: Partial<Record<string, string[]>>,
     enableModelFallback?: Partial<Record<string, boolean>>,
-    providerBaseUrls?: Partial<Record<string, string>>
+    providerBaseUrls?: Partial<Record<string, string>>,
+    providerApiKeys?: Partial<Record<string, string>>
   ): Promise<{ response: ChatResponse; attempts: AttemptRecord[] }> {
     const attempts: AttemptRecord[] = [];
     let totalAttempts = 0;
@@ -76,8 +77,20 @@ export class ProviderRegistry {
       }
 
       const providerBaseUrl = providerBaseUrls?.[pid];
+      const providerApiKey = providerApiKeys?.[pid];
       const enabled = enableModelFallback?.[pid] ?? true;
       const models = modelFallbacks?.[pid] ?? (pid === "mimo" ? (mimoModelFallbacks ?? MIMO_MODEL_FALLBACKS) : (pid === "gemini" ? GEMINI_MODEL_FALLBACKS : null));
+
+      const buildReq = (base: ChatRequest, overrides: Partial<ChatRequest>): ChatRequest => {
+        const result = { ...base, ...overrides };
+        if (providerApiKey) {
+          result.apiKey = providerApiKey;
+        }
+        if (providerBaseUrl) {
+          result.baseUrl = providerBaseUrl;
+        }
+        return result;
+      };
 
       if (enabled && models && models.length > 0) {
         for (const modelId of models) {
@@ -89,7 +102,7 @@ export class ProviderRegistry {
             };
           }
           try {
-            const response = await this.executeWithRetry(adapter, providerBaseUrl ? { ...req, modelId, baseUrl: providerBaseUrl } : { ...req, modelId });
+            const response = await this.executeWithRetry(adapter, buildReq(req, { modelId }));
             attempts.push({ providerId, ok: true });
             return { response, attempts };
           } catch (error) {
@@ -113,7 +126,7 @@ export class ProviderRegistry {
       }
 
       try {
-        const response = await this.executeWithRetry(adapter, providerBaseUrl ? { ...req, baseUrl: providerBaseUrl } : req);
+        const response = await this.executeWithRetry(adapter, buildReq(req, {}));
         attempts.push({ providerId, ok: true });
         return { response, attempts };
       } catch (error) {

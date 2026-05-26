@@ -1371,6 +1371,11 @@ Supabase（后端服务）
 
 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|---------|---------|------------|
+| 2026-05-27 | fix(bg-28): AI 检索文献 Invalid API Key — `runWithFallback` 新增 `providerApiKeys` 参数，各调用点（`ai.ts`、`search.ts`）按 provider 分别传入 API Key；`search.ts` schema 新增 `modelFallbacks`/`enableModelFallback`/`providerBaseUrls` 字段，搜索三步（extract/translate/filter）均传递完整 fallback 配置 | `server/src/providers/registry.ts`、`server/src/routes/ai.ts`、`server/src/routes/search.ts`、`client/src/agent/AgentClient.ts` | 待提交 |
+| 2026-05-27 | fix(bg-28): 推理模型 maxTokens 不足致输出为空 — extract 800→8192、translate 500→4096、filter 2000→8192；`ProviderAdapter` 移除 `reasoning_content` fallback、增强空响应日志 | `server/src/routes/search.ts`、`server/src/providers/ProviderAdapter.ts`、`server/src/providers/gemini.ts` | 待提交 |
+| 2026-05-27 | fix(bg-28): Provider 重排不生效 — `ProvidersConfigPanel` 拖拽重排后同步更新 `settings.providers` 数组 | `client/src/features/settings/ProvidersConfigPanel.tsx` | 待提交 |
+| 2026-05-27 | fix(bg-28): ECONNREFUSED health check 失败 — 移除 `checkServerHealth` 中冗余的 `/health` 路径拼接 | `client/src/lib/serverReady.ts` | 待提交 |
+| 2026-05-27 | fix(bg-28): lint error 修复 — `jsonExtractor.ts` 移除不必要的转义字符、`ProviderAdapter.ts` `let`→`const` | `server/src/lib/jsonExtractor.ts`、`server/src/providers/ProviderAdapter.ts` | 待提交 |
 | 2026-05-25 | feat(nf-3): 测试迁移至 OpenRouter — 移除 Bedrock 依赖，`developer-ai-smoke.mjs` 和 `e2e-real.mjs` 改用 OpenRouter API（9 个免费模型 fallback，每个最多 3 次尝试） | `tests/developer-ai-smoke.mjs`、`tests/e2e-real.mjs` | 待提交 |
 | 2026-05-25 | feat(nf-2): 文档解读手动触发 — 移除自动解读逻辑，新增顶部"开始文档解读"一键批处理按钮，单文件按钮根据摘要状态区分"开始解读"/"重新解读" | `client/src/features/interpret/InterpretPanel.tsx` | 待提交 |
 | 2026-05-24 | fix(bg-12): AI 配额不足无提示 — 新增共享错误展示库 (errorDisplay.tsx) 提供 formatAiErrorMessage 错误分类 + ErrorBanner 组件（compact/full 模式）；14 个 UI 组件统一使用 ErrorBanner 替代各自错误展示；服务端 AI 路由增加 quota-exceeded 特定 429 响应；新增 40 个测试用例（unit 23 + integration 3 + panel E2E 14） | `client/src/lib/errorDisplay.tsx`、`client/src/features/**/*.tsx`、`server/src/routes/ai.ts`、`server/src/providers/registry.ts`、`tests/unit/errorDisplay.test.tsx`、`tests/unit/panelErrors.test.tsx`、`tests/integration/gateway.test.ts` | b5355ad |
