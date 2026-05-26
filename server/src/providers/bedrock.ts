@@ -53,7 +53,7 @@ export class BedrockAdapter implements ProviderAdapter {
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
-    const url = `${this.baseUrl}/chat/completions`;
+    const url = `${req.baseUrl ?? this.baseUrl}/chat/completions`;
 
     // Build OpenAI-compatible request body
     const body = {

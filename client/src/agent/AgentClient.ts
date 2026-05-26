@@ -36,7 +36,7 @@ import type { ClaimFeature } from "@shared/types/domain";
 import type { AiRunRequest, AiRunResponse } from "@shared/types/api";
 import type { ProviderId, ProviderConnection, AgentAssignment, AppSettings, ProviderErrorMessage } from "@shared/types/agents";
 import { useSettingsStore } from "../store/features/settings/settingsSlice";
-import { waitForServerReady } from "../lib/serverReady";
+import { waitForServerReady, clearServerReadyCache } from "../lib/serverReady";
 
 const GATEWAY_AGENT_TO_KEY: Record<string, AgentAssignment["agent"]> = {
   "claim-chart": "claim-chart",
@@ -214,22 +214,33 @@ export class AgentClient {
           modelId: this.fallbackModel
         };
 
-    const res = await fetch(`${this.gatewayUrl}/search-references`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        caseId: request.caseId,
-        claimText: request.claimText,
-        features: request.features,
-        maxResults: request.maxResults ?? 5,
-        providerPreference: [searchResolved.providerId, ...this.enabledProviders.filter((p) => p !== searchResolved.providerId)],
-        modelId: searchResolved.modelId,
-        searchProviderId: request.searchProviderId,
-        searchApiKey: request.searchApiKey,
-        searchBaseUrl: request.searchBaseUrl,
-        llmApiKey: this.llmApiKey || undefined
-      })
-    });
+    const doSearchFetch = async (): Promise<Response> => {
+      return fetch(`${this.gatewayUrl}/search-references`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseId: request.caseId,
+          claimText: request.claimText,
+          features: request.features,
+          maxResults: request.maxResults ?? 5,
+          providerPreference: [searchResolved.providerId, ...this.enabledProviders.filter((p) => p !== searchResolved.providerId)],
+          modelId: searchResolved.modelId,
+          searchProviderId: request.searchProviderId,
+          searchApiKey: request.searchApiKey,
+          searchBaseUrl: request.searchBaseUrl,
+          llmApiKey: this.llmApiKey || undefined
+        })
+      });
+    };
+
+    let res: Response;
+    try {
+      res = await doSearchFetch();
+    } catch {
+      clearServerReadyCache();
+      await waitForServerReady(this.gatewayUrl, true);
+      res = await doSearchFetch();
+    }
 
     if (!res.ok) {
       const error = await res.json().catch(() => ({ error: res.statusText }));
@@ -414,19 +425,29 @@ export class AgentClient {
       }
     };
 
-    let res: Response;
-    try {
-      res = await fetch(`${this.gatewayUrl}/ai/run`, {
+    const doFetch = async (): Promise<Response> => {
+      return fetch(`${this.gatewayUrl}/ai/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request),
         ...(meta.signal ? { signal: meta.signal } : {})
       });
+    };
+
+    let res: Response;
+    try {
+      res = await doFetch();
     } catch {
-      throw new AiGatewayError(
-        "network",
-        "无法连接到 AI 服务，请检查网络连接和服务器状态。"
-      );
+      clearServerReadyCache();
+      try {
+        await waitForServerReady(this.gatewayUrl, true);
+        res = await doFetch();
+      } catch {
+        throw new AiGatewayError(
+          "network",
+          "无法连接到 AI 服务，请检查网络连接和服务器状态。"
+        );
+      }
     }
 
     if (!res.ok) {

@@ -107,7 +107,8 @@ export class GeminiAdapter implements ProviderAdapter {
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
-    const url = `${GEMINI_BASE_URL}/models/${req.modelId}:generateContent?key=${req.apiKey}`;
+    const base = req.baseUrl ?? GEMINI_BASE_URL;
+    const url = `${base}/models/${req.modelId}:generateContent?key=${req.apiKey}`;
 
     const contents = req.messages
       .filter(m => m.role !== "system")

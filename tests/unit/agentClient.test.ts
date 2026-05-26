@@ -33,7 +33,7 @@ describe("AgentClient (mock mode)", () => {
         specificationText: "test"
       })
     ).rejects.toThrow();
-  });
+  }, 15000);
 
   it("real mode maps schema output to ClaimFeature with ids", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

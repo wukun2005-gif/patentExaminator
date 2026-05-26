@@ -1,6 +1,5 @@
 const MAX_RETRIES = 10;
 const RETRY_DELAY_MS = 500;
-const SERVER_READY_KEY = "pex-server-ready";
 
 let isServerReadyCache: boolean | null = null;
 
@@ -22,22 +21,10 @@ async function checkServerHealth(url: string): Promise<boolean> {
 }
 
 export async function waitForServerReady(gatewayUrl: string = "/api", forceCheck = false): Promise<void> {
-  // Return early if already confirmed ready (unless force check is requested)
   if (!forceCheck && isServerReadyCache === true) {
     return;
   }
 
-  // Check localStorage cache (persists across page reloads in same session)
-  if (!forceCheck) {
-    const cached = localStorage.getItem(SERVER_READY_KEY);
-    if (cached === "true") {
-      isServerReadyCache = true;
-      return;
-    }
-  }
-
-  // Extract base URL for health check
-  // The health endpoint is at /api/health when gatewayUrl is /api
   const healthUrl = gatewayUrl.includes("/api") ? `${gatewayUrl}/health` : "/health";
   
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -45,7 +32,6 @@ export async function waitForServerReady(gatewayUrl: string = "/api", forceCheck
     
     if (isReady) {
       isServerReadyCache = true;
-      localStorage.setItem(SERVER_READY_KEY, "true");
       console.info("[serverReady] Server ready, connection established");
       return;
     }
@@ -55,18 +41,14 @@ export async function waitForServerReady(gatewayUrl: string = "/api", forceCheck
     }
   }
   
-  // If all retries failed, still proceed but clear the cache
   isServerReadyCache = false;
-  localStorage.removeItem(SERVER_READY_KEY);
   console.warn("[serverReady] Server health check failed after max retries, proceeding anyway");
 }
 
 export function clearServerReadyCache(): void {
   isServerReadyCache = null;
-  localStorage.removeItem(SERVER_READY_KEY);
 }
 
 export function markServerReady(): void {
   isServerReadyCache = true;
-  localStorage.setItem(SERVER_READY_KEY, "true");
 }
