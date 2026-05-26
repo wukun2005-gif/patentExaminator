@@ -3,6 +3,7 @@ import { aiRunRequestSchema } from "../lib/schemas.js";
 import { registry } from "../providers/registry.js";
 import { getApiKey } from "../security/keyStore.js";
 import { sanitizeText } from "../security/sanitize.js";
+import { extractJsonFromText } from "../lib/jsonExtractor.js";
 import { logger } from "../lib/logger.js";
 import { isStructuredAgent, validateAgentResponse } from "@shared/lib/responseValidator.js";
 import type { AiRunResponse } from "@shared/types/api";
@@ -158,18 +159,18 @@ aiRouter.post("/ai/run", async (req, res) => {
       return;
     }
 
-    // Try to parse as JSON - always attempt for structured responses
+    // Try to parse as JSON with robust extraction
     let outputJson: unknown = undefined;
-    try {
-      // Strip markdown code fences if present
-      let text = response.text.trim();
-      if (text.startsWith("```")) {
-        text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "").trim();
+    const extracted = extractJsonFromText(response.text);
+    if (extracted) {
+      outputJson = extracted.parsed;
+      if (extracted.raw !== response.text.trim()) {
+        logger.info("JSON extracted from mixed text", {
+          agent: request.agent,
+          rawLen: response.text.length,
+          extractedLen: extracted.raw.length
+        });
       }
-      outputJson = JSON.parse(text);
-    } catch {
-      // Not valid JSON, leave as raw text
-      outputJson = undefined;
     }
 
     // Validate response structure for structured agents

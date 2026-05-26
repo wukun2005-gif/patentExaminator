@@ -4,6 +4,7 @@ import { registry } from "../providers/registry.js";
 import { getApiKey } from "../security/keyStore.js";
 import { searchPatents } from "../services/webSearch.js";
 import { logger } from "../lib/logger.js";
+import { extractJsonFromText } from "../lib/jsonExtractor.js";
 import { sanitizeText } from "../security/sanitize.js";
 import type { SearchReferencesResponse, SearchReferencesCandidate, SearchSummary } from "@shared/types/api";
 import type { ChatRequest } from "../providers/ProviderAdapter.js";
@@ -164,22 +165,12 @@ searchRouter.post("/search-references", async (req, res) => {
     const rawText = extractRes.text.trim();
     logger.info("LLM extract raw output", { rawText: rawText.slice(0, 500) });
     try {
-      // Strip markdown code fences (```json ... ``` or ``` ... ```)
-      let jsonText = rawText;
-      // Try multiple fence patterns (non-greedy to handle various formats)
-      const fencePatterns = [
-        /^```(?:json)?\s*\n([\s\S]*?)\n\s*```$/m,   // standard fenced
-        /```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/,     // relaxed
-      ];
-      for (const pat of fencePatterns) {
-        const m = rawText.match(pat);
-        if (m) { jsonText = m[1]!.trim(); break; }
-      }
-      // Try to extract JSON object from the text
-      const jsonMatch = jsonText.match(/\{[\s\S]*\}/) ?? jsonText.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        searchQueries = Array.isArray(parsed) ? parsed : (parsed.queries ?? []);
+      const extracted = extractJsonFromText(rawText);
+      if (extracted) {
+        const parsed = extracted.parsed;
+        searchQueries = Array.isArray(parsed)
+          ? (parsed as string[])
+          : ((parsed as { queries?: string[] }).queries ?? []);
       } else {
         searchQueries = [];
       }
@@ -244,9 +235,9 @@ searchRouter.post("/search-references", async (req, res) => {
           );
           
           if (!translateRes.error && translateRes.text) {
-            const jsonMatch = translateRes.text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]) as { translations?: string[] };
+            const extracted = extractJsonFromText(translateRes.text);
+            if (extracted) {
+              const parsed = extracted.parsed as { translations?: string[] };
               if (parsed.translations && parsed.translations.length === chineseQueries.length) {
                 // Replace Chinese queries with English translations
                 let transIdx = 0;
@@ -371,26 +362,16 @@ searchRouter.post("/search-references", async (req, res) => {
     // Parse LLM output
     let candidates: SearchReferencesCandidate[] = [];
     try {
-      let jsonText = filterRes.text.trim();
-      const fencePatterns = [
-        /^```(?:json)?\s*\n([\s\S]*?)\n\s*```$/m,
-        /```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/,
-      ];
-      for (const pat of fencePatterns) {
-        const m = jsonText.match(pat);
-        if (m) { jsonText = m[1]!.trim(); break; }
-      }
-
-      const jsonMatch = jsonText.match(/\[[\s\S]*\]/) ?? jsonText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
+      const extracted = extractJsonFromText(filterRes.text);
+      if (!extracted) {
         const fallbackCandidates = extractFallbackCandidates(filterRes.text);
         if (fallbackCandidates.length > 0) {
           candidates = fallbackCandidates.slice(0, request.maxResults);
           logger.info("LLM filter extracted via fallback", { count: candidates.length });
         }
       } else {
-        const parsed = JSON.parse(jsonMatch[0]);
-        const rawCandidates = Array.isArray(parsed) ? parsed : parsed.candidates ?? [];
+        const parsed = extracted.parsed;
+        const rawCandidates = Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : ((parsed as { candidates?: Record<string, unknown>[] }).candidates ?? []);
         logger.info("LLM filter returned", { raw: rawCandidates.length });
         candidates = rawCandidates
           .filter((c: Record<string, unknown>) => c.title && c.publicationNumber)
