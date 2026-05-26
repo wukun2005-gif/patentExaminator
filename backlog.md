@@ -1,0 +1,3216 @@
+# Backlog
+
+## new features
+
+nf-6: 整个应用要移植到https://www.doubao.com/chat/bot/的智能体，将会使用[coze.cn](https://www.coze.cn/)平台来开发智能体，为了移植成功，需要以下几点：
+# Role
+你是一个资深的软件架构师与系统分析专家。你需要深入分析当前项目 `patentExaminator` 的完整工作区，并将其核心业务逻辑、数据流转（Schema）以及 AI 提示词（Prompts）提取出来，以便于后续将这些逻辑无缝移植到低代码 Agent 开发平台, [Coze.cn](https://www.coze.cn/) 。
+# Task
+请全面扫描当前项目，针对 README 中提到的核心业务流程（包括但不限于：Setup, Opinion Analysis, Argument Mapping, Claim Chart, Novelty, Inventive, Defects, Draft 等模块），整理出一份结构清晰的 Markdown 格式系统规格书。
+为了方便后续在低代码平台上重建这些节点，请针对上述【每一个核心业务模块/步骤】抽取并整理以下信息：
+1. **功能简述（Module Summary）**：该模块在实质审查/复审中具体解决什么问题？
+2. **输入数据（Inputs）**：该步骤开始前，需要用户上传什么文件，或者需要承接上一步骤产出的哪些数据变量（请列出具体的 JSON 字段和数据类型，例如 `claimText: string`）？
+3. **输出数据（Outputs）**：该步骤运行结束后，产出了什么结构化数据（请列出最终保存或传递给下一步的 JSON 格式或 Markdown 文本结构）？
+4. **核心 AI 提示词（Core Prompts）**：
+   - 请在代码（如 `shared/src/prompts/` 或 API 路由、前端组件）中，找到该步骤所使用的**完整、无删减的 System Prompt 和 User Prompt 模板**。
+   - 请完整复制出来。如果提示词中含有占位符（如 `${claims}` 或 `{{opinions}}`），请予以保留并说明这些占位符代表什么变量。
+5. **前置依赖（Dependencies）**：该步骤必须在哪些步骤完成后才能进行？
+# Output Format
+请将分析结果整理并在项目工作区的 `docs/` 目录下输出为一个 Markdown 文件。每一章对应一个业务模块，格式如下：
+## 模块 N：[模块名称]
+- **功能描述**：...
+- **输入 Schema**：
+  ```json
+  // 请在此展示输入的 JSON 示例或字段定义
+- **输出 Schema**：
+  ```json
+  // 请在此展示输出的 JSON 示例或字段定义
+- **核心 AI 提示词**：
+  - **核心 Prompt 模板**：
+    - System Prompt：
+    [在此粘贴完整的系统提示词]
+    - User Prompt 模板：
+    [在此粘贴完整的用户提示词模板]
+- **前置依赖**：
+  - 该步骤必须在哪些步骤完成后才能进行？
+- **业务规则与备注**：如果代码中针对该步骤有一些特殊的处理逻辑（例如：如果存在修改文本，则必须先触发合规审查），请在这里说明。
+
+请开始深度扫描工作区并生成该 Markdown 文档。
+
+
+nf-5: [✅] ：新颖性复核UI增加对多对比文件复核结果持久化的支持“多对比文件复核结果持久化问题
+问题分析：
+- 用户对单片文件进行新颖性复核后，切换到另一个文件继续复核时，前一个文件的复核结果丢失
+- 用户需要能够同时查看和编辑多个对比文件的复核结果
+- 每个文件的复核内容依然保持针对单片对比文件的独立性
+影响：
+- 审查员无法同时查看和对比多个对比文件的复核结果
+- 需要反复切换查看每个文件的结果，影响工作效率
+- 无法形成完整的对比文件复核报告
+建议方向：
+修改新颖性复核模块，使其支持多文件复核结果的持久化和联合展示。
+具体实现建议
+1. 保留当前单文件复核逻辑：保持法律合规性
+2. 增强UI展示：展示所有已完成的复核结果列表
+3. 添加结果对比功能：允许用户在不同对比文件的结果间切换查看
+4. 导出多文件报告：支持生成包含所有对比文件复核结果的完整报告
+这样既符合专利审查的法律要求（单文件复核），又能满足用户查看和管理多文件结果的需求。”
+
+nf-4: [✅] 配置页面：允许AI provider和model ID的双fallback。配置页面加个option，用户可以决定是否fallback 现在排列的API provider，允许的话，如果前面启用的API provider出错（无法访问、配额不够、鉴权失败等），最多尝试3次，就fallback到用户启用的排列在下一个的API provider；对每一个provider的model，也有一个单独的是否允许fallback的选项，如果前面的model ID出错，最多尝试3次，就fallback到用户启用的排列在下一个的model ID。API provider的出错信息，要在APP level 保留下来供用户查阅，能知道是哪个API provider的哪个model出了什么问题。这些消息放在配置页面的加一个消息盒子功能来处理。用户可以对消息查看和清楚，阅读或者未阅读状态也要标示出来让用户知道是不是有新的问题出现。
+
+nf-3: [✅] 把现在的开发自动测试中，调用AI API的地方，把bedrock全部移除掉，换成openrouter API。 key在.env的“Openrouter_KEY”（注意大小写）里面。Openrouter API的fallback model ID顺序如下（第一个优先级最高，最后一个优先级最低）。每个model（包括gemina和openrouter）最多尝试3次。
+deepseek/deepseek-v4-flash:free
+z-ai/glm-4.5-air:free
+qwen/qwen3-coder:free
+arcee-ai/trinity-large-thinking:free
+google/gemma-4-31b-it:free
+qwen/qwen3-next-80b-a3b-instruct:free
+minimax/minimax-m2.5:free
+nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+openai/gpt-oss-120b:free
+
+nf-2: [✅] 文档解读：加一个类似“点击开始文档解读”的按钮吧，否则新案件进来这个页面的时候，一直显示“ai解读中...",空空如也，体验不好。用户如果不点击“点击开始文档解读”的按钮，不要开始文档解读。
+
+nf-1: [✅] 在配置界面，加一个opencode Zen。参见：https://opencode.ai/docs/zen (2026-05-24)
+
+  64: [✅] 新颖性复核交互优化 - AI 判断输出与 UX 改进
+    **优先级：** P1 — 影响 AI 辅助价值体现和用户体验
+    **状态：** [x] 已完成 (2026-05-23)
+    
+    ### 实现摘要
+    1. **字段改名**：`pendingSearchConclusions` → `reviewerConclusions`，保留旧字段兼容性
+    2. **新增 AI 初步判断字段**：`aiPreliminaryConclusions`
+    3. **UI 优化**：
+       - 问题区域支持增删（添加问题按钮 + 删除按钮）
+       - 帮助文本说明区域用途
+       - AI 初步判断显示在蓝色背景区块
+       - AI 无法判断时显示灰色提示"信息不足，AI 无法判断"
+    4. **类型更新**：`NoveltyComparison`、`NoveltyComparisonRow`、`NoveltyResponse`
+    5. **Fixture 更新**：`novelty-g1-d1.json` 增加 `featureDescription` 和 `aiPreliminaryConclusions`
+
+  63: [✅] 新颖性复核: 显示内容要增加特征描述
+    **状态：** [x] 已完成 (2026-05-23)
+    
+    ### 实现摘要
+    - `NoveltyComparisonRow` 新增 `featureDescription` 字段
+    - `NoveltyAgentTrigger` 从 ClaimFeature 数组填充特征描述
+    - `NoveltyComparisonTable` 表格新增"特征描述"列
+    - 区别特征候选区域显示特征描述作为 tooltip
+
+62: 所有全业务流程的所有环节分别做成一个skill，每个skill都包含了前驱skill，确保每个skill可以独立完成自己业务环节的工作，用户可以单挑某个skill做业务：比如直接输入文件（申请文件、驳回意见、答辩意见、对比文献、等），调用“新颖性复核” skill 得到新颖性复核的结果文件.md；又比如，用户直接调用 skill ”复审意见草稿“ 并输入所有复审相关的文件，就能得到完整的复审草稿，尽管这个skill会调用所有前驱 skill 来完成比如 ”权利特征提取“ 的前驱工作最后生成复审草稿。
+
+
+## technical debts
+
+td-4: [✅] AI辅助专利检索的容错机制优化："涉及模块
+- LLM过滤模块 (/server/src/routes/search.ts)：JSON解析和容错处理
+- Provider回退机制 (/server/src/providers/registry.ts)：多服务商容错
+- URL恢复机制：搜索结果链接匹配
+业务流程简述
+LLM过滤容错机制确保在LLM输出异常、网络问题或数据格式不规范时，系统仍能返回有效的专利搜索结果，影响审查系统的稳定性和可靠性。
+---
+⚠️ 可改进：容错处理机制深度分析
+问题概述
+当前容错处理机制存在过度设计问题，包含4层JSON解析容错、复杂的正则回退、8个Provider回退链和3层URL匹配策略，代码复杂度高，性能损耗大。
+Impact评估
+1. Probability (发生概率)
+- *高概率场景 (60-70%)*：
+  - LLM输出格式不规范（markdown围栏、JSON格式错误）
+  - URL提取不准确（LLM经常遗漏sourceUrl）
+  - 网络传输截断或超时
+- *中概率场景 (20-30%)*：
+  - Provider服务短暂不可用
+  - JSON解析部分失败
+- *低概率场景 (5-10%)*：
+  - 多个Provider同时故障
+  - 严重的LLM输出格式错误
+2. Severity (严重程度)
+- *高影响 (Critical)*：
+  - 完全无法解析LLM输出 → 系统无法返回结果
+  - 所有Provider都失败 → 服务中断
+- *中影响 (High)*：
+  - URL丢失 → 影响审查员溯源
+  - 字段提取错误 → 影响数据准确性
+- *低影响 (Medium)*：
+  - 响应延迟 → 影响用户体验
+  - 性能下降 → 影响系统吞吐量
+3. Performance Impact (性能影响)
+- JSON解析路径：
+  - 正常路径：~5ms
+  - 容错路径：~20-50ms
+  - 性能损耗：300-1000%
+- 正则回退：
+  - 性能损耗：100-200ms
+  - CPU消耗：高（大量正则匹配）
+- URL恢复：
+  - 性能损耗：~30ms
+  - 内存消耗：中等（创建查找表）
+4. ROI (投资回报率)分析
+当前维护成本：
+- 代码复杂度：400+行容错逻辑，维护难度高
+- 测试覆盖：需要覆盖每个容错路径，测试成本高
+- 故障排查：多层容错链增加调试难度
+- 性能损耗：平均每请求增加30-50ms延迟
+简化后收益：
+- 性能提升：响应时间减少30-50%，CPU使用减少40-60%
+- 维护成本：bug修复时间减少50-70%，代码复杂度降低60%
+- 用户体验：更快的响应，更稳定的系统
+- 开发效率：更容易理解和修改代码
+ROI计算：
+- 投入：1-2周开发时间，1周测试时间
+- 回报：长期性能提升和维护成本降低
+- 投资回收期：2-3个月
+- ROI比例：300-500%
+5. Risk Assessment (风险评估)
+简化后的风险：
+- 低风险：删除复杂的JSON修复逻辑 → 保留基本容错
+- 中风险：减少Provider回退数量 → 保留核心Provider
+- 低风险：简化URL匹配 → 保留关键匹配逻辑
+风险缓解措施：
+- 渐进式简化：先简化JSON解析，测试稳定后再简化其他
+- 监控增强：增加容错路径监控，及时发现异常
+- 回滚机制：保留原有容错代码作为备用方案
+---
+✅ Work-as-Design：核心容错机制保留
+设计意图：多层容错机制确保系统在各种异常情况下仍能稳定运行。
+设计依据：
+- 代码实现：4层容错链确保99.9%的可用性
+- 业务需求：专利审查系统必须高可用
+- 技术必要性：LLM服务存在一定的不稳定性
+业务/技术合理性：
+1. 系统稳定性：确保审查服务不中断
+2. 数据完整性：即使异常也能提供有效结果
+3. 用户体验：避免审查员因技术问题无法工作
+---
+总结
+综合评估结论：
+- Probability：高 (70-80%的请求会触发某种容错)
+- Severity：中高 (影响用户体验和系统性能)
+- ROI：高 (300-500%的投资回报率)
+- Risk：低 (渐进式简化可控制风险)
+建议行动：
+1. 立即执行：简化JSON解析容错逻辑（影响最大，风险最小）
+2. 短期执行：精简Provider回退列表（保留3-5个核心Provider）
+3. 中期执行：优化URL恢复机制（简化匹配策略）
+这个改进建议具有很高的ROI，能够在保持系统核心容错能力的同时，显著提升性能和降低维护成本。"
+
+td-3: [✅] 类似47， 36， bg-1,这样的bug层出不穷，都是AI返回的数据没有结构化，prompt没有正确提示导致的。彻查所有的业务流程环节，所有和AI API打交道的环节都要彻查和fix这样的问题。前面fix过一次，但是之后又出现了bg-3这样的bug。要根据bg-3这样的问题，重新彻查，比如每次 AI 交互点的 prompt 都需逐一核对其 JSON schema 约束（比如，bg-3 的fix 修复了 defectSchema 注册 + buildDefectPrompt 的 schema 约束）
+
+td-1: [✅] 放宽 lint 测试规则：- 将部分规则改为 warning（如 `no-unused-vars` 对 args）- 保留严重规则为 error - 修改 `.eslintrc.cjs` 配置（/Users/wukun/Documents/tmp/patentExaminator/.eslintrc.cjs）。核心原则是：到全球全世界做充分全面仔细的调研后再判断哪些规则对代码质量有实质提升，哪些只是噪音。比如搜索社区最佳实践等。确实没有必要判断为error的，就没必要搞得太严非fix 不可。要提高AI fix lint issue的ROI，在保证代码质量的同时，确保fix lint error 真的带来软件开发质量的提高和软件产品质量的提高，而不是fix 了一堆 lint error，确对软件质量没啥实质性的帮助。简单说，就是提高 lint error fix 的真实的ROI。
+
+td-2: [✅] 立即修复 lint 测试的所有 error 级别问题。
+
+61: [✅] bug: 用户离开页面后 Agent 请求未取消. 根据"docs/lesson-learned-57.md" 里面的"Lesson Learned #60: 用户离开页面后 Agent 请求未取消"章节，其他 agent（claim-chart, novelty, inventive 等）同样存在此问题，但它们的触发频率较低，用户通常会在页面上等待结果完成。文档解读是唯一会自动批量触发多个请求的场景。需要按相同模式修复其他 agent。
+
+59. [✅] bug-fix: 根据 bug57 的lesson learn总结报告 docs/lesson-learned-57.md 和调查，其他 store 存在同样的升级问题：其他 store (`claimCharts`, `novelty`, `inventive`, `defects` 等) 使用"仅创建不升级"模式，如果未来需要添加新索引，会遇到同样问题。因此需要重构所有 store 的升级逻辑为基于 `oldVersion` 的增量升级模式。
+
+## bugs
+
+bg-28: [✅] 点击AI检索文献时，server端报错：“[server] [2026-05-26T12:04:15.181Z] ERROR LLM extract search terms failed {"error":{"code":"auth-failed","message":"Provider mimo returned 401: {\n    \"error\": {\n        \"message\": \"Invalid API Key\",\n        \"param\": \"Please provide valid API Key\",\n        \"code\": \"401\",\n        \"type\": \"invalid_key\"\n    }\n}\n","retryable":false}}
+[server] [2026-05-26T12:04:15.201Z] ERROR LLM extract search terms failed {"error":{"code":"auth-failed","message":"Provider mimo returned 401: {\n    \"error\": {\n        \"message\": \"Invalid API Key\",\n        \"param\": \"Please provide valid API Key\",\n        \"code\": \"401\",\n        \"type\": \"invalid_key\"\n    }\n}\n","retryable":false}}
+[server] [2026-05-26T12:04:15.681Z] ERROR LLM extract search terms failed {"error":{"code":"auth-failed","message":"Provider mimo returned 401: {\n    \"error\": {\n        \"message\": \"Invalid API Key\",\n        \"param\": \"Please provide valid API Key\",\n        \"code\": \"401\",\n        \"type\": \"invalid_key\"\n    }\n}\n","retryable":false}}“
+
+页面报错：”Error: AI 提取检索词失败，请稍后重试。; Error: AI 提取检索词失败，请稍后重试。; Error: AI 提取检索词失败，请稍后重试。
+请检查设置或切换到演示模式。“。
+
+可是前面的几毫秒的aPI call都是没有问题的，也有配额。
+
+
+#### B23 — 推理模型 maxTokens 自适应
+
+**目标：** Server 端检测推理模型（如 MiMo、DeepSeek R1、o1/o3 系列），自动放大 maxTokens。
+
+**背景：** 推理模型在生成 content 之前会消耗大量 token 做内部思考（存储于 `reasoning_content` 字段）。若 maxTokens 不足，模型返回 `finishReason: "length"` 且 `content` 为空。当前 search.ts 和 ai.ts 中硬编码的 maxTokens（8192/4096）在大多数模型下够用，但对推理模型仍不足。
+
+**改动范围：**
+- `server/src/providers/ProviderAdapter.ts`：在 `chat()` 方法中检测推理模型并自动放大 maxTokens（默认 4x）
+- `server/src/routes/ai.ts`：确认使用 Agent 配置的 maxTokens 而非硬编码值
+- `server/src/routes/search.ts`：确认使用合理默认值
+
+**Definition of Done：**
+- `OpenAICompatibleAdapter` 自动识别 reasoning model（按 modelId 模式匹配）
+- 推理模型 maxTokens 自动 ×4
+- typecheck 全绿
+
+---
+
+#### B24 — modelId 随 provider 透明变化
+
+**目标：** 当用户切换 provider 时，modelId 自动跟随该 provider 的默认 model，不残留前一个 provider 的 model name。
+
+**背景：** AgentClient 的 `fallbackModel = firstEnabled?.defaultModelId` 只在初始化时计算一次。运行时切换 provider 不会更新 fallbackModel，可能导致"用 provider A 的 key 调 provider B 的 model name"。registry 层的 modelFallbacks 能兜底纠正，但逻辑迂回。
+
+**改动范围：**
+- `client/src/agent/AgentClient.ts`：`callGateway()` 和 `runSearchReferences()` 中，确保 `resolved.modelId` 匹配 `resolved.providerId` 的默认 model
+
+**Definition of Done：**
+- 用户切换 provider 后，modelId 自动切换为该 provider 的 defaultModelId
+- fallbackProvider 和 fallbackModel 保持同步
+- typecheck + lint 全绿
+
+---
+
+#### B25 — 默认 agent 分配去硬编码
+
+**目标：** 默认 agent assignments 不再硬编码 "gemini"，而是让未指定 provider 的 agent 自动 fallback 到用户当前启用的首个 provider。
+
+**背景：** settingsRepo.ts 中 8 个 agent 的默认配置全部写死 `providerOrder: ["gemini"]` 和 `modelId: "gemini-2.5-flash-lite"`。用户配置 mimo 后，这些 agent 仍指向 gemini（但因 gemini 无 key 才会 fallback 到 mimo）。理想情况是：未明确指定 provider 的 agent 直接走首页 provider。
+
+**改动范围：**
+- `client/src/lib/repositories/settingsRepo.ts`：默认 agent 的 `providerOrder` 改为空数组，`modelId` 由 AgentClient 从 enabled provider 动态获取
+
+**Definition of Done：**
+- 默认 agent 不再硬编码 "gemini"
+- 新增用户首次启动时，agent 自动使用首个 enabled provider 的 model
+- typecheck + lint 全绿
+
+---
+
+bg-27: [✅] (2026-05-26) 进入文档解读页面，用户还没有点击"开始文档解读"，页面和服务器端就发现AI API被translate agent触发了。
+server 端疯狂地不断吐log：“wukun@wukundeMBP patentExaminator % npm run dev
+
+> patent-examiner@0.1.0 dev
+> concurrently -n client,server -c blue,green "npm run dev -w client" "npm run dev -w server"
+
+[server] 
+[server] > server@0.1.0 dev
+[server] > tsx watch src/index.ts
+[server] 
+[client] 
+[client] > client@0.1.0 dev
+[client] > vite
+[client] 
+[client] 
+[client]   VITE v5.4.21  ready in 252 ms
+[client] 
+[client]   ➜  Local:   http://localhost:6173/
+[client]   ➜  Network: use --host to expose
+[server] Server listening on http://localhost:3000[client] AggregateError [ECONNREFUSED]: 
+[client]     at internalConnectMultiple (node:net:1134:18)
+[client]     at afterConnectMultiple (node:net:1715:7)
+[server] Server listening on http://localhost:3000
+[server] [2026-05-26T05:48:20.456Z] INFO AI request received {"agent":"translate","requestedProviders":["mimo"],"providersWithKeys":[],"providersMissingKeys":["mimo"],"modelId":"mimo-v2.5-pro"}
+[client] AggregateError [ECONNREFUSED]: 
+[client]     at internalConnectMultiple (node:net:1134:18)
+[client]     at afterConnectMultiple (node:net:1715:7)
+[server] Server listening on http://localhost:3000
+[server] [2026-05-26T05:48:20.456Z] INFO AI request received {"agent":"translate","requestedProviders":["mimo"],"providersWithKeys":[],"providersMissingKeys":["mimo"],"modelId":"mimo-v2.5-pro"}
+”
+页面console里面也在疯狂地吐红色惊叹号 log：/Users/wukun/Downloads/localhost-1779774518549.log
+
+这个文档解读的页面设计的问题很大，主要是边界情况鲁棒性完全没有：用户没有操作就自己发起AI API call，也不管server端启动与否，页面就疯狂调用，调用不成功继续调用，有病啊，这谁写的代码？
+
+
+
+bg-26:[✅] app无法使用任何AI API provider服务：“wukun@wukundeMBP patentExaminator % npm run dev
+
+> patent-examiner@0.1.0 dev
+> concurrently -n client,server -c blue,green "npm run dev -w client" "npm run dev -w server"
+
+[server] 
+[server] > server@0.1.0 dev
+[server] > tsx watch src/index.ts
+[server] 
+[client] 
+[client] > client@0.1.0 dev
+[client] > vite
+[client] 
+[client] 
+[client]   VITE v5.4.21  ready in 221 ms
+[client] 
+[client]   ➜  Local:   http://localhost:6173/
+[client]   ➜  Network: use --host to expose
+[server] Server listening on http://localhost:3000
+[server] [2026-05-26T04:04:10.408Z] INFO Client disconnected, aborting AI request {"agent":"extract-case-fields"}
+[server] [2026-05-26T04:04:26.441Z] WARN AI run failed {"agent":"extract-case-fields","attempts":[{"providerId":"gemini","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T04:04:51.780Z] INFO Client disconnected, aborting AI request {"agent":"extract-case-fields"}
+[server] [2026-05-26T04:04:53.782Z] WARN AI run failed {"agent":"extract-case-fields","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}”
+
+
+bg-25: [✅] 配置成mimo的模型后，做文档解读的时候，server端报错（网络错误）— 自定义 baseUrl 未传递到 Provider adapter，修复：AiRunRequest 新增 providerBaseUrls 字段、ChatRequest 新增 baseUrl、AgentClient 收集 providerSettings.baseUrl、registry.runWithFallback 传递 baseUrl。”[server] [2026-05-26T01:05:27.957Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:27.990Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:27.996Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:28.000Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:28.004Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:28.007Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:37.995Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:37.997Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:38.009Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:38.010Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:38.010Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:38.015Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:38.017Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:38.017Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:38.024Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:38.029Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:38.034Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:38.038Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:48.017Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:48.019Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:48.027Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:48.031Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:48.036Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:48.037Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:48.037Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:48.044Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:48.046Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:48.049Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:48.052Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:48.056Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:58.033Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:58.037Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:58.039Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:58.041Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:58.053Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:58.053Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:58.059Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:58.060Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:58.062Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:58.062Z] WARN AI run failed {"agent":"translate","attempts":[{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"},{"providerId":"mimo","ok":false,"errorCode":"network-error"}]}
+[server] [2026-05-26T01:05:58.067Z] INFO Client disconnected, aborting AI request {"agent":"translate"}
+[server] [2026-05-26T01:05:58.069Z] INFO Client disconnected, aborting AI request {"agent":"translate"}”
+
+bg-24: [✅] 配置界面：对是否启用fallback的用户选择没有记住，每次刷新页面就丢失了。
+
+bg-22: [✅] 配置里面，配置Mimo的面板，我配置好“按量付费 API 调用”的API URL 和 key以后，点击“查询模型” 为啥报错 “401 error： invalid key“？我新建的key。URL是：https://api.xiaomimimo.com/v1，文档参见：https://platform.xiaomimimo.com/docs/zh-CN/api/chat/openai-api
+
+bg-23: [✅] 配置界面，无法选取每个API provider面板上的文字，鼠标一拖拽，整个面板就跟着走。要能够通过鼠标选择面板上的文字。
+
+bg-21: [✅] server 一启动就报错：“wukun@wukundeMBP patentExaminator % npm run dev
+
+> patent-examiner@0.1.0 dev
+> concurrently -n client,server -c blue,green "npm run dev -w client" "npm run dev -w server"
+
+[server] 
+[server] > server@0.1.0 dev
+[server] > tsx watch src/index.ts
+[server] 
+[client] 
+[client] > client@0.1.0 dev
+[client] > vite
+[client] 
+[client] 
+[client]   VITE v5.4.21  ready in 228 ms
+[client] 
+[client]   ➜  Local:   http://localhost:6173/
+[client]   ➜  Network: use --host to expose
+[client] 22:31:53 [vite] http proxy error: /api/ai/run
+[client] AggregateError [ECONNREFUSED]: 
+[client]     at internalConnectMultiple (node:net:1134:18)
+[client]     at afterConnectMultiple (node:net:1715:7)”。 有个细节：页面http://localhost:6173/ 是一直开着的，无论server关掉还是重新启动，也就是说，前端页面是一直开着的，永远早于server端打开。
+
+
+bg-20: [✅] 我都离开文档解读，回到案件基本信息导入页面，为什么server端还在不断地"AI quota exhausted"。修复：在 server/src/routes/ai.ts 添加客户端断开监听，在 registry.ts 的 executeWithRetry 方法中传递和响应 AbortSignal，确保客户端导航离开时服务器端请求能够正确取消。
+
+bg-19: [✅] 复审意见草稿: 点击"生成复审意见稿"后, server端显示结构校验失败。原因：AI返回的supportingEvidence中quote长度不足20字符却标为high/medium confidence导致验证失败。修复：修改schema采用transform自动降级confidence为low，避免因短引文导致整个响应校验失败。
+
+bg-18: [✅]  复审意见草稿: 点击“生成复审意见稿”后，server端显示AI 调用正常返回内容，但是页面报错“AI 返回格式异常：未返回结构化 JSON 数据。Agent: reexam-draft。请确认 AI Provider 配置正确或切换为 Mock 模式重试。请检查设置或切换到演示模式。”。 
+
+bg-17: [✅] 创造性复核中，点击"推导客观技术问题"按钮后，页面没有反应，也没有AI内容填充，可是server端看到AI成功返回内容。而且"Step 3：审查员回应草稿运行分析后，AI 将在此直接生成可直接编辑的回应草稿。"也没有更新，也没有办法操作。
+    **原因分析**：(1) `useState` lazy initializer 只在组件首次挂载时运行，`analysis` 从 IndexedDB 异步加载后，本地状态没有同步；(2) "推导客观技术问题"按钮条件为`!analysis && selectedDistinguishing.length > 0`，导致当已有analysis时按钮不可见；(3) 缺少`useEffect`在analysis变化时同步本地状态。
+    **修复**：(1) 添加`useEffect`监听`analysis?.id`变化，同步`techProblem`、`examinerResponse`、`selectedDistinguishing`、`selectedClosestId`；(2) 修改按钮条件为`selectedDistinguishing.length > 0`，允许重新推导；(3) 按钮文本更新为"重新推导客观技术问题"以区分首次/再次推导。
+    **Commit**: https://github.com/wukun2005-gif/patentExaminator/commit/0ef6be3
+
+bg-16: [✅] 新颖性复核：切换对比文件的时候，按钮上的文本"D1"一直都不变，这是错误的。"D1"应该随着用户选择的对比文件变化而变化成比如"D2/D3/etc."。
+
+bg-15: 文档解读的页面，每次进来，都在页面的中间位置，而不是在页面的最顶端。应该在最顶端，不然用户体验不好，除非是上次用户浏览的位置恢复的，否则应该在最顶端。 [✅]  // Fixed scroll to top (commit 1ae7b9d)
+
+bg-14: [✅] 基本信息导入：用户用AI做了文件上传的自动分类后，点击“AI提取”按钮，但是提示模型配额不够，于是用户在配置界面切换了模型后，重新点击“AI提取”，server端看到AI成功返回内容，但是APP页面显示“AI 提取失败: AI 返回格式异常：未返回结构化 JSON 数据。Agent: extract-case-fields。请确认 AI Provider 配置正确或切换为 Mock 模式重试。，已降级为本地解析”。 
+
+bg-13: 现在的端到端功能测试框架，有一个重大的遗漏，对API的输出质量不做测试，LLM API和Search API都有这种情况。不管API输出质量，只要API返回就pass。这是不对的、错误的测试覆盖。对API的输出，要测试输出是否满足APP的要求，比如是否是期望的json格式。[✅]
+
+bg-12: [✅] 文档解读：当AI API额度不够的时候，页面没有任何提示，而且server端报了很多异常，server log：/Users/wukun/Documents/tmp/log.txt。查一下全业务流程其他环节是否有类似的问题，举一反三，一次全解决掉。
+
+bg-11: [✅] 缺陷复查：运行结果没有持久化保存，刷新就不见了，也不能恢复。这是老问题，42， 49， 57 都遇到过，fix过，彻查过，但是怎么又出现了？全面仔细升入彻底地检查root cause，并fix。不要再一个一个的fix了。一次解决所有潜在的类似的所有问题。
+
+bg-10: [✅] "审查意见简述": 正文 部分的格式和排版要优化，现在各个元素挤在一起，阅读不友好。
+
+bg-6: [✅] "审查意见简述"里面，我读了简述，发现只简述了专利申请和待确定的问题，完全没有简述其他审查意见，比如"复审意见草稿"里面的很多审查结论根本没有提及。这是work-as-design还是bug？补充："简要概述审查意见的核心要点，包含新颖性、创造性的主要结论和关键依据"，这是页面上写的简述的范围，可实际上AI生成的简述内容远远低于这个范围，审查意见的核心要点，包含新颖性、创造性的主要结论和关键依等只字未提。我确定这是个bug。
+
+bg-7: [✅] 复审意见草稿中"候选结论"和"原文依据"不可编辑——审查员无法在草稿页面直接修改候选结论或调整原文依据
+  **优先级：** P1 — 影响审查员对草稿的"确认"操作效率
+  **问题：** DraftMaterialPanel.tsx 中只有 `examinerResponse`（审查员回应草稿）和 `overallAssessment`（综合评估）使用了 `InlineEdit` 组件。而 `conclusion`（候选结论：4 档）和 `supportingEvidence`（原文依据）均为纯展示，审查员无法直接修改。这与上游模块（Claim Chart、Novelty）的可编辑模式不一致。
+  **改动范围：**
+  - `client/src/features/draft/DraftMaterialPanel.tsx`: `conclusion` 改为下拉选择（4 档），`supportingEvidence` 改为可增删改的列表
+  - `client/src/agent/contracts.ts`: 可能需扩展 `ReexamDraftResponse` 以支持本地编辑后的状态标记
+  - `client/src/store/features/draft/draftSlice.ts`: 支持局部更新单个 response item 的 conclusion/evidence
+  **验证方式：**
+  1. 生成复审意见草稿后，修改候选结论（如从"答辩成立"改为"需进一步审查"），确认下拉选择生效
+  2. 增删原文依据条目，确认列表可编辑
+  3. 编辑后切换到其他页面再回来，确认修改已持久化
+
+bg-8: [✅] 复审意见草稿"分析策略"区域标题术语不统一——展示的内容来自新颖性复核，但标题沿用旧四区命名"分析策略"
+  **优先级：** P2 — 术语一致性，降低认知负担
+  **问题：** `DraftMaterialPanel.tsx:269-293` 的"分析策略"区域展示的是 `diffCodes`（区别特征候选）和 `pendingQuestions`（待检索问题），均来源于新颖性复核模块。但标题沿用 PRD §6.8 中"四区分离"的遗留命名"分析策略"，未随复审流程定位更新。审查员看到"分析策略"会困惑它与"新颖性复核"的关系。
+  **改动范围：**
+  - `client/src/features/draft/DraftMaterialPanel.tsx`: 将 section 标题从"分析策略"改为"新颖性复核摘要"或更准确的名称
+  - 可选：在区域上方新增一行说明文字，解释该数据来源
+  **验证方式：**
+  1. 打开复审意见草稿页面，确认原标题已被替换
+  2. 确认区别特征候选和待检索问题数据正常显示
+
+bg-9: [✅] 审查意见简述不允许编辑——违反 PRD §6.7 "用户可编辑正文"
+  **优先级：** P1 — 直接违背 PRD 要求
+  **问题：** `SummaryPanel.tsx` 中 `summary.body` 和 `summary.aiNotes` 均为纯展示，没有 `InlineEdit` 组件。用户只能"重新生成简述"，无法局部编辑修正 AI 输出的不准确之处。PRD §6.7 明确要求"用户可编辑正文"。
+  **改动范围：**
+  - `client/src/features/summary/SummaryPanel.tsx`:
+    - `summary.body` 添加 `InlineEdit` 组件（a24bd67）
+    - `summary.aiNotes` 改为 `InlineEdit`（textarea），新增说明文字"这是 AI 的辅助注释…"，新增清除按钮（fbcd39e）
+  - `client/src/store/features/draft/draftSlice.ts`: 支持局部更新 summary 字段
+  - `client/src/styles/app.css`: 新增 `.summary-ai-notes-desc` CSS 样式（fbcd39e）
+  **验证方式：**
+  1. 生成审查意见简述后，编辑正文内容
+  2. 确认修改后数据已保存到 IndexedDB
+  3. 刷新页面后确认修改内容恢复
+  4. AI 备注区显示说明文字，支持编辑和清除
+
+bg-5: [✅] 复审意见草稿: "RG-1 · novelty"， "RG-1 · inventity"， "RG-3 Clairfy"" 这些英文从哪儿来的？必须和“审查意见对照"里面的“驳回理由” 在文本显示上保持一致，不然前面中文后面英文的莫名其妙的；现在草稿里面，驳回理由之间在排版和格式上分开一些，写在都一样的格式还挤在一起，阅读不友好。
+
+bg-4: [✅] server/src/index.ts 的 provider API key 加载与 .env 不匹配：只有 GEMINI_KEY 被加载，Bedrock_API_KEY 和 Openrouter_KEY 在 .env 中存在但未加载；QWEN_KEY 不存在但代码中有加载逻辑（死代码）。导致 result: Gemini 失败后不存在 fallback 到 bedrock/openrouter 的可能性
+    状态：[x] 已修复
+    修复：server/src/index.ts — 删除 QWEN_KEY 死代码，新增 Bedrock_API_KEY → bedrock、Openrouter_KEY → openrouter 加载
+
+bg-3: [✅] 缺陷复查: 点击“运行缺陷复查”按钮后，页面没有内容显示。但server端调用成功而且有内容返回。“[server] [2026-05-24T05:27:06.228Z] INFO AI run succeeded {"agent":"defects","provider":"bedrock","durationMs":2302,"tokenUsage":{"input":1821,"output":43,"total":1864}}
+[server] [2026-05-24T05:28:56.383Z] INFO AI run succeeded {"agent":"defects","provider":"bedrock","durationMs":2145,"tokenUsage":{"input":1821,"output":49,"total":1870}}”
+
+bg-2: 现在的测试数据（/Users/wukun/Documents/tmp/patentExaminator/samples/li-battery-fastcharge-mini， /Users/wukun/Documents/tmp/patentExaminator/samples/led-heatsink-mini）没有图片，尤其是申请书，要从原始sample data中（/Users/wukun/Documents/tmp/patentExaminator/samples/li-battery-fastcharge，/Users/wukun/Documents/tmp/patentExaminator/samples/led-heatsink）加入一些关键图片做为关键信息。但不要让 mini sample data的尺寸急剧变大，只要有关键的图片信息即可。[✅]
+
+bg-1: [✅] 创造性复核 closestPriorArtId 丢失 — 点击"运行创造性复核"和"推导客观技术问题"按钮后，没有任何AI输出显示在页面，但是server端显示AI调用成功而且有内容返回。状态：已完成 (2026-05-24)。修复：增强 buildInventivePrompt 添加 JSON schema 约束；修复 mockInventive 返回 closestPriorArtId。commit b517cdc
+
+## B-016: 搜索结果显示优化
+
+**状态：** [x] 已完成 (2026-05-23)
+
+### 问题陈述
+
+当前搜索结果存在两个 UX 问题：
+
+1. **检索式显示让用户困惑**
+   - 现状：前端直接显示 AI 生成的 `searchQuery` 字段（所有检索词用 `" | "` 拼接）
+   - 示例：`检索式: LED heat dissipation module phase change material | phase change material layer 45-65°C | ...`
+   - 问题：
+     - AI 同时生成中英文检索词（目的是覆盖不同搜索引擎）
+     - 用户看到的是 AI 生成的检索词，**不是申请文件原文**
+     - 这些检索词对审查员来说难以理解其来源和目的
+
+2. **搜索结果为 0 时没有明确提示**
+   - 现状：后端返回空候选文献列表时，前端仅显示"候选文献"空列表
+   - 问题：缺少"未找到相关文献"的明确提示，用户不确定是搜索失败还是确实无结果
+
+### 功能描述
+
+1. **检索式显示改为摘要形式**
+   - 不显示拼接后的原始检索词
+   - 改为显示清晰的检索摘要，例如：`"基于 5 个技术特征生成了 5 条检索式，在 EPO 数据库中检索"`
+   - 检索词详情折叠展示供高级用户查看
+
+2. **结果为 0 时显示明确提示**
+   - 显示：`"未在 EPO 数据库中找到与这些技术特征匹配的专利文献"`
+   - 显示使用的检索词（可折叠展开），让用户了解 AI 用了什么关键词搜索
+
+3. **适用范围**
+   - 适用于所有搜索 API（EPO、Google Patents、CNIPA 等），不局限于 EPO
+
+### 技术实现要点
+
+1. **后端扩展（`server/src/routes/search.ts`）**
+   - 新增 `searchSummary` 字段，包含：
+     - 提取的技术特征数量
+     - 生成的检索式数量
+     - 使用的数据源
+     - 各检索式的语言（中文/英文）
+
+2. **前端优化（`client/src/features/references/ReferenceSearchPanel.tsx`）**
+   - 显示检索摘要而非原始拼接字符串
+   - 结果为 0 时显示明确的"未找到"提示
+   - 检索词详情折叠展示
+
+### 验收标准
+
+- [x] 检索式显示改为摘要形式（如"基于 N 个技术特征在 XXX 数据库检索"）
+- [x] 结果为 0 时显示"未在 XXX 数据库中找到相关专利文献"
+- [x] 检索词详情可折叠展开查看
+- [x] 适用于所有搜索 Provider（EPO、Google Patents 等）
+
+
+65: [✅] EPO AI 检索不工作。页面显示“检索式: LED散热模组 相变材料 | 相变材料层 45-65°C | 氮化铝陶瓷基板 散热 | 散热翅片 压铸一体成型 | LED heatsink phase change material
+”， server端log“[server] [2026-05-23T13:06:08.468Z] INFO LLM extract raw output {"rawText":"{\n  \"queries\": [\n    \"LED散热模组 相变材料\",\n    \"相变材料层 45-65°C\",\n    \"氮化铝陶瓷基板 散热\",\n    \"散热翅片 压铸一体成型\",\n    \"LED heatsink phase change material\"\n  ]\n}"}
+[server] [2026-05-23T13:06:08.468Z] INFO Extracted search queries {"searchQueries":["LED散热模组 相变材料","相变材料层 45-65°C","氮化铝陶瓷基板 散热","散热翅片 压铸一体成型","LED heatsink phase change material"]}
+[server] [2026-05-23T13:06:08.468Z] INFO Search provider {"providerId":"epo","hasApiKey":true}
+[server] [2026-05-23T13:06:08.468Z] INFO searchPatents called with providerId=epo, hasApiKey=true, queries=5
+[server] [2026-05-23T13:06:09.600Z] INFO EPO OPS search request ”
+
+
+60: [✅] bug: 用户已经完成文档解读，离开，然后进入了别的业务环节，但是server显示，用户离开后， agent interpret 还在不断地向AI API反复发送数据，这导致其他agent被block住，无法向AI API 发送request：
+“[server] Server listening on http://localhost:3000
+[server] [2026-05-23T10:46:32.962Z] INFO AI run succeeded {"agent":"interpret","provider":"bedrock","durationMs":24241,"tokenUsage":{"input":1295,"output":1436,"total":2731}}
+[server] [2026-05-23T10:46:33.661Z] INFO AI run succeeded {"agent":"interpret","provider":"bedrock","durationMs":24950,"tokenUsage":{"input":1450,"output":1708,"total":3158}}
+[server] [2026-05-23T10:46:36.292Z] INFO AI run succeeded {"agent":"interpret","provider":"bedrock","durationMs":27558,"tokenUsage":{"input":1235,"output":1583,"total":2818}}
+”
+
+59. bug-fix: 根据 bug57 的lesson learn总结报告 docs/lesson-learned-57.md 和调查，其他 store 存在同样的升级问题：其他 store (`claimCharts`, `novelty`, `inventive`, `defects` 等) 使用"仅创建不升级"模式，如果未来需要添加新索引，会遇到同样问题。因此需要重构所有 store 的升级逻辑为基于 `oldVersion` 的增量升级模式。
+
+58. [✅] 配置界面：EPO的配置，需要两个key，可是现在只有一个输入key的输入框。
+
+57: chat pannel里面的聊天记录，没有随着案件历史加载而加载进来。fix 49的时候，我已经要求“对复审的所有业务流程环节都检查一遍，每个环节生成的内容，都要能永久和案件绑定保存和恢复。”，但是现在看来还是没有做到，有遗漏的。我要求结合57这个bug，再做一次彻底的检查和整改，确保“对复审的所有业务流程环节都检查一遍，每个环节生成的内容，都要能永久和案件绑定保存和恢复。”。[✅]
+
+56: 左边的导航侧栏折叠起来的时候，如果鼠标路过或者停留在导航栏的图标时，要求显示出文字说明tooltip，比如“文档解读”，但是目前的问题文字出不来。不要加任何动画，没有必要搞这些花哨，直接出tooltip，越快越好。[✅]
+
+55: 文档解读：“综合解读汇总” 缺少一个“重新解读”按钮，点击后重新解读文档。[✅]
+
+- [X] 54: 文档解读：缺少一个“重新解读”按钮，点击后重新解读文档。
+
+- [X] 53: 内部自动测试，如果gemini遇到问题导致测试停止（比如network errror， quota limit），就切换到Bedrock API上的“qwen.qwen3-vl-235b-a22b-instruct”模型，model ID 是“qwen.qwen3-vl-235b-a22b-instruct”。Key 在 .env 的Bedrock_API_KEY里面 
+
+- [X] 52: 当前 e2e 框架的核心问题： 只验证 ok=true ，不验证结果质量。 要真正提升质量，需要加以下断言：
+  - EPO/search 测试： candidates.length > 0
+  - schema 测试： structureErrors.length === 0 （而不是只 warn）
+  - 重试次数监控：限定 per-agent max attempts
+
+- [X] 51: 新颖性复核：点击“新颖性复核”按钮后，页面内容没有任何更新，但是server端看到API AI调用已经成功返回内容
+
+49: [Fixed] 生成权利要求特征表：生成的权利要求特征表没有保存到案件中，刷新页面就不能恢复了。前面类似的bug已经fix过3个了：文档解读，对照表，参考文献。这不是个例，是通病。对复审的所有业务流程环节都检查一遍，每个环节生成的内容，都要能永久和案件绑定保存和恢复。Fixed.
+
+
+48: ~~端到端业务流程全链路 non-UI 底层逻辑自动测试更新：更新过后的自动测试框架为什么还是漏出 像 47 这样的bug ？测试框架真实的调用过AI API来测试覆盖了吗？这些bug完全可以通过调用真实的AI API 和 samples/led-heatsink-mini 测试数据用自动测试覆盖住，全面深入仔细地排查一遍，类似这样的bug 和UI相关的业务全流程全环节全链路功能，都要通过non-ui的底层逻辑功能自动测试覆盖住。所有和AI aPI打交道的测试点，都要用AI API实测来覆盖。~~ 
+
+47: ~~bug: http://localhost:6173/cases/case-1779412386053/claim-chart: 点击“生成权利要求特征表”后，报错：“Error: AI 返回格式异常：未返回结构化 JSON 数据。Agent: claim-chart。请确认 AI Provider 配置正确或切换为 Mock 模式重试。”，server端显示aI api调用成功~~ **Fixed: 2026-05-22** — 根因双层：①`paragraph` 为数字时 Zod 校验失败（4d3bb9a schema）；②真实模式仅发送权利要求原文作 prompt，AI 返回自然语言导致无 outputJson（6eea3ae buildClaimChartPrompt + mapClaimChartOutput）。加固：校验通过后服务端返回 Zod 转换结果、客户端规范化 citation.paragraph。 **[✅] Fixed: 2026-05-22** - runClaimChart 仅发送原始权利要求文本，AI 返回自然语言导致客户端 JSON 解析失败。修复：buildClaimChartPrompt + mapClaimChartOutput + structureErrors 透传（commit 6eea3ae）
+
+46: ~~bug: http://localhost:6173/cases/case-1779412386053/opinion-comparison: 审查意见对照 : 第一次打开的时候，只有驳回理由，没有答辩理由和映射；切换到其他环节再立刻回到审查意见对照页面，答辩理由和映射就都出来。~~ **Fixed: 2026-05-22** - `OpinionComparisonPanel` 组件的 `useState` 初始化在父组件 `OpinionComparisonWrapper` 的 `useEffect` 异步加载数据完成前就执行了，导致初始值为 null。修复：添加两个 `useEffect` 监听 `initialOpinionResult` 和 `initialArgumentResult` props 变化，当从 null 变为有值时同步到内部状态。
+
+45: ~~regression: 设置界面无法打开。~~ **Fixed: 2026-05-22** - 经排查：项目构建成功、单元测试全部通过（10/10）、前端服务器响应正常、浏览器控制台无 JavaScript 错误、SettingsPage 及所有子组件代码正常、路由配置正确。用户报告的端口占用警告 (`EADDRINUSE`) 与设置界面无关。设置页面 `/settings` 功能正常。
+
+44: ~~端到端业务流程全链路 non-UI 底层逻辑自动测试更新~~ **Fixed: 2026-05-22** - 创建 shared/lib/responseValidator.ts 将 agent 类型映射到 Zod schemas；集成到 server AI route 在返回前验证结构化 agent 响应，无效 JSON 则丢弃 outputJson；AiRunResponse 新增 structureErrors 字段；新增 E2E 测试 testResponseStructureValidation（8 agent）+ testMalformedResponseHandling；防止 #36/#41/#43 pattern（未定义迭代错误）复发。(commit c869f28)
+
+43: ~~bug: http://localhost:6173/cases/case-1779412386053/claim-chart: 点击“生成权利要求特征表”后，报错：“TypeError: response.features is not iterable”~~ **Fixed: 2026-05-22** - ClaimChartActions 添加 response.features 数组防御性检查；AgentClient.callGateway 对 chat/interpret 以外的结构化 agent 在 AI 返回非 JSON 时抛出明确错误而非静默包装为 {reply}。(commit fda5ce7)
+
+42: ~~审查意见对照结果持久化~~ **Fixed: 2026-05-22** - 审查意见对照结果在页面刷新后丢失，需重新运行解析。修复：扩展 IndexedDB schema 新增 `opinionAnalyses` 和 `argumentMappings` stores；创建 `opinionRepo.ts` 提供 CRUD 操作；`OpinionComparisonWrapper` 在组件挂载时从 IndexedDB 加载历史数据；分析完成后自动保存到 IndexedDB。附带修复：`AgentsAssignmentPanel.tsx` 添加缺失的 openrouter provider 名称。(commit 678d241)
+
+41: bug: http://localhost:6173/cases/case-1779412386053/references:一点文献清单就报错“Unexpected Application Error!
+Cannot read properties of undefined (reading 'tip')
+TypeError: Cannot read properties of undefined (reading 'tip')
+    at TimelineStatusBadge (http://localhost:6173/src/components/TimelineStatusBadge.tsx:56:21)
+    at renderWithHooks (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=8747b269:11548:26)
+    at mountIndeterminateComponent (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=8747b269:14926:21)
+    at beginWork (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=8747b269:15914:22)
+    at beginWork$1 (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=8747b269:19753:22)
+    at performUnitOfWork (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=8747b269:19198:20)
+    at workLoopSync (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=8747b269:19137:13)
+    at renderRootSync (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=8747b269:19116:15)
+    at recoverFromConcurrentError (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=8747b269:18736:28)
+    at performSyncWorkOnRoot (http://localhost:6173/node_modules/.vite/deps/chunk-KUXXGULC.js?v=8747b269:18879:28)
+💿 Hey developer 👋
+You can provide a way better UX than this when your app throws errors by providing your own ErrorBoundary or errorElement prop on your route.“
+~~bug: TimelineStatusBadge 组件崩溃~~ **Fixed: 2026-05-22** - 当 classifyReferenceDate() 返回 undefined（baselineDate 未设置时），TimelineStatusBadge 组件访问 STATUS_CONFIG[status].tip 导致 TypeError。修复：添加 fallback 到 UNKNOWN_CONFIG，防御性处理 undefined 状态。新增 9 个单元测试覆盖所有状态场景（commit dd7a737）。
+
+
+40: ~~配置界面的provider 太多了，对每一个provider，要提供拖拽功能，让用户把经常用的想要配置的provider拽到top的位置，方便更新配置。~~ **Fixed: 2026-05-22** - 在 ProvidersConfigPanel 中添加 provider 卡片拖拽排序功能：`sortedProviders` 按 localStorage 中的 `pex-provider-order` 排序；provider 卡片添加 `draggable` 属性及 `onDragStart/onDragOver/onDrop/onDragEnd` 事件处理；拖拽后自动更新 localStorage 持久化排序；CSS 添加 `cursor: grab` 和拖拽时的 `box-shadow` 视觉反馈。全部 217 单元测试 + 119 E2E 测试通过。
+
+39: ~~配置界面增加对Openrouter 作为 model provider的支持，API文档参考https://openrouter.ai/docs/quickstart~~ **Fixed: 2026-05-22** - 新增 `server/src/providers/openrouter.ts`（OpenAI 兼容适配器，默认支持 GPT-4o/Claude/Gemini/DeepSeek/Qwen 等 10 个模型）；`ProviderId` 类型添加 `"openrouter"`；`PRESET_MODEL_PROVIDERS` 添加 OpenRouter 条目（baseUrl: `https://openrouter.ai/api/v1`）；`ProviderRegistry` 注册 OpenRouter；`modelCatalog` 添加 10 个常用 OpenRouter 模型。全部 217 单元测试 + 119 E2E 测试通过。
+
+38: ~~端到端业务流程全链路 non-UI 底层逻辑自动测试更新：像 36 这样的bug，完全可以通过调用真实的AI API 和 samples/led-heatsink-mini 测试数据 来自动测试覆盖住，检验返回的内容是否包含驳回理由、答辩意见等等，就能自动测试出来，根本不用延迟到非要在UI上看出来全为0的时候。 全面深入仔细地排查一遍，类似这样的和UI相关的业务全流程全环节全链路功能，都要通过non-ui的底层逻辑功能自动测试覆盖住。~~ **Fixed: 2026-05-22** - 新增 8 个 mock 测试函数（共 119→119 全过）：classify-documents agent 测试、opinion-analysis ↔ argument-analysis 交叉数据校验（rejectionGroundCode 一致性、ground 完整性、citedReferences 有效性）、复审全链路数据流测试（opinion→argument→draft 三阶段数据传递验证）、opinion-analysis/argument-mapping/reexam-draft Schema 深度校验（category/legalBasis/confidence/conclusion 字段合法性）。更新测试分类指南。
+
+37: ~~文档解读：现在解读的文本是markdown的raw格式，人类阅读很不友好，换成markdown preview模式，本地渲染一下，不要让AI API输出HTML，又慢又浪费token，就在本地将markdown raw text渲染成阅读舒适格式排版舒适的markdown preview mode或者HTML，倾向于markdown preview，格式排版都最友好。~~ **Fixed: 2026-05-22** - 引入 `marked` 库本地渲染 markdown→HTML；综合解读汇总直接渲染，单个文档解读增加 编辑/预览 切换按钮；添加完整 CSS 排版样式（h1-h4、p、ul/ol、code/pre、blockquote、table、hr）(724bdf4)。
+
+36: ~~opinion-comparison 数据不显示~~ **Fixed: 2026-05-22** - 一次修复：server AI 路由始终解析 JSON（37fe619）。二次修复（根本原因）：opinion/argument analysis 的 prompt 未包含 JSON 输出指令，AI 返回自然语言而非结构化数据，client 端 fallback 包装为 `{ reply: text }` 导致 rejectionGrounds/mappings 为 undefined。修复：buildOpinionAnalysisPrompt / buildArgumentAnalysisPrompt 添加完整 JSON Schema 输出指令（70c20f3）。
+
+35: new feature: chat pannel 默认折叠起来，别打开。 **Fixed: 2026-05-22** - chatSlice.ts `isPanelOpen` 初始值改为 `false`
+
+
+
+33: http://localhost:6173/cases/case-1779410645036/references：对比文件没有作为文献清单被自动load。AI 检索功能也消失不见了。
+
+31: bug: http://localhost:6173/cases/case-1779410645036/opinion-comparison：在真实模式下使用 sample data /Users/wukun/Documents/tmp/patentExaminator/samples/led-heatsink-mini 遇到的问题：点击“一键全解析”按钮后报错：“审查意见解析：Cannot read properties of undefined (reading 'map')
+答辩理由映射：Cannot read properties of undefined (reading 'map')”; 
+点击按钮“重新解析”报错”答辩理由映射：Cannot read properties of undefined (reading 'map')“
+
+
+## B-001: AI 辅助文献检索（自动生成候选文献清单）
+
+**优先级：** P0 — 核心体验提升，显著降低审查员检索负担
+**状态：** Done
+**目标版本：** v0.1.0
+
+### 问题陈述
+
+当前文献清单完全依赖审查员手动上传对比文件。审查员需要：
+1. 阅读申请文件理解技术方案
+2. 自行在专利数据库中检索相关文献
+3. 找到文献后手动上传 PDF/DOCX
+4. 手动填写公开号、公开日等元数据
+
+步骤 2-3 占用大量时间，且是高度重复性工作。如果 AI 能根据申请文件自动检索并生成候选文献清单，审查员只需确认/调整，效率将大幅提升。
+
+### 功能描述
+
+AI 根据申请文件的权利要求和技术方案，自动从多个数据源检索相关专利文献，生成**候选文献清单**。用户可以：
+- 查看 AI 推荐的每篇文献（标题、公开号、摘要、相关度评分、AI 推荐理由）
+- **接受**文献加入正式对比文件列表
+- **拒绝/删除**不相关的推荐
+- **手动添加** AI 未检索到的文献
+- 触发**补充检索**（调整关键词/技术领域后重新检索）
+
+### 数据源（按优先级）
+
+| 数据源 | 接入方式 | 优势 | 劣势 |
+|--------|---------|------|------|
+| Web Search（Google Patents / Espacenet） | API | 覆盖广、无需额外授权 | 结构化程度低、检索精度有限 |
+| CNIPA 专利检索 | API / 爬虫 | 中国专利覆盖最全 | 接入复杂、可能有访问限制 |
+| Google Patents API | API | 全球覆盖、免费 | 需处理速率限制 |
+| 用户配置的私有数据库 | 自定义接口 | 可接入企业内部系统 | 需要用户自行配置 |
+
+v0.2.0 优先接入 **Web Search**（作为默认数据源），后续版本支持用户配置外部专利数据库。
+
+### 检索策略
+
+1. **关键技术特征提取** — AI 从独立权利要求中提取核心技术特征、技术问题、技术效果
+2. **检索式构建** — AI 将技术特征转化为专利检索式（IPC 分类号 + 关键词 + 同义词扩展）
+3. **多源检索** — 并行查询多个数据源
+4. **结果去重与排序** — 按相关度、公开日期、引用次数等维度排序
+5. **元数据自动填充** — 尽可能提取公开号、公开日、标题、摘要、IPC 分类
+
+### 数据模型扩展
+
+```typescript
+// 新增：候选文献状态
+type ReferenceSource = "user-upload" | "ai-search" | "user-added-from-candidate";
+
+// 扩展 ReferenceDocument
+interface ReferenceDocument {
+  // ... 现有字段 ...
+  source: ReferenceSource;          // 文献来源
+  aiRelevanceScore?: number;        // AI 相关度评分 (0-100)
+  aiRecommendationReason?: string;  // AI 推荐理由
+  searchQuery?: string;             // 生成此结果的检索式
+  candidateStatus?: "pending" | "accepted" | "rejected"; // 候选状态
+  searchSessionId?: string;         // 关联的检索会话
+}
+
+// 新增：检索会话
+interface SearchSession {
+  id: string;
+  caseId: string;
+  createdAt: ISODateString;
+  query: string;                    // AI 生成的检索式
+  dataSources: string[];            // 使用的数据源
+  resultCount: number;
+  status: "running" | "completed" | "failed";
+}
+```
+
+### UI 交互流程
+
+```
+申请文件已上传
+      │
+      ▼
+┌─────────────────────┐
+│  文献清单 页面       │
+│                     │
+│  [AI 检索候选文献]   │ ← 新增按钮
+│                     │
+│  ┌───────────────┐  │
+│  │ AI 候选文献    │  │ ← 新增区域
+│  │               │  │
+│  │ 1. CN112xxxA  │  │
+│  │   相关度: 92  │  │
+│  │   [接受][拒绝] │  │
+│  │               │  │
+│  │ 2. US10xxxxB  │  │
+│  │   相关度: 85  │  │
+│  │   [接受][拒绝] │  │
+│  └───────────────┘  │
+│                     │
+│  已确认文献          │ ← 现有区域
+│  ┌───────────────┐  │
+│  │ 1. CN108xxxA  │  │
+│  │ 2. ...        │  │
+│  └───────────────┘  │
+└─────────────────────┘
+```
+
+### 技术实现要点
+
+1. **后端新增 `/api/search-references` 端点**
+   - 接收申请文件文本 / 权利要求
+   - 调用 LLM 提取技术特征并构建检索式
+   - 调用外部数据源 API
+   - 返回结构化的候选文献列表
+
+2. **前端新增 `ReferenceSearchPanel` 组件**
+   - 检索触发、进度展示、结果列表
+   - 接受/拒绝交互
+   - 与现有 `ReferenceLibraryPanel` 联动
+
+3. **Agent 新增 `search-references` 能力**
+   - Prompt: 从权利要求提取检索要素 → 构建检索式
+   - 支持多轮检索（用户反馈后调整检索策略）
+
+### 验收标准
+
+- [ ] 用户点击"AI 检索"后，系统根据申请文件自动生成候选文献清单（至少 5 篇）
+- [ ] 每篇候选文献显示：标题、公开号、摘要、相关度评分、推荐理由
+- [ ] 用户可以接受/拒绝每篇候选文献
+- [ ] 接受的文献自动进入正式文献清单，元数据（公开号、公开日）自动填充
+- [ ] 用户可以手动添加 AI 未检索到的文献
+- [ ] 时间轴校验对 AI 检索的文献同样生效
+- [ ] 检索失败时有明确的错误提示，不影响手动上传功能
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| 外部 API 访问限制 / 不可用 | 多数据源冗余；降级为手动上传 |
+| AI 检索结果相关度低 | 用户可拒绝；记录反馈用于优化 prompt |
+| 元数据（公开日）提取不准 | 沿用现有 `publicationDateConfidence` 机制，标注置信度 |
+| 网络环境限制（内网部署） | 支持配置代理；优先支持可离线的检索方式 |
+
+### 与现有功能的关系
+
+- **文献清单（ReferenceLibraryPanel）**：扩展，新增"AI 候选"区域
+- **新颖性分析**：候选文献接受后才能触发新颖性对比
+- **创造性分析**：同上，需要已确认的文献列表
+- **时间轴校验**：复用现有 `dateRules.ts` 逻辑
+
+## B-002: 创建精简版测试数据（复审场景，麻雀虽小五脏俱全）
+
+**优先级：** P0 — 开发测试优化，降低 token 消耗
+**状态：** Done
+**目标版本：** v0.1.0
+
+### 问题陈述
+
+当前 samples 文件夹下的测试数据文件很大（申请文件 30+ 页，对比文件 20+ 页），在开发测试时消耗大量 token，增加测试成本，且测试速度慢。此外，B-008 产品转向复审后，测试数据需要覆盖复审场景的所有必要文档类型，但目前：
+
+1. `samples/led-heatsink/` 虽有复审文件（审查意见通知书、意见陈述书、修改后权利要求书），但文件过大（35页申请文件 + 20页对比文件），不适合日常开发快速迭代
+2. `samples/li-battery-fastcharge/` 完全缺少复审场景文件（无审查意见通知书、意见陈述书、修改后权利要求书）
+3. 没有精简版测试数据，每次跑测试都消耗大量 token
+
+需要一套**复审场景的精简版测试数据**，做到"麻雀虽小，五脏俱全"——每个文件控制在精简大小，但复审流程所需的所有数据元素一个不少。
+
+### 功能描述
+
+创建 `samples/led-heatsink-mini` 和 `samples/li-battery-fastcharge-mini` 两个新文件夹，每个文件夹包含复审场景所需的全部文档类型：
+
+**led-heatsink-mini（G1 案件）：**
+
+| 文件 | 角色 | 页数 | 内容要点 |
+|------|------|------|---------|
+| 申请文件.pdf | application | ≤3页 | 封面+权利要求书（独立权利要求+从属权利要求）+核心说明书段落+摘要 |
+| 第一次审查意见通知书.pdf | office-action | ≤3页 | 驳回理由清单（新颖性R1、创造性R2、清楚性R3）+引用文献+法律依据+事实认定 |
+| 意见陈述书.pdf | office-action-response | ≤3页 | 对每条驳回理由的逐条答辩+修改说明 |
+| 修改后权利要求书.pdf | amended-claims | ≤2页 | 修改后的权利要求（标注修改位置）+修改对照说明 |
+| CN108XXXXXXA-散热器.pdf | reference (D1) | ≤3页 | 封面+相关权利要求+核心公开内容（铝合金基板+焊接翅片） |
+| CN109XXXXXXB-热管散热.pdf | reference (D2) | ≤3页 | 封面+相关权利要求+核心公开内容（热管+穿片翅片） |
+
+**li-battery-fastcharge-mini（G2 案件）：**
+
+| 文件 | 角色 | 页数 | 内容要点 |
+|------|------|------|---------|
+| 申请文件.pdf | application | ≤3页 | 封面+权利要求书+核心说明书段落+摘要 |
+| 第一次审查意见通知书.pdf | office-action | ≤3页 | 驳回理由清单+引用文献+法律依据+事实认定 |
+| 意见陈述书.pdf | office-action-response | ≤3页 | 对每条驳回理由的逐条答辩+修改说明 |
+| 修改后权利要求书.pdf | amended-claims | ≤2页 | 修改后的权利要求+修改对照说明 |
+| CN110XXXXXXC-充电电路.pdf | reference (D1) | ≤3页 | 封面+相关权利要求+核心公开内容（CC-CV充电） |
+| CN111XXXXXXD-电池管理.pdf | reference (D2) | ≤3页 | 封面+相关权利要求+核心公开内容（BMS均衡+SOC估算） |
+
+### 复审场景数据元素清单（"五脏俱全"检查表）
+
+每个精简版案件文件夹必须包含以下所有数据元素，确保复审全流程可跑通：
+
+| 数据元素 | 所在文件 | 用途 |
+|---------|---------|------|
+| 申请号 | 申请文件.pdf 封面 | CaseSetup 案卷字段提取 |
+| 申请人/发明人 | 申请文件.pdf 封面 | CaseSetup 案卷字段提取 |
+| 独立权利要求（≥1项） | 申请文件.pdf | Claim Chart 特征拆解 |
+| 从属权利要求（≥2项） | 申请文件.pdf | 权利要求引用关系验证 |
+| 技术特征描述段落 | 申请文件.pdf 说明书 | 文档解读 + Claim Chart 段落关联 |
+| 驳回理由（≥2条，含不同类别） | 审查意见通知书.pdf | OpinionAnalysis 驳回理由提取 |
+| 法律依据（专利法条款） | 审查意见通知书.pdf | OpinionAnalysis 法律依据解析 |
+| 引用文献清单（≥2篇） | 审查意见通知书.pdf | OpinionAnalysis 引用文献提取 |
+| 事实认定描述 | 审查意见通知书.pdf | ArgumentMapping 答辩映射 |
+| 答辩理由（逐条对应驳回） | 意见陈述书.pdf | ArgumentMapping 答辩理由提取 |
+| 权利要求修改说明 | 意见陈述书.pdf / 修改后权利要求书.pdf | Claim Chart 修改追踪 |
+| 修改后的权利要求文本 | 修改后权利要求书.pdf | Claim Chart 新版本拆解 |
+| 对比文件公开号+公开日 | D1/D2 封面 | References 文献管理 |
+| 对比文件权利要求 | D1/D2 权利要求书 | Novelty 新颖性对照 |
+| 对比文件核心技术内容 | D1/D2 说明书 | Inventive 创造性分析 |
+| 对比文件附图说明 | D1/D2 附图页 | 多模态附图解读（B-007） |
+
+### 技术实现要点
+
+1. **基于现有生成脚本修改**
+   - 复用 `scripts/generate-sample-pdf.js` 等现有脚本
+   - 精简内容，只保留核心部分
+   - 控制每个文件在 3 页以内（修改后权利要求书 ≤2 页）
+
+2. **申请文件精简内容（≤3页）**
+   - 第1页：封面（申请号、申请人、发明人等基本信息）+ 权利要求书（独立权利要求+从属权利要求）
+   - 第2页：说明书核心部分（技术领域、背景技术、发明内容、权利要求引用的技术特征段落）
+   - 第3页：附图说明 + 摘要
+
+3. **审查意见通知书精简内容（≤3页）**
+   - 第1页：通知书头部信息（发文日、审查员、案件信息）+ 驳回理由概述
+   - 第2页：驳回理由详细说明（每条含：类别、涉及权利要求、法律依据、引用文献、事实认定）
+   - 第3页：引用文献清单 + 审查员结论
+
+4. **意见陈述书精简内容（≤3页）**
+   - 第1页：陈述书头部信息 + 答辩概述
+   - 第2页：逐条答辩理由（每条对应一个驳回理由，含：原驳回理由摘要、申请人论点、修改说明）
+   - 第3页：权利要求修改对照表 + 结论
+
+5. **修改后权利要求书精简内容（≤2页）**
+   - 第1页：修改后的完整权利要求书
+   - 第2页：修改对照说明（原文本 → 修改后文本，标注修改位置和类型）
+
+6. **对比文件精简内容（≤3页）**
+   - 第1页：封面（公开号、标题、公开日）+ 权利要求书（相关权利要求）
+   - 第2页：说明书核心部分（公开的技术特征段落）
+   - 第3页：附图
+
+### 验收标准
+
+- [x] 新增 `samples/led-heatsink-mini` 文件夹，包含全部 6 个复审场景文件（申请文件 + 审查意见通知书 + 意见陈述书 + 修改后权利要求书 + D1 + D2）
+- [x] 新增 `samples/li-battery-fastcharge-mini` 文件夹，包含全部 6 个复审场景文件
+- [x] 每个文件控制在精简页数内（申请文件/通知书/陈述书/对比文件 ≤3页，修改后权利要求书 ≤2页）
+- [x] 复审场景数据元素检查表全部满足（16 项数据元素一个不少）
+- [ ] 使用精简版数据可以跑通复审全流程：CaseSetup → OpinionAnalysis → ArgumentMapping → ClaimChart → Novelty → Inventive → Defects → Draft → Export
+- [x] 更新 `samples/README.md`，添加精简版数据的说明和复审场景快速上手指南
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| 精简过度导致功能测试不完整 | 严格按照"数据元素检查表"裁剪，确保 16 项必要元素全部保留 |
+| 复审场景数据构造不真实（AI 生成可能不符合实际审查实践） | 参考真实审查意见通知书格式；由有审查经验的用户审核内容 |
+| 生成的 PDF 格式不规范 | 基于现有脚本修改，保持格式一致 |
+| li-battery-fastcharge 缺少复审场景原始数据 | 基于 G2 案例用 AI 构造审查意见通知书 + 意见陈述书 + 修改后权利要求书 |
+
+---
+
+## B-003: 开发 API 级端到端真实功能自动测试框架
+
+**优先级：** P0 — 确保产品质量，降低回归风险
+**状态：** Done
+**目标版本：** v0.1.0
+
+### 问题陈述
+
+当前项目测试覆盖严重不足：
+- 唯一 E2E 测试（`tests/e2e/app.spec.ts`）仅验证 app 加载和 mode banner 显示
+- 单元测试覆盖部分工具函数，但缺少 API 级别的端到端集成测试
+- 前后端 API 交互（`/api/ai/run`、各个 Agent 路由）没有自动化测试
+- Bug 多，每次改动缺乏回归保护网
+
+需要参考 resumeTailor 的 `test-e2e.mjs` 框架设计，构建一套纯 Node.js 脚本的 API 级自动测试框架。UI 交互留给人类手工验证，测试重点放在前后端 API 全链路。
+
+### 功能描述
+
+构建一个独立的 Node.js `.mjs` 脚本 `tests/e2e-real.mjs`，通过 HTTP 请求直接调用后端 API，覆盖所有核心功能模块的端到端链路。**这是项目唯一的 E2E 自动测试文件**——现有 Playwright 测试（`tests/e2e/app.spec.ts`）的内容将被吸收合并后删除，Playwright 配置一并移除。
+
+框架设计遵循 resumeTailor test-e2e.mjs 的核心理念：
+
+- **自包含脚本**：单文件 `.mjs`，零外部测试框架依赖，`node tests/e2e-real.mjs` 即可运行
+- **纯 API 测试**：直接 HTTP POST/GET 后端端点，不启动浏览器，不做 UI 交互
+- **双模式运行**：Mock 模式（不消耗 Token、不需要 Key，验证全流程 schema/逻辑）和 Real 模式（调用真实 AI API，验证端到端功能正确性）
+- **PASS/FAIL 汇总**：每个测试用例输出 `[PASS]` / `[FAIL]`，末尾统计通过率和失败清单，exit code 反映结果
+- **选择性运行**：支持 `--only <pattern>` 按函数名过滤，开发时只跑相关测试
+- **变更驱动测试选择**：文件顶部有详细的测试分类指南（见 §测试分类指南），执行测试的 AI 根据 `git diff` 变更文件自动选择相关测试，而非盲目全跑
+
+### 使用场景与使命
+
+此测试框架在**每次提交前强制运行**（pre-commit gate）：
+
+```
+开发者修改代码 → git diff 分析变更范围
+                      │
+                      ├── 变更仅涉及 UI（CSS/HTML 结构/样式）
+                      │   → 跳过 E2E 自动测试
+                      │   → 人类手工验证 UI
+                      │
+                      ├── 变更涉及后端/API/Agent/Schema/共享类型
+                      │   → 根据 §测试分类指南 选择相关测试
+                      │   → node tests/e2e-real.mjs --only <category>
+                      │   → 必须全部 PASS，否则不能提交
+                      │
+                      └── 新 Feature 开发
+                          → 添加新测试用例到 tests/e2e-real.mjs
+                          → 跑新用例验证 Feature + 跑受影响模块的旧用例防回归
+                          → 全部 PASS 后方可提交
+```
+
+**测试选择原则（写入脚本顶部注释，AI 必读）：**
+- 修改 `server/src/routes/ai.ts` → 跑 `--only mock`（全量 Mock）+ `--only schema`
+- 修改 `shared/src/schemas/xx.ts` → 跑 `--only schema` + `--only mockXx`
+- 修改某 Agent 的 prompt/mock fixture → 跑 `--only mock<AgentName>`
+- 修改 `shared/src/types/` → 跑 `--only schema` + `--only mock`
+- 修改 `server/src/services/webSearch.ts` → 跑 `--only realSearch`（需 GEMINI_KEY + TAVILY_API_KEY）
+- 修改 Provider/fallback/Gateway → 跑 `--only real`（需 GEMINI_KEY）
+- 修改非核心文件（README/docs/config）→ 跳过 E2E
+
+### 测试分类指南（写入 tests/e2e-real.mjs 文件顶部注释）
+
+参考 resumeTailor test-e2e.mjs 顶部的分类注释（第 1-121 行），脚本文件必须包含以下分类指南供 AI 执行者查阅：
+
+```javascript
+/**
+ * E2E Functional Test Suite for Patent Examiner
+ * ==============================================
+ *
+ * 测试分类指南（AI 开发者必读）：
+ * 根据 git diff 变更文件选择对应测试，不要盲目全跑。
+ *
+ * 【基础连通性测试】任何非 UI 改动都必须跑
+ * ├── testHealthCheck              - GET /api/health
+ * └── testMockModeEnabled          - Mock 模式默认开启
+ *
+ * 【Claim Chart 测试】修改 claims/claim-chart Agent/claimChartSchema 时运行
+ * ├── testMockClaimChart_G1        - G1 LED 散热 → 特征拆解 + Schema
+ * ├── testMockClaimChart_G3        - G3 零对比文件 → 正常生成 + 待检索清单
+ * └── testSchemaClaimChart         - Schema 校验
+ *
+ * 【Novelty 测试】修改 novelty/新颖性对照相关时运行
+ * ├── testMockNovelty_G1           - G1 → 公开状态 + Citation
+ * └── testSchemaNovelty            - Schema 校验
+ *
+ * 【Inventive 测试】修改 inventive/创造性三步法相关时运行
+ * ├── testMockInventive_G2         - G2 锂电池 → 三步法结构
+ * ├── testMockInventive_G3_NoRef   - G3 无对比文件 → 跳过创造
+ * └── testSchemaInventive          - Schema 校验
+ *
+ * 【Interpret 测试】修改 interpret/文档解读相关时运行
+ * └── testMockInterpret_G1         - G1 → 解读输出非空
+ *
+ * 【Search References 测试】修改 search/文献检索相关时运行
+ * ├── testMockSearchReferences_G1  - G1 → 候选文献列表
+ * └── testSchemaSearchReferences   - Schema 校验
+ *
+ * 【Search API 真实测试】修改搜索 Provider/webSearch 时运行（需 GEMINI_KEY + TAVILY_API_KEY）
+ * ├── testRealSearchVerifyTavilyKey - Tavily Key 有效性
+ * ├── testRealSearchVerifySerpKey   - SerpAPI Key 有效性
+ * ├── testRealSearchReferences_G1   - 真实搜索流程
+ * └── testRealSearchRateLimit       - 搜索频率限制验证
+ *
+ * 【Export 测试】修改 export/导出相关时运行
+ * └── testMockExportHtml_G1        - G1 → HTML 结构 + legalCaution
+ *
+ * 【错误处理测试】修改 API Gateway/路由/错误处理时运行
+ * ├── testInvalidAgent             - 非法 agent → 400
+ * ├── testMissingRequiredFields    - 缺少必要字段 → 400
+ * └── testEmptyClaimText           - 空权利要求 → 合理提示
+ *
+ * 【全量 Mock 回归】修改共享类型/Schema/核心基础设施时运行
+ * → --only mock  （运行所有 Mock 模式测试，秒级完成）
+ *
+ * 【Real 模式测试】修改 Provider/Gateway/Fallback 时运行（需 GEMINI_KEY）
+ * ├── testRealProviderConnectivity - Gemini API 连通性
+ * ├── testRealClaimChart_G1        - G1 Claim Chart 真实 AI 生成
+ * ├── testRealNovelty_G1           - G1 新颖性对照真实 AI
+ * ├── testRealInventive_G2         - G2 三步法真实 AI
+ * ├── testRealFallbackMechanism    - 429 → fallback 切换
+ * └── testRealTokenUsageReturned   - usage 字段验证
+ *
+ * 【完整流程测试】修改流程编排/AgentClient 时运行
+ * ├── testFullPipelineMock_G1      - G1: 案件→Chart→Novelty→Export
+ * └── testFullPipelineMock_G2      - G2: 案件→Chart→Inventive→Export
+ *
+ * 【UI 改动】跳过 E2E 自动测试，人类手工验证
+ *
+ * Usage:
+ *   # 全量 Mock（默认，推荐日常开发）
+ *   node tests/e2e-real.mjs
+ *
+ *   # 根据变更选择（开发时）
+ *   node tests/e2e-real.mjs --only mock        # 所有 Mock 测试
+ *   node tests/e2e-real.mjs --only claimChart  # claim chart 相关
+ *   node tests/e2e-real.mjs --only schema      # Schema 校验
+ *   node tests/e2e-real.mjs --only real        # Real 模式（需 Key）
+ *
+ *   # Real 模式
+ *   GEMINI_KEY=xxx node tests/e2e-real.mjs --real
+ *   GEMINI_KEY=xxx node tests/e2e-real.mjs --only realClaimChart
+ */
+```
+
+### 测试分层与范围
+
+```
+tests/e2e-real.mjs
+├── 【Mock 模式测试】（默认，无需 Key，秒级完成）
+│   ├── 基础连通性：health check、app 加载（吸收原 app.spec.ts）、Mock 模式开关
+│   ├── Agent 全链路（Mock）：Claim Chart / Novelty / Inventive / Interpret / Search / Summary
+│   ├── Schema 校验：每个 Agent 返回的 JSON 是否符合 shared/schemas 定义
+│   ├── 错误处理：非法请求、超时、Agent 不存在的响应
+│   └── 预置案例回归：G1/G2/G3 fixture 数据一致性
+│
+├── 【Real 模式测试】（需 GEMINI_KEY，分钟级完成）
+│   ├── Provider 连通性：Gemini API 连通性 + 模型列表验证
+│   ├── Agent 全链路（Real）：Claim Chart / Novelty / Inventive / Interpret / Search
+│   ├── Fallback 机制：配额错误自动切换 Gemini 模型、9 个 fallback 依次尝试
+│   ├── Token 计量：验证 SSE 流返回的 usage 字段完整性
+│   └── 真实案例验证：G1 新颖性对照 skeleton、G2 三步法 skeleton
+│
+└── 【共享基础设施】
+    ├── loadEnvFile()：从 .env 或环境变量加载 GEMINI_KEY
+    ├── postJSON() / getJSON()：封装的 HTTP 请求函数
+    ├── parseSSE()：SSE 流式响应解析
+    ├── log()：PASS/FAIL 记录 + 调用栈
+    ├── 重试/fallback 逻辑：429 → 切换模型，5xx → 指数退避
+    └── RESULTS[] + Summary 统计
+```
+
+### API 端点测试矩阵
+
+每个 Agent 的测试维度：
+
+| Agent | API 路径 | Mock 模式验证 | Real 模式验证 |
+|-------|---------|-------------|-------------|
+| Health | `GET /api/health` | 200 + `{status:"ok"}` | 同左 |
+| Claim Chart | `POST /api/ai/run` (agent=`claim-chart`) | Schema 校验、特征 A/B/C 存在、Citation 字段完整 | 真实 AI 输出特征拆解正确性、说明书出处定位 |
+| Novelty | `POST /api/ai/run` (agent=`novelty`) | 公开状态四档枚举、D1 行校验 | 真实文件的新颖性对照准确性 |
+| Inventive | `POST /api/ai/run` (agent=`inventive`) | 三步法结构完整、Step 1/2/3 字段 | G2 案例三步法输出正确性 |
+| Interpret | `POST /api/ai/run` (agent=`interpret`) | 解读文本非空、包含技术方案概述 | 真实解读质量 |
+| Search References | `POST /api/search` | 候选文献列表结构、去重逻辑 | 真实检索结果质量 |
+| Export HTML | `POST /api/export/html` | HTML 结构完整、legalCaution 存在 | 同左 |
+
+### 技术实现要点
+
+1. **测试环境配置**
+   - 测试 Key 来源（从 `.env` 加载，均在 `.gitignore` 中）：
+     | 环境变量 | 用途 | 调用频率限制 |
+     |---------|------|-------------|
+     | `GEMINI_KEY` | Google AI Studio API（AI 文本生成） | 免费层 1500 req/day，RPM 有限；默认 8000ms 间隔 |
+     | `TAVILY_API_KEY` | Tavily Search API（专利搜索，主用） | 免费层 1000 req/month；每次搜索消耗 1 credit；严格控制频率 |
+     | `SerpAPI_KEY` | SerpAPI（专利搜索，备用） | 免费层 100 req/month；极限节省使用 |
+   - Base URL：`TEST_BASE` 环境变量，默认 `http://localhost:3000/api`
+   - 默认模型：`gemini-3.1-flash-lite-preview`（可通过 `GEMINI_MODEL_ID` 覆盖）
+   - Fallback 模型列表（按优先级，共 9 个）：
+     ```
+     gemini-3.1-flash-lite-preview   # 1. 速度极快、配额最高
+     gemini-2.5-flash-lite            # 2. 速度极快、配额最高
+     gemini-2.0-flash-lite            # 3. 速度极快、配额最高
+     gemini-3-flash-preview           # 4. 综合能力最强
+     gemini-2.5-flash                 # 5. 综合能力最强
+     gemini-2.0-flash                 # 6. 综合能力最强
+     gemini-3.1-pro-preview           # 7. 高级能力(配额较低)
+     gemini-3-pro-preview             # 8. 高级能力(配额较低)
+     gemini-2.5-pro                   # 9. 高级能力(配额较低)
+     ```
+     可通过 `GEMINI_MODEL_FALLBACKS` 逗号分隔覆盖
+   - 搜索 Rate limit delay：`SEARCH_RATE_LIMIT_DELAY`，默认 15000ms（搜索 API 配额更紧张）
+   - AI Rate limit delay：`GEMINI_RATE_LIMIT_DELAY`，默认 8000ms
+   - Banned model patterns：过滤 image/imagen/audio/embedding/video 等非文本模型
+   - Mock 模式通过请求 body 中 `mock: true` 参数启用
+
+2. **测试框架结构**（参考 resumeTailor test-e2e.mjs）
+   ```javascript
+   // 环境加载
+   loadEnvFile()                        // 读 .env → process.env
+   
+   // HTTP 工具
+   postJSON(path, body) → fetch()      // POST + JSON 请求
+   getJSON(path) → fetch()             // GET + JSON 响应
+   parseSSE(text) → {text, error, usage} // 解析 text/event-stream
+   postSSEWithRetry(path, body, retries) // 带 fallback 的 SSE 请求
+   
+   // 测试工具
+   log(test, pass, detail)             // 记录 PASS/FAIL + 调用栈
+   delay(ms)                           // rate limit 等待
+   
+   // 测试函数（每个 async function testXxx() 为一个测试用例）
+   async function testHealthCheck()
+   async function testMockClaimChart_G1()
+   // ...
+   
+   // main() 编排
+   async function main()               // 按顺序执行、支持 --only 过滤
+   ```
+
+3. **测试数据策略 — 极致节省 Token**
+   - Gemini 模型配额有限（免费层 1500 req/day，付费层 RPM/TPM 也有限制），测试数据必须精简
+   - **Mock 模式零 Token**：~18 个 Mock 用例完全不消耗 Token，是主力回归测试
+   - **Real 模式最小化 Token**：
+     - 每个 Agent 仅挑 1 个最具代表性的 case（而非全量 9 案例）
+     - G1 代表新颖性：1 条权利要求 + 1 篇对比文件（特征 A/B/C 各一行描述即可）
+     - G2 代表创造性：1 条权利要求 + 2 篇对比文件（精简至核心参数）
+     - 输入文本控制在 ~500 tokens 以内（权利要求文字精简至核心要素）
+     - 不传完整 PDF 全文，仅传人工提炼的关键段落文本
+   - **模型选择节省**：默认用 `gemini-3.1-flash-lite-preview`（速度最快、配额最高），fallback 按优先级依次尝试
+   - **测试输入示例**（Real 模式 G1 权利要求，~200 tokens）：
+     ```
+     "一种LED灯具散热装置，包括：散热基板(A)，铝合金材质，表面有散热翅片；
+      导热界面层(B)，石墨烯复合导热膜，厚度0.1-0.5mm；风冷模块(C)，含离心风扇和导风罩。"
+     ```
+   - **对比文件输入示例**（Real 模式 G1 D1 摘要，~150 tokens）：
+     ```
+     "D1(CN201510012345A，公开日2015-06-20)：铝合金散热基板+散热翅片；
+      导热硅脂连接(非石墨烯)；自然对流散热(无风扇)。"
+     ```
+
+4. **Schema 验证**
+   - 每个 Agent 返回的 JSON 必须通过 `shared/src/schemas/` 中对应的 Zod schema
+   - 测试中 import 对应 schema，对 AI 返回结果执行 `schema.safeParse()`
+   - Schema 验证失败 → FAIL + 输出 zod error
+
+5. **错误处理与重试**
+   ```
+   AI 429 (quota) → 切换下一个 Gemini fallback 模型，等待 5s
+   AI 5xx/网络错误 → 指数退避 [8s, 16s, 32s]，最多 3 次
+   AI 401/403 → 不重试，直接 FAIL（Key 无效）
+   
+   搜索 429 (rate limit) → 指数退避 [15s, 30s, 60s]，最多 3 次
+   搜索 5xx → 切换备用搜索 Provider（Tavily → SerpAPI），不可重试
+   搜索 quota 耗尽 → FAIL + 提示 "搜索 API 月配额已耗尽，跳过搜索测试"
+   
+   Schema 校验失败 → 不重试，直接 FAIL（输出格式问题）
+   ```
+
+6. **Mock 模式下的预置案例覆盖**
+   - 复用 PRD 附录 C 的 G1/G2/G3 定义
+   - Mock 模式验证：Claim Chart 特征识别、Novelty 公开状态、Inventive 三步法结构
+   - 所有 Mock 响应必须通过 Schema 校验
+   - 可以使用 `?mockDelay=0` 加速
+
+### 核心测试用例清单（~25+ 个）
+
+**基础连通性（2 个）**
+- `testHealthCheck` — `GET /api/health` 返回 200
+- `testMockModeEnabled` — Mock 模式默认开启，`/api/ai/run` 返回预置响应
+
+**Mock 模式 Agent 全链路（8 个）**
+- `testMockClaimChart_G1` — G1 LED 散热装置 → Claim Chart 特征拆解 + Schema 校验
+- `testMockNovelty_G1` — G1 → 新颖性对照 + 公开状态 + Citation
+- `testMockInventive_G2` — G2 锂电池 → 三步法 Step 1/2/3 结构
+- `testMockInterpret_G1` — G1 → 文档解读输出非空
+- `testMockSearchReferences_G1` — G1 → 候选文献检索结果
+- `testMockClaimChart_G3` — G3 零对比文件 → 正常生成 + 待检索问题清单
+- `testMockInventive_G3_NoRef` — G3 → 无对比文件时跳过创造性分析
+- `testMockExportHtml_G1` — G1 导出 HTML 结构完整
+
+**Schema 校验（4 个）**
+- `testSchemaClaimChart` — claim-chart 输出通过 `claimChartSchema`
+- `testSchemaNovelty` — novelty 输出通过 `noveltySchema`
+- `testSchemaInventive` — inventive 输出通过 `inventiveSchema`
+- `testSchemaSearchReferences` — search 输出通过 `searchReferencesSchema`
+
+**错误处理（3 个）**
+- `testInvalidAgent` — 非法 agent 名称返回 400
+- `testMissingRequiredFields` — 缺少必要字段返回 400
+- `testEmptyClaimText` — 空权利要求文本 → 合理错误提示
+
+**Real 模式（~12 个，需 GEMINI_KEY + 搜索 Key）**
+- `testRealProviderConnectivity` — Gemini API 连通性 + 模型列表
+- `testRealClaimChart_G1` — 真实 AI 生成 G1 Claim Chart + Schema 校验
+- `testRealNovelty_G1` — 真实 AI 生成 G1 新颖性对照
+- `testRealInventive_G2` — 真实 AI 生成 G2 三步法 skeleton
+- `testRealFallbackMechanism` — 模拟 429 触发 fallback 模型切换
+- `testRealTokenUsageReturned` — 验证 SSE 流中 usage 字段
+- `testRealSearchReferences_G1` — 真实 Tavily 搜索 G1 LED 散热相关专利 + 验证返回候选文献
+- `testRealSearchVerifyTavilyKey` — 验证 Tavily API Key 有效性（`POST /api/verify-search-key`）
+- `testRealSearchVerifySerpKey` — 验证 SerpAPI Key 有效性
+- `testRealSearchRateLimit` — 验证搜索 API 频率限制处理（连续请求后不封禁）
+- `testRealEndToEnd_G1` — G1 完整链路：AI 提取检索词 → Tavily 搜索 → AI 筛选排序 → 候选文献清单
+
+**端到端完整流程（2 个）**
+- `testFullPipelineMock_G1` — Mock 模式：新建案件 → Claim Chart → Novelty → Export 全流程 API 调用链
+- `testFullPipelineMock_G2` — Mock 模式：新建案件 → Claim Chart → Inventive → Export 全流程
+
+### Key 管理与安全
+
+- 测试 Key 来源：Google AI Studio（`https://aistudio.google.com`），`GEMINI_KEY` 环境变量
+- 与用户 Key 严格隔离：测试脚本读 `.env` 中的 `GEMINI_KEY`，用户 Key 由 server keystore 管理
+- `.env` 已在 `.gitignore`，不提交
+- 脚本内不打印完整 Key，日志中仅显示末 4 位
+- 401/403 → 不重试不 fallback，直接 FAIL（Key 无效）
+
+### 运行方式
+
+```bash
+# Mock 模式全量测试（推荐，无需 Key，秒级完成）
+node tests/e2e-real.mjs
+
+# Real 模式（需先配置 GEMINI_KEY）
+GEMINI_KEY=xxx node tests/e2e-real.mjs --real
+
+# 选择性运行（开发时）
+node tests/e2e-real.mjs --only claimChart   # 只跑 claim chart 相关
+node tests/e2e-real.mjs --only mock         # 只跑 mock 模式测试
+node tests/e2e-real.mjs --only real         # 只跑 real 模式测试
+node tests/e2e-real.mjs --only G1           # 只跑 G1 相关测试
+
+# 自定义 Base URL 和模型
+TEST_BASE=http://localhost:3000/api GEMINI_MODEL_ID=gemini-2.5-flash node tests/e2e-real.mjs --real
+
+# 添加到 npm scripts
+npm run test:e2e-real    # → node tests/e2e-real.mjs
+npm run test:e2e-real -- --real   # → node tests/e2e-real.mjs --real
+```
+
+### 验收标准
+
+- [ ] `tests/e2e-real.mjs` 脚本完成，单文件自包含、零外部测试框架依赖——这是项目**唯一**的 E2E 自动测试文件
+- [ ] 旧的 `tests/e2e/app.spec.ts` **已删除**，其内容（app 加载 + mode banner 验证）已合并到新框架的 health check 和 Mock 连通性测试中
+- [ ] `playwright.config.ts` 中的 E2E 配置已移除，若 Playwright 无其他用途则整个依赖和配置删除
+- [ ] `package.json` 中 `test:e2e` 脚本指向新框架，移除旧的 `playwright test` 命令；若 Playwright 完全删除则移除 `@playwright/test` 依赖
+- [ ] Mock 模式全量测试通过（~18 个测试用例），无需任何 Key
+- [ ] Real 模式测试支持（~6+ 个），需 `GEMINI_KEY`
+- [ ] Schema 校验：所有 Agent 的 Mock 输出通过对应 Zod schema
+- [ ] 选择性运行：`--only` 和 `--real` 参数正常工作
+- [ ] PASS/FAIL 汇总：末尾输出总数/通过数/失败数/失败清单，失败时 exit code = 1
+- [ ] Rate limit 处理：有 Gemini fallback 模型列表 + 429 自动切换 + 指数退避重试
+- [ ] 更新 `DEVELOPMENT_PLAN.md` §9 测试章节
+- [ ] 更新 `backlog.md` B-002（如果 B-002 简化测试数据已就绪，标记为 done；如果未就绪，要求在 B-003 开始前先完成 B-002）
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| 测试用 Gemini Key 配额限制严格 | Mock 模式为主力（零消耗）；Real 模式用 flash-lite 默认、输入文本极致精简（~500 tokens/次）、9 个 fallback 模型轮换 |
+| AI 输出随机性导致 Real 测试不稳定 | Real 模式仅做 smoke（输出非空 + Schema 校验），不做精确文本比对 |
+| 测试脚本依赖 server 运行 | 脚本开头自动 health check，server 未启动时提前退出并提示 |
+| Fixture 数据与代码不同步 | Mock 测试验证 Schema 结构而非精确内容；Schema 变更时同步更新 fixture |
+| Gemini fallback 模型全部配额耗尽 | Real 模式失败不阻塞 Mock 模式；Mock 模式独立运行；可配置 `GEMINI_MODEL_ID` 临时切换其他模型 |
+
+## B-004: 申请文件修改版本智能比对与变更解读
+
+**优先级：** P1 — 审查流程中的高频刚需，显著提升审查效率
+**状态：** [ ] 待开发
+**目标版本：** v0.1.0
+
+### 问题陈述
+
+在发明专利实质审查过程中，申请人在收到审查意见后常常会提交修改后的申请文件（权利要求书、说明书等），向审查员发送新版本。当前系统：
+
+1. **textVersion 下拉仅是一个标签**（original / amended-1 / amended-2），不关联实际的文档版本
+2. **无法上传新版本文件并关联到旧的版本**——审查员只能手动切换 textVersion，系统无法知道新版本文件与旧版本的实际对应关系
+3. **没有自动比对能力**——审查员需要人工逐字比对旧版本和新版本，找出申请人修改了哪些内容，这是一项耗时且容易遗漏的重复性工作
+4. **变更影响不透明**——即使人工找出了变更，审查员还要自己判断这些变更对已有分析结果（Claim Chart、新颖性对照、创造性分析等）的影响
+
+审查员需要一个自动化流程：上传新版本文件 → 系统自动与指定旧版本逐项比对 → AI 解读变更内容 → 标记受影响的下游产出。
+
+### 功能描述
+
+系统提供完整的**申请文件版本管理与智能比对**能力：
+
+**1. 文档版本管理**
+- 用户可上传新的申请文件版本（修改后的权利要求书、说明书等）
+- 新文件自动关联到当前案件的 `textVersion`（如 "amended-1"）
+- 系统维护文件与 `textVersion` 的映射关系，知道每个版本对应的实际文档内容
+- 支持为每个版本添加备注（如"依据第一次审查意见修改"）
+
+**2. 自动逐项比对**
+- 用户选择"与前一版本比对"，系统自动对比两个版本的文本
+- 文字级 diff：使用 diff 算法精确标注新增、删除、修改的文本段落
+- 结构化 diff：针对权利要求书，按权利要求的逐项比对（权1 vs 权1、权2 vs 权2），识别：
+  - 新增的权利要求
+  - 删除的权利要求
+  - 修改的权利要求（文字变更 + 引用关系变更）
+- 针对说明书，按段落/章节比对，标注修改区域
+
+**3. AI 变更解读**
+- AI 用通俗语言总结变更内容，回答三个核心问题：
+  - 申请人改了**什么**？（变更内容摘要）
+  - 改的原因是什么？（推断修改意图：克服新颖性缺陷？澄清不清楚之处？缩小保护范围？）
+  - 对本审查案件的影响是什么？（哪些已有分析结果需要更新？）
+- 解读输出在独立的对话面板中，审查员可追问具体变更的细节
+
+**4. 下游产出联动更新**
+- 基于 diff 结果，系统自动标记受影响的已有分析：
+  - Claim Chart 中涉及修改权利要求的特征 → 标记为 stale，提示"权利要求已修改，建议重新拆解"
+  - 新颖性对照中涉及变更特征的 → 标记为 stale
+  - 创造性分析中涉及变更特征的 → 标记为 stale
+- 审查员可一键触发受影响模块的重新分析（沿用已有 Agent，无需重复配置）
+
+### 数据模型扩展
+
+```typescript
+// 新增：文档版本快照
+interface DocumentVersion {
+  id: string;
+  caseId: string;
+  textVersion: PatentCase["textVersion"];  // "original" | "amended-1" | "amended-2"
+  parentVersion?: PatentCase["textVersion"]; // 基于哪个版本修改
+  documents: string[];                      // 关联的 SourceDocument IDs
+  changeDescription?: string;               // 申请人声称的修改说明
+  examinerNotes?: string;                   // 审查员备注
+  createdAt: ISODateTimeString;
+}
+
+// 新增：版本比对结果
+interface VersionDiff {
+  id: string;
+  caseId: string;
+  baseVersion: PatentCase["textVersion"];   // 旧版本
+  targetVersion: PatentCase["textVersion"]; // 新版本
+  status: "pending" | "completed" | "failed";
+  sections: DiffSection[];                  // 各部分的比对结果
+  aiSummary?: string;                       // AI 变更摘要
+  affectedModules: AffectedModule[];        // 受影响的功能模块
+  createdAt: ISODateTimeString;
+}
+
+interface DiffSection {
+  sectionType: "claims" | "description" | "abstract" | "drawings";
+  label: string;                            // e.g., "权利要求1", "说明书§3.2"
+  changeType: "added" | "deleted" | "modified" | "unchanged";
+  oldText?: string;
+  newText?: string;
+  diffMarkup?: string;                      // 带标注的 diff 文本
+  aiInterpretation?: string;                // AI 对该处变更的单独解读
+}
+
+interface AffectedModule {
+  module: "claim-chart" | "novelty" | "inventive" | "summary" | "draft";
+  entityIds: string[];                      // 受影响的实体 ID 列表
+  reason: string;                           // 受影响的原因
+  staleStatus: "stale";                     // 标记为需更新
+}
+```
+
+### UI 交互流程
+
+```
+案件详情页 → 文档导入区域
+  │
+  ├── 当前版本: original（已上传 3 个文件）
+  │
+  └── [上传新版本] 按钮
+        │
+        ▼
+      ┌──────────────────────────────┐
+      │  上传修改后的申请文件          │
+      │  选择版本: amended-1          │
+      │  修改说明: (申请人声称的)     │
+      │  [上传文件...]                │
+      │  [取消]  [确认上传]           │
+      └──────────────────────────────┘
+        │
+        ▼ 上传完成后
+      ┌──────────────────────────────┐
+      │  版本比对                     │
+      │  旧版本: original             │
+      │  新版本: amended-1            │
+      │                              │
+      │  [开始自动比对]               │
+      └──────────────────────────────┘
+        │
+        ▼ 比对完成后
+      ┌──────────────────────────────┐
+      │  比对结果面板                 │
+      │                              │
+      │  AI 变更摘要:                 │
+      │  "申请人主要修改了权利要求1， │
+      │   将'石墨烯复合导热膜'限定为   │
+      │   '厚度0.1-0.3mm'，缩小了保护 │
+      │   范围...                     │
+      │                              │
+      │  逐项变更:                    │
+      │  ┌──────────────────────┐    │
+      │  │ 权利要求1 ✏️ 修改     │    │
+      │  │ + 厚度0.1mm-0.3mm    │    │
+      │  │ - 厚度0.1mm-0.5mm    │    │
+      │  │ [AI 解读] 缩小保护范围│    │
+      │  ├──────────────────────┤    │
+      │  │ 权利要求5 ➕ 新增     │    │
+      │  │ + 还包括主动散热风扇  │    │
+      │  │ [AI 解读] 新增从属权利│    │
+      │  ├──────────────────────┤    │
+      │  │ 说明书§0023 ✏️ 修改  │    │
+      │  │ ...                  │    │
+      │  └──────────────────────┘    │
+      │                              │
+      │  受影响模块:                  │
+      │  ⚠️ Claim Chart — 特征B 描述  │
+      │     需更新 (权1已修改)        │
+      │  ⚠️ 新颖性对照 — 需重新分析   │
+      │      (区别特征范围已变化)     │
+      │                              │
+      │  [一键更新所有受影响模块]      │
+      │  [仅更新 Claim Chart]        │
+      │  [仅更新新颖性对照]           │
+      └──────────────────────────────┘
+```
+
+### 技术实现要点
+
+1. **Diff 引擎**
+   - 文字级：使用 `diff` 库（如 `diff-match-patch` 或 `jsdiff`）进行逐行/逐段文本比对
+   - 结构化：针对权利要求，先按权利要求编号对齐（权1→权1），再逐项 diff
+   - 输出统一 diff 格式（unified diff）供前端渲染
+
+2. **新增 `/api/ai/run` Agent: `version-diff`**
+   - 输入：旧版本全文 + 新版本全文 + 已解析的权利要求列表
+   - 输出：结构化 diff（`versionDiffSchema`）+ AI 变更解读
+   - Prompt 设计要点：
+     - 要求 AI 按权利要求的逐项分析变更
+     - 解读变更的潜在法律含义（缩小保护范围？澄清？新增特征？）
+     - 标注"所有解读为候选分析，需审查员确认"
+
+3. **前端新增组件**
+   - `VersionUploadPanel.tsx` — 新版本文件上传 + 版本选择
+   - `VersionDiffPanel.tsx` — 比对结果展示（diff 视图 + AI 解读）
+   - `VersionDiffActions.tsx` — 受影响的模块更新触发按钮
+
+4. **联动更新机制**
+   - 复用现有"textVersion 切换 stale 标记"机制（DESIGN §4.3.1）
+   - 比对完成后自动标记受影响模块为 stale
+   - 用户点击更新按钮时，携带变更上下文重新调用对应 Agent（如 claim-chart agent 会收到"权利要求1已从X改为Y，请重新拆解"的提示）
+
+5. **IndexedDB 新增 store**
+   - `documentVersions` — 存储 DocumentVersion 记录
+   - `versionDiffs` — 存储 VersionDiff 比对结果
+
+### 与现有功能的关系
+
+- **案件基线（CaseBaselineForm）**：现有 textVersion 下拉已有 original/amended-1/amended-2 选项，不需要修改
+- **文档导入（DocumentUploadPanel）**：扩展，新增"上传为新版本"模式
+- **Claim Chart / 新颖性 / 创造性**：依赖现有的 stale 标记机制（DESIGN §4.3.1），无需修改这些模块本身
+- **Agent 分配**：新增 `version-diff` Agent，需在设置页面配置 Provider
+
+### 验收标准
+
+- [ ] 用户可上传新版本的申请文件（权利要求书、说明书等），并关联到 textVersion
+- [ ] 用户选择旧版本和新版本后，系统自动执行逐项比对
+- [ ] 比对结果以 diff 视图展示：新增（绿色）、删除（红色）、修改（黄色）
+- [ ] AI 生成变更解读摘要，用通俗语言说明改了什么、可能的原因、对审查的影响
+- [ ] 审查员可在 diff 视图中对具体变更追问 AI（复用 AgentChatPanel）
+- [ ] 比对完成后，受影响的下游模块（Claim Chart、新颖性对照、创造性分析）自动标记为 stale
+- [ ] 用户可一键触发受影响模块的重新分析
+- [ ] Mock 模式提供预置比对结果（基于 G1/G2/G3 案例构造修改版本）
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| AI 对修改意图的解读可能不准确 | 所有解读标注"候选分析·需审查员确认"；审查员可在对话面板追问或修正 |
+| 权利要求重新编号导致逐项对齐失败 | Diff 前先做权利要求的相似度匹配（用文本相似度而非仅依赖编号），用户可手动调整对齐关系 |
+| 大文本 diff 性能问题（100页说明书） | 先做段落级哈希快速定位未修改部分，仅对变化区域做细粒度 diff |
+| 联动更新可能遗漏受影响的分析 | 以特征代码为单位追踪变更影响；保守策略下可提示"建议全部重新分析" |
+| textVersion 值有限（仅 original/amended-1/amended-2） | 后续扩展 textVersion 联合类型为 `"original" \| "amended-${number}"` 支持任意次修改 |
+
+---
+
+## B-005: 审查意见草稿的原文依据（Grounding Citation）
+
+**优先级：** P0 — 审查意见法律严谨性的核心要求，无此则草稿不可直接用于 OA 起草
+**状态：** Done
+**目标版本：** v0.1.0
+
+### 问题陈述
+
+当前系统分析模块（Claim Chart、新颖性对照、创造性分析）已能产出带 `quote` 字段的 Citation 结构化数据，但**最终审查意见草稿**存在以下 gap：
+
+1. **简述模块未实现**：`SummaryPanel.tsx` 仅为占位 UI，未实际生成审查意见正文。
+2. **草稿正文无内联引用**：`DraftMaterialPanel.tsx` 将各模块片段平铺展示，但不将 Citation 的 `quote` 编织进正文——正文是纯文本，引用出处仅以标签/段落号形式存在，审查员仍需自行回源文档查找对应原文。
+3. **导出缺失审查意见正文**：`exportMarkdown.ts` 完全没有新颖性/创造性章节；`exportHtml.ts` 新颖性对照表不展示每行的 citation quote。
+4. **Citation 来源不完整**：当前 citation 主要来自对比文件（reference），但审查意见同样需要引用**权利要求书原文**（`ClaimNode.rawText`）和**说明书原文**（`ClaimFeature.specificationCitations`）。
+
+**核心差距**：审查意见的每一条事实主张缺少从源文档摘录的**原文引用**。审查员拿到草稿后仍需自行回源文档查找对应段落——而这正是系统应消除的重复劳动。
+
+### 功能描述
+
+审查意见草稿中每一条事实主张，必须附带源文档的**原文引用（grounding citation）**。**原文（而非段落号链接或指针）必须出现在审查意见正文中。**
+
+三层原文依据：
+
+| 依据来源 | 文档类型 | 数据来源 | 呈现示例 |
+|---------|---------|---------|---------|
+| 权利要求书原文 | 申请文件 | `ClaimNode.rawText` | "权利要求 1 记载：'…原文…'" |
+| 说明书原文 | 申请文件 | `ClaimFeature.specificationCitations[].quote` | "说明书记载：'…原文…'（[0035]段）" |
+| 对比文件原文 | 对比文件 | `NoveltyComparisonRow.citations[].quote` / `InventiveStepAnalysis.motivationEvidence[].quote` | "D1 公开了：'…原文…'（D1 [0008]段）" |
+
+原文引用在正文中的呈现格式：
+
+```
+【权利要求原文】
+权利要求 X 记载："<引用原文>"。
+
+【本申请说明书依据】
+说明书记载："<引用原文>"（[段落号]段）。
+
+【对比文件依据】
+对比文件 D1（CNxxx）公开了："<引用原文>"（[段落号]段），
+该内容相当于本申请的 <技术特征>。
+```
+
+### 影响的系统组件
+
+| 组件 | 变更内容 |
+|------|---------|
+| `shared/src/prompts/summary.prompt.md` | 强化为"每条事实必须引出处的引用原文，原文必须是逐字摘录，内联出现在输出正文中" |
+| `shared/src/prompts/draft.prompt.md`（新增） | 新增审查意见草稿生成 prompt，明确要求三种原文来源的引用格式 |
+| `shared/src/schemas/draft.schema.ts` | 扩展 draft 结构，区分 `body`（含引用的正文）和 `aiNotes`（无出处的内容），增加 citations 校验 |
+| `client/src/features/draft/DraftMaterialPanel.tsx` | 正文中的引用原文以引用块样式呈现；可 hover 查看完整上下文 |
+| `client/src/features/summary/SummaryPanel.tsx` | 不再为占位，实现真实的简述生成与展示（含内联原文引用） |
+| `client/src/lib/exportHtml.ts` | 新颖性对照表每行展示 citation quote；创造性分析展示全部 motivationEvidence quote；新增审查意见正文章节 |
+| `client/src/lib/exportMarkdown.ts` | 大幅增强：补充新颖性/创造性/审查意见正文章节，每章节含内联原文引用 |
+| `server/src/routes/ai.ts` | 支持 `draft` / `summary` agent 路由 |
+| `shared/src/fixtures/` | 新增 draft/summary mock fixture（覆盖 G1/G2） |
+| `tests/e2e-real.mjs` | 新增 draft/summary 测试用例 |
+
+### 数据流
+
+```
+Claim Chart（confirmed citationStatus + specificationCitations[].quote）
+        +
+新颖性对照（user-reviewed + rows[].citations[].quote）
+        +
+创造性分析（motivationEvidence[].quote）
+        │
+        ▼
+  ┌─────────────────────────────┐
+  │  Draft / Summary Agent      │
+  │  约束：                      │
+  │  - 正文每条事实必须引用原文   │
+  │  - 原文必须内联（引号+来源）  │
+  │  - 区分三种来源              │
+  │  - 不确定内容进 AI 备注区     │
+  └─────────────────────────────┘
+        │
+        ▼
+  审查意见草稿正文（内联原文引用）
+        │
+        ├──→ DraftMaterialPanel（引用块高亮展示）
+        └──→ Export（HTML / Markdown）
+```
+
+### Citation 质量门禁
+
+只有满足以下条件的 citation 才能进入审查意见正文：
+- `quote` 字段非空
+- `quote` 长度 ≥ 20 字符（过短的引用无实质内容）
+- `confidence` 为 `high` 或 `medium`
+- 已通过 `citationMatch.ts` 验证（quote 在源文档中可定位）
+
+不满足条件的 citation 进入 AI 备注区，标注为"待补充原文依据"。
+
+### 验收标准
+
+- [ ] 审查意见草稿的每条事实主张均附有原文引用（三种来源至少各出现 1 次）
+- [ ] 原文引用在正文中以引号标注 + 来源段落号的形式内联呈现，不接受仅段落号/链接的引用
+- [ ] `quote` 非空且长度 ≥ 20 字符的 citation 才能进入正文
+- [ ] 简述（Summary）模块不再为占位 UI，能生成带原文引用的审查意见简述
+- [ ] HTML/Markdown 导出包含完整的审查意见正文（含内联原文引用）
+- [ ] DraftMaterialPanel 中原文引用有视觉区分（引用块样式）
+- [ ] 新增 Draft/Summary Agent 的 mock fixture（覆盖 G1/G2）
+- [ ] `tests/e2e-real.mjs` 新增 draft/summary 测试用例
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| AI 生成的引用原文不准确（张冠李戴） | `citationMatch.ts` 四级容错验证；每处引用标注 confidence level |
+| AI 输出过长（内联原文增加 token 消耗） | Prompt 限制单条 quote ≤ 300 字符，超出以"…"省略 |
+| 原文引用过多致正文冗长 | 提供"简洁/详细"两档——简洁模式仅引用关键原文，详细模式引用全部 |
+| 依赖前置模块（Claim Chart + Novelty + Inventive）全部完成 | 草稿生成前校验前置状态，缺失时提示用户先完成 |
+| 三种来源引用格式不一致 | Prompt 中规定标准引用格式模板，AI 严格遵循 |
+
+---
+
+## B-006: 文档解读环节的非中文内容自动翻译
+
+**优先级：** P1 — 提升英文专利文档的可读性，降低审查员语言障碍
+**状态：** Done
+**目标版本：** v0.1.0
+
+### 问题陈述
+
+当前文档解读（`InterpretPanel`）直接将原始文档文本发送给 AI，prompt 要求"请用中文回答"。当专利申请文件为英文（如 US 专利、PCT 申请）时：
+
+1. AI 虽然能理解英文输入并输出中文解读，但**不提供对原文的忠实翻译**——审查员只能看到 6 维度的分析摘要，无法在解读页面直接阅读中文版专利文档
+2. 审查员如需查阅专利文档的中文翻译，必须手动复制原文到外部翻译工具，打断审查流程
+3. 中文专利审查实践中，审查员需要对照中文版本理解外文专利文献的技术细节
+
+需要在文档解读环节增加翻译能力：对于非中文（主要是英文）文档，先翻译成中文，再基于中文译文进行解读，审查员可同时查看翻译和解读结果。
+
+### 功能描述
+
+文档文本进入解读页面后，系统自动检测语言：
+- **中文文档**（CJK 字符占比 ≥ 30%）：跳过翻译，直接进行解读（保持现有行为）
+- **非中文文档**（主要是英文）：先调用翻译 Agent 将文档翻译为中文，翻译结果展示在可编辑区域，然后自动基于中文译文调用解读 Agent 生成 6 维度解读
+
+用户可手动触发重新翻译、重新解读，也可直接编辑翻译结果后点"重新解读"基于修改版重新生成解读。
+
+### 核心流程
+
+```
+文档文本
+    │
+    ▼
+┌──────────────┐
+│ 语言检测      │  CJK 字符占比统计
+└──────┬───────┘
+       │
+   ┌───▼───┐
+   │中文?   │
+   └─┬───┬─┘
+    是   否
+     │    │
+     │    ▼
+     │  ┌─────────────┐
+     │  │ 翻译 Agent   │  英文→中文专利翻译
+     │  └─────┬───────┘
+     │        │
+     │        ▼
+     │  ┌─────────────┐
+     │  │ 翻译结果展示  │  editable textarea
+     │  └─────┬───────┘
+     │        │
+     ▼        ▼
+  ┌─────────────────┐
+  │ 解读 Agent       │  6维度分析（基于中文文本）
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │ 解读结果展示      │  editable textarea
+  └─────────────────┘
+```
+
+### 数据模型扩展
+
+```typescript
+// shared/src/types/agents.ts
+type AgentKey = "..." | "translate";  // 新增
+
+// client/src/agent/contracts.ts
+interface TranslateRequest {
+  caseId: string;
+  documentText: string;       // 原始文档文本
+}
+interface TranslateResponse {
+  translatedText: string;     // 中文翻译
+}
+
+// InterpretRequest 扩展
+interface InterpretRequest {
+  caseId: string;
+  documentText: string;       // 原始文本（用于语言检测和 fallback 解读）
+  translatedText?: string;    // 若已翻译则优先基于此字段解读
+}
+```
+
+### UI 布局
+
+```
+┌─────────────────────────────────────────────┐
+│  文档解读                     源语言: 英文   │
+│                              [查看原文]     │
+│                                             │
+│  ┌ 中文翻译 ──────────────────────────────┐ │
+│  │                                        │ │
+│  │  [可编辑的中文翻译文本...]              │ │
+│  │                                        │ │
+│  └────────────────────────────────────────┘ │
+│  [重新翻译]                                 │
+│                                             │
+│  ┌ 解读结果 ──────────────────────────────┐ │
+│  │                                        │ │
+│  │  ## 技术领域                           │ │
+│  │  ## 核心技术方案                       │ │
+│  │  ...                                   │ │
+│  └────────────────────────────────────────┘ │
+│  [重新解读] [保存解读]                       │
+└─────────────────────────────────────────────┘
+```
+
+- 源语言标签自动显示（中文/英文/日文/其他）
+- "查看原文"：弹窗或展开原始非中文文本（只读）
+- 中文翻译区域：editable textarea，用户可修正术语
+- 翻译完成后自动触发解读；用户修改翻译后可点"重新解读"
+- 翻译与解读各自独立 loading 状态
+
+### 技术实现要点
+
+1. **语言检测** — 新增 `client/src/lib/languageDetect.ts`
+   - 统计 CJK 字符（Unicode: `一-鿿`, `㐀-䶿`, `豈-﫿`）占总字符数比例
+   - 阈值 30%：≥ 30% 判定为中文，跳过翻译
+   - 纯函数，零外部依赖
+
+2. **翻译 Agent** — `client/src/agent/AgentClient.ts` 新增 `runTranslate()`
+   - `buildTranslatePrompt()`: 忠实翻译专利文献，保留段落/编号结构，对不确定术语给出原文标注
+   - 输入截断与解读一致（12000 字符）
+
+3. **InterpretPanel 改造** — `client/src/features/interpret/InterpretPanel.tsx`
+   - 新增 state: `translatedText`, `isTranslating`, `sourceLanguage`
+   - `useEffect` 中: 语言检测 → 若非中文 → `runTranslate()` → `runInterpret(translatedText)`
+   - 中文文档路径与现有行为完全一致（零回归风险）
+
+4. **后端适配** — `server/src/routes/ai.ts` 和 `server/src/lib/schemas.ts`
+   - agent 枚举增加 `"translate"`
+   - Mock 路由映射
+
+5. **Router 适配** — `client/src/router.tsx`
+   - `InterpretWrapper` 注入 `runTranslate`
+
+6. **Mock Fixture** — `shared/src/fixtures/translate-g1.json`
+   - G1 LED 散热装置英文原文的预置中文翻译
+
+### 验收标准
+
+- [ ] 上传英文专利文档后，系统自动检测语言并显示"英文"标签
+- [ ] 非中文文档自动触发翻译，翻译结果在可编辑区域展示
+- [ ] 翻译完成后自动基于中文译文进行 6 维度解读
+- [ ] 上传中文专利文档后，跳过翻译直接解读（回归现有行为）
+- [ ] 用户可编辑翻译结果，点击"重新解读"基于修改后的翻译重新生成解读
+- [ ] 用户可点击"重新翻译"重新生成翻译
+- [ ] 用户可点击"查看原文"展开原始英文文本
+- [ ] 翻译失败时有明确错误提示，不影响手动触发解读
+- [ ] Mock 模式下翻译 + 解读均可正常完成
+- [ ] 新增 `--only translate` E2E 测试用例覆盖
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| AI 翻译专利术语不够准确 | 翻译结果可编辑；prompt 强调保留原文术语并标注；后续可接入术语库 |
+| 翻译 + 解读串行调用，延迟翻倍 | 各自独立 loading 状态，用户感知清晰；中文文档零额外开销 |
+| 语言检测误判混合中英文文档 | 30% CJK 阈值可调；用户可手动触发翻译覆盖检测结果 |
+| 长文档翻译 Token 消耗大 | 与解读一致采用 12000 字符截断；后续可按段落分批翻译 |
+
+### 与现有功能的关系
+
+- **文档解读（InterpretPanel）** — 核心改造目标
+- **文档上传（DocumentUploadPanel）** — 提取的文本作为翻译输入
+- **AI Gateway** — 复用 `/api/ai/run`，新增 translate agent 类型
+- **Agent 配置（AgentsAssignmentPanel）** — 新增 translate agent 的模型分配
+
+---
+
+## B-007: 文档解读环节的图像理解与解读
+
+**优先级：** P0 — 核心体验缺陷，当前完全忽略附图导致解读不完整
+**状态：** Done
+**目标版本：** v0.1.0
+
+### 问题陈述
+
+中国发明专利申请文件中，**说明书附图**是理解技术方案不可或缺的组成部分。专利法要求说明书对发明作出清楚、完整的说明，而附图是达成"清楚、完整"的关键手段。当前系统存在以下严重缺陷：
+
+1. **PDF 图像完全不提取**：`pdfText.ts` 仅调用 `pdfjs-dist` 的 `getTextContent()` 提取文本层，完全不处理 PDF 中嵌入的图片/矢量图。附图页（通常含有大量矢量标注的机械结构图、电路图、流程图等）的视觉信息完全丢失。
+
+2. **AI 模型不支持图像输入**：所有 6 个 Provider 适配器仅支持 `content: string` 文本消息。`ProviderAdapter.ts` 的 `NON_TEXT_PATTERNS` 正则（`/image|vision/i`）主动过滤视觉模型。Gemini 适配器的 `NON_TEXT_PATTERNS` 同样排除 image/vision 模型。`ChatRequest.messages[].content` 类型为 `string`，不支持多模态 `parts` 数组。
+
+3. **文档解读是纯文本的**：`interpret.prompt.md` 仅接收 `{documentText}` 字符串。AI 解读时看不到任何附图，只能从文字描述中猜测技术方案的结构关系。当说明书描述"如图3所示，散热翅片(A)与导热界面层(B)通过卡扣(C)连接"时，AI 完全看不到图3的实际结构，无法验证文字描述的准确性，也无法发现文字与附图可能存在的矛盾。
+
+4. **OCR 管线不是图像理解**：当 PDF 无文本层时，Tesseract OCR 将整页渲染为图像后提取文字，输出是 flat text。这个过程完全破坏了附图的结构信息——标注箭头、组件编号、空间关系全部丢失。
+
+**结论**：当前的"文档解读"是残缺的——AI 只读了文字，没看附图。必须实现真正的图像理解，让 AI 看到并解读专利附图。
+
+### 功能描述
+
+系统在文档解读环节新增**图像理解能力**，使 AI 能够真正"看到"并解读专利附图中的视觉信息：
+
+**1. PDF 附图提取**
+- 解析"说明书附图"章节，识别每个图（图1、图2…）对应的页码范围
+- 使用 `pdfjs-dist` 的 `page.render()` 将附图页渲染为高分辨率 PNG 图像
+- 提取每个图下方/上方的图注文字（如"图1 是本发明实施例的结构示意图"）
+- 对于无文本层的扫描件 PDF，渲染所有页面为图像，与 OCR 文字一起处理
+
+**2. 多模态 AI 模型支持**
+- 接入支持视觉的模型（Gemini 2.5 Flash/Pro 均原生支持图片输入）
+- 扩展 `ChatRequest` 协议：`content` 从 `string` 扩展为 `string | MultimodalPart[]`
+- 扩展 Gemini 适配器 `chat()` 方法：当 `messages` 包含图片时，使用 Gemini Vision API 格式（`inlineData` with base64）
+- 移除 Gemini 适配器中对 vision/image 模型的过滤规则
+- 支持 OpenAI 兼容协议的视觉模型（如 GPT-4o、Kimi-Visual、GLM-4V 等）
+
+**3. 图像感知的文档解读**
+- 更新 `interpret` Agent 的 prompt：将文档文字 + 附图图片一起发送给多模态模型
+- AI 必须逐个分析每张附图：
+  - 图中展示了什么（整体结构/流程概览）
+  - 各标注组件（A、B、C…）的空间关系和连接方式
+  - 图与权利要求之间的对应关系（权1的技术特征在图中如何体现）
+  - 图中是否有文字描述未提及的细节或矛盾
+- 解读输出新增"附图解读"章节，包含逐图分析
+
+**4. 附图 Viewer UI**
+- 文档解读面板中嵌入附图查看器
+- 左侧显示附图缩略图列表，点击可放大查看
+- 右侧显示 AI 对该图的解读文字
+- 用户可对特定图的解读进行追问（复用 AgentChatPanel）
+
+### 数据模型扩展
+
+```typescript
+// 新增：从文档中提取的附图
+interface DocumentFigure {
+  id: string;
+  documentId: string;          // 关联的 SourceDocument
+  caseId: string;
+  figureNumber: number;        // 图1、图2...
+  caption: string;             // 图注文字，如"图1 是本发明实施例的结构示意图"
+  pageNumbers: number[];       // 该图所在的 PDF 页码
+  imageDataUrl: string;        // 渲染后的 PNG base64 data URL
+  imageWidth: number;
+  imageHeight: number;
+  renderingMethod: "text-layer" | "full-page-render";
+}
+
+// 扩展 SourceDocument
+interface SourceDocument {
+  // ... 现有字段 ...
+  figures?: DocumentFigure[];  // 从该文档提取的附图列表
+  hasFigures: boolean;         // 是否检测到附图
+}
+
+// 多模态消息部分
+interface MultimodalPart {
+  type: "text" | "image_url" | "inline_data";
+  text?: string;
+  image_url?: { url: string };
+  inline_data?: { mimeType: string; data: string }; // base64
+}
+
+// ChatRequest content 从 string 扩展为联合类型
+// messages[].content: string | MultimodalPart[]
+
+// InterpretRequest 扩展
+interface InterpretRequest {
+  caseId: string;
+  documentText: string;
+  figures?: Array<{
+    figureNumber: number;
+    caption: string;
+    imageDataUrl: string;      // base64 PNG
+  }>;
+}
+```
+
+### UI 交互流程
+
+```
+文档上传完成 → 文本提取完成
+      │
+      ├── 自动检测是否有附图
+      │   (解析"说明书附图"章节 / 页面文本量 < 50 chars)
+      │
+      ├── 有附图 → 触发附图提取
+      │   ┌─────────────────────────────┐
+      │   │  正在提取附图... 3/5         │
+      │   │  图1: 结构示意图 ✓          │
+      │   │  图2: 电路连接图 ✓          │
+      │   │  图3: 流程图 提取中...      │
+      │   └─────────────────────────────┘
+      │
+      ▼
+文档解读页面
+┌──────────────────────────────────────────────────┐
+│  文档解读                                         │
+│                                                  │
+│  ┌─ 文字解读 ─────────────────────────────────┐  │
+│  │ ## 技术领域                                 │  │
+│  │ ...                                        │  │
+│  │ ## 技术方案                                 │  │
+│  │ ...                                        │  │
+│  │                                            │  │
+│  │ ## 附图解读                                 │  │
+│  │ ┌── 图1: 结构示意图 ───────────────────┐   │  │
+│  │ │ [附图缩略图] [点击放大]              │   │  │
+│  │ │ AI 解读: 该图展示了LED散热装置的整体  │   │  │
+│  │ │ 结构。散热基板(A)位于底部，导热界面层 │   │  │
+│  │ │ (B)覆盖在基板上方...                  │   │  │
+│  │ │ [追问此图]                            │   │  │
+│  │ └──────────────────────────────────────┘   │  │
+│  └────────────────────────────────────────────┘  │
+│                                                  │
+│  [重新解读]  [保存解读]                           │
+└──────────────────────────────────────────────────┘
+```
+
+### 技术实现要点
+
+**1. PDF 附图提取（`client/src/lib/figureExtract.ts`）**
+
+- 步骤1: 解析"说明书附图"章节 — 在 extractedText 中定位"附图说明"或"说明书附图"标题，提取每个"图N"的标题文字作为 caption
+- 步骤2: 识别附图页 — 启发式：文本量 < 50 chars 的页面、包含"图N"标签的页面、页面 OperatorList 有大量绘图操作
+- 步骤3: 渲染 — 使用 `pdfjs-dist` 的 `page.render()` 渲染为 canvas，输出 150 DPI PNG，转换为 base64 data URL
+- 步骤4: 存储到 IndexedDB 新 store `documentFigures`，key 为 `${documentId}_${figureNumber}`
+
+**2. 多模态 Provider 适配**
+
+Gemini 适配器 (`gemini.ts`)：
+- 移除 `NON_TEXT_PATTERNS` 中对 `/image/i`、`/vision/i` 的过滤
+- `chat()` 方法检测 `content` 类型，若为数组则构建 Gemini Vision parts（`inlineData` + `text`）
+- 新增 `DEFAULT_VISION_MODELS: ["gemini-2.5-flash", "gemini-2.5-pro"]`
+
+OpenAI 兼容适配器 (`ProviderAdapter.ts`)：
+- `chat()` 方法检测 `content` 类型，若为数组则转换为 OpenAI Vision 格式（`image_url` + `text`）
+
+**3. Prompt 更新**
+
+在 `interpret.prompt.md` 中新增"附图解读"规则：AI 必须逐图描述图中内容、标注组件、空间关系、与权利要求的对应关系。输出格式包含 `## 附图解读` 章节。
+
+**4. Token 优化**
+
+| 策略 | 说明 |
+|------|------|
+| 选择性发送 | 只发送附图页，不发送纯文字页的渲染图 |
+| 分辨率控制 | 150 DPI（viewPort scale = 2.0），平衡清晰度与 token 消耗 |
+| 分批发送 | 一次请求不超过 5 张图，超过时分批发送并合并结果 |
+| 模型选择 | 默认用 `gemini-2.5-flash`（视觉能力强 + 配额高） |
+| Image 缓存 | IndexedDB 7 天 TTL，避免重复渲染 |
+
+**5. 前端新增/修改组件**
+
+- `FigureExtractPanel.tsx`（新增）— 附图提取进度 + 附图缩略图列表
+- `FigureViewer.tsx`（新增）— 附图放大查看器（Modal）
+- `InterpretPanel.tsx`（修改）— 嵌入附图查看区域，展示逐图解读
+- `DocumentUploadPanel.tsx`（修改）— PDF 上传后自动触发附图提取
+
+**6. 后端变更**
+
+- `server/src/providers/gemini.ts` — 移除 vision 过滤 + 支持多模态 parts
+- `server/src/providers/ProviderAdapter.ts` — 扩展 ChatRequest content 类型
+- `server/src/routes/ai.ts` — interpret agent 传递 figures 数据
+- `shared/src/types/domain.ts` — 新增 DocumentFigure 接口
+- `shared/src/types/api.ts` — 扩展 InterpretRequest
+
+### 验收标准
+
+- [ ] PDF 上传后，系统自动检测并提取附图（识别附图章节 + 渲染附图页为 PNG）
+- [ ] 附图以缩略图列表形式展示在文档解读页面中，点击可放大查看
+- [ ] 文档解读 AI 能正确分析每张附图的内容（组件标注、空间关系、与技术方案的对应）
+- [ ] AI 解读输出中包含完整的"附图解读"章节，每张图有独立分析段落
+- [ ] 用户可对特定附图的解读进行追问（复用 AgentChatPanel）
+- [ ] 至少支持一个多模态模型（Gemini 2.5 Flash 为首选）
+- [ ] 无附图的纯文本文档不受影响，解读流程正常工作（零回归）
+- [ ] 多模态请求走 Provider fallback 机制（与文本请求相同）
+- [ ] Mock 模式提供预置附图解读结果（基于 G1 LED 散热装置的 Fig1-5）
+- [ ] 附图缓存在 IndexedDB 的 `documentFigures` store，7 天 TTL
+- [ ] `tests/e2e-real.mjs` 新增 `--only figureExtract` 测试用例
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| 多模态模型 token 消耗大 | 严格 150 DPI、每请求 ≤ 5 张图、仅发送附图页、纯文本解读作为降级方案 |
+| 渲染大尺寸 PDF 页面可能导致浏览器内存溢出 | 分页渲染 + 及时释放 canvas；设置最大尺寸限制（4000x3000px） |
+| 某些 PDF 中附图非独立页面（文字与图混排） | 整页渲染发送给 AI（含文字+图），不影响理解 |
+| 扫描件 PDF 的附图质量差 | AI 基于 OCR 文字 + 低质量图进行解读，标注"图像质量有限，解读仅供参考" |
+| 视觉模型 API 稳定性/配额限制 | 复用现有 fallback 机制；至少保留纯文本解读作为降级方案 |
+| 附图编号与页码对应关系解析不准确 | 用户可在 FigureExtractPanel 中手动调整图号与页码的对应关系 |
+| AI 对复杂附图（如芯片版图、化学结构式）的解读可能不准确 | 所有 AI 解读标注"候选分析·需审查员确认"；审查员可追问或修正 |
+| 图片 base64 占用 IndexedDB 空间大 | 7 天 TTL + 总存储上限 50MB；超出时提示用户清理旧缓存 |
+
+### 与现有功能的关系
+
+- **文档上传（DocumentUploadPanel）**：扩展，上传 PDF 后自动触发附图提取
+- **文档解读（InterpretPanel）**：扩展，嵌入附图查看和逐图解读
+- **AI Agent（interpret）**：扩展 prompt + 支持多模态输入（文字 + 图片）
+- **Provider 适配器（gemini.ts / ProviderAdapter.ts）**：改造 chat() 方法支持多模态 parts
+- **OCR 管线**：无文本层 PDF 的附图提取作为 OCR 补充（OCR 提取文字 + 附图渲染保留视觉）
+- **Claim Chart**：后续可复用附图信息，在特征拆解时引用附图中的标注（另开 feature）
+
+---
+
+## B-008: 产品转向 — 从初审助手彻底转为复审AI助手
+
+**优先级：** P0 — 最高优先级。产品方向性决定，所有其他 feature 以此为前提
+**状态：** ✅ 已完成 (c3b3816)
+**目标版本：** v0.1.0
+
+### 产品决定
+
+**patentExaminator 定位为复审 AI 助手，不再支持初审场景。** 当前系统基于初审流程构建，需要彻底改造为复审流程。初审场景以后作为独立入口重新设计，不在当前版本范围内。
+
+### 问题陈述
+
+当前系统按照**首次审查（初审）**流程构建：
+
+```
+Case Setup（上传申请文件）
+  → References（检索/上传对比文献）
+  → Claim Chart（权利要求特征拆解）
+  → Novelty（新颖性对照）
+  → Inventive（创造性三步法分析）
+  → Defects（形式缺陷检测）
+  → Draft（审查意见草稿）
+  → Export（导出）
+```
+
+但用户的实际工作场景是**复审**——审查员在收到申请人的意见陈述书和修改后的权利要求后，进行再次审查。复审的输入和流程与初审有本质区别：
+
+1. **输入不同**：除了申请文件，还有上一次（或几次）的审查意见通知书 + 申请人的意见陈述书 + 可能修改后的权利要求书
+2. **分析目标不同**：不是从零开始分析新颖性/创造性，而是要**针对申请人的答辩理由逐条回应**
+3. **输出格式不同**：复审意见必须是"逐条回应"结构，不能是初审的"从头分析"结构
+
+因此，系统需要从初审流程**彻底转向**复审流程。
+
+### 目标复审流程
+
+```
+Case Setup
+  输入：申请文件 + 审查意见通知书（≥1份）+ 意见陈述书 + 修改后的权利要求书（可选）
+      │
+      ├── 提取案卷字段（复用 extract-case-fields）
+      ├── 解析审查意见通知书 → 驳回理由清单
+      └── 解析意见陈述书 → 答辩理由清单
+      │
+      ▼
+Opinion Analysis（审查意见解析）
+  输出：结构化驳回理由（类别、涉及权利要求、法律依据、引用文献、事实认定）
+      │
+      ▼
+Argument Mapping（答辩理由映射）
+  输出：驳回理由 ↔ 答辩理由 一一对应表 + 权利要求修改追踪 + 未回应项标注
+      │
+      ▼
+References（对比文献管理）
+  复用现有逻辑。复审通常不新增对比文件，但也可能引入新文献
+      │
+      ▼
+Claim Chart（权利要求特征拆解）
+  输入：修改后的权利要求书（如有）
+  输出：特征拆解 + 标注哪些特征是新增/修改的
+      │
+      ▼
+Novelty（新颖性对照分析）
+  输入：Claim Chart + 对比文献 + 申请人关于新颖性的答辩理由
+  输出：特征级新颖性对照 + 对每条答辩理由的逐条回应
+      │
+      ▼
+Inventive（创造性三步法分析）
+  输入：Novelty 区别特征 + 答辩理由中关于创造性的部分
+  输出：三步法分析 + 对创造性答辩的逐条回应
+      │
+      ▼
+Defects（形式缺陷检测）
+  输入：修改后的权利要求 + 上次审查意见指出的缺陷清单
+  输出：缺陷清单 + 每项缺陷的"已克服/未克服"状态
+      │
+      ▼
+Draft（复审审查意见草稿）
+  输入：所有上游分析结果 + 驳回理由 + 答辩映射
+  输出：逐条回应格式的复审意见草稿
+      │
+      ▼
+Export（导出）
+  复用现有逻辑，适配复审意见格式
+```
+
+### 需要移除的初审内容
+
+| 移除项 | 说明 |
+|-------|------|
+| 初审 CaseSetup 逻辑 | `CaseSetupPage` 中的"仅上传申请文件"模式 |
+| 初审 Draft 模板 | `DraftMaterialPanel` 中的"首次审查意见"输出格式 |
+| 初审 prompt 中的初始分析指令 | Novelty/Inventive/Draft 的 prompt 从"首次分析"改为"针对答辩的回应分析" |
+| `CaseWorkflowState` 中的初审专属状态 | 简化状态机，移除初审路径 |
+
+### 需要新增的模块
+
+| 新增项 | 对应 Agent | 说明 |
+|-------|-----------|------|
+| OpinionAnalysisPanel | `opinion-analysis` | 展示审查意见通知书解析结果（驳回理由清单、引用文献、事实认定） |
+| ArgumentMappingPanel | `argument-analysis` | 展示驳回理由 ↔ 答辩理由对应表 |
+| 复审 Draft 模板 | `reexam-draft` | 生成逐条回应格式的复审意见稿 |
+
+### 需要适配的现有模块
+
+| 现有模块 | 适配内容 |
+|---------|---------|
+| CaseSetupPage | 改为复审输入模式：申请文件 + 审查意见通知书 + 意见陈述书 + 修改后权利要求书（可选） |
+| ClaimChartTable | 支持拆解修改后的权利要求；标注新增/修改/删除的特征 |
+| NoveltyComparisonTable | prompt 接收申请人新颖性答辩理由；输出增加"审查员回应"列 |
+| InventiveStepPanel | prompt 接收申请人创造性答辩理由；输出增加"审查员回应"列 |
+| DefectPanel | 接收"上次审查意见指出的缺陷清单"；输出增加"是否已克服"列 |
+| DraftMaterialPanel | 切换为复审意见模板（逐条回应格式） |
+| InterpretPanel | 扩展支持审查意见通知书、意见陈述书的解读 |
+
+### 受影响的文档和资产（实现本 feature 时必须同步更新）
+
+| 文档/资产 | 更新内容 |
+|----------|---------|
+| **PRD** (`PRD.md`) | 产品定位从"AI辅助专利审查"改为"AI辅助专利复审"；用户场景重写为复审场景；功能需求列表替换为复审流程 |
+| **Design Doc** (`DESIGN.md`) | 工作流状态机替换为复审流程；数据模型新增 `OfficeActionAnalysis`/`ArgumentMapping` 等；路由从初审路径改为复审路径 |
+| **Development Plan** (`DEVELOPMENT_PLAN.md`) | 开发阶段重新划分；里程碑目标从"初审可用"改为"复审可用" |
+| **Sample Data** (`samples/`) | 新增构造的审查意见通知书 PDF + 意见陈述书 PDF（基于 G1/G2 案例）；现有申请文件可复用 |
+| **Mock Fixtures** (`shared/src/fixtures/`) | 新增 `opinion-analysis`、`argument-analysis`、`reexam-draft` 的 mock 数据 |
+| **E2E 测试** (`tests/e2e-real.mjs`) | 重写全流程测试用例为复审流程；移除初审流程测试 |
+| **Prompt 文件** (`shared/src/prompts/`) | Novelty/Inventive/Draft prompt 从"首次审查分析"改为"针对答辩的复审回应"；新增 opinion-analysis、argument-analysis 的 prompt |
+
+### 数据模型变更
+
+```typescript
+// 1. SourceDocumentRole 新增
+type SourceDocumentRole = 
+  | "application" 
+  | "reference" 
+  | "office-action-response"  // 已有：意见陈述书
+  | "office-action";           // 新增：审查意见通知书
+
+// 2. CaseWorkflowState 简化（移除初审路径，加入复审专属状态）
+type CaseWorkflowState =
+  | "empty"
+  | "case-ready"
+  | "documents-uploaded"
+  | "text-extracted"
+  | "text-confirmed"
+  | "opinion-analyzed"          // 新增：审查意见已解析
+  | "argument-mapped"           // 新增：答辩已映射
+  | "references-ready"
+  | "claim-chart-ready"
+  | "novelty-ready"
+  | "inventive-ready"
+  | "defects-ready"             // 新增：缺陷复查完成
+  | "draft-ready"
+  | "export-ready";
+
+// 3. PatentCase 扩展
+interface PatentCase {
+  // ... 现有字段 ...
+  reexaminationRound: number;        // 第几轮复审（1-based）
+  previousCaseId?: string;           // 上一轮审查的案例 ID
+}
+
+// 4. 新增类型
+interface OfficeActionAnalysis {
+  id: string;
+  caseId: string;
+  documentId: string;
+  rejectionGrounds: RejectionGround[];
+  citedReferences: RejectionCitedReference[];
+}
+
+interface RejectionGround {
+  code: string;
+  category: "novelty" | "inventive" | "clarity" | "support" | "amendment" | "other";
+  claimNumbers: number[];
+  summary: string;
+  legalBasis: string;              // 专利法条款
+}
+
+interface RejectionCitedReference {
+  publicationNumber: string;
+  rejectionGroundCodes: string[];
+  featureMapping: string;
+}
+
+interface ArgumentMapping {
+  id: string;
+  caseId: string;
+  rejectionGroundCode: string;
+  applicantArgument: string;       // 申请人答辩论点原文
+  argumentSummary: string;         // AI 提炼
+  confidence: "high" | "medium" | "low";
+  amendedClaims?: AmendedClaimDetail[];
+  newEvidence?: string;
+}
+
+interface AmendedClaimDetail {
+  claimNumber: number;
+  originalText: string;
+  amendedText: string;
+  changeDescription: string;
+}
+
+// 5. 现有分析类型扩展（增加复审上下文字段）
+// NoveltyComparison / InventiveStepAnalysis / FormalDefect 各新增：
+//   applicantArguments?: string;
+//   examinerResponse?: string;
+```
+
+### 技术实现要点
+
+1. **不是增量开发，是流程替换** — CaseSetupPage、路由、工作流状态机都需要从初审模式改为复审模式，而非在初审基础上加复审分支
+2. **后端新增 3 个 Agent**：`opinion-analysis`、`argument-analysis`、`reexam-draft`，均走 `POST /api/ai/run`
+3. **前端新增 2 个 Panel**：`OpinionAnalysisPanel`、`ArgumentMappingPanel`
+4. **前端适配 6 个现有 Panel**：CaseSetupPage、ClaimChartTable、NoveltyComparisonTable、InventiveStepPanel、DefectPanel、DraftMaterialPanel
+5. **所有 prompt 重写**：Novelty/Inventive/Defect/Draft 的 prompt 从"首次审查分析者"改为"复审回应者"角色
+6. **多轮复审**：`reexaminationRound` 跟踪复审轮次，历史数据可追溯
+7. **Token 优化**：多份通知书 + 多份答辩书容易超出 token 限制，需对历史文档做摘要压缩
+
+### 验收标准
+
+- [✅] 用户新建案例时只需上传：申请文件 + 审查意见通知书 + 意见陈述书（+ 可选修改后权利要求）
+- [✅] `opinion-analysis` 正确提取驳回理由（类别、涉及权利要求、法律依据、引用文献、事实认定）
+- [✅] `argument-analysis` 正确将答辩理由对应到驳回理由，含置信度标注
+- [✅] Claim Chart 能拆解修改后的权利要求，标注新增/修改/删除的特征
+- [✅] Novelty 分析对申请人的新颖性答辩逐条回应（而非从零分析）
+- [✅] Inventive 分析对申请人的创造性答辩逐条回应
+- [✅] Defects 对比上次缺陷清单，判断每项是否已克服
+- [✅] Draft 输出"逐条回应"格式的复审意见，与初审格式完全不同
+- [✅] 支持多轮复审，历史审查意见和答辩书可追溯
+- [✅] Mock 模式下所有 Agent 有预置 fixture
+- [✅] E2E 测试覆盖复审全流程
+- [✅] **PRD.md 已更新**：产品定位改为复审 AI 助手
+- [✅] **DESIGN.md 已更新**：工作流、数据模型、路由适配复审流程
+- [✅] **DEVELOPMENT_PLAN.md 已更新**：开发阶段重新划分
+- [x] **Sample data 已更新**：包含构造的审查意见通知书 + 意见陈述书（samples/led-heatsink/ 含 3 份复审 PDF）
+- [✅] **旧的初审相关测试用例已移除**
+
+### Detail Implementaion Plan
+/Users/wukun/Documents/tmp/patentExaminator/B-008/b008_implementation_plan.md
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| 复审场景真实数据获取困难 | 用 AI 基于 G1/G2 案例生成模拟审查意见通知书 + 意见陈述书 |
+| 多轮复审上下文膨胀 | 对历史审查意见做摘要压缩，只保留关键驳回理由和答辩要点 |
+| 审查意见通知书格式多样 | Opinion-analysis prompt 做充分 few-shot，覆盖 3-5 种格式 |
+| 答辩理由可能模糊/不对应 | Argument mapping 输出置信度，低置信度时提示人工确认 |
+| Token 超限（多份文档） | 模块化传入：Novelty 只收新颖性相关的答辩段落 |
+| 工作量较大（涉及文档、测试、数据全面改造） | 分阶段实施：先改核心流程 → 再改文档 → 最后更新测试和 sample data |
+
+---
+
+## B-009: 新增阿里通义千问（Qwen）模型提供商
+
+**优先级：** P2 — 增加国内模型选择，降低对单一提供商的依赖
+**状态：** Done
+**目标版本：** v0.1.0
+
+### 问题陈述
+
+当前系统已接入 6 个模型提供商（Gemini、Mimo、Kimi、GLM、MiniMax、DeepSeek），但缺少阿里通义千问（Qwen）。阿里 DashScope API 提供 OpenAI 兼容端点（`/compatible-mode/v1`），接入成本低，且 Qwen 系列模型在国内审查员群体中使用广泛。
+
+### 功能描述
+
+新增 `qwen` 作为第 7 个模型提供商，用户可在设置页面配置 Qwen API Key 并将 Qwen 模型分配给各个 Agent。
+
+### 涉及文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `shared/src/types/agents.ts` | `ProviderId` 联合类型追加 `"qwen"` |
+| `server/src/providers/qwen.ts`（新增） | `QwenAdapter extends OpenAICompatibleAdapter`，base URL `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| `server/src/providers/registry.ts` | 导入并注册 `QwenAdapter` |
+| `server/src/index.ts` | 支持 `QWEN_KEY` 环境变量加载 |
+| `client/src/lib/modelCatalog.ts` | `DEFAULT_MODELS` 新增 qwen 模型列表 |
+| `client/src/features/settings/ProvidersConfigPanel.tsx` | `PROVIDER_OPTIONS` 新增 qwen 条目 |
+| `client/src/features/settings/AgentsAssignmentPanel.tsx` | `PROVIDER_NAMES` 新增 qwen 条目 |
+| `client/src/lib/repositories/settingsRepo.ts` | 可选：默认设置中包含 qwen |
+
+### Qwen 模型列表
+
+| 模型 ID | 定位 | 上下文窗口 |
+|---------|------|-----------|
+| `qwen-turbo` | 速度最快、配额最高 | 131K |
+| `qwen-plus` | 能力均衡 | 131K |
+| `qwen-max` | 能力最强 | 32K |
+| `qwen3-235b-a22b` | 最新旗舰 MoE 模型 | 131K |
+
+### 技术实现要点
+
+- DashScope 兼容 OpenAI `/v1/chat/completions` 格式，**零适配器代码**——直接继承 `OpenAICompatibleAdapter`，仅需覆写 `id`、`defaultBaseUrl`、`supportedModels()`
+- API Key 通过 `Authorization: Bearer` header，与现有 OpenAI 兼容适配器一致
+- SSE 流式响应格式与 OpenAI 兼容，无需特殊解析
+- 无需 fallback 特殊处理——复用 `OpenAICompatibleAdapter` 的默认行为
+
+### 验收标准
+
+- [ ] 用户在 Providers 设置页面可选择"Qwen"并配置 API Key
+- [ ] Qwen 模型出现在 Agent 分配的模型下拉列表中
+- [ ] `POST /api/ai/run` 使用 qwen provider 能正常完成 claim-chart 链路（Mock 模式）
+- [ ] 真实模式下 Qwen API Key 连通性验证通过
+- [ ] `tests/e2e-real.mjs` 新增 `--only qwen` 测试用例
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| DashScope API 配额限制 | 与现有 6 个 provider 互补，用户可切换 |
+| Qwen API Key 获取需要阿里云账号 | 设置页面提供文档链接 |
+| DashScope 兼容模式可能不完全兼容 OpenAI 格式 | 继承 OpenAICompatibleAdapter，如有差异仅需覆写对应方法 |
+
+---
+
+## B-010: 配置界面模型列表折叠
+
+**优先级：** P2 — 体验优化，提升配置界面可读性
+**状态：** Done
+**目标版本：** v0.1.0
+
+### 问题陈述
+
+1. 下拉列表极长，滚动查找困难
+2. 用户实际只需为每个 Agent 选 1 个模型，不需要看到所有模型
+3. 配置界面的核心功能（Agent → Provider → Model 的映射）被淹没在大量模型名称中，难以理解和操作
+
+### 功能描述
+
+模型选择下拉列表支持折叠分组显示：
+
+- 默认仅显示每个 Provider 下**当前已选中的模型**（1 行），其余模型折叠
+- 点击展开箭头后，展示该 Provider 的完整模型列表
+- 列表顶部保留搜索/过滤输入框，快速定位模型
+- 折叠/展开状态按 Provider 独立管理，用户展开的 Provider 保持展开
+
+### UI 行为
+
+```
+模型选择下拉:
+┌─────────────────────────────┐
+│ Gemini                  ▼  │  ← 已选中: gemini-2.5-flash
+│   ├─ gemini-2.5-flash  ✓   │  ← 当前选中（打勾）
+│   ├─ 其他模型 (8)     ▶    │  ← 折叠，点击展开
+│                             │
+│ Kimi                    ▼  │
+│   ├─ kimi-latest       ✓   │
+│   ├─ 其他模型 (5)     ▶    │
+│ ...                         │
+└─────────────────────────────┘
+
+点击"其他模型 (N)"展开后:
+┌─────────────────────────────┐
+│ Gemini                  ▼  │
+│   ├─ gemini-2.5-flash  ✓   │
+│   ├─ 其他模型 (8)     ▼    │
+│   │  gemini-2.0-flash       │
+│   │  gemini-2.5-pro         │
+│   │  gemini-3-pro-preview   │
+│   │  ...                    │
+│   ├─ 收起             ▲    │
+└─────────────────────────────┘
+```
+
+### 技术实现要点
+
+1. **前端组件** — 修改 `AgentsAssignmentPanel.tsx` 中的模型选择下拉组件
+   - 新增 state: `expandedProviders: Set<ProviderId>` 管理展开/折叠状态
+   - 每个 Provider 的模型列表分为两组：`selectedModel`（始终可见）+ `otherModels`（可折叠）
+   - 折叠区域显示可折叠模型数量，如"其他模型 (8)"
+2. **不涉及后端/API 变更** — 纯前端交互优化
+3. **不涉及数据模型变更**
+
+### 验收标准
+
+- [ ] 模型下拉默认只显示每个 Provider 当前选中的模型，其余折叠
+- [ ] 点击展开箭头可查看该 Provider 的完整模型列表
+- [ ] 点击收起可再次折叠
+- [ ] 每个 Provider 的折叠状态独立，切换 Provider 不影响其他 Provider 的展开状态
+- [ ] 搜索功能正常工作（折叠/展开不影响过滤）
+- [ ] 现有模型选择功能零回归（选中、切换模型正常）
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| 折叠状态可能让用户误以为模型缺失 | 明确显示"其他模型 (N)"数量提示 |
+| 搜索过滤与折叠展开的交互冲突 | 搜索时自动展开所有 Provider，清空搜索后恢复折叠状态 |
+
+---
+
+## B-011: 配置界面退出按钮固定显示
+
+**优先级：** P2 — 显著提升用户体验，高频场景优化
+**状态：** done
+**目标版本：** v0.1.0
+
+### 问题陈述
+
+当前配置界面（SettingsPage）的设计存在明显的 UX 缺陷：
+1. 退出按钮 "X" 位于页面顶部的 `settings-page__header` 中
+2. 当配置内容较多、页面需要向下滚动时，退出按钮会随着滚动条滚出可视区域
+3. 用户完成配置后，需要手动滚动回顶部才能找到退出按钮，操作流程不顺畅
+4. 对于长配置页面，这个问题会被放大，显著降低用户体验
+
+### 功能描述
+
+通过 CSS 固定定位技术，将配置界面的头部区域（含退出按钮）固定在屏幕顶部，无论页面如何滚动，用户始终可以看到并点击退出按钮。
+
+### 涉及文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `client/src/styles/app.css` | 为 `.settings-page__header` 添加 `position: sticky`、`top: 0`、`background: #fff`、`z-index` 等样式，实现头部固定 |
+
+### 技术实现要点
+
+1. **CSS 实现** — 无需修改 React 组件代码，仅需调整样式
+   - `.settings-page__header` 增加 `position: sticky` 定位
+   - 同时设置 `top: 0`，确保固定在视口顶部
+   - 添加 `background: #fff`（白色背景），避免滚动时内容透过头部显示
+   - 增加适当的 `z-index`，确保头部始终在其他内容之上
+   - 保留原有的 `display: flex`、`align-items: center`、`justify-content: space-between` 样式不变
+
+2. **样式细节**
+   - 确保固定的头部与页面内容之间有适当的视觉分隔
+   - 可以添加一个底部边框或阴影，增强固定效果的视觉感知
+
+### UI 行为
+
+```
+滚动前:
+┌─────────────────────────────────┐
+│ 设置                      [X]    │ ← 头部在顶部
+│ ─────────────────────────────── │
+│ 描述文字...                    │
+│ ...更多内容...                │
+│ ...更多内容...                │
+└─────────────────────────────────┘
+
+滚动后:
+┌─────────────────────────────────┐
+│ 设置                      [X]    │ ← 头部固定在顶部，始终可见
+│ ─────────────────────────────── │
+│ ...更多内容...                │
+│ ...更多内容...                │
+│ ...更多内容...                │
+│ ...更多内容...                │
+│ ...更多内容...                │
+└─────────────────────────────────┘
+```
+
+### 验收标准
+
+- [ ] 在配置页面滚动时，头部区域（含退出按钮）始终固定在屏幕顶部
+- [ ] 退出按钮在滚动后仍然可以点击，功能正常
+- [ ] 固定的头部有白色背景，不会与下方内容重叠混淆
+- [ ] 头部区域的布局（"设置"标题在左，按钮在右）保持不变
+- [ ] 在不同屏幕尺寸下，固定头部的行为一致
+- [ ] 与其他功能零回归
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| `sticky` 定位在旧浏览器上可能不支持 | 使用 `position: -webkit-sticky` 作为前缀，兼容 Safari 等浏览器；降级方案：保持当前行为 |
+| 固定头部可能与页面其他元素的 `z-index` 冲突 | 设置合适的 `z-index` 值（如 100），确保头部在最上层 |
+| 固定头部可能遮挡页面顶部的内容 | 为 `.settings-page` 添加适当的 `padding-top`，或为 `.settings-page__header` 添加 `padding-bottom` 以避免内容遮挡 |
+
+---
+
+## B-012: 接入 EPO 专利检索 API（OPS v3.2）
+
+**优先级：** P2 — nice-to-have，丰富数据源生态，提升欧洲专利检索质量
+**状态：** Done - 2026-05-22 (commit a9f6617): EPO OPS v3.2 adapter created
+**目标版本：** v0.2.0
+
+### 问题陈述
+
+当前系统专利检索（B-001 AI 辅助文献检索）主要通过 Web Search（Tavily/SerpAPI）进行，检索结果结构化程度低、元数据提取不完整。EPO（欧洲专利局）提供的 OPS（Open Patent Services）v3.2 API 是全球最权威的专利数据源之一，覆盖 100+ 国家/地区的专利文献，提供：
+
+1. **结构化专利数据**：公开号、标题、摘要、申请人、发明人、IPC 分类、优先权信息、法律状态等
+2. **全文检索**：支持关键词、分类号、日期范围等多维度检索
+3. **专利家族查询**：获取同族专利信息
+4. **引用关系**：前引和后引专利文献
+5. **高质量元数据**：官方数据，无需 AI 后处理即可直接使用
+
+接入 EPO OPS API 可作为 Tavily/SerpAPI 之外的补充数据源，显著提升专利检索结果的结构化程度和元数据质量，减少 AI 后处理的错误率。
+
+### EPO OPS API 概况
+
+| 项目 | 说明 |
+|------|------|
+| API 文档 | https://developers.epo.org/apis/ops-v32 |
+| 认证方式 | OAuth2（Consumer Key + Consumer Secret Key） |
+| 免费额度 | 有免费 tier，具体限制见 EPO 开发者门户 |
+| 数据覆盖 | 100+ 国家/地区，包括 EPO、WIPO、USPTO、CNIPA 等 |
+| 主要端点 | Published Data Search、Family、Register、Images 等 |
+| 响应格式 | XML / JSON（默认 XML，Accept header 可指定 JSON） |
+
+### 功能描述
+
+系统新增 EPO OPS API 作为专利检索数据源，与现有 Tavily/SerpAPI Web Search 并列：
+
+1. **用户配置**：在设置页面的搜索 Provider 区域新增"EPO OPS"选项，用户填入 Consumer Key 和 Consumer Secret Key
+2. **自动测试配置**：`.env` 文件支持 `EPO_CONSUMER_KEY` 和 `EPO_CONSUMER_SECRET` 环境变量，用于 E2E 自动测试
+3. **检索流程**：B-001 的 AI 辅助文献检索在选择 EPO OPS 作为数据源时，使用 EPO OPS API 进行结构化专利检索
+4. **结果增强**：EPO OPS 返回的结构化数据直接映射到 `ReferenceDocument` 字段（公开号、公开日、标题、摘要、IPC 分类、申请人等），无需 AI 从网页文本中提取
+
+### 数据流
+
+```
+用户检索专利
+      │
+      ▼
+┌──────────────────────────┐
+│  搜索 Provider 选择       │
+│  ├── Tavily (Web Search)  │
+│  ├── SerpAPI (Web Search) │
+│  └── EPO OPS (新增)       │  ← 用户选择或在 Agent 配置中指定
+└──────────┬───────────────┘
+           │
+           ▼
+┌──────────────────────────┐
+│  EPO OPS Adapter          │
+│                           │
+│  OAuth2 Token 获取        │  ← Consumer Key + Secret → access_token
+│  │                        │
+│  ▼                        │
+│  检索式构建                │  ← AI 提取的关键词/IPC分类 → EPO CQL 查询
+│  │                        │
+│  ▼                        │
+│  GET /published-data/search  │
+│  │                        │
+│  ▼                        │
+│  结果映射                  │  ← EPO 结构化数据 → ReferenceDocument
+└──────────┬───────────────┘
+           │
+           ▼
+候选文献清单（结构化元数据 + 高置信度）
+```
+
+### 数据模型扩展
+
+```typescript
+// shared/src/types/agents.ts — SearchProviderId 扩展
+type SearchProviderId = "tavily" | "serpapi" | "epo";  // 新增 "epo"
+
+// 新增：EPO OPS 配置
+interface EpoOpsConfig {
+  consumerKey: string;
+  consumerSecret: string;
+  accessToken?: string;           // OAuth2 token（运行时获取，不持久化）
+  tokenExpiresAt?: ISODateTimeString;
+  enabled: boolean;
+}
+
+// shared/src/types/api.ts — 扩展
+interface SearchConfig {
+  provider: SearchProviderId;
+  // ... existing fields for Tavily/SerpAPI ...
+  epo?: EpoOpsConfig;            // 新增
+}
+
+// server 端环境变量（.env）
+// EPO_CONSUMER_KEY=xxx           // 用于自动测试
+// EPO_CONSUMER_SECRET=xxx        // 用于自动测试
+```
+
+### UI 交互
+
+```
+Settings → Search Providers 配置:
+
+┌─────────────────────────────────────────┐
+│  搜索 Provider 配置                      │
+│                                         │
+│  Tavily                          [▼]   │
+│  ┌─────────────────────────────────┐    │
+│  │ API Key: [tavily_key_here    ] │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  SerpAPI                         [▼]   │
+│  ┌─────────────────────────────────┐    │
+│  │ API Key: [serpapi_key_here   ] │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  EPO OPS                    [◎ 已启用]  │  ← 新增
+│  ┌─────────────────────────────────┐    │
+│  │ Consumer Key:      [ck_here  ] │    │
+│  │ Consumer Secret:   [cs_here  ] │    │
+│  │ Status: ✓ 已连接               │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  [+ 添加 Provider]                      │
+└─────────────────────────────────────────┘
+```
+
+### 涉及文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `server/src/search/epo-ops.ts`（新增） | EPO OPS API 适配器：OAuth2 Token 获取、检索请求、结果解析 |
+| `server/src/search/registry.ts` | 注册 `epo` 搜索 Provider |
+| `server/src/routes/search.ts` | 支持 `epo` provider 检索请求；Key 验证端点 |
+| `shared/src/types/agents.ts` | `SearchProviderId` 追加 `"epo"` |
+| `shared/src/types/api.ts` | 新增 `EpoOpsConfig` 接口；扩展 `SearchConfig` |
+| `server/src/lib/schemas.ts` | 新增 epo config 的 Zod schema |
+| `client/src/features/settings/SearchProvidersConfigPanel.tsx` | 新增 EPO OPS 配置表单（Consumer Key + Consumer Secret 输入） |
+| `client/src/lib/repositories/settingsRepo.ts` | 默认设置中包含 epo 配置结构 |
+| `client/src/features/references/ReferenceSearchPanel.tsx` | 支持选择 EPO OPS 作为数据源 |
+| `tests/e2e-real.mjs` | 新增 `--only epo` 测试用例（Mock + Real） |
+| `.env.example` | 新增 `EPO_CONSUMER_KEY` / `EPO_CONSUMER_SECRET` 示例 |
+
+### 技术实现要点
+
+1. **OAuth2 认证流程**
+   - EPO OPS API 使用 OAuth2 Client Credentials Grant
+   - POST `https://ops.epo.org/3.2/auth/accesstoken` 获取 `access_token`
+   - Token 有效期内复用，过期前 5 分钟自动刷新
+   - 服务端缓存 token，不暴露给前端
+
+2. **检索端点**
+   - 主端点：`GET /3.2/rest-services/published-data/search`
+   - 查询语言：CQL（Contextual Query Language）
+   - 支持字段：`ti`（标题）、`ab`（摘要）、`desc`（说明书）、`clms`（权利要求）、`pa`（申请人）、`in`（发明人）、`ipc`（IPC 分类号）、`pd`（公开日）
+   - 请求头：`Accept: application/json` 获取 JSON 响应（优先，降级 XML）
+
+3. **检索式构建**
+   - AI 提取的技术特征（关键词）→ CQL 查询
+   - IPC 分类号 → `ipc = "F21V29/00"` 精确匹配
+   - 日期范围 → `pd within "2010 2026"`
+   - 示例 CQL：`ti = "LED" AND ab = "heat" AND ipc = "F21V" AND pd within "2010 2026"`
+
+4. **结果映射**
+   - EPO 返回的 `exchange-documents[].bibliographic-data` → `ReferenceDocument`
+   - 公开号：`publication-reference.@doc-number` + `@kind`
+   - 公开日：`publication-reference.@date`
+   - 标题：`invention-title.$`
+   - 摘要：`abstract.$`
+   - IPC：`classification-ipc[]` → IPC 分类列表
+   - 申请人：`applicants.applicant[].@data-format` → 申请人名称
+
+5. **速率限制与错误处理**
+   - 遵守 EPO API 的速率限制（免费 tier 通常 ~1 req/s）
+   - 429 → 等待 Retry-After header 指定时间后重试
+   - OAuth2 认证失败 → 友好提示用户检查 Consumer Key/Secret
+   - 不可用时 → 降级为其他数据源（Tavily/SerpAPI），与 B-001 的多源冗余设计一致
+
+6. **Key 管理与安全**
+   - Consumer Key/Secret 仅在服务端使用，不暴露给前端 API 响应
+   - E2E 测试用 `.env` 中的 `EPO_CONSUMER_KEY` / `EPO_CONSUMER_SECRET`，已在 `.gitignore`
+   - 日志中不打印完整 Key，仅显示末 4 位
+
+### 验收标准
+
+- [ ] 用户在 Search Providers 设置页面可选择"EPO OPS"并填入 Consumer Key + Consumer Secret
+- [ ] OAuth2 Token 正常获取、缓存和自动刷新
+- [ ] 支持关键词 + IPC 分类号 + 日期范围的 CQL 检索
+- [ ] 检索结果正确映射为 `ReferenceDocument` 结构（公开号、公开日、标题、摘要、IPC、申请人）
+- [ ] EPO OPS 检索失败时自动降级为 Web Search（Tavily/SerpAPI）
+- [ ] `.env` 中的 `EPO_CONSUMER_KEY` / `EPO_CONSUMER_SECRET` 可用于 E2E 自动化测试
+- [ ] Mock 模式下提供预置的 EPO OPS 检索响应 fixture
+- [ ] `tests/e2e-real.mjs` 新增 `--only epo` 测试用例（Mock + Real）
+- [ ] `.env.example` 包含 EPO 环境变量的说明注释
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| EPO API 免费额度有限 | 提供 Mock fixture 用于开发测试；生产环境由用户自行管理额度 |
+| OAuth2 Token 获取失败 | 明确错误提示；降级为 Web Search |
+| CQL 查询语法限制（复杂布尔嵌套可能不支持） | AI 构建检索式时限制查询复杂度；提供 fallback 为简单关键词搜索 |
+| EPO API 响应格式变化（XML/JSON 字段调整） | 适配器中做字段存在性校验；解析失败时降级为 Web Search |
+| EPO 开发者账户审核可能较慢 | 不影响现有功能；EPO OPS 作为可选数据源，非强制要求 |
+| 国内网络访问 EPO API 可能不稳定 | 支持配置代理；与现有 Web Search 互为备份 |
+
+### 与现有功能的关系
+
+- **AI 辅助文献检索（B-001）**：EPO OPS 作为新增数据源，在数据源表格中增加一行
+- **ReferenceLibraryPanel**：EPO 检索结果直接进入候选文献清单，接受/拒绝交互复用
+- **搜索 Provider 配置**：在现有 Tavily/SerpAPI 配置旁边新增 EPO OPS 配置区域
+- **B-005 Grounding Citation**：EPO OPS 返回的高质量元数据可直接用于 citation（公开号、段落号更准确）
+
+## B-013: 配置界面仅允许从预置 Provider 列表选取，禁止用户自行添加
+
+**优先级：** P0 — 安全与品牌控制，防止用户接入非授权第三方服务
+**状态：** Done
+**目标版本：** v0.2.0
+
+### 问题陈述
+
+当前配置界面存在两类 Provider 配置区域：
+
+1. **模型 Provider**（`ProvidersConfigPanel`）：用户可添加 LLM 模型提供商（OpenAI、Anthropic、DeepSeek 等）
+2. **搜索 Provider**（`SearchProvidersConfigPanel`）：用户可添加搜索 API 提供商（Tavily、SerpAPI 等）
+
+这两个面板目前可能存在让用户**自由添加任意 Provider** 的入口（如"添加 Provider"按钮），允许用户输入任意 base URL、API endpoint 等。这带来以下问题：
+
+- **安全风险**：用户可能配置恶意或不安全的第三方代理服务，导致敏感申请文件数据泄露
+- **品牌风险**：APP 作为专业审查工具，应保持可控的 Provider 生态，确保所有可用的模型和搜索服务都经过 APP 团队验证
+- **支持负担**：用户自行添加的非标 Provider 可能导致不可预期的行为（API 兼容性、响应格式差异），增加支持成本
+- **合规风险**：专利审查涉及保密数据，必须确保数据传输链路上的所有服务都合规
+
+### 功能描述
+
+**核心规则：用户不能自行添加任何 Provider。** 配置界面变为"只读选择"模式：
+
+1. **模型 Provider 配置**
+   - 预置 Provider 列表由 APP 硬编码（如 OpenAI、Anthropic、DeepSeek、Qwen 等），用户**不可增删**
+   - 每个预置 Provider 的 base URL / API endpoint 由 APP 固定，用户**不可修改**
+   - 用户仅可填写认证参数：API Key、Token 等（根据各 Provider 的认证方式提供对应输入框）
+   - 用户可启用/禁用某个 Provider（toggle switch）
+   - 新增 Provider 由 APP 版本更新提供，不在配置界面暴露添加入口
+
+2. **搜索 Provider 配置**
+   - 预置 Provider 列表由 APP 硬编码（如 Tavily、SerpAPI、EPO OPS 等），用户**不可增删**
+   - 每个预置 Provider 的 base URL / API endpoint 由 APP 固定，用户**不可修改**
+   - 用户仅可填写各 Provider 对应的认证参数（如 API Key、Consumer Key/Secret 等）
+   - 用户可启用/禁用某个 Provider（toggle switch）
+   - 新增 Provider 由 APP 版本更新提供，不在配置界面暴露添加入口
+
+### UI 变更
+
+```
+Settings → Providers 配置（变更后）:
+
+┌─────────────────────────────────────────────┐
+│  模型 Provider 配置                          │
+│                                             │
+│  OpenAI                              [◎]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [sk-xxxxxxxxxxxxxxxx    ] │    │
+│  │ Base URL: https://api.openai.com   │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  Anthropic                           [◎]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [sk-ant-xxxxxxxxxxxxxx  ] │    │
+│  │ Base URL: https://api.anthropic.com│ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  DeepSeek                            [ ]   │ ← 可启用/禁用
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [ds-xxxxxxxxxxxxxxxxx   ] │    │
+│  │ Base URL: https://api.deepseek.com │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  Qwen                                [ ]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [sk-xxxxxxxxxxxxxxxx    ] │    │
+│  │ Base URL: https://dashscope...     │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  [无 "+ 添加 Provider" 按钮]                 │  ← 移除
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│  搜索 Provider 配置                          │
+│                                             │
+│  Tavily                              [◎]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [tvly-xxxxxxxxxxxxxxxx  ] │    │
+│  │ Endpoint: https://api.tavily.com    │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  SerpAPI                             [ ]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ API Key: [xxxxxxxxxxxxxxxxxxxxxx ] │    │
+│  │ Endpoint: https://serpapi.com       │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  EPO OPS                             [ ]   │
+│  ┌─────────────────────────────────────┐    │
+│  │ Consumer Key:    [xxxxxxxxxxxxxxx] │    │
+│  │ Consumer Secret: [xxxxxxxxxxxxxxx] │    │
+│  │ Endpoint: https://ops.epo.org       │ ← 灰显/锁定，不可编辑
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  [无 "+ 添加 Provider" 按钮]                 │  ← 移除
+└─────────────────────────────────────────────┘
+```
+
+### 数据模型变更
+
+```typescript
+// shared/src/types/agents.ts
+
+// 预置的模型 Provider 定义（硬编码，不可修改）
+interface PresetModelProvider {
+  id: string;              // 唯一标识，如 "openai"、"anthropic"、"deepseek"、"qwen"
+  displayName: string;     // UI 展示名称
+  baseUrl: string;         // 固定的 API endpoint，前端灰显
+  authFields: AuthField[]; // 该 Provider 需要的认证参数
+  defaultModels: string[]; // 预置的默认模型列表
+  enabled: boolean;        // 用户可切换
+}
+
+interface AuthField {
+  key: string;             // 配置键，如 "apiKey"、"consumerKey"、"consumerSecret"
+  label: string;           // UI 标签，如 "API Key"
+  type: "password" | "text"; // 输入框类型
+  placeholder: string;
+}
+
+// 搜索 Provider 同样结构
+interface PresetSearchProvider {
+  id: string;              // 唯一标识，如 "tavily"、"serpapi"、"epo"
+  displayName: string;
+  baseUrl: string;         // 固定的 API endpoint
+  authFields: AuthField[];
+  enabled: boolean;
+}
+
+// 用户配置仅保存认证信息
+interface UserProviderAuthConfig {
+  providerId: string;      // 关联到预置 Provider
+  auth: Record<string, string>; // { apiKey: "sk-xxx", ... }
+  enabled: boolean;
+}
+```
+
+### 涉及文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `shared/src/types/agents.ts` | 新增 `PresetModelProvider`、`PresetSearchProvider`、`AuthField` 类型；新增预置 Provider 常量数组 `PRESET_MODEL_PROVIDERS`、`PRESET_SEARCH_PROVIDERS` |
+| `shared/src/types/api.ts` | 调整 `UserProviderAuthConfig` 结构，用户侧只存认证信息 |
+| `client/src/features/settings/ProvidersConfigPanel.tsx` | 移除"添加 Provider"按钮；base URL 字段变为只读灰显；Provider 列表从预置常量渲染 |
+| `client/src/features/settings/SearchProvidersConfigPanel.tsx` | 同上：移除添加按钮；endpoint 字段只读灰显；Provider 列表从预置常量渲染 |
+| `client/src/store/index.ts` | 调整 Provider 配置相关的 state 结构 |
+| `client/src/lib/repositories/settingsRepo.ts` | 调整默认设置，移除用户自定义 Provider 的结构 |
+| `shared/src/fixtures/preset-demo.json` | 更新预置 demo 数据 |
+
+### 技术实现要点
+
+1. **预置 Provider 常量化**
+   - 在 `shared/src/types/agents.ts` 中定义 `PRESET_MODEL_PROVIDERS` 和 `PRESET_SEARCH_PROVIDERS` 常量数组
+   - 包含每个 Provider 的固定 baseUrl 和所需认证字段
+   - 新增 Provider 时只需向数组追加元素，无需改动 UI 组件逻辑
+
+2. **配置 UI 改造**
+   - Provider 列表由遍历预置常量动态渲染（而非从用户配置中读取）
+   - base URL / endpoint 字段设置 `disabled` 属性 + 灰显样式（`opacity: 0.6` 或 `readOnly`）
+   - 仅认证字段（API Key 等）可编辑
+   - 每个 Provider 行有启用/禁用 toggle
+   - 移除底部的"+ 添加 Provider"按钮
+
+3. **认证字段的动态表单**
+   - 根据每个 Provider 的 `authFields` 定义动态渲染输入框
+   - 统一处理 `password` 类型字段（带 show/hide toggle）
+
+4. **向后兼容**
+   - 用户已保存的 API Key 等认证信息不受影响（仅移除用户自行添加的非法 Provider）
+   - 如果用户之前自行添加了非预置 Provider，升级后该配置被忽略
+
+5. **Provider 扩展流程**
+   - 需要新增 Provider 时：在 `PRESET_MODEL_PROVIDERS` 或 `PRESET_SEARCH_PROVIDERS` 中追加一项 → 发布新版本
+   - 不再需要在 UI 中暴露添加接口
+
+### 验收标准
+
+- [ ] 模型 Provider 配置面板无"添加 Provider"按钮
+- [ ] 搜索 Provider 配置面板无"添加 Provider"按钮
+- [ ] 所有 Provider 的 base URL / endpoint 字段为只读灰显状态，不可编辑
+- [ ] 用户可为每个 Provider 填写对应的认证参数（API Key 等）
+- [ ] 用户可启用/禁用每个 Provider
+- [ ] 预置 Provider 列表与 APP 版本绑定，版本更新可新增 Provider
+- [ ] 现有已保存的认证信息（API Key 等）不受影响
+- [ ] 用户之前自行添加的非预置 Provider 配置被安全忽略
+
+### 安全考量
+
+- base URL 锁定防止中间人代理攻击（用户将 API 请求导向恶意代理服务器）
+- Provider 白名单机制确保所有数据传输仅通过已审核的第三方服务
+- 符合专利审查场景的数据安全合规要求
+
+## B-014: 案件基本信息导入 — 复审必传文件强制校验与门禁阻断
+
+**优先级：** P0 — 复审流程入口门禁，缺件不得进入任何后续环节
+**状态：** Done
+**目标版本：** v0.2.0
+
+### 问题陈述
+
+复审流程与初审不同，审查员必须基于完整的案卷材料才能开展工作。当前系统缺少以下关键能力：
+
+1. **没有规定哪些文件是复审必须的** — 用户可以跳过文件上传直接进入后续环节（如文献检索、特征比对、审查意见撰写）
+2. **没有导入阶段的阻断机制** — 即使用户漏传关键文件，系统也不会阻止其推进流程
+3. **用户无法删除已导入的文件** — 一旦上传错误文件或需要替换文件，用户无权限操作
+
+这导致：
+- 审查员可能在缺件情况下开始审查，后续发现缺少文件需要返工
+- 缺件状态下进入 AI 辅助环节（文献检索、对比分析），AI 基于不完整信息产出错误结果
+- 用户误传文件无法删除，只能用其他文件"覆盖"，增加不必要的混淆
+
+复审的基本前提是**案卷材料齐全**，这个约束必须在系统入口处强制执行。
+
+### 功能描述
+
+#### A. 复审必传文件类型定义
+
+以下文件类型为复审流程**强制必传**，缺一不可：
+
+| 序号 | 文件类型 | 说明 | 必传 |
+|------|---------|------|------|
+| 1 | 复审请求书 | 当事人提交的正式复审请求，包含复审理由 | 是 |
+| 2 | 驳回决定书 | 初审审查员作出的驳回决定全文 | 是 |
+| 3 | 原始申请文件 | 被驳回的专利申请全文（权利要求书、说明书、摘要、附图） | 是 |
+| 4 | 对比文件（如有） | 驳回决定中引用的对比文献 | 否（但建议上传） |
+
+**必传判定规则：**
+- 系统在导入阶段检查以上文件清单
+- 类型 1-3 中任意一项缺失 → **阻断**，不允许进入任何后续环节
+- 类型 4 缺失 → **警告**提示用户建议补充，但不阻断
+
+#### B. 导入门禁阻断机制
+
+```
+┌─────────────────────────────────────────────────┐
+│  案件导入页面                                     │
+│                                                 │
+│  复审请求书:     [上传]  ✓ 已上传 (复审请求书.pdf)  [删除] │
+│  驳回决定书:     [上传]  ✓ 已上传 (驳回决定.pdf)    [删除] │
+│  原始申请文件:   [上传]  ⚠ 未上传 — 必须上传         │
+│  对比文件(选填): [上传]  ○ 未上传（建议补充）         │
+│                                                 │
+│  ┌─────────────────────────────────────────┐    │
+│  │ ⚠ 以下必传文件缺失，无法开始复审：          │    │
+│  │   • 原始申请文件                          │    │
+│  │                                         │    │
+│  │  [开始复审] ← 灰显/disabled              │    │
+│  └─────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────┘
+```
+
+**阻断行为：**
+- 导入页面显示必传文件清单及各自状态（已上传/未上传）
+- "开始复审"按钮在所有必传文件（类型 1-3）齐备前保持 **disabled** 状态
+- 后续所有功能入口（文献检索、技术特征比对、审查意见撰写等）在案件未完成导入前**不可进入**
+- 导航菜单中后续环节显示为灰显/锁定状态，hover 提示"请先完成案件基本信息导入"
+
+**非阻断行为（Warning）：**
+- 选填文件（对比文件）缺失时给出黄色 warning，但不禁用"开始复审"按钮
+- 文件格式不支持时给出错误提示（支持格式：PDF、DOCX、TXT、图片）
+
+#### C. 文件删除功能
+
+用户可删除已上传的任意文件：
+
+- 每个已上传文件右侧提供 **[删除]** 按钮
+- 点击删除 → 弹出确认对话框："确定要删除 [文件名] 吗？此操作不可撤销。"
+- 确认后立即从导入列表中移除该文件
+- 如果删除的是必传文件且删除后必传文件不齐全 → 恢复阻断状态，"开始复审"按钮重新 disabled
+- 删除操作仅影响当前导入会话，不清除已持久化的案件数据（如案件已提交则提示"该案件已进入复审流程，删除文件可能导致审查记录不完整"）
+
+#### D. 文件替换
+
+- 用户可点击已上传文件名旁的 [重新上传] 按钮替换文件
+- 替换操作实质为"删除旧文件 + 上传新文件"，复用删除确认逻辑
+
+### 数据模型变更
+
+```typescript
+// 复审必传文件类型枚举
+type ReexamRequiredFileType = 
+  | "reexam-request"       // 复审请求书
+  | "rejection-decision"   // 驳回决定书
+  | "original-application" // 原始申请文件
+  | "comparison-document"; // 对比文件（选填）
+
+// 文件导入状态
+interface ImportedFile {
+  id: string;
+  fileName: string;
+  fileType: ReexamRequiredFileType;
+  fileSize: number;
+  mimeType: string;
+  uploadedAt: ISODateString;
+  required: boolean;       // 是否必传
+}
+
+// 导入门禁状态
+type ImportGateStatus = 
+  | "incomplete"   // 必传文件不齐，阻断
+  | "warning"      // 选填文件缺失，可放行但有提示
+  | "ready";       // 所有必传文件齐备，可开始复审
+
+// 扩展 Case 模型
+interface Case {
+  // ... 现有字段 ...
+  importedFiles: ImportedFile[];
+  importGateStatus: ImportGateStatus;
+  importCompletedAt?: ISODateString;  // 导入完成时间（门禁通过时间）
+}
+
+// 导航/环节访问控制
+interface WorkflowStep {
+  id: string;
+  label: string;
+  accessible: boolean;     // 当前是否可进入
+  blockedReason?: string;  // 阻断原因（如 "请先完成案件基本信息导入"）
+}
+```
+
+### UI 交互流程
+
+```
+用户进入 APP
+      │
+      ▼
+┌─────────────────┐
+│  案件列表        │
+│  [新建复审案件]   │
+└────────┬────────┘
+         │
+         ▼
+┌──────────────────────────────┐
+│  案件基本信息导入页面          │
+│                              │
+│  案件基本信息:                │
+│  ┌──────────────────────┐   │
+│  │ 申请号: [__________]  │   │
+│  │ 发明名称: [________]  │   │
+│  │ 申请人: [__________]  │   │
+│  └──────────────────────┘   │
+│                              │
+│  必传文件 (3/4):              │
+│  ┌──────────────────────┐   │
+│  │ ✓ 复审请求书          │   │
+│  │   复审请求书.pdf       │   │
+│  │   [重新上传] [删除]   │   │
+│  │                       │   │
+│  │ ✓ 驳回决定书          │   │
+│  │   驳回决定.pdf         │   │
+│  │   [重新上传] [删除]   │   │
+│  │                       │   │
+│  │ ⚠ 原始申请文件 [必传]  │   │
+│  │   [上传]              │   │
+│  │                       │   │
+│  │ ○ 对比文件 [选填]     │   │
+│  │   [上传]              │   │
+│  └──────────────────────┘   │
+│                              │
+│  ⚠ 原始申请文件缺失，        │
+│     无法开始复审              │
+│                              │
+│  [开始复审] ← disabled       │
+└──────────────────────────────┘
+         │ (所有必传文件齐备后)
+         ▼
+┌─────────────────┐
+│  复审工作台      │  ← 所有环节解锁
+└─────────────────┘
+```
+
+### 涉及文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `shared/src/types/case.ts`（新增/扩展） | 新增 `ReexamRequiredFileType`、`ImportedFile`、`ImportGateStatus` 类型；扩展 `Case` 接口 |
+| `client/src/features/case/ImportPage.tsx`（新增） | 案件基本信息导入页面：文件上传区、必传文件清单、门禁状态提示、"开始复审"按钮 |
+| `client/src/features/case/ImportedFileRow.tsx`（新增） | 单个已上传文件行组件：文件名展示、重新上传/删除按钮、必传/选填标签 |
+| `client/src/features/case/DeleteFileDialog.tsx`（新增） | 删除文件确认对话框 |
+| `server/src/routes/case.ts` | 新增/扩展案件导入相关 API：上传文件、删除文件、检查门禁状态 |
+| `server/src/lib/case-gate.ts`（新增） | 导入门禁校验逻辑：检查必传文件是否齐全 → 返回 `ImportGateStatus` |
+| `client/src/components/layout/Navigation.tsx` | 环节导航根据 `importGateStatus` 控制灰显/锁定 |
+| `client/src/features/workflow/WorkflowPage.tsx` | 各环节入口根据门禁状态控制可访问性 |
+| `client/src/store/caseStore.ts` | 新增导入状态管理（importedFiles、importGateStatus） |
+| `server/src/db/schema.ts` | 数据库 schema 扩展（如有持久化层） |
+| `tests/e2e-real.mjs` | 新增导入门禁测试用例：缺件阻断、文件删除、门禁通过后环节解锁 |
+
+### 技术实现要点
+
+1. **门禁校验逻辑**
+   - `case-gate.ts` 为纯函数，输入 `ImportedFile[]`，输出 `ImportGateStatus`
+   - 必传文件类型硬编码为常量 `REQUIRED_REEXAM_FILE_TYPES`（不含 `comparison-document`）
+   - 校验逻辑：`REQUIRED_REEXAM_FILE_TYPES.every(type => importedFiles.some(f => f.fileType === type))`
+
+2. **前端环节访问控制**
+   - 所有后续环节入口组件读取 `caseStore.importGateStatus`
+   - `status !== "ready"` 时环节链接/按钮 disabled，hover tooltip 显示阻断原因
+   - 路由守卫：即使通过 URL 直接访问后续环节路由，也重定向回导入页面
+
+3. **文件上传与删除**
+   - 上传：POST `/api/case/:caseId/files`，multipart/form-data，包含 `fileType` 字段
+   - 删除：DELETE `/api/case/:caseId/files/:fileId`
+   - 前端乐观更新 + 服务端确认后 refetch 门禁状态
+   - 文件存储路径：`server/data/uploads/:caseId/:fileId`
+
+4. **文件类型识别**
+   - 上传时根据 `fileType` 参数归类，不依赖文件名推断
+   - 支持格式：PDF、DOCX、TXT、PNG/JPG/JPEG
+   - 前端 `accept` 属性限制 + 服务端二次校验
+
+5. **错误处理**
+   - 文件过大（>50MB）→ 前端拦截 + 错误提示
+   - 不支持的文件格式 → 错误提示，列出支持格式
+   - 上传失败 → retry 提示
+   - 网络中断 → 上传进度丢失，需重新上传
+
+6. **服务端路由守卫**
+   - 所有后续环节的 API 端点检查案件导入状态
+   - `importGateStatus !== "ready"` → 返回 403 Forbidden with message "案件必传文件不齐全，请先完成导入"
+
+### 验收标准
+
+- [ ] 导入页面明确展示 4 种文件类型及其必传/选填标识
+- [ ] 复审请求书、驳回决定书、原始申请文件三者任一缺失时，"开始复审"按钮 disabled
+- [ ] 选填文件（对比文件）缺失时显示 warning 但不阻断，"开始复审"按钮可用
+- [ ] 所有必传文件齐备后，"开始复审"按钮变为可用
+- [ ] 后续所有环节入口在导入未完成前灰显/锁定，不可点击进入
+- [ ] 通过 URL 直接访问后续环节路由时，重定向回导入页面
+- [ ] 后续环节 API 在导入未完成时返回 403
+- [ ] 用户可删除已上传的任意文件，删除前弹出确认对话框
+- [ ] 删除必传文件导致缺件后，系统恢复阻断状态
+- [ ] 用户可重新上传替换已有文件
+- [ ] 不支持的文件格式在上传时被拒绝并给出明确错误提示
+- [ ] 文件大小超过限制时给出明确提示
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| 用户可能不理解为何被阻断 | 阻断提示清晰列出缺失文件，并提供直接上传入口 |
+| 文件类型定义可能随政策变化 | 必传文件类型在共享类型中集中定义，修改只需更新常量 |
+| 删除操作不可逆 | 二次确认对话框，且文案标注"不可撤销" |
+| 服务端路由守卫可能遗漏新环节 API | 使用 middleware 统一拦截，而非每个端点单独判断 |
+| 大文件上传可能超时 | 设置合理的文件大小上限（50MB），后续可扩展分片上传 |
+
+### 与现有功能的关系
+
+- **B-002 测试数据**：需更新测试 fixture，确保包含完整的必传文件类型
+- **B-003 自动化测试框架**：导入门禁测试用例为 P0 级别，需优先覆盖
+- **B-008 产品转向**：此功能专为复审场景设计，初审流程不受此门禁限制
+- **案件列表页**：需显示各案件的导入完成状态（导入中/已就绪）
+
+## B-015: UI 风格统一 — 以文件导入和创造性复核为基准
+
+**优先级：** P1 — 影响整体产品质感，非阻断性但显著影响用户印象
+**状态：** Done
+**目标版本：** v0.3.0
+
+### 问题陈述
+
+当前各功能环节的 UI 风格不一致，体现在：
+
+1. **排版与间距** — 不同面板的 padding、margin、卡片间距不统一，有的紧凑（如新颖性对比面板），有的宽松（如文件导入页面）
+2. **字体层级** — 标题大小、正文大小、标签字号在各环节缺乏统一规范，同一信息层级在不同页面视觉权重不一致
+3. **组件样式** — 按钮、输入框、卡片、表格的圆角、阴影、边框等细节各环节各自实现，缺乏统一的 UI 构建模式
+4. **颜色运用** — 状态色、强调色、背景色在不同面板中存在细微差异
+5. **交互模式** — loading 态、空状态、错误提示的呈现方式不够统一
+
+其中"文件导入"页面和"创造性复核"面板是目前视觉最完善的环节，应作为全平台 UI 统一的基准。
+
+### 功能描述
+
+以"文件导入"和"创造性复核"两个环节的 UI 风格为基准，统一全部功能环节的排版、字体、组件样式、间距体系、颜色变量和交互反馈模式。
+
+### 统一范围
+
+| 维度 | 基准来源 | 统一内容 |
+|------|---------|---------|
+| 排版间距 | 文件导入 | 页面级 padding、卡片间距、section 间距统一为相同 spacing scale |
+| 字体层级 | 创造性复核 | 页面标题、面板标题、正文、辅助文字的大小/行高/字重统一 |
+| 卡片/面板样式 | 文件导入 | 圆角、阴影、边框色、背景色统一为相同 token |
+| 按钮样式 | 文件导入 | 主按钮/次按钮/危险按钮的大小、圆角、间距统一 |
+| 表格样式 | 创造性复核 | 表头样式、行高、斑马纹、边框统一 |
+| 状态标签 | 创造性复核 | 成功/警告/错误/信息标签的颜色和样式统一 |
+| 空状态 | 文件导入 | 空状态占位图的尺寸、文案风格统一 |
+
+### 涉及环节（全部需对齐）
+
+- 文件导入（基准）
+- 文档解读
+- 新颖性对比
+- 创造性复核（基准）
+- 权利要求图表
+- 意见分析
+- 论述映射
+- 缺陷分析
+- 草稿素材
+- 导出面板
+- 总结面板
+- 配置/设置页面
+
+### 实施策略
+
+1. **提取 Design Token** — 从基准页面中提取间距、字号、颜色、圆角、阴影等 token，写入 `client/src/styles/tokens.css`（新增）
+2. **逐环节对齐** — 每个环节按统一 token 调整样式，优先调整用户高频访问的环节
+3. **组件抽检** — 对齐后逐个环节过 UI review，确保无遗漏
+4. **避免大规模重构** — 优先通过 CSS 变量覆盖和局部调整实现，不做组件重写
+
+### 验收标准
+
+- [ ] 全局 CSS 变量（spacing、font-size、color、border-radius、shadow）在 `tokens.css` 中统一定义
+- [ ] 所有环节的页面级 padding/max-width 与文件导入一致
+- [ ] 所有环节的字体层级（标题/正文/辅助文字）与创造性复核一致
+- [ ] 卡片、面板、按钮的圆角和阴影使用统一 token
+- [ ] 状态标签（成功/警告/错误/信息）全平台颜色一致
+- [ ] 空状态和 loading 态在所有环节呈现方式一致
+- [ ] 表格样式（表头、行高、边框）全平台一致
+- [ ] 颜色变量不再存在硬编码色值（除 token 定义文件外）
+- [ ] 各环节在 1440px 和 1920px 视口下排版无异常
+
+### 依赖与风险
+
+| 风险 | 缓解措施 |
+|------|---------|
+| 改动面大，容易引入视觉回归 | 逐环节推进，每环节完成后截图对比 |
+| 基准页面自身可能也有可改进之处 | 以当前版本为 v1 基准，后续整体迭代作为 v2 |
+| 部分环节有特殊交互需求无法完全对齐 | 允许轻微偏差，但核心 token 必须一致 |
+| token 命名可能与第三方库冲突 | 使用项目专属前缀（如 `--pex-`） |
