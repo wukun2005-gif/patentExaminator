@@ -140,8 +140,7 @@ export function InterpretPanel({
   const [isCombinedReinterpreting, setIsCombinedReinterpreting] = useState(false);
   const [systemicError, setSystemicError] = useState<{ message: string; guidance: string } | null>(null);
   const [isBatchInterpreting, setIsBatchInterpreting] = useState(false);
-  const translateTriggered = useRef<Record<string, boolean>>({});
-  // Track in-flight requests for cancellation on unmount
+
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const isMountedRef = useRef(true);
 
@@ -167,7 +166,6 @@ export function InterpretPanel({
         summary: persistedSummary ?? legacySummary ?? cardStates[doc.id]?.summary ?? ""
       };
       nextExpanded[doc.id] = persistedExpanded[doc.id] ?? false;
-      translateTriggered.current[doc.id] = false;
     }
     setCardStates(nextStates);
     setExpandedDocuments(nextExpanded);
@@ -231,13 +229,8 @@ export function InterpretPanel({
           sourceLanguage: lang
         }
       }));
-
-      if (lang !== "zh" && runTranslate && !translateTriggered.current[doc.id]) {
-        translateTriggered.current[doc.id] = true;
-        void doTranslate(doc);
-      }
     });
-  }, [documents, runTranslate]);
+  }, [documents]);
 
   const doTranslate = async (doc: InterpretableDocument) => {
     if (!runTranslate) return;
