@@ -20,50 +20,50 @@ const DEFAULT_SETTINGS: AppSettings = {
   agents: [
     {
       agent: "interpret",
-      providerOrder: ["gemini"],
-      modelId: "gemini-2.5-flash-lite",
+      providerOrder: [],
+      modelId: "",
       maxTokens: 4096
     },
     {
       agent: "claim-chart",
-      providerOrder: ["gemini"],
-      modelId: "gemini-2.5-flash-lite",
+      providerOrder: [],
+      modelId: "",
       maxTokens: 4096
     },
     {
       agent: "novelty",
-      providerOrder: ["gemini"],
-      modelId: "gemini-2.5-flash-lite",
+      providerOrder: [],
+      modelId: "",
       maxTokens: 4096
     },
     {
       agent: "inventive",
-      providerOrder: ["gemini"],
-      modelId: "gemini-2.5-flash-lite",
+      providerOrder: [],
+      modelId: "",
       maxTokens: 4096
     },
     {
       agent: "summary",
-      providerOrder: ["gemini"],
-      modelId: "gemini-2.5-flash-lite",
+      providerOrder: [],
+      modelId: "",
       maxTokens: 4096
     },
     {
       agent: "draft",
-      providerOrder: ["gemini"],
-      modelId: "gemini-2.5-flash-lite",
+      providerOrder: [],
+      modelId: "",
       maxTokens: 4096
     },
     {
       agent: "chat",
-      providerOrder: ["gemini"],
-      modelId: "gemini-2.5-flash-lite",
+      providerOrder: [],
+      modelId: "",
       maxTokens: 4096
     },
     {
       agent: "extract-case-fields",
-      providerOrder: ["gemini"],
-      modelId: "gemini-2.5-flash-lite",
+      providerOrder: [],
+      modelId: "",
       maxTokens: 8192
     }
   ],
