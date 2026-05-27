@@ -21,18 +21,15 @@ if (process.env.GEMINI_KEY) {
   setApiKey("gemini", process.env.GEMINI_KEY);
   console.log("Loaded GEMINI_KEY from environment");
 }
-if (process.env.Bedrock_API_KEY) {
-  setApiKey("bedrock", process.env.Bedrock_API_KEY);
-  console.log("Loaded Bedrock_API_KEY from environment");
+if (process.env.MiMo_KEY) {
+  setApiKey("mimo", process.env.MiMo_KEY);
+  console.log("Loaded MiMo_KEY from environment");
 }
 if (process.env.Openrouter_KEY) {
   setApiKey("openrouter", process.env.Openrouter_KEY);
   console.log("Loaded Openrouter_KEY from environment");
 }
-if (process.env.OPENCODE_KEY) {
-  setApiKey("opencode", process.env.OPENCODE_KEY);
-  console.log("Loaded OPENCODE_KEY from environment");
-}
+
 
 app.use(express.json());
 

@@ -84,7 +84,7 @@ export class AgentClient {
       this.agentAssignments = settings;
       this.fallbackProvider = "gemini";
       this.fallbackModel = "gemini-3.1-flash-lite-preview";
-      this.enabledProviders = ["gemini", "bedrock"];
+      this.enabledProviders = ["gemini", "mimo"];
       this.providerSettings = [];
       this.enableProviderFallback = true;
       this.llmApiKey = "";
@@ -102,7 +102,7 @@ export class AgentClient {
       this.agentAssignments = [];
       this.fallbackProvider = "gemini";
       this.fallbackModel = "gemini-3.1-flash-lite-preview";
-      this.enabledProviders = ["gemini", "bedrock"];
+      this.enabledProviders = ["gemini", "mimo"];
       this.providerSettings = [];
       this.enableProviderFallback = true;
       this.llmApiKey = "";
