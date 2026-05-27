@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r31 · 2026-05-27</p>
+<p align="right">版本 v0.1.0-r32 · 2026-05-27</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -8,6 +8,7 @@
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|---------|
+| v0.1.0-r32 | 2026-05-27 | B24: modelId 随 provider 透明变化 — AgentClient.resolveAgent() 查找 resolved provider 的 defaultModelId 替代 assignment 中可能过时的 modelId，确保切换 provider 时 modelId 自动跟随 | AgentClient.ts |
 | v0.1.0-r31 | 2026-05-27 | B23: 推理模型 maxTokens 自适应 — Server 端检测推理模型（MiMo/DeepSeek R1/o1-o3 系列）自动放大 maxTokens 4x；AiRunRequest 新增 maxTokens 可选字段透传 agent 配置；所有适配器（OpenAICompatible/Bedrock/Gemini）统一使用 resolveMaxTokens() | ProviderAdapter.ts, bedrock.ts, gemini.ts, ai.ts, schemas.ts, AgentClient.ts, api.ts |
 | v0.1.0-r30 | 2026-05-26 | P0-regression: 默认 apiKeyRef 覆盖 Provider 密钥 — 默认 apiKeyRef 从 "gemini" 改为 ""（空字符串），使其不在 syncProviderKeys 中将引用名作为密钥发送到服务器，避免覆盖服务器密钥导致所有 AI Provider 返回 network-error | settingsRepo.ts |
 | v0.1.0-r29 | 2026-05-26 | bg-21: serverReady 缓存失效与连接恢复 — 移除 localStorage 缓存（仅保留模块级缓存），新增 ECONNREFUSED 重试逻辑：在 callGateway 和 runSearchReferences 中，当 fetch 失败时自动清除缓存、强制检查服务器就绪并重试一次 | serverReady.ts, AgentClient.ts |

@@ -114,9 +114,12 @@ export class AgentClient {
     if (!key) return null;
     const assignment = this.agentAssignments.find((a) => a.agent === key);
     if (!assignment) return null;
+    const providerId = assignment.providerOrder[0] ?? this.fallbackProvider;
+    const providerSetting = this.providerSettings.find((p) => p.providerId === providerId);
+    const modelId = providerSetting?.defaultModelId ?? assignment.modelId;
     return {
-      providerId: assignment.providerOrder[0] ?? this.fallbackProvider,
-      modelId: assignment.modelId,
+      providerId,
+      modelId,
       maxTokens: assignment.maxTokens
     };
   }
