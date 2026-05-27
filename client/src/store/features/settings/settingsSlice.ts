@@ -38,7 +38,11 @@ export const createSettingsSlice = (
     set(() => ({ settings }));
     writeSettings(settings).catch(console.error);
     if (settings.mode === "real") {
-      syncProviderKeys(settings).catch(console.error);
+      syncProviderKeys(settings).then((result) => {
+        if (!result.success) {
+          console.warn("[SettingsSlice] Provider key sync partially failed:", result.failedProviders);
+        }
+      }).catch(console.error);
     }
   },
   updateMode: (mode) => {
@@ -46,7 +50,11 @@ export const createSettingsSlice = (
       const next = { ...prev.settings, mode };
       writeSettings(next).catch(console.error);
       if (mode === "real") {
-        syncProviderKeys(next).catch(console.error);
+        syncProviderKeys(next).then((result) => {
+          if (!result.success) {
+            console.warn("[SettingsSlice] Provider key sync partially failed:", result.failedProviders);
+          }
+        }).catch(console.error);
       }
       return { settings: next };
     });
@@ -68,7 +76,11 @@ export const createSettingsSlice = (
       set(() => ({ settings: saved, isInitialized: true }));
       // Sync API keys to server so AI calls work in real mode
       if (saved.mode === "real") {
-        syncProviderKeys(saved).catch(console.error);
+        syncProviderKeys(saved).then((result) => {
+          if (!result.success) {
+            console.warn("[SettingsSlice] Provider key sync partially failed:", result.failedProviders);
+          }
+        }).catch(console.error);
       }
     } catch (e) {
       console.error("Failed to load settings from DB:", e);

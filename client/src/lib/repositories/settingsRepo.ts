@@ -127,26 +127,53 @@ export async function writeSettings(settings: AppSettings): Promise<void> {
   }
 }
 
+export interface SyncResult {
+  success: boolean;
+  syncedProviders: string[];
+  failedProviders: Array<{ providerId: string; error: string }>;
+}
+
 /**
  * Sync enabled provider API keys to the server's in-memory key store.
  * The server needs these keys to make real AI calls.
+ * Returns sync result with success/failure details for each provider.
  */
-export async function syncProviderKeys(settings: AppSettings): Promise<void> {
+export async function syncProviderKeys(settings: AppSettings): Promise<SyncResult> {
   // Wait for server to be ready before syncing
   await waitForServerReady("/api");
-  
+
+  const syncedProviders: string[] = [];
+  const failedProviders: Array<{ providerId: string; error: string }> = [];
+
   for (const provider of settings.providers) {
     if (!provider.enabled || !provider.apiKeyRef) continue;
     try {
-      await fetch(`/api/settings/providers/${provider.providerId}`, {
+      const response = await fetch(`/api/settings/providers/${provider.providerId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiKey: provider.apiKeyRef })
       });
-    } catch {
-      // Server may be unavailable; keys will be synced on next attempt
+      if (!response.ok) {
+        failedProviders.push({
+          providerId: provider.providerId,
+          error: `HTTP ${response.status}: ${response.statusText}`
+        });
+      } else {
+        syncedProviders.push(provider.providerId);
+      }
+    } catch (err) {
+      failedProviders.push({
+        providerId: provider.providerId,
+        error: err instanceof Error ? err.message : String(err)
+      });
     }
   }
+
+  return {
+    success: failedProviders.length === 0,
+    syncedProviders,
+    failedProviders
+  };
 }
 
 const ALL_STORES = [
