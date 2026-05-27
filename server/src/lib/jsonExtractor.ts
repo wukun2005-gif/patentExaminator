@@ -80,7 +80,7 @@ export function extractJsonFromText(text: string): JsonExtractResult | null {
     }
   }
 
-  const greedy = cleaned.match(/\{[\s\S]*\}/);
+  const greedy = cleaned.match(/(?:\{[\s\S]*\}|\[[\s\S]*\])/);
   if (greedy) {
     try {
       const parsed = JSON.parse(greedy[0]);
