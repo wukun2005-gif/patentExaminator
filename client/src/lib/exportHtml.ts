@@ -15,6 +15,20 @@ export interface ExportViewModel {
 
 const LEGAL_DISCLAIMER = "本文件为审查辅助素材，不构成法律结论。所有 AI 生成内容均为候选事实整理，需审查员确认。";
 
+/**
+ * Escape HTML special characters to prevent XSS attacks.
+ * Converts &, <, >, ", ' to their HTML entity equivalents.
+ */
+function escapeHtml(text: string | null | undefined): string {
+  if (text === null || text === undefined) return "";
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 export function renderCaseHtml(viewModel: ExportViewModel): string {
   const { caseData, claimFeatures, noveltyComparisons, differenceFeatureCodes, pendingSearchQuestions } = viewModel;
 
@@ -23,7 +37,7 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${caseData.applicationNumber} - ${caseData.title} - 审查辅助</title>
+  <title>${escapeHtml(caseData.applicationNumber)} - ${escapeHtml(caseData.title)} - 审查辅助</title>
   <style>
     body { font-family: "Microsoft YaHei", "SimSun", sans-serif; margin: 20px; line-height: 1.6; }
     h1, h2, h3 { color: #333; }
@@ -43,11 +57,11 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
   <div class="section">
     <h1>案件基本信息</h1>
     <table>
-      <tr><th>申请号</th><td>${caseData.applicationNumber}</td></tr>
-      <tr><th>发明名称</th><td>${caseData.title}</td></tr>
-      <tr><th>申请日</th><td>${caseData.applicationDate}</td></tr>
-      ${caseData.priorityDate ? `<tr><th>优先权日</th><td>${caseData.priorityDate}</td></tr>` : ""}
-      <tr><th>专利类型</th><td>${caseData.patentType}</td></tr>
+      <tr><th>申请号</th><td>${escapeHtml(caseData.applicationNumber)}</td></tr>
+      <tr><th>发明名称</th><td>${escapeHtml(caseData.title)}</td></tr>
+      <tr><th>申请日</th><td>${escapeHtml(caseData.applicationDate)}</td></tr>
+      ${caseData.priorityDate ? `<tr><th>优先权日</th><td>${escapeHtml(caseData.priorityDate)}</td></tr>` : ""}
+      <tr><th>专利类型</th><td>${escapeHtml(caseData.patentType)}</td></tr>
     </table>
   </div>
 
@@ -67,9 +81,9 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
           .map(
             (f) => `
         <tr>
-          <td>${f.featureCode}</td>
-          <td>${f.description}</td>
-          <td>${STATUS_LABELS[f.citationStatus] ?? f.citationStatus}</td>
+          <td>${escapeHtml(f.featureCode)}</td>
+          <td>${escapeHtml(f.description)}</td>
+          <td>${escapeHtml(STATUS_LABELS[f.citationStatus] ?? f.citationStatus)}</td>
         </tr>`
           )
           .join("")}
@@ -85,7 +99,7 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
     ${noveltyComparisons
       .map(
         (comp) => `
-    <h3>对比文件: ${comp.referenceId}</h3>
+    <h3>对比文件: ${escapeHtml(comp.referenceId)}</h3>
     <table>
       <thead>
         <tr>
@@ -100,16 +114,16 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
           .map(
             (row) => `
         <tr>
-          <td>${row.featureCode}</td>
-          <td>${DISCLOSURE_LABELS[row.disclosureStatus] ?? row.disclosureStatus}</td>
-          <td>${row.citations?.[0]?.quote ? `「${row.citations[0].quote}」` : "—"}</td>
-          <td>${row.reviewerNotes ?? "—"}</td>
+          <td>${escapeHtml(row.featureCode)}</td>
+          <td>${escapeHtml(DISCLOSURE_LABELS[row.disclosureStatus] ?? row.disclosureStatus)}</td>
+          <td>${row.citations?.[0]?.quote ? `「${escapeHtml(row.citations[0].quote)}」` : "—"}</td>
+          <td>${escapeHtml(row.reviewerNotes) ?? "—"}</td>
         </tr>`
           )
           .join("")}
       </tbody>
     </table>
-    <p><strong>区别特征候选：</strong>${comp.differenceFeatureCodes.join(", ")}</p>
+    <p><strong>区别特征候选：</strong>${escapeHtml(comp.differenceFeatureCodes.join(", "))}</p>
     `
       )
       .join("")}
@@ -123,7 +137,7 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
   <div class="section">
     <h2>区别特征候选</h2>
     <ul>
-      ${differenceFeatureCodes.map((code) => `<li>${code}</li>`).join("")}
+      ${differenceFeatureCodes.map((code) => `<li>${escapeHtml(code)}</li>`).join("")}
     </ul>
   </div>`
       : ""
@@ -135,7 +149,7 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
   <div class="section">
     <h2>待检索问题清单</h2>
     <ul>
-      ${pendingSearchQuestions.map((q) => `<li>${q}</li>`).join("")}
+      ${pendingSearchQuestions.map((q) => `<li>${escapeHtml(q)}</li>`).join("")}
     </ul>
   </div>`
       : ""
@@ -149,17 +163,17 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
   <div class="section">
     <h2>创造性三步法分析</h2>
     <table>
-      <tr><th>最接近现有技术</th><td>${a.closestPriorArtId ?? "—"}</td></tr>
-      <tr><th>共有特征</th><td>${a.sharedFeatureCodes.join("、") || "无"}</td></tr>
-      <tr><th>区别特征</th><td>${a.distinguishingFeatureCodes.join("、") || "无"}</td></tr>
-      ${a.objectiveTechnicalProblem ? `<tr><th>客观技术问题</th><td>${a.objectiveTechnicalProblem}</td></tr>` : ""}
-      <tr><th>候选结论</th><td>${ASSESSMENT_LABELS[a.candidateAssessment] ?? a.candidateAssessment}</td></tr>
+      <tr><th>最接近现有技术</th><td>${escapeHtml(a.closestPriorArtId) ?? "—"}</td></tr>
+      <tr><th>共有特征</th><td>${escapeHtml(a.sharedFeatureCodes.join("、")) || "无"}</td></tr>
+      <tr><th>区别特征</th><td>${escapeHtml(a.distinguishingFeatureCodes.join("、")) || "无"}</td></tr>
+      ${a.objectiveTechnicalProblem ? `<tr><th>客观技术问题</th><td>${escapeHtml(a.objectiveTechnicalProblem)}</td></tr>` : ""}
+      <tr><th>候选结论</th><td>${escapeHtml(ASSESSMENT_LABELS[a.candidateAssessment] ?? a.candidateAssessment)}</td></tr>
     </table>
     ${
       a.motivationEvidence.length > 0
         ? `<h3>现有技术启示</h3>
     <ul>
-      ${a.motivationEvidence.map((e) => `<li>${e.label}${e.quote ? `：「${e.quote}」` : ""}（置信度：${e.confidence}）</li>`).join("")}
+      ${a.motivationEvidence.map((e) => `<li>${escapeHtml(e.label)}${e.quote ? `：「${escapeHtml(e.quote)}」` : ""}（置信度：${escapeHtml(e.confidence)}）</li>`).join("")}
     </ul>`
         : ""
     }
@@ -167,11 +181,11 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
       a.cautions.length > 0
         ? `<h3>注意事项</h3>
     <ul>
-      ${a.cautions.map((c) => `<li>${c}</li>`).join("")}
+      ${a.cautions.map((c) => `<li>${escapeHtml(c)}</li>`).join("")}
     </ul>`
         : ""
     }
-    <p><em>${a.legalCaution}</em></p>
+    <p><em>${escapeHtml(a.legalCaution)}</em></p>
   </div>`;
         })()
       : ""
@@ -197,10 +211,10 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
           .map(
             (d) => `
         <tr>
-          <td>${SEVERITY_LABELS[d.severity]}</td>
-          <td>${d.category}</td>
-          <td>${d.description}</td>
-          <td>${d.location ?? "—"}</td>
+          <td>${escapeHtml(SEVERITY_LABELS[d.severity])}</td>
+          <td>${escapeHtml(d.category)}</td>
+          <td>${escapeHtml(d.description)}</td>
+          <td>${escapeHtml(d.location) ?? "—"}</td>
           <td>${d.resolved ? "已解决" : "未解决"}</td>
         </tr>`
           )
@@ -220,10 +234,10 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
     ${viewModel.reexamDraft.responseItems
       .map(
         (item) => `
-    <h3>${item.rejectionGroundCode} · ${item.category}</h3>
-    <p><strong>申请人意见：</strong>${item.applicantArgumentSummary}</p>
-    <p><strong>审查员回应草稿：</strong>${item.examinerResponse}</p>
-    <p><strong>候选结论：</strong>${REEXAM_CONCLUSION_LABELS[item.conclusion] ?? item.conclusion}</p>
+    <h3>${escapeHtml(item.rejectionGroundCode)} · ${escapeHtml(item.category)}</h3>
+    <p><strong>申请人意见：</strong>${escapeHtml(item.applicantArgumentSummary)}</p>
+    <p><strong>审查员回应草稿：</strong>${escapeHtml(item.examinerResponse)}</p>
+    <p><strong>候选结论：</strong>${escapeHtml(REEXAM_CONCLUSION_LABELS[item.conclusion] ?? item.conclusion)}</p>
     ${
       item.supportingEvidence && item.supportingEvidence.length > 0
         ? `<div class="supporting-evidence">
@@ -231,9 +245,9 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
     ${item.supportingEvidence
       .map(
         (e) => `<blockquote class="citation-quote">
-      <cite>${e.label}</cite>
-      ${e.quote ? `<p>「${e.quote}」</p>` : "<p>待补充原文依据</p>"}
-      <span>置信度：${e.confidence}</span>
+      <cite>${escapeHtml(e.label)}</cite>
+      ${e.quote ? `<p>「${escapeHtml(e.quote)}」</p>` : "<p>待补充原文依据</p>"}
+      <span>置信度：${escapeHtml(e.confidence)}</span>
     </blockquote>`
       )
       .join("")}
@@ -243,13 +257,13 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
       )
       .join("")}
     <h3>综合评估</h3>
-    <p>${viewModel.reexamDraft.overallAssessment}</p>
+    <p>${escapeHtml(viewModel.reexamDraft.overallAssessment)}</p>
     ${
       viewModel.reexamDraft.defectReviewSummary
-        ? `<h3>缺陷复查总结</h3><p>${viewModel.reexamDraft.defectReviewSummary}</p>`
+        ? `<h3>缺陷复查总结</h3><p>${escapeHtml(viewModel.reexamDraft.defectReviewSummary)}</p>`
         : ""
     }
-    <p><em>${viewModel.reexamDraft.legalCaution}</em></p>
+    <p><em>${escapeHtml(viewModel.reexamDraft.legalCaution)}</em></p>
   </div>`
       : ""
   }
@@ -260,13 +274,13 @@ export function renderCaseHtml(viewModel: ExportViewModel): string {
   <div class="section">
     <h2>审查意见简述</h2>
     <h3>正文</h3>
-    <div>${viewModel.summary.body}</div>
+    <div>${escapeHtml(viewModel.summary.body)}</div>
     ${
       viewModel.summary.aiNotes
-        ? `<h3>AI 备注</h3><div>${viewModel.summary.aiNotes}</div>`
+        ? `<h3>AI 备注</h3><div>${escapeHtml(viewModel.summary.aiNotes)}</div>`
         : ""
     }
-    <p><em>${viewModel.summary.legalCaution}</em></p>
+    <p><em>${escapeHtml(viewModel.summary.legalCaution)}</em></p>
   </div>`
       : ""
   }
