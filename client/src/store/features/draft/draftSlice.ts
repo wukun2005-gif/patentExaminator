@@ -3,7 +3,7 @@ import type { ReexamDraftResponse, SummaryResponse } from "../../../agent/contra
 import {
   saveReexamDraft,
   saveSummary,
-  clearDraftData
+  clearDraftData as clearDraftDataInDB
 } from "../../../lib/repositories/draftRepo.js";
 
 export interface DraftSlice {
@@ -48,7 +48,7 @@ export const createDraftSlice = (
     }));
   },
   clearDraftData: (caseId) => {
-    clearDraftData(caseId).catch((e) => console.error("[DraftSlice] clearDraftData error:", e));
+    clearDraftDataInDB(caseId).catch((e) => console.error("[DraftSlice] clearDraftData error:", e));
     set((prev) => {
       const nextDrafts = { ...prev.reexamDrafts };
       delete nextDrafts[caseId];
