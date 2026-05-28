@@ -123,6 +123,16 @@ searchRouter.post("/search-references", async (req, res) => {
     return;
   }
 
+  // Abort on client disconnect
+  const controller = new AbortController();
+  const onSocketClose = () => {
+    if (!res.headersSent) {
+      controller.abort();
+      logger.info("Client disconnected, aborting search-references request");
+    }
+  };
+  req.socket?.on("close", onSocketClose);
+
   try {
     // Step 1: Use LLM to extract multiple short search queries from claims
     const featureText = request.features.map((f) => `${f.featureCode}: ${f.description}`).join("\n");
@@ -500,6 +510,8 @@ searchRouter.post("/search-references", async (req, res) => {
       candidates: [],
       error: message
     } satisfies SearchReferencesResponse);
+  } finally {
+    req.socket?.off("close", onSocketClose);
   }
 });
 
@@ -560,6 +572,16 @@ searchRouter.post("/extract-search-terms", async (req, res) => {
     } satisfies ExtractSearchTermsResponse);
     return;
   }
+
+  // Abort on client disconnect
+  const controller = new AbortController();
+  const onSocketClose = () => {
+    if (!res.headersSent) {
+      controller.abort();
+      logger.info("Client disconnected, aborting extract-search-terms request");
+    }
+  };
+  req.socket?.on("close", onSocketClose);
 
   try {
     const featureText = request.features.map((f) => `${f.featureCode}: ${f.description}`).join("\n");
@@ -657,6 +679,8 @@ searchRouter.post("/extract-search-terms", async (req, res) => {
       featureCount: 0,
       error: message
     } satisfies ExtractSearchTermsResponse);
+  } finally {
+    req.socket?.off("close", onSocketClose);
   }
 });
 
@@ -741,6 +765,16 @@ searchRouter.post("/search-with-terms", async (req, res) => {
     } satisfies SearchReferencesResponse);
     return;
   }
+
+  // Abort on client disconnect
+  const controller = new AbortController();
+  const onSocketClose = () => {
+    if (!res.headersSent) {
+      controller.abort();
+      logger.info("Client disconnected, aborting search-with-terms request");
+    }
+  };
+  req.socket?.on("close", onSocketClose);
 
   try {
     let searchQueries = [...request.searchQueries];
@@ -909,6 +943,8 @@ searchRouter.post("/search-with-terms", async (req, res) => {
       ok: false, candidates: [],
       error: message
     } satisfies SearchReferencesResponse);
+  } finally {
+    req.socket?.off("close", onSocketClose);
   }
 });
 
