@@ -48,12 +48,25 @@ interface EpoToken {
 }
 
 let cachedToken: EpoToken | null = null;
+let cachedCredentials: string | null = null; // track which credentials the token belongs to
+
+/** Clear the cached EPO token (call when credentials change). */
+export function clearEpoTokenCache(): void {
+  cachedToken = null;
+  cachedCredentials = null;
+}
 
 async function getEpoAccessToken(consumerKey: string, consumerSecret: string): Promise<string> {
   const now = Date.now();
-  if (cachedToken && cachedToken.expiresAt > now + 5 * 60 * 1000) {
+  const credKey = `${consumerKey}:${consumerSecret}`;
+  if (cachedToken && cachedCredentials === credKey && cachedToken.expiresAt > now + 5 * 60 * 1000) {
     return cachedToken.accessToken;
   }
+  // Invalidate stale cache if credentials changed
+  if (cachedCredentials && cachedCredentials !== credKey) {
+    cachedToken = null;
+  }
+  cachedCredentials = credKey;
 
   const credentials = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
   const res = await fetch("https://ops.epo.org/3.2/auth/accesstoken", {
