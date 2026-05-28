@@ -476,6 +476,20 @@ describe("Draft Store (Reexamination State)", () => {
 
     expect(useDraftStore.getState().reexamDrafts["case-1"]).toBeDefined();
   });
+
+  it("clearDraftData → 不会无限递归 (bg-44 回归测试)", () => {
+    useDraftStore.getState().setReexamDraft("case-1", sampleDraft);
+    useDraftStore.getState().setSummary("case-1", sampleSummary);
+
+    // If the bug were reintroduced, this would throw RangeError (stack overflow)
+    const start = Date.now();
+    useDraftStore.getState().clearDraftData("case-1");
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(1000); // should complete in < 1s
+    expect(useDraftStore.getState().reexamDrafts["case-1"]).toBeUndefined();
+    expect(useDraftStore.getState().summaries["case-1"]).toBeUndefined();
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════
