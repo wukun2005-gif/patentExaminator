@@ -4,8 +4,6 @@ import { resolveMaxTokens } from "./ProviderAdapter.js";
 import { logger } from "../lib/logger.js";
 
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
-const GEMINI_MAX_RETRIES = 3;
-const GEMINI_BASE_RETRY_DELAY_MS = 2000;
 
 const DEFAULT_MODELS = [
   "gemini-2.5-flash-lite",
@@ -33,18 +31,6 @@ const NOISY_PATTERNS = [
   /\blatest\b/i,
   /-001$/i,
 ];
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function isRetryableError(status: number): boolean {
-  return status === 429 || status === 503 || status >= 500;
-}
-
-function isQuotaError(status: number): boolean {
-  return status === 429;
-}
 
 interface GeminiModel {
   name: string;
@@ -163,83 +149,53 @@ export class GeminiAdapter implements ProviderAdapter {
       };
     }
 
-    let lastError: unknown;
+    // Single attempt — retry logic is handled by ProviderRegistry
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": req.apiKey
+      },
+      body: JSON.stringify(body),
+      signal: req.signal ?? null
+    });
 
-    for (let attempt = 0; attempt <= GEMINI_MAX_RETRIES; attempt++) {
-      if (attempt > 0) {
-        await sleep(GEMINI_BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1));
-      }
-
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": req.apiKey
-          },
-          body: JSON.stringify(body),
-          signal: req.signal ?? null
-        });
-
-        if (!res.ok) {
-          const errorBody = await res.text().catch(() => "");
-          const error = new Error(`Gemini API error ${res.status}: ${errorBody}`);
-          (error as Error & { status: number }).status = res.status;
-
-          if (attempt < GEMINI_MAX_RETRIES && isRetryableError(res.status)) {
-            if (isQuotaError(res.status)) {
-              throw error;
-            }
-            continue;
-          }
-
-          throw error;
-        }
-
-        const data = await res.json() as {
-          candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
-          usageMetadata?: { promptTokenCount: number; candidatesTokenCount: number };
-          promptFeedback?: unknown;
-        };
-
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-
-        if (!text) {
-          logger.warn("Gemini returned empty response", {
-            model: req.modelId,
-            hasCandidates: !!data.candidates,
-            candidateCount: data.candidates?.length ?? 0,
-            hasPromptFeedback: !!data.promptFeedback,
-            rawKeys: Object.keys(data)
-          });
-        }
-        const usage = data.usageMetadata
-          ? {
-              input: data.usageMetadata.promptTokenCount,
-              output: data.usageMetadata.candidatesTokenCount,
-              total: data.usageMetadata.promptTokenCount + data.usageMetadata.candidatesTokenCount
-            }
-          : undefined;
-
-        return {
-          text,
-          ...(usage ? { tokenUsage: usage } : {}),
-          rawResponse: data
-        };
-      } catch (error) {
-        lastError = error;
-        const status = (error as Error & { status?: number }).status;
-
-        if (status === 401 || status === 403) {
-          throw error;
-        }
-
-        if (status && isQuotaError(status)) {
-          throw error;
-        }
-      }
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => "");
+      const error = new Error(`Gemini API error ${res.status}: ${errorBody}`);
+      (error as Error & { status: number }).status = res.status;
+      throw error;
     }
 
-    throw lastError;
+    const data = await res.json() as {
+      candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
+      usageMetadata?: { promptTokenCount: number; candidatesTokenCount: number };
+      promptFeedback?: unknown;
+    };
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+    if (!text) {
+      logger.warn("Gemini returned empty response", {
+        model: req.modelId,
+        hasCandidates: !!data.candidates,
+        candidateCount: data.candidates?.length ?? 0,
+        hasPromptFeedback: !!data.promptFeedback,
+        rawKeys: Object.keys(data)
+      });
+    }
+    const usage = data.usageMetadata
+      ? {
+          input: data.usageMetadata.promptTokenCount,
+          output: data.usageMetadata.candidatesTokenCount,
+          total: data.usageMetadata.promptTokenCount + data.usageMetadata.candidatesTokenCount
+        }
+      : undefined;
+
+    return {
+      text,
+      ...(usage ? { tokenUsage: usage } : {}),
+      rawResponse: data
+    };
   }
 }
