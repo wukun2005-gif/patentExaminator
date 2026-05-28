@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import type { SummaryResponse } from "../../agent/contracts";
 import { useDraftStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
@@ -20,18 +20,37 @@ export function SummaryPanel({ caseId, runSummary }: SummaryPanelProps) {
   const summary = summaries[caseId] ?? null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller) => {
+        controller.abort();
+      });
+      controllers.clear();
+    };
+  }, []);
 
   const handleGenerate = async () => {
     if (!runSummary || loading) return;
+    const controller = new AbortController();
+    abortControllersRef.current.set("generate", controller);
     setLoading(true);
     setError(null);
     try {
       const result = await runSummary();
+      if (!isMountedRef.current) return;
       setSummary(caseId, result);
     } catch (err) {
+      if (!isMountedRef.current) return;
       setError(err);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
+      abortControllersRef.current.delete("generate");
     }
   };
 

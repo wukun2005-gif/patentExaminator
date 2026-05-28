@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { ImportedFile, ReexamRequiredFileType, ImportGateStatus } from "../../lib/case-gate";
 import {
   REQUIRED_REEXAM_FILE_TYPES,
@@ -25,6 +25,20 @@ export function ImportPage({ caseId: _caseId, importedFiles, onUploadFile, onDel
   const [uploadingType, setUploadingType] = useState<ReexamRequiredFileType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deletingFile, setDeletingFile] = useState<ImportedFile | null>(null);
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller) => {
+        controller.abort();
+      });
+      controllers.clear();
+    };
+  }, []);
 
   const gateStatus: ImportGateStatus = checkImportGate(importedFiles);
   const missingRequired = getMissingRequiredFiles(importedFiles);
@@ -45,13 +59,18 @@ export function ImportPage({ caseId: _caseId, importedFiles, onUploadFile, onDel
         return;
       }
 
+      const controller = new AbortController();
+      abortControllersRef.current.set("fileSelect", controller);
       setUploadingType(fileType);
       try {
         await onUploadFile(fileType, file);
+        if (!isMountedRef.current) return;
       } catch (err) {
+        if (!isMountedRef.current) return;
         setError(`上传失败: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
-        setUploadingType(null);
+        if (isMountedRef.current) setUploadingType(null);
+        abortControllersRef.current.delete("fileSelect");
       }
     },
     [onUploadFile]
@@ -69,12 +88,17 @@ export function ImportPage({ caseId: _caseId, importedFiles, onUploadFile, onDel
 
   const confirmDelete = useCallback(async () => {
     if (!deletingFile) return;
+    const controller = new AbortController();
+    abortControllersRef.current.set("delete", controller);
     try {
       await onDeleteFile(deletingFile.id);
+      if (!isMountedRef.current) return;
     } catch (err) {
+      if (!isMountedRef.current) return;
       setError(`删除失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      setDeletingFile(null);
+      if (isMountedRef.current) setDeletingFile(null);
+      abortControllersRef.current.delete("delete");
     }
   }, [deletingFile, onDeleteFile]);
 

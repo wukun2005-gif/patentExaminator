@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { PatentCase } from "@shared/types/domain";
 import { readAllCases, deleteCase } from "../../lib/repositories/caseRepo";
@@ -11,6 +11,20 @@ export function CaseHistoryPanel() {
   const [searchId, setSearchId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller) => {
+        controller.abort();
+      });
+      controllers.clear();
+    };
+  }, []);
 
   // Load all cases from IndexedDB on mount
   useEffect(() => {
@@ -23,20 +37,25 @@ export function CaseHistoryPanel() {
   }, [setCases]);
 
   const handleOpenCase = async (caseId: string) => {
+    const controller = new AbortController();
+    abortControllersRef.current.set("openCase", controller);
     setLoading(true);
     setError("");
     try {
       const loaded = await loadCaseById(caseId);
+      if (!isMountedRef.current) return;
       if (loaded) {
         navigate(`/cases/${caseId}/setup`);
       } else {
         setError(`案件 ${caseId} 不存在。`);
       }
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.error("加载案件失败:", err);
       setError(`加载案件失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
+      abortControllersRef.current.delete("openCase");
     }
   };
 
@@ -49,8 +68,15 @@ export function CaseHistoryPanel() {
   const handleDelete = async (caseId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("确定删除该案件？删除后不可恢复。")) return;
-    await deleteCase(caseId);
-    setCases(cases.filter((c) => c.id !== caseId));
+    const controller = new AbortController();
+    abortControllersRef.current.set("delete", controller);
+    try {
+      await deleteCase(caseId);
+      if (!isMountedRef.current) return;
+      setCases(cases.filter((c) => c.id !== caseId));
+    } finally {
+      abortControllersRef.current.delete("delete");
+    }
   };
 
   return (

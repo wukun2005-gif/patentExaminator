@@ -71,6 +71,7 @@ export function ChatPanel() {
   const panelRef = useRef<HTMLElement>(null);
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
 
   // Load sessions + messages from IndexedDB on mount / caseId change
   useEffect(() => {
@@ -113,7 +114,9 @@ export function ChatPanel() {
 
   // Abort in-flight request on unmount
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       abortControllerRef.current?.abort();
     };
   }, []);
@@ -261,6 +264,7 @@ export function ChatPanel() {
 
       log("Calling AI...");
       const response = await client.runChat(request, { signal: controller.signal });
+      if (!isMountedRef.current) return;
 
       let replyContent = response.reply;
       if (response.action) {
@@ -289,6 +293,7 @@ export function ChatPanel() {
       if (err instanceof Error && err.name === "AbortError") {
         log("Request aborted");
       } else {
+        if (!isMountedRef.current) return;
         const formatted = formatAiErrorMessage(err);
         const errorMsg: ChatMessage = {
           id: `msg-${Date.now()}-error`,
@@ -305,7 +310,7 @@ export function ChatPanel() {
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
       }
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   };
 

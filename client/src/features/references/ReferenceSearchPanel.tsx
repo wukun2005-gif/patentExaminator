@@ -38,6 +38,20 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
     const prev = termKeysRef.current;
     termKeysRef.current = searchTerms.map((_, i) => prev[i] ?? crypto.randomUUID());
   }
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller) => {
+        controller.abort();
+      });
+      controllers.clear();
+    };
+  }, []);
 
   const baselineDate = currentCase?.priorityDate ?? currentCase?.applicationDate;
   const MAX_REFERENCES = 10;
@@ -67,6 +81,8 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
       setError("请先上传申请文件并提取权利要求。");
       return;
     }
+    const controller = new AbortController();
+    abortControllersRef.current.set("extractTerms", controller);
     setError("");
     setSearchStep("extracting");
 
@@ -77,6 +93,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
         claimText,
         features
       });
+      if (!isMountedRef.current) return;
       if (!res.ok || res.queries.length === 0) {
         setError(res.error || "AI 提取检索词失败。");
         setSearchStep("idle");
@@ -85,8 +102,11 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
       setSearchTerms(res.queries);
       setSearchStep("editing");
     } catch (err) {
+      if (!isMountedRef.current) return;
       setError(String(err));
       setSearchStep("idle");
+    } finally {
+      abortControllersRef.current.delete("extractTerms");
     }
   }, [claimText, features, caseId, settings, setSearchTerms, setSearchStep]);
 
@@ -109,6 +129,8 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
     setCandidates([]);
     setProviderResults([]);
 
+    const controller = new AbortController();
+    abortControllersRef.current.set("searchWithTerms", controller);
     try {
       const agentClient = new AgentClient(settings.mode, "/api", settings);
       const maxResults = MAX_REFERENCES - references.length;
@@ -133,6 +155,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
         )
       );
 
+      if (!isMountedRef.current) return;
       // 收集每个 provider 的结果
       const allProviderResults: typeof providerResults = [];
       const okResponses: SearchReferencesResponse[] = [];
@@ -196,13 +219,16 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
         await updateSearchSession(sessionData);
       } else {
         await createSearchSession(sessionData);
+        if (!isMountedRef.current) return;
         setSearchSessionId(sessionData.id);
       }
     } catch (err) {
+      if (!isMountedRef.current) return;
       setError(String(err));
       setSearchStep("editing");
     } finally {
-      setIsSearching(false);
+      if (isMountedRef.current) setIsSearching(false);
+      abortControllersRef.current.delete("searchWithTerms");
     }
   }, [searchTerms, caseId, claimText, features, settings, searchSessionId, references.length,
       setIsSearching, setSearchStep, setCandidates, setProviderResults, setSearchSessionId]);
@@ -216,9 +242,16 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
   const handleAccept = async (candidateId: string) => {
     const candidate = candidates.find((c) => c.id === candidateId);
     if (!candidate) return;
+    const controller = new AbortController();
+    abortControllersRef.current.set(`accept-${candidateId}`, controller);
     const timelineStatus = classifyReferenceDate(baselineDate, candidate.publicationDate, candidate.publicationDateConfidence);
-    await createDocument({ ...candidate, timelineStatus });
-    acceptCandidate(candidateId);
+    try {
+      await createDocument({ ...candidate, timelineStatus });
+      if (!isMountedRef.current) return;
+      acceptCandidate(candidateId);
+    } finally {
+      abortControllersRef.current.delete(`accept-${candidateId}`);
+    }
   };
 
   const toggleSelect = (id: string) => {
@@ -237,9 +270,16 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
   };
 
   const handleBatchAccept = async () => {
-    const ids = candidates.filter((c) => selected.has(c.id)).slice(0, remaining).map((c) => c.id);
-    for (const id of ids) await handleAccept(id);
-    setSelected(new Set());
+    const controller = new AbortController();
+    abortControllersRef.current.set("batchAccept", controller);
+    try {
+      const ids = candidates.filter((c) => selected.has(c.id)).slice(0, remaining).map((c) => c.id);
+      for (const id of ids) await handleAccept(id);
+      if (!isMountedRef.current) return;
+      setSelected(new Set());
+    } finally {
+      abortControllersRef.current.delete("batchAccept");
+    }
   };
 
   return (

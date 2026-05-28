@@ -75,6 +75,20 @@ export function CaseSetupPage() {
   const [classifyError, setClassifyError] = useState<string | null>(null);
   const [_pendingDocuments, setPendingDocuments] = useState<SourceDocument[]>([]);
   const [draggedDoc, setDraggedDoc] = useState<SourceDocument | null>(null);
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
+    return () => {
+      isMountedRef.current = false;
+      controllers.forEach((controller) => {
+        controller.abort();
+      });
+      controllers.clear();
+    };
+  }, []);
 
   const {
     register,
@@ -126,23 +140,28 @@ export function CaseSetupPage() {
     const appDocs = documents.filter((d) => d.role === "application");
     if (appDocs.length === 0) return;
 
+    const controller = new AbortController();
+    abortControllersRef.current.set("aiExtract", controller);
     const docInputs = appDocs.map((d) => ({ fileName: d.fileName, text: d.extractedText }));
     setExtractingFields(true);
     setExtractError(null);
     try {
       const client = new AgentClient(settings.mode, "/api", settings);
       const fields = await extractCaseFields(docInputs, caseId, client);
+      if (!isMountedRef.current) return;
       setExtracted(fields);
       applyExtracted(fields, currentCase);
       await persistClaims(fields.claims, setClaimNodes);
     } catch (err) {
+      if (!isMountedRef.current) return;
       setExtractError(`AI 提取失败: ${err instanceof Error ? err.message : String(err)}，已降级为本地解析`);
       const fallback = extractCaseFieldsFallback(docInputs, caseId);
       setExtracted(fallback);
       applyExtracted(fallback, currentCase);
       await persistClaims(fallback.claims, setClaimNodes);
     } finally {
-      setExtractingFields(false);
+      if (isMountedRef.current) setExtractingFields(false);
+      abortControllersRef.current.delete("aiExtract");
     }
   };
 
@@ -205,7 +224,11 @@ export function CaseSetupPage() {
     const files = e.target.files;
     if (!files || !caseId) return;
 
+    const controller = new AbortController();
+    abortControllersRef.current.set("fileChange", controller);
+
     for (const file of Array.from(files)) {
+      if (!isMountedRef.current) break;
       const ext = getFileExtension(file.name);
       if (!SUPPORTED_EXTENSIONS.includes(ext)) {
         setFileStatuses((prev) => ({ ...prev, [file.name]: `不支持的格式: ${ext}` }));
@@ -216,17 +239,20 @@ export function CaseSetupPage() {
 
       try {
         const fileHash = await computeFileHash(file);
+        if (!isMountedRef.current) break;
         let text = "";
         let textStatus: SourceDocument["textStatus"] = "empty";
         let textLayerStatus: SourceDocument["textLayerStatus"] = "unknown";
 
         if (ext === ".pdf") {
           const result = await extractPdfText(file);
+          if (!isMountedRef.current) break;
           text = result.text;
           textLayerStatus = result.hasTextLayer ? "present" : "absent";
           textStatus = result.text ? "extracted" : "empty";
         } else if (ext === ".docx") {
           const result = await extractDocxText(file);
+          if (!isMountedRef.current) break;
           text = result.text;
           textStatus = result.text ? "extracted" : "empty";
         } else if (ext === ".html") {
@@ -254,15 +280,18 @@ export function CaseSetupPage() {
         };
 
         await createDocument(doc);
+        if (!isMountedRef.current) break;
         addDocument(doc);
         setFileStatuses((prev) => ({ ...prev, [file.name]: "完成" }));
       } catch (err) {
+        if (!isMountedRef.current) break;
         setFileStatuses((prev) => ({ ...prev, [file.name]: `出错: ${err}` }));
       }
     }
 
     // Reset file input so the same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = "";
+    abortControllersRef.current.delete("fileChange");
   };
 
   // Validation
@@ -299,11 +328,14 @@ export function CaseSetupPage() {
     const files = e.target.files;
     if (!files || !caseId) return;
 
+    const controller = new AbortController();
+    abortControllersRef.current.set("batchFileChange", controller);
     setBatchUploading(true);
     setClassifyError(null);
     const newPendingDocs: SourceDocument[] = [];
 
     for (const file of Array.from(files)) {
+      if (!isMountedRef.current) break;
       const ext = getFileExtension(file.name);
       if (!SUPPORTED_EXTENSIONS.includes(ext)) {
         setFileStatuses((prev) => ({ ...prev, [file.name]: `不支持的格式: ${ext}` }));
@@ -314,17 +346,20 @@ export function CaseSetupPage() {
 
       try {
         const fileHash = await computeFileHash(file);
+        if (!isMountedRef.current) break;
         let text = "";
         let textStatus: SourceDocument["textStatus"] = "empty";
         let textLayerStatus: SourceDocument["textLayerStatus"] = "unknown";
 
         if (ext === ".pdf") {
           const result = await extractPdfText(file);
+          if (!isMountedRef.current) break;
           text = result.text;
           textLayerStatus = result.hasTextLayer ? "present" : "absent";
           textStatus = result.text ? "extracted" : "empty";
         } else if (ext === ".docx") {
           const result = await extractDocxText(file);
+          if (!isMountedRef.current) break;
           text = result.text;
           textStatus = result.text ? "extracted" : "empty";
         } else if (ext === ".html") {
@@ -355,32 +390,38 @@ export function CaseSetupPage() {
         newPendingDocs.push(doc);
         setFileStatuses((prev) => ({ ...prev, [file.name]: "待分类" }));
       } catch (err) {
+        if (!isMountedRef.current) break;
         setFileStatuses((prev) => ({ ...prev, [file.name]: `出错: ${err}` }));
       }
     }
 
-    setPendingDocuments(newPendingDocs);
-    setBatchUploading(false);
+    if (isMountedRef.current) {
+      setPendingDocuments(newPendingDocs);
+      setBatchUploading(false);
+    }
 
     // 自动触发 AI 分类
-    if (newPendingDocs.length > 0) {
+    if (newPendingDocs.length > 0 && isMountedRef.current) {
       await classifyDocuments(newPendingDocs);
     }
 
     // Reset file input
     if (batchFileInputRef.current) batchFileInputRef.current.value = "";
+    abortControllersRef.current.delete("batchFileChange");
   };
 
   // AI 分类：调用 classify-documents Agent
   const classifyDocuments = async (docs: SourceDocument[]) => {
     if (!caseId || docs.length === 0) return;
 
+    const controller = new AbortController();
+    abortControllersRef.current.set("classify", controller);
     setClassifying(true);
     setClassifyError(null);
 
     try {
       const client = new AgentClient(settings.mode, "/api", settings);
-      
+
       const request = {
         caseId,
         documents: docs.map((doc, index) => ({
@@ -391,10 +432,12 @@ export function CaseSetupPage() {
       };
 
       const result = await client.runClassifyDocuments(request);
-      
+      if (!isMountedRef.current) return;
+
       // 根据分类结果更新文档角色
       await applyClassificationResults(docs, result.classifications);
-      
+      if (!isMountedRef.current) return;
+
       // 清空待分类文档
       setPendingDocuments([]);
 
@@ -408,15 +451,18 @@ export function CaseSetupPage() {
         console.warn("AI 分类警告:", result.warnings);
       }
     } catch (err) {
+      if (!isMountedRef.current) return;
       setClassifyError(`AI 分类失败: ${err instanceof Error ? err.message : String(err)}，所有文件已归入"对比文件"类别`);
       // 分类失败时，将所有待分类文档保存为 reference
       for (const doc of docs) {
         await createDocument(doc);
+        if (!isMountedRef.current) return;
         addDocument(doc);
       }
       setPendingDocuments([]);
     } finally {
-      setClassifying(false);
+      if (isMountedRef.current) setClassifying(false);
+      abortControllersRef.current.delete("classify");
     }
   };
 
@@ -448,12 +494,18 @@ export function CaseSetupPage() {
 
   // 删除文档
   const handleDeleteDocument = async (docId: string) => {
+    const controller = new AbortController();
+    abortControllersRef.current.set(`deleteDoc-${docId}`, controller);
     try {
       await deleteDocument(docId);
+      if (!isMountedRef.current) return;
       // 从 store 中移除
       setDocuments(documents.filter((d) => d.id !== docId));
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.error("删除文档失败:", err);
+    } finally {
+      abortControllersRef.current.delete(`deleteDoc-${docId}`);
     }
   };
 
@@ -461,18 +513,24 @@ export function CaseSetupPage() {
   const handleMoveDocument = async (docId: string, newRole: SourceDocument["role"]) => {
     const doc = documents.find((d) => d.id === docId);
     if (!doc) return;
-    
+
     const updatedDoc: SourceDocument = {
       ...doc,
       role: newRole
     };
-    
+
+    const controller = new AbortController();
+    abortControllersRef.current.set(`moveDoc-${docId}`, controller);
     try {
       await updateDocument(updatedDoc);
+      if (!isMountedRef.current) return;
       // 更新 store
       setDocuments(documents.map((d) => (d.id === docId ? updatedDoc : d)));
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.error("移动文档失败:", err);
+    } finally {
+      abortControllersRef.current.delete(`moveDoc-${docId}`);
     }
   };
 
