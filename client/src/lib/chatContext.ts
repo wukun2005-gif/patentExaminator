@@ -4,7 +4,8 @@ import {
   useClaimsStore,
   useNoveltyStore,
   useInventiveStore,
-  useDefectsStore
+  useDefectsStore,
+  useOpinionStore
 } from "../store";
 import type { ModuleScope } from "@shared/types/domain";
 
@@ -104,6 +105,34 @@ export function buildContextSummary(caseId: string, moduleScope: ModuleScope): s
       lines.push(`特征: ${features.length} 个 | 对照: ${comps.length} 篇 | 创造性: ${analysis ? analysis.candidateAssessment : "未分析"} | 缺陷: ${defects.length} 项`);
       break;
     }
+
+    case "opinion-analysis": {
+      const opinionState = useOpinionStore.getState();
+      const analyses = opinionState.officeActionAnalyses.filter((a) => a.caseId === caseId);
+      lines.push(`审查意见解析: ${analyses.length} 份`);
+      for (const a of analyses) {
+        lines.push(`  驳回理由: ${a.rejectionGrounds.length} 条`);
+        lines.push(`  引用文献: ${a.citedReferences.length} 篇`);
+      }
+      break;
+    }
+
+    case "argument-mapping": {
+      const opinionState = useOpinionStore.getState();
+      const mappings = opinionState.argumentMappings.filter((m) => m.caseId === caseId);
+      lines.push(`答辩理由映射: ${mappings.length} 条`);
+      for (const m of mappings) {
+        lines.push(`  ${m.rejectionGroundCode}: ${m.argumentSummary?.slice(0, 50) ?? "无摘要"} [${m.confidence}]`);
+      }
+      break;
+    }
+
+    case "search-references":
+    case "translate":
+    case "classify-documents":
+      // These modules don't have persistent context data to summarize
+      lines.push(`模块 ${moduleScope}: 暂无上下文数据`);
+      break;
 
   }
 
