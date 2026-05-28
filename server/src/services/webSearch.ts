@@ -1,6 +1,8 @@
 import { logger } from "../lib/logger.js";
 import { searchEpo } from "../search/epo-ops.js";
 
+const FETCH_TIMEOUT_MS = 30_000; // 30s timeout for search provider requests
+
 export interface SearchResult {
   title: string;
   url: string;
@@ -119,7 +121,8 @@ async function tavilySearch(
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
   });
 
   if (!response.ok) {
@@ -179,7 +182,8 @@ async function serpApiSearch(
 
   const response = await fetch(url.toString(), {
     method: "GET",
-    headers: { "Accept": "application/json" }
+    headers: { "Accept": "application/json" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
   });
 
   if (!response.ok) {
@@ -227,7 +231,8 @@ async function searchCustom(
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Accept": "application/json"
-    }
+    },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
   });
 
   if (!response.ok) {
