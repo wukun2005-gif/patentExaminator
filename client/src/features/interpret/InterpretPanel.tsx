@@ -156,19 +156,25 @@ export function InterpretPanel({
 
   useEffect(() => {
     const persistedExpanded = readExpandedState(caseId);
-    const nextStates: Record<string, DocumentCardState> = {};
-    const nextExpanded: ExpandedStateMap = {};
-    for (const doc of documents) {
-      const persistedSummary = persistedSummaries[doc.id];
-      const legacySummary = doc.role === "application" ? persistedSummaries[LEGACY_INTERPRET_KEY] : undefined;
-      nextStates[doc.id] = {
-        ...EMPTY_CARD_STATE,
-        summary: persistedSummary ?? legacySummary ?? cardStates[doc.id]?.summary ?? ""
-      };
-      nextExpanded[doc.id] = persistedExpanded[doc.id] ?? false;
-    }
-    setCardStates(nextStates);
-    setExpandedDocuments(nextExpanded);
+    setCardStates((prev) => {
+      const next: Record<string, DocumentCardState> = {};
+      for (const doc of documents) {
+        const persistedSummary = persistedSummaries[doc.id];
+        const legacySummary = doc.role === "application" ? persistedSummaries[LEGACY_INTERPRET_KEY] : undefined;
+        const summary = persistedSummary ?? legacySummary ?? prev[doc.id]?.summary ?? "";
+        next[doc.id] = prev[doc.id]
+          ? { ...prev[doc.id], summary }  // preserve user edits
+          : { ...EMPTY_CARD_STATE, summary };
+      }
+      return next;
+    });
+    setExpandedDocuments((prev) => {
+      const next: ExpandedStateMap = {};
+      for (const doc of documents) {
+        next[doc.id] = persistedExpanded[doc.id] ?? prev[doc.id] ?? false;
+      }
+      return next;
+    });
   }, [caseId, documents, persistedSummaries]);
 
   useEffect(() => {
