@@ -31,7 +31,7 @@ if (process.env.Openrouter_KEY) {
 }
 
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
 // API routes
 app.use("/api", healthRouter);

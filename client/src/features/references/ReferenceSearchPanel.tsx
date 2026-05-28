@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import type { ReferenceDocument } from "@shared/types/domain";
 import type { SearchReferencesCandidate, SearchReferencesResponse } from "@shared/types/api";
@@ -31,6 +31,13 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
   const { settings } = useSettingsStore();
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Stable keys for search terms (survives deletions from middle)
+  const termKeysRef = useRef<string[]>([]);
+  if (termKeysRef.current.length !== searchTerms.length) {
+    const prev = termKeysRef.current;
+    termKeysRef.current = searchTerms.map((_, i) => prev[i] ?? crypto.randomUUID());
+  }
 
   const baselineDate = currentCase?.priorityDate ?? currentCase?.applicationDate;
   const MAX_REFERENCES = 10;
@@ -273,7 +280,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
             AI 生成了 {searchTerms.length} 条检索词，您可以编辑后确认检索：
           </p>
           {searchTerms.map((term, idx) => (
-            <div key={idx} className="search-term-row">
+            <div key={termKeysRef.current[idx]} className="search-term-row">
               <span className="query-index" style={{ minWidth: 20, textAlign: "right", color: "var(--pex-color-text-muted)", fontSize: "var(--pex-font-size-caption)" }}>
                 {idx + 1}.
               </span>
@@ -348,7 +355,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
             </p>
             <div className="query-details" data-testid="query-details" style={{ borderTop: "none", marginTop: 4 }}>
               {searchTerms.map((query, idx) => (
-                <div key={idx} className="query-item">
+                <div key={termKeysRef.current[idx] ?? idx} className="query-item">
                   <span className="query-index">{idx + 1}.</span>
                   <span className="query-text">{query}</span>
                 </div>
