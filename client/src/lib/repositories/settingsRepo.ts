@@ -109,7 +109,9 @@ export async function readSettings(): Promise<AppSettings> {
   try {
     const ls = localStorage.getItem(LS_KEY);
     if (ls) return JSON.parse(ls) as AppSettings;
-  } catch { /* ignore */ }
+  } catch (e) {
+    console.warn("[settingsRepo] localStorage JSON.parse failed, using defaults:", e);
+  }
 
   return DEFAULT_SETTINGS;
 }

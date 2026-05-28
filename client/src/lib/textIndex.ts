@@ -29,6 +29,10 @@ function extractParagraphs(text: string): TextParagraph[] {
     }
 
     const startOffset = text.indexOf(trimmed, offset);
+    if (startOffset === -1) {
+      offset += raw.length + 2;
+      continue;
+    }
     const endOffset = startOffset + trimmed.length;
 
     // Try to extract paragraph number (§0001, [0001], etc.)

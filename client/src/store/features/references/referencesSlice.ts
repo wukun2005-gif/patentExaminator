@@ -1,8 +1,13 @@
 import { create } from "zustand";
 import type { ReferenceDocument } from "@shared/types/domain";
+import {
+  createDocument,
+  updateDocument as updateDocumentInDB,
+  deleteDocument
+} from "../../../lib/repositories/documentRepo";
 
 // DEBUG: 调试 bug 18 - 删除对比文件后无法再加载再比较
-const DEBUG_REFERENCES = true;
+const DEBUG_REFERENCES = import.meta.env.DEV;
 
 function debugRefLog(...args: unknown[]) {
   if (DEBUG_REFERENCES) {
@@ -74,41 +79,44 @@ export const createReferencesSlice = (
   },
   addReference: (ref) => {
     debugRefLog("addReference:", { id: ref.id, title: ref.title ?? ref.fileName });
-    return set((prev) => ({ references: [...prev.references, ref] }));
+    set((prev) => ({ references: [...prev.references, ref] }));
+    createDocument(ref).catch((e) => console.error("[ReferencesSlice] IDB createDocument error:", e));
   },
   updateReference: (ref) => {
     debugRefLog("updateReference:", { id: ref.id, title: ref.title ?? ref.fileName });
-    return set((prev) => ({
+    set((prev) => ({
       references: prev.references.map((r) => (r.id === ref.id ? ref : r))
     }));
+    updateDocumentInDB(ref).catch((e) => console.error("[ReferencesSlice] IDB updateDocument error:", e));
   },
   removeReference: (id) => {
     debugRefLog("removeReference 被调用:", { id });
     const before = _get().references.map(r => r.id);
-    const result = set((prev) => {
+    set((prev) => {
       const after = prev.references.filter((r) => r.id !== id);
       debugRefLog("removeReference 执行:", { before, after: after.map(r => r.id), removed: id });
       return { references: after };
     });
-    return result;
+    deleteDocument(id).catch((e) => console.error("[ReferencesSlice] IDB deleteDocument error:", e));
   },
   setLoading: (v) => set(() => ({ isLoading: v })),
 
   setCandidates: (candidates) => set(() => ({ candidates })),
-  acceptCandidate: (candidateId) =>
-    set((prev) => {
-      const candidate = prev.candidates.find((c) => c.id === candidateId);
-      if (!candidate) return prev;
-      const accepted: ReferenceDocument = {
-        ...candidate,
-        source: "ai-search" as const,
-        candidateStatus: "accepted" as const
-      };
-      return {
-        references: [...prev.references, accepted],
-        candidates: prev.candidates.filter((c) => c.id !== candidateId)
-      };
-    }),
+  acceptCandidate: (candidateId) => {
+    const state = _get();
+    const candidate = state.candidates.find((c) => c.id === candidateId);
+    if (!candidate) return;
+    const accepted: ReferenceDocument = {
+      ...candidate,
+      source: "ai-search" as const,
+      candidateStatus: "accepted" as const
+    };
+    set((prev) => ({
+      references: [...prev.references, accepted],
+      candidates: prev.candidates.filter((c) => c.id !== candidateId)
+    }));
+    createDocument(accepted).catch((e) => console.error("[ReferencesSlice] IDB createDocument (accept) error:", e));
+  },
   rejectCandidate: (candidateId) =>
     set((prev) => ({ candidates: prev.candidates.filter((c) => c.id !== candidateId) })),
   clearCandidates: () => set(() => ({ candidates: [] })),

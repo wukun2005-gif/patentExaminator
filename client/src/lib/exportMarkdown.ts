@@ -40,14 +40,14 @@ export function renderCaseMarkdown(viewModel: ExportViewModel): string {
 
   const lines: string[] = [];
 
-  lines.push(`# ${caseData.applicationNumber} - ${caseData.title}`);
+  lines.push(`# ${caseData.applicationNumber ?? "（未填写）"} - ${caseData.title}`);
   lines.push("");
   lines.push(`> ${LEGAL_DISCLAIMER}`);
   lines.push("");
 
   lines.push("## 案件基本信息");
   lines.push("");
-  lines.push(`- 申请号: ${caseData.applicationNumber}`);
+  lines.push(`- 申请号: ${caseData.applicationNumber ?? "（未填写）"}`);
   lines.push(`- 发明名称: ${caseData.title}`);
   lines.push(`- 申请日: ${caseData.applicationDate}`);
   if (caseData.priorityDate) {

@@ -22,7 +22,8 @@ vi.mock("@client/lib/indexedDb", () => ({
 
 // Mock caseRepo
 vi.mock("@client/lib/repositories/caseRepo", () => ({
-  createCase: vi.fn().mockResolvedValue(undefined)
+  createCase: vi.fn().mockResolvedValue(undefined),
+  updateCase: vi.fn().mockResolvedValue(undefined)
 }));
 
 const ONBOARDING_KEY = "patent-examiner-onboarding-done";

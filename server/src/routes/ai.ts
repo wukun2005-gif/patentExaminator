@@ -172,6 +172,12 @@ aiRouter.post("/ai/run", async (req, res) => {
           extractedLen: extracted.raw.length
         });
       }
+    } else if (response.text.trim().length > 0) {
+      logger.warn("extractJsonFromText returned null for non-empty response", {
+        agent: request.agent,
+        textLen: response.text.length,
+        textPreview: response.text.slice(0, 200)
+      });
     }
 
     // Validate response structure for structured agents

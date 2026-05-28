@@ -2,10 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock all repos
 vi.mock("@client/lib/repositories/caseRepo", () => ({
-  createCase: vi.fn().mockResolvedValue(undefined)
+  createCase: vi.fn().mockResolvedValue(undefined),
+  updateCase: vi.fn().mockResolvedValue(undefined)
 }));
 vi.mock("@client/lib/repositories/documentRepo", () => ({
-  createDocument: vi.fn().mockResolvedValue(undefined)
+  createDocument: vi.fn().mockResolvedValue(undefined),
+  updateDocument: vi.fn().mockResolvedValue(undefined),
+  deleteDocument: vi.fn().mockResolvedValue(undefined)
 }));
 vi.mock("@client/lib/repositories/claimRepo", () => ({
   createClaimNode: vi.fn().mockResolvedValue(undefined),

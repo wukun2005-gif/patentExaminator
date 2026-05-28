@@ -21,7 +21,10 @@ export const createCaseSlice = (
   cases: [],
   isLoading: false,
 
-  setCurrentCase: (c) => set(() => ({ currentCase: c })),
+  setCurrentCase: (c) => {
+    set(() => ({ currentCase: c }));
+    if (c) updateCase(c).catch((e) => console.error("[CaseSlice] IDB setCurrentCase error:", e));
+  },
   setCases: (cases) => set(() => ({ cases })),
   setLoading: (v) => set(() => ({ isLoading: v })),
   updateWorkflowState: (state) =>

@@ -5,7 +5,7 @@ import { useNoveltyStore } from "../../store";
 import { ErrorBanner } from "../../lib/errorDisplay";
 
 // DEBUG: 调试 bug 18 - 删除对比文件后无法再加载再比较
-const DEBUG_NOVELTY = true;
+const DEBUG_NOVELTY = import.meta.env.DEV;
 
 function debugLog(...args: unknown[]) {
   if (DEBUG_NOVELTY) {

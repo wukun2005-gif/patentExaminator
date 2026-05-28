@@ -355,7 +355,7 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
                     <h4>技术启示</h4>
                     <ul>
                       {inventiveAnalysis.motivationEvidence.map((e, i) => (
-                        <li key={i}>{e.label}{e.quote ? `：「${e.quote}」` : ""}（置信度：{e.confidence}）</li>
+                        <li key={`${e.label}-${i}`}>{e.label}{e.quote ? `：「${e.quote}」` : ""}（置信度：{e.confidence}）</li>
                       ))}
                     </ul>
                   </>

@@ -1,5 +1,10 @@
 import { create } from "zustand";
 import type { SourceDocument } from "@shared/types/domain";
+import {
+  createDocument,
+  updateDocument as updateDocumentInDB,
+  deleteDocument
+} from "../../../lib/repositories/documentRepo";
 
 export interface DocumentsSlice {
   documents: SourceDocument[];
@@ -20,13 +25,20 @@ export const createDocumentsSlice = (
   isLoading: false,
 
   setDocuments: (documents) => set(() => ({ documents })),
-  addDocument: (doc) => set((prev) => ({ documents: [...prev.documents, doc] })),
-  updateDocument: (doc) =>
+  addDocument: (doc) => {
+    set((prev) => ({ documents: [...prev.documents, doc] }));
+    createDocument(doc).catch((e) => console.error("[DocumentsSlice] IDB createDocument error:", e));
+  },
+  updateDocument: (doc) => {
     set((prev) => ({
       documents: prev.documents.map((d) => (d.id === doc.id ? doc : d))
-    })),
-  removeDocument: (id) =>
-    set((prev) => ({ documents: prev.documents.filter((d) => d.id !== id) })),
+    }));
+    updateDocumentInDB(doc).catch((e) => console.error("[DocumentsSlice] IDB updateDocument error:", e));
+  },
+  removeDocument: (id) => {
+    set((prev) => ({ documents: prev.documents.filter((d) => d.id !== id) }));
+    deleteDocument(id).catch((e) => console.error("[DocumentsSlice] IDB deleteDocument error:", e));
+  },
   setLoading: (v) => set(() => ({ isLoading: v }))
 });
 

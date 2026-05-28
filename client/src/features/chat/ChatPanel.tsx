@@ -9,7 +9,7 @@ import { formatAiErrorMessage } from "../../lib/errorDisplay";
 import type { ChatMessage, ChatSession, ModuleScope } from "@shared/types/domain";
 import type { ChatRequest } from "../../agent/contracts";
 
-const DEBUG = true;
+const DEBUG = import.meta.env.DEV;
 function log(...args: unknown[]) {
   if (DEBUG) console.log("[ChatPanel]", ...args);
 }
@@ -72,6 +72,7 @@ export function ChatPanel() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load sessions + messages from IndexedDB on mount / caseId change
   useEffect(() => {
@@ -111,6 +112,13 @@ export function ChatPanel() {
       cancelled = true; 
     };
   }, [caseId]);
+
+  // Abort in-flight request on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   // All sessions for current case (not filtered by module — user controls session lifecycle)
   const caseSessions = useMemo(() => {
@@ -178,6 +186,13 @@ export function ChatPanel() {
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isLoading) return;
+
+    // Abort previous in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     log("handleSend called, text:", text.substring(0, 50) + "...");
     // Auto-create session if none exists
@@ -247,7 +262,7 @@ export function ChatPanel() {
       };
 
       log("Calling AI...");
-      const response = await client.runChat(request);
+      const response = await client.runChat(request, { signal: controller.signal });
 
       let replyContent = response.reply;
       if (response.action) {
@@ -272,18 +287,26 @@ export function ChatPanel() {
         log("createMessage error:", e);
       }
     } catch (err) {
-      const formatted = formatAiErrorMessage(err);
-      const errorMsg: ChatMessage = {
-        id: `msg-${Date.now()}-error`,
-        caseId,
-        sessionId,
-        moduleScope,
-        role: "assistant",
-        content: `${formatted.message}\n\n${formatted.guidance}`,
-        createdAt: new Date().toISOString()
-      };
-      addMessage(errorMsg);
+      // Suppress errors from intentional abort
+      if (err instanceof Error && err.name === "AbortError") {
+        log("Request aborted");
+      } else {
+        const formatted = formatAiErrorMessage(err);
+        const errorMsg: ChatMessage = {
+          id: `msg-${Date.now()}-error`,
+          caseId,
+          sessionId,
+          moduleScope,
+          role: "assistant",
+          content: `${formatted.message}\n\n${formatted.guidance}`,
+          createdAt: new Date().toISOString()
+        };
+        addMessage(errorMsg);
+      }
     } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
       setLoading(false);
     }
   };

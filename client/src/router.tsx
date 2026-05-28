@@ -88,7 +88,7 @@ export function SummaryWrapper() {
 }
 
 // DEBUG: 调试 bug 18 - 删除对比文件后无法再加载再比较
-const DEBUG_NOVELTY_WRAPPER = true;
+const DEBUG_NOVELTY_WRAPPER = import.meta.env.DEV;
 
 function debugNoveltyLog(...args: unknown[]) {
   if (DEBUG_NOVELTY_WRAPPER) {
@@ -120,7 +120,7 @@ export function NoveltyWrapper() {
     if (ids.length === 0 && selectedComparisonId !== "") {
       setSelectedComparisonId("");
     }
-  }, [comparisonIds, selectedComparisonId, caseComparisons]);
+  }, [comparisonIds, selectedComparisonId]);
 
   // DEBUG: 记录 NoveltyWrapper 状态
   debugNoveltyLog("渲染状态:", {

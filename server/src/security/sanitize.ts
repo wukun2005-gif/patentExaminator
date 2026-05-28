@@ -3,10 +3,14 @@
  * Removes sensitive patterns like API keys, emails, phone numbers.
  */
 
+// Zero-width characters: U+200B (ZWSP), U+200C (ZWNJ), U+200D (ZWJ), U+FEFF (BOM)
+// eslint-disable-next-line no-misleading-character-class -- intentional: these are the exact codepoints to strip
+const ZERO_WIDTH_RE = /[\u200b\u200c\u200d\ufeff]/g;
+
 const DEFAULT_PATTERNS = [
-  { pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}/g, replace: "[EMAIL]" },
+  { pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, replace: "[EMAIL]" },
   { pattern: /\b1[3-9]\d{9}\b/g, replace: "[PHONE]" },
-  { pattern: /(?:sk|tp|ak)-[A-Za-z0-9]{20,}/g, replace: "[API_KEY]" }
+  { pattern: /(?:sk|tp|ak)-[A-Za-z0-9]{20,}/g, replace: "[API_KEY]" },
 ];
 
 export interface SanitizeRule {
@@ -19,7 +23,8 @@ export function sanitizeText(
   text: string,
   customRules?: SanitizeRule[]
 ): string {
-  let result = text;
+  // Strip zero-width characters that can be used for prompt injection
+  let result = text.replace(ZERO_WIDTH_RE, "");
 
   // Apply default patterns
   for (const rule of DEFAULT_PATTERNS) {
