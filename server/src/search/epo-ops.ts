@@ -84,6 +84,11 @@ async function getEpoAccessToken(consumerKey: string, consumerSecret: string): P
   return cachedToken.accessToken;
 }
 
+/** Escape double quotes in a CQL search term to prevent CQL injection. */
+function escapeCqlTerm(term: string): string {
+  return term.replace(/"/g, '\\"');
+}
+
 function buildCqlQuery(searchTerms: string): string {
   const terms = searchTerms
     .split(/\s*\|\s*/)
@@ -91,16 +96,18 @@ function buildCqlQuery(searchTerms: string): string {
     .filter((t) => t.length > 0);
 
   const conditions = terms.map((t) => {
+    const escaped = escapeCqlTerm(t);
     if (/^[A-H][0-9][0-9][A-Z]/.test(t)) {
-      return `ipc any "${t}"`;
+      return `ipc any "${escaped}"`;
     }
     // EPO OPS CQL valid indexes: ti (title), ab (abstract), cl (claims)
     // Note: 'desc' is NOT a valid index - use 'cl' for claims instead
-    return `ti any "${t}" OR ab any "${t}" OR cl any "${t}"`;
+    return `ti any "${escaped}" OR ab any "${escaped}" OR cl any "${escaped}"`;
   });
 
   if (conditions.length === 0) {
-    return `ti any "${searchTerms}" OR ab any "${searchTerms}"`;
+    const escaped = escapeCqlTerm(searchTerms);
+    return `ti any "${escaped}" OR ab any "${escaped}" OR cl any "${escaped}"`;
   }
 
   return conditions.join(" AND ");
