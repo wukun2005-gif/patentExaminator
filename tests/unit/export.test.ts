@@ -131,3 +131,30 @@ describe("ExportPanel module", () => {
     expect(typeof mod.ExportPanel).toBe("function");
   });
 });
+
+describe("renderCaseMarkdown null field handling (TC-3)", () => {
+  it("renders fallback when applicationNumber is null", () => {
+    const vm: ExportViewModel = {
+      ...MOCK_VIEWMODEL,
+      caseData: { ...MOCK_VIEWMODEL.caseData, applicationNumber: null as unknown as string }
+    };
+    const md = renderCaseMarkdown(vm);
+    expect(md).toContain("（未填写）");
+    expect(md).not.toContain("null");
+  });
+
+  it("renders fallback when applicationNumber is undefined", () => {
+    const vm: ExportViewModel = {
+      ...MOCK_VIEWMODEL,
+      caseData: { ...MOCK_VIEWMODEL.caseData, applicationNumber: undefined as unknown as string }
+    };
+    const md = renderCaseMarkdown(vm);
+    expect(md).toContain("（未填写）");
+  });
+
+  it("renders normal applicationNumber when present", () => {
+    const md = renderCaseMarkdown(MOCK_VIEWMODEL);
+    expect(md).toContain("CN202310001001");
+    expect(md).not.toContain("（未填写）");
+  });
+});

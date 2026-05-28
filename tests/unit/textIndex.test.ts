@@ -104,3 +104,50 @@ describe("matchCitation", () => {
     expect(result.status).toBe("not-found");
   });
 });
+
+describe("buildTextIndex boundary conditions (TC-4)", () => {
+  it("handles empty text", () => {
+    const index = buildTextIndex("");
+    expect(index.paragraphs).toHaveLength(0);
+    expect(index.lineMap).toHaveLength(1); // empty string has one empty line
+  });
+
+  it("handles text with only whitespace separators", () => {
+    const index = buildTextIndex("aaa\n   \nbbb");
+    expect(index.paragraphs).toHaveLength(2);
+    expect(index.paragraphs[0]!.text).toBe("aaa");
+    expect(index.paragraphs[1]!.text).toBe("bbb");
+  });
+
+  it("handles long separator (4+ chars)", () => {
+    const index = buildTextIndex("para1\n    \npara2");
+    expect(index.paragraphs).toHaveLength(2);
+    // Offsets should still be valid
+    expect(index.paragraphs[0]!.startOffset).toBe(0);
+    expect(index.paragraphs[1]!.startOffset).toBeGreaterThan(0);
+  });
+
+  it("handles single paragraph (no separator)", () => {
+    const index = buildTextIndex("single paragraph text");
+    expect(index.paragraphs).toHaveLength(1);
+    expect(index.paragraphs[0]!.text).toBe("single paragraph text");
+    expect(index.paragraphs[0]!.startOffset).toBe(0);
+  });
+
+  it("handles consecutive empty separators", () => {
+    const index = buildTextIndex("a\n\n\n\nb");
+    expect(index.paragraphs).toHaveLength(2);
+    expect(index.paragraphs[0]!.text).toBe("a");
+    expect(index.paragraphs[1]!.text).toBe("b");
+  });
+
+  it("paragraph offsets are monotonically increasing", () => {
+    const text = "§0001 第一段内容。\n\n§0002 第二段内容。\n\n§0003 第三段内容。";
+    const index = buildTextIndex(text);
+    for (let i = 1; i < index.paragraphs.length; i++) {
+      expect(index.paragraphs[i]!.startOffset).toBeGreaterThanOrEqual(
+        index.paragraphs[i - 1]!.endOffset
+      );
+    }
+  });
+});
