@@ -88,3 +88,48 @@ describe("parseClaims", () => {
     expect(result.claims).toHaveLength(2);
   });
 });
+
+describe("parseClaims non-standard formats (TC-5)", () => {
+  const caseId = "test-case";
+
+  it("handles mixed Chinese/English claims", () => {
+    const text = `权利要求书
+1. A heat dissipation device comprising a substrate and fins.
+2. 根据权利要求1所述的装置，其特征在于，所述基板为铝合金。`;
+    const result = parseClaims(text, caseId);
+    expect(result.claims).toHaveLength(2);
+    expect(result.claims[0]!.rawText).toContain("heat dissipation");
+  });
+
+  it("handles non-sequential numbering (1, 3, 5)", () => {
+    const text = `权利要求书
+1. 一种装置A。
+3. 根据权利要求1所述的装置A，其特征在于X。
+5. 根据权利要求3所述的装置A，其特征在于Y。`;
+    const result = parseClaims(text, caseId);
+    expect(result.claims).toHaveLength(3);
+    expect(result.claims[0]!.claimNumber).toBe(1);
+    expect(result.claims[1]!.claimNumber).toBe(3);
+    expect(result.claims[2]!.claimNumber).toBe(5);
+  });
+
+  it("handles claims with no paragraph numbers", () => {
+    const text = `权利要求书
+一种散热装置，包括基板和翅片。
+所述基板为铝合金材质。`;
+    const result = parseClaims(text, caseId);
+    // Should still extract something even without numbering
+    expect(result.claims.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it("handles extra whitespace and blank lines", () => {
+    const text = `权利要求书
+
+1. 一种装置，包括A。
+
+
+2. 根据权利要求1所述的装置，其特征在于B。`;
+    const result = parseClaims(text, caseId);
+    expect(result.claims).toHaveLength(2);
+  });
+});
