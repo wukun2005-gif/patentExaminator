@@ -41,6 +41,9 @@ import type { ProviderId, ProviderConnection, AgentAssignment, AppSettings, Prov
 import { useSettingsStore } from "../store/features/settings/settingsSlice";
 import { waitForServerReady, clearServerReadyCache } from "../lib/serverReady";
 import { truncateForModel } from "../lib/textTruncate";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("AgentClient");
 
 const GATEWAY_AGENT_TO_KEY: Record<string, AgentAssignment["agent"]> = {
   "claim-chart": "claim-chart",
@@ -581,7 +584,7 @@ export class AgentClient {
       }
     };
 
-    console.log("[AgentClient] Calling gateway", {
+    log("Calling gateway", {
       agent,
       providerPreference,
       modelId: resolved.modelId,

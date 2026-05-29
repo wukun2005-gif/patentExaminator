@@ -15,6 +15,9 @@ import type {
 } from "@shared/types/domain";
 import type { FeedbackItem } from "@shared/types/feedback";
 import type { AppSettings } from "@shared/types/agents";
+import { createLogger } from "./logger";
+
+const log = createLogger("IndexedDB");
 
 export interface PatentExaminerDB extends DBSchema {
   cases: {
@@ -142,8 +145,8 @@ const DB_VERSION = 9;
 export async function openPatentDB(): Promise<IDBPDatabase<PatentExaminerDB>> {
   return openDB<PatentExaminerDB>(DB_NAME, DB_VERSION, {
     upgrade(db, oldVersion, newVersion) {
-      console.log(
-        `[IndexedDB] Upgrading patent-examiner-v1 from v${oldVersion} to v${newVersion}`
+      log(
+        `Upgrading patent-examiner-v1 from v${oldVersion} to v${newVersion}`
       );
 
       if (oldVersion < 1) {
