@@ -66,7 +66,11 @@ export function loadFixture(agentType: string, key: string): unknown {
 
   const filePath = path.join(__dirname, fileName);
   const raw = fs.readFileSync(filePath, "utf-8");
-  const parsed = JSON.parse(raw);
-  FIXTURE_CACHE.set(fileName, parsed);
-  return parsed;
+  try {
+    const parsed = JSON.parse(raw);
+    FIXTURE_CACHE.set(fileName, parsed);
+    return parsed;
+  } catch (e) {
+    throw new Error(`Failed to parse fixture ${fileName}: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
