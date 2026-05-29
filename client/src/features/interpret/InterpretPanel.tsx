@@ -144,6 +144,9 @@ export function InterpretPanel({
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const isMountedRef = useRef(true);
 
+  // Stable reference for documents dependency — prevents unnecessary re-renders
+  const documentIds = useMemo(() => documents.map((d) => d.id).join(","), [documents]);
+
   const groupedDocuments = useMemo(
     () =>
       ROLE_ORDER.map((role) => ({
@@ -151,7 +154,7 @@ export function InterpretPanel({
         title: ROLE_SECTION_LABELS[role],
         documents: documents.filter((doc) => doc.role === role)
       })).filter((group) => group.documents.length > 0),
-    [documents]
+    [documentIds] // Use stable string instead of array reference
   );
 
   useEffect(() => {
