@@ -5,6 +5,7 @@ import { ModeBanner } from "./ModeBanner";
 import { ChatPanel } from "../features/chat/ChatPanel";
 import { useCaseStore } from "../store";
 import { loadCaseById } from "../lib/caseLoader";
+import { useTokenUsageStore } from "../store/features/tokenUsage/tokenUsageSlice";
 
 interface AppShellProps {
   children: ReactNode;
@@ -40,6 +41,8 @@ export function AppShell({ children }: AppShellProps) {
   const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { currentCase } = useCaseStore();
+  const { getCaseUsage } = useTokenUsageStore();
+  const caseUsage = caseId ? getCaseUsage(caseId) : { input: 0, output: 0, total: 0 };
 
   // Clear timeout on unmount
   useEffect(() => {
@@ -85,9 +88,16 @@ export function AppShell({ children }: AppShellProps) {
       <header className="app-shell__topbar">
         <Link to="/cases" className="app-shell__logo">专利复审 AI 助手</Link>
         {caseId && (
-          <span className="app-shell__case-id" data-testid="topbar-case-id">
-            案件: {caseId}
-          </span>
+          <>
+            <span className="app-shell__case-id" data-testid="topbar-case-id">
+              案件: {caseId}
+            </span>
+            {caseUsage.total > 0 && (
+              <span className="app-shell__token-usage" data-testid="topbar-token-usage" title={`输入: ${caseUsage.input} | 输出: ${caseUsage.output}`}>
+                Token: {caseUsage.total.toLocaleString()}
+              </span>
+            )}
+          </>
         )}
         <ModeBanner />
         <nav className="app-shell__topnav">

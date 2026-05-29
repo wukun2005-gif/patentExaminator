@@ -36,6 +36,16 @@
   font-family: monospace;
 }
 
+.app-shell__token-usage {
+  font-size: var(--pex-font-size-caption);
+  color: var(--pex-color-text-muted);
+  background: var(--pex-color-border-light);
+  padding: 2px 8px;
+  border-radius: var(--pex-radius-md);
+  font-family: monospace;
+  cursor: help;
+}
+
 .app-shell__topnav {
   margin-left: auto;
 }

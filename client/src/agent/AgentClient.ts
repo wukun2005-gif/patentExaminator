@@ -652,6 +652,20 @@ export class AgentClient {
       );
     }
 
+    // Track token usage
+    if (data.tokenUsage && meta.caseId) {
+      const { useTokenUsageStore } = await import("../store/features/tokenUsage/tokenUsageSlice");
+      useTokenUsageStore.getState().addRecord({
+        caseId: meta.caseId,
+        agent,
+        providerId: data.attempts?.[0]?.providerId ?? "unknown",
+        modelId: request.modelId ?? "unknown",
+        inputTokens: data.tokenUsage.input,
+        outputTokens: data.tokenUsage.output,
+        totalTokens: data.tokenUsage.total
+      });
+    }
+
     if (data.outputJson) {
       return data.outputJson as T;
     }
