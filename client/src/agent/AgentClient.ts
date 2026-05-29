@@ -1141,8 +1141,8 @@ function mockInventive(request: InventiveRequest): InventiveResponse {
 
   const motivation = request.availableReferences.length > 0
     ? [{
-        referenceId: request.availableReferences[0]!.referenceId,
-        label: `${request.availableReferences[0]!.label} §5`,
+        referenceId: request.availableReferences[0]?.referenceId ?? "",
+        label: `${request.availableReferences[0]?.label ?? ""} §5`,
         quote: "对比文件公开了散热基板与散热翅片的结构组合",
         confidence: "high" as const
       }]
@@ -1537,11 +1537,11 @@ function mockExtractCaseFields(request: ExtractCaseFieldsRequest): ExtractCaseFi
   const applicant = text.match(/申请人[：:\s]*([^\n]+)/)?.[1]?.trim() ?? null;
   const appDateMatch = text.match(/申请日[：:\s]*(\d{4})[.\-/年](\d{1,2})[.\-/月](\d{1,2})/);
   const applicationDate = appDateMatch
-    ? `${appDateMatch[1]}-${appDateMatch[2]!.padStart(2, "0")}-${appDateMatch[3]!.padStart(2, "0")}`
+    ? `${appDateMatch[1]}-${(appDateMatch[2] ?? "0").padStart(2, "0")}-${(appDateMatch[3] ?? "0").padStart(2, "0")}`
     : null;
   const priDateMatch = text.match(/优先权[日]?[：:\s]*(\d{4})[.\-/年](\d{1,2})[.\-/月](\d{1,2})/);
   const priorityDate = priDateMatch
-    ? `${priDateMatch[1]}-${priDateMatch[2]!.padStart(2, "0")}-${priDateMatch[3]!.padStart(2, "0")}`
+    ? `${priDateMatch[1]}-${(priDateMatch[2] ?? "0").padStart(2, "0")}-${(priDateMatch[3] ?? "0").padStart(2, "0")}`
     : null;
   return {
     title,

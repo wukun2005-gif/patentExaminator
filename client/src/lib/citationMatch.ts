@@ -42,17 +42,19 @@ export function matchCitation(citation: Citation, index: TextIndex): MatchResult
 
   // Level 3: Quote substring search
   if (citation.quote && citation.quote.length >= 10) {
-    const matches = index.paragraphs.filter((p) => p.text.includes(citation.quote!));
+    const quote = citation.quote;
+    const matches = index.paragraphs.filter((p) => p.text.includes(quote));
     if (matches.length === 1) {
-      const match = matches[0]!;
-      const startOffset = match.text.indexOf(citation.quote!);
+      const match = matches[0];
+      if (!match) return null;
+      const startOffset = match.text.indexOf(quote);
       return {
         status: "found",
         confidence: "medium",
         matchedParagraphId: match.id,
         matchedOffset: {
           start: match.startOffset + startOffset,
-          end: match.startOffset + startOffset + citation.quote!.length
+          end: match.startOffset + startOffset + quote.length
         }
       };
     }

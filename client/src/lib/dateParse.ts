@@ -50,9 +50,9 @@ export function parseDate(input: string): ParseDateResult | undefined {
     /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})$/i
   );
   if (enMatch) {
-    const monthIndex = EN_MONTHS.indexOf(enMatch[1]!.toLowerCase());
+    const monthIndex = EN_MONTHS.indexOf((enMatch[1] ?? "").toLowerCase());
     if (monthIndex >= 0) {
-      const iso = toIso(enMatch[3]!, String(monthIndex + 1), enMatch[2]!);
+      const iso = toIso(enMatch[3] ?? "", String(monthIndex + 1), enMatch[2] ?? "");
       if (iso) return { iso, confidence: "medium" };
     }
   }

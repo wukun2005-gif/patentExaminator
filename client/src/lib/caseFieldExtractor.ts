@@ -164,8 +164,8 @@ function extractDate(text: string, labelPattern: RegExp): string | null {
   const match = text.match(combined);
   if (match) {
     const year = match[match.length - 3];
-    const month = match[match.length - 2]!.padStart(2, "0");
-    const day = match[match.length - 1]!.padStart(2, "0");
+    const month = (match[match.length - 2] ?? "0").padStart(2, "0");
+    const day = (match[match.length - 1] ?? "0").padStart(2, "0");
     return `${year}-${month}-${day}`;
   }
   return null;
