@@ -48,6 +48,7 @@ export const DEFAULT_MODELS: Record<ProviderId, ModelInfo[]> = {
   openrouter: [
     { id: "openai/gpt-4o", recommendation: "OpenAI GPT-4o (推荐)", inputTokenLimit: 128000, outputTokenLimit: 16384 },
     { id: "openai/gpt-4o-mini", recommendation: "GPT-4o Mini (快速经济)", inputTokenLimit: 128000, outputTokenLimit: 16384 },
+    { id: "anthropic/claude-opus-4-8", recommendation: "Claude Opus 4.8 (最强)", inputTokenLimit: 200000, outputTokenLimit: 32000 },
     { id: "anthropic/claude-3.5-sonnet", recommendation: "Claude 3.5 Sonnet", inputTokenLimit: 200000, outputTokenLimit: 8192 },
     { id: "anthropic/claude-3-haiku", recommendation: "Claude 3 Haiku (快速)", inputTokenLimit: 200000, outputTokenLimit: 4096 },
     { id: "google/gemini-2.5-pro", recommendation: "Gemini 2.5 Pro (最强推理)", inputTokenLimit: 1048576, outputTokenLimit: 65536 },
