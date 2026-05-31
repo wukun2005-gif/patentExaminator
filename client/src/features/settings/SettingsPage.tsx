@@ -4,9 +4,8 @@ import { ProvidersConfigPanel } from "./ProvidersConfigPanel";
 import { AgentsAssignmentPanel } from "./AgentsAssignmentPanel";
 import { SearchProvidersConfigPanel } from "./SearchProvidersConfigPanel";
 import { KnowledgeConfigPanel } from "./KnowledgeConfigPanel";
-import { SyncConfigPanel } from "./SyncConfigPanel";
 
-type Tab = "providers" | "agents" | "search" | "knowledge" | "sync";
+type Tab = "providers" | "agents" | "search" | "knowledge";
 
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>("providers");
@@ -63,14 +62,6 @@ export function SettingsPage() {
         >
           知识库
         </button>
-        <button
-          type="button"
-          className={`settings-tab ${tab === "sync" ? "settings-tab--active" : ""}`}
-          onClick={() => setTab("sync")}
-          data-testid="tab-sync"
-        >
-          同步
-        </button>
       </div>
 
       <div className="settings-content">
@@ -78,7 +69,6 @@ export function SettingsPage() {
         {tab === "agents" && <AgentsAssignmentPanel />}
         {tab === "search" && <SearchProvidersConfigPanel />}
         {tab === "knowledge" && <KnowledgeConfigPanel />}
-        {tab === "sync" && <SyncConfigPanel />}
       </div>
     </div>
   );
