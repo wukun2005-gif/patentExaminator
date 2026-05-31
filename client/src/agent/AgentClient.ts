@@ -131,6 +131,30 @@ export class AgentClient {
     };
   }
 
+  /**
+   * 知识库增强：检索相关知识并注入到 prompt 尾部
+   * 失败时静默降级，返回原始 prompt
+   */
+  private async enhancePromptWithKnowledge(
+    prompt: string,
+    query: string,
+    agentType: string
+  ): Promise<string> {
+    try {
+      const { injectKnowledge } = await import("../lib/knowledge/promptInjector");
+      const { readSettings } = await import("../lib/repositories/settingsRepo");
+      const settings = await readSettings();
+      const knowledgeConfig = settings.knowledge ?? { enabled: false, embedProvider: "local" as const, topK: 5, scoreThreshold: 0.3 };
+      const embedConfig = {
+        type: knowledgeConfig.embedProvider,
+        remoteModelId: knowledgeConfig.remoteModelId,
+      };
+      return await injectKnowledge({ query, systemPrompt: prompt, config: knowledgeConfig, embedConfig });
+    } catch {
+      return prompt;
+    }
+  }
+
   async runClaimChart(
     request: ClaimChartRequest,
     options?: AgentRunOptions
@@ -138,7 +162,11 @@ export class AgentClient {
     if (this.mode === "mock") {
       return mockClaimChart(request);
     }
-    const prompt = buildClaimChartPrompt(request);
+    const prompt = await this.enhancePromptWithKnowledge(
+      buildClaimChartPrompt(request),
+      request.claims.map((c) => c.rawText).join(" "),
+      "claim-chart"
+    );
     const raw = await this.callGateway<unknown>("claim-chart", prompt, {
       caseId: request.caseId,
       moduleScope: "claim-chart",
@@ -154,7 +182,11 @@ export class AgentClient {
     if (this.mode === "mock") {
       return this.callGatewayMock<NoveltyResponse>("novelty", request.caseId, "novelty");
     }
-    const prompt = buildNoveltyPrompt(request);
+    const prompt = await this.enhancePromptWithKnowledge(
+      buildNoveltyPrompt(request),
+      request.features.map((f) => f.description).join(" "),
+      "novelty"
+    );
     return this.callGateway<NoveltyResponse>("novelty", prompt, {
       caseId: request.caseId,
       moduleScope: "novelty",
@@ -169,7 +201,11 @@ export class AgentClient {
     if (this.mode === "mock") {
       return mockInventive(request);
     }
-    const prompt = buildInventivePrompt(request);
+    const prompt = await this.enhancePromptWithKnowledge(
+      buildInventivePrompt(request),
+      request.features.map((f) => f.description).join(" "),
+      "inventive"
+    );
     return this.callGateway<InventiveResponse>("inventive", prompt, {
       caseId: request.caseId,
       moduleScope: "inventive",
@@ -449,7 +485,11 @@ export class AgentClient {
         "opinion-analysis"
       );
     }
-    const prompt = buildOpinionAnalysisPrompt(request);
+    const prompt = await this.enhancePromptWithKnowledge(
+      buildOpinionAnalysisPrompt(request),
+      request.opinionText.slice(0, 500),
+      "opinion-analysis"
+    );
     return this.callGateway<OpinionAnalysisResponse>("opinion-analysis", prompt, {
       caseId: request.caseId,
       moduleScope: "opinion-analysis",
@@ -468,7 +508,11 @@ export class AgentClient {
         "argument-mapping"
       );
     }
-    const prompt = buildArgumentAnalysisPrompt(request);
+    const prompt = await this.enhancePromptWithKnowledge(
+      buildArgumentAnalysisPrompt(request),
+      request.argumentText.slice(0, 500),
+      "argument-analysis"
+    );
     return this.callGateway<ArgumentAnalysisResponse>("argument-analysis", prompt, {
       caseId: request.caseId,
       moduleScope: "argument-mapping",
@@ -483,7 +527,11 @@ export class AgentClient {
     if (this.mode === "mock") {
       return this.callGatewayMock<ReexamDraftResponse>("reexam-draft", request.caseId, "draft");
     }
-    const prompt = buildReexamDraftPrompt(request);
+    const prompt = await this.enhancePromptWithKnowledge(
+      buildReexamDraftPrompt(request),
+      request.rejectionGrounds.map((r) => r.summary).join(" "),
+      "reexam-draft"
+    );
     return this.callGateway<ReexamDraftResponse>("reexam-draft", prompt, {
       caseId: request.caseId,
       moduleScope: "draft",

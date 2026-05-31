@@ -874,6 +874,8 @@ v0.1.0 的 Agent 为逻辑角色，通过 `AgentClient` 统一调度（架构参
 
 > **PRD Agent 名 ↔ Design Agent ID 映射：** B-008 后新增复审 Agent：审查意见解析 → `opinion-analysis`；答辩理由映射 → `argument-analysis`；复审意见草稿 → `reexam-draft`。文档解读 Agent → `interpret`（`moduleScope: "case"`）；创新点研读 Agent 对应 `claim-chart` + `novelty`；创造性复核 Agent → `inventive`；HTML 格式转换不作为 Agent，由导出模块直接处理。Orchestrator 落地为前端 AgentClient + 后端 AI Gateway（见 ADR-001）。
 
+> **B-018 知识库增强：** `claim-chart`、`novelty`、`inventive`、`opinion-analysis`、`argument-analysis`、`reexam-draft` 六个 Agent 在调用前自动检索知识库相关内容并注入 system prompt。增强为可选降级——知识库未配置或检索失败时退化为原始行为。详见 `client/src/lib/knowledge/`。
+
 ### 6.2 Prompt 设计原则
 
 1. **硬约束法律边界：** 每个 prompt 开头声明"不得输出任何法律结论"。
@@ -1256,6 +1258,9 @@ Supabase（后端服务）
 | `feedback` | `id` | `caseId`, `subjectType`, `subjectId` | like/dislike/comment |
 | `settings` | `id`="app" | — | 单例 AppSettings（不含 API Key 明文） |
 | `runMarkers` | `id` (composite `caseId::module`) | `caseId`, `module` | 标记某 case 的某个模块（`defects`/`claimChart`/`argumentMapping`）已完成 AI 分析，用于区分"未运行"和"运行后无结果"。v8 新增。 |
+| `knowledgeSources` | `id` | `mediaType` | 知识库来源元数据（文件/URL）。v10 新增。 |
+| `knowledgeChunks` | `id` | `sourceId`, `embedded` | 知识库切片（文本 chunk）。v10 新增。 |
+| `knowledgeVectors` | `chunkId` | `modelId` | 知识库向量（embedding）。v10 新增。 |
 
 **迁移策略：** `open(db, version, { upgrade(db, oldV, newV, tx) })`，按版本分支处理。禁止破坏性清库（除非 major 版本变更并在 UI 提示）。
 
@@ -1377,6 +1382,7 @@ Supabase（后端服务）
 |------|---------|---------|------------|
 | 2026-05-27 | fix(bg-28): AI 检索文献 Invalid API Key — `runWithFallback` 新增 `providerApiKeys` 参数，各调用点（`ai.ts`、`search.ts`）按 provider 分别传入 API Key；`search.ts` schema 新增 `modelFallbacks`/`enableModelFallback`/`providerBaseUrls` 字段，搜索三步（extract/translate/filter）均传递完整 fallback 配置 | `server/src/providers/registry.ts`、`server/src/routes/ai.ts`、`server/src/routes/search.ts`、`client/src/agent/AgentClient.ts` | 待提交 |
 | 2026-05-27 | fix(bg-28): 推理模型 maxTokens 不足致输出为空 — extract 800→8192、translate 500→4096、filter 2000→8192；`ProviderAdapter` 移除 `reasoning_content` fallback、增强空响应日志 | `server/src/routes/search.ts`、`server/src/providers/ProviderAdapter.ts`、`server/src/providers/gemini.ts` | 待提交 |
+| 2026-05-31 | feat(B-018): 法规知识库 RAG 系统 — 新增知识库类型定义、多格式提取器（PDF/TXT/MD/DOCX/JSON/Excel/CSV/PNG/URL）、切片引擎（6 种策略）、向量化引擎（本地 Transformers.js BGE-large-zh + 远程 API）、IndexedDB 向量存储、余弦相似度检索、Prompt 注入、设置页面知识库 tab、7 个 Agent 集成、17 个 E2E 测试用例 | `shared/src/types/knowledge.ts`、`client/src/lib/knowledge/*`、`client/src/lib/indexedDb.ts`、`client/src/agent/AgentClient.ts`、`client/src/features/settings/KnowledgeConfigPanel.tsx`、`tests/knowledge-base-e2e.mjs` | 待提交 |
 | 2026-05-27 | fix(bg-28): Provider 重排不生效 — `ProvidersConfigPanel` 拖拽重排后同步更新 `settings.providers` 数组 | `client/src/features/settings/ProvidersConfigPanel.tsx` | 待提交 |
 | 2026-05-27 | fix(bg-28): ECONNREFUSED health check 失败 — 移除 `checkServerHealth` 中冗余的 `/health` 路径拼接 | `client/src/lib/serverReady.ts` | 待提交 |
 | 2026-05-27 | fix(bg-28): lint error 修复 — `jsonExtractor.ts` 移除不必要的转义字符、`ProviderAdapter.ts` `let`→`const` | `server/src/lib/jsonExtractor.ts`、`server/src/providers/ProviderAdapter.ts` | 待提交 |

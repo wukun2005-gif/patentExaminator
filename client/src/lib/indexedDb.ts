@@ -15,6 +15,7 @@ import type {
 } from "@shared/types/domain";
 import type { FeedbackItem } from "@shared/types/feedback";
 import type { AppSettings } from "@shared/types/agents";
+import type { KnowledgeSource, KnowledgeChunk, KnowledgeVector } from "@shared/types/knowledge";
 import { createLogger } from "./logger";
 
 const log = createLogger("IndexedDB");
@@ -137,10 +138,25 @@ export interface PatentExaminerDB extends DBSchema {
     };
     indexes: { "by-caseId": string };
   };
+  knowledgeSources: {
+    key: string;
+    value: KnowledgeSource;
+    indexes: { "by-mediaType": string };
+  };
+  knowledgeChunks: {
+    key: string;
+    value: KnowledgeChunk;
+    indexes: { "by-sourceId": string; "by-embedded": string };
+  };
+  knowledgeVectors: {
+    key: string;
+    value: KnowledgeVector;
+    indexes: { "by-modelId": string };
+  };
 }
 
 const DB_NAME = "patent-examiner-v1";
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 export async function openPatentDB(): Promise<IDBPDatabase<PatentExaminerDB>> {
   return openDB<PatentExaminerDB>(DB_NAME, DB_VERSION, {
@@ -231,6 +247,18 @@ export async function openPatentDB(): Promise<IDBPDatabase<PatentExaminerDB>> {
       if (oldVersion < 9) {
         const searchSessionStore = db.createObjectStore("searchSessions", { keyPath: "id" });
         searchSessionStore.createIndex("by-caseId", "caseId");
+      }
+
+      if (oldVersion < 10) {
+        const ksStore = db.createObjectStore("knowledgeSources", { keyPath: "id" });
+        ksStore.createIndex("by-mediaType", "mediaType");
+
+        const kcStore = db.createObjectStore("knowledgeChunks", { keyPath: "id" });
+        kcStore.createIndex("by-sourceId", "sourceId");
+        kcStore.createIndex("by-embedded", "embedded");
+
+        const kvStore = db.createObjectStore("knowledgeVectors", { keyPath: "chunkId" });
+        kvStore.createIndex("by-modelId", "modelId");
       }
     }
   });

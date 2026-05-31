@@ -3,6 +3,7 @@ export * from "./types/domain.js";
 export * from "./types/agents.js";
 export * from "./types/api.js";
 export * from "./types/feedback.js";
+export * from "./types/knowledge.js";
 
 // Zod schemas
 export * from "./schemas/claimChart.schema.js";

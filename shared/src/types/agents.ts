@@ -1,4 +1,5 @@
 import type { AppMode } from "./domain.js";
+import type { KnowledgeConfig } from "./knowledge.js";
 
 export type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek" | "gemini" | "qwen" | "bedrock" | "openrouter" | "opencode";
 
@@ -68,6 +69,7 @@ export interface AppSettings {
   persistKeysEncrypted: boolean;
   enableProviderFallback?: boolean;
   providerErrorMessages?: ProviderErrorMessage[];
+  knowledge?: KnowledgeConfig;
 }
 
 export interface PresetModelProvider {

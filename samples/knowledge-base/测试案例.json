@@ -1,0 +1,43 @@
+[
+  {
+    "id": "case-001",
+    "title": "LED散热模组创造性判断",
+    "type": "inventive",
+    "description": "申请人主张区别特征带来预料不到的技术效果，审查员需按三步法评估",
+    "rejectionGround": "创造性",
+    "legalBasis": "专利法第22条第3款",
+    "closestPriorArt": "D1: 铝合金基板焊接散热器",
+    "distinguishingFeatures": ["压铸一体成型", "翅片间距≤2mm"],
+    "technicalProblem": "如何在保证散热效率的同时降低制造成本",
+    "conclusion": "possibly-inventive",
+    "reasoning": "D1未公开压铸一体成型工艺，D2虽涉及翅片设计但未给出间距≤2mm的技术启示"
+  },
+  {
+    "id": "case-002",
+    "title": "锂电池快充方法新颖性判断",
+    "type": "novelty",
+    "description": "对比文件公开了大部分技术特征，但缺少一个关键参数",
+    "rejectionGround": "新颖性",
+    "legalBasis": "专利法第22条第2款",
+    "referenceDoc": "D1: 恒流-恒压充电电路",
+    "featureMapping": {
+      "A": "充电电路结构 - clearly-disclosed",
+      "B": "脉冲电流控制 - not-found",
+      "C": "温度监测模块 - possibly-disclosed"
+    },
+    "conclusion": "not-found",
+    "reasoning": "D1未公开脉冲电流控制方式，该特征为区别特征"
+  },
+  {
+    "id": "case-003",
+    "title": "权利要求不清楚",
+    "type": "defect",
+    "description": "权利要求中使用了含义不确定的技术术语",
+    "rejectionGround": "清楚",
+    "legalBasis": "专利法第26条第4款",
+    "defectiveClaim": 3,
+    "defectiveTerm": "适当的距离",
+    "issue": "未给出具体数值范围，所属领域技术人员无法确定保护范围",
+    "suggestion": "建议限定为具体数值，如'间距为1-3mm'"
+  }
+]

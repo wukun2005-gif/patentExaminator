@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { AppMode } from "@shared/types/domain";
 import type { AppSettings, ProviderErrorMessage } from "@shared/types/agents";
+import type { KnowledgeConfig } from "@shared/types/knowledge";
 import { readSettings, writeSettings, syncProviderKeys } from "../../../lib/repositories/settingsRepo";
 
 export interface SettingsSlice {
@@ -13,6 +14,7 @@ export interface SettingsSlice {
   setLoading: (v: boolean) => void;
   loadFromDb: () => Promise<void>;
   addProviderError: (error: Omit<ProviderErrorMessage, "id">) => void;
+  updateKnowledgeConfig: (config: KnowledgeConfig) => void;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -68,6 +70,13 @@ export const createSettingsSlice = (
       const updated = { ...prev.settings, providerErrorMessages: [entry, ...messages].slice(0, 50) };
       writeSettings(updated).catch(console.error);
       return { settings: updated };
+    });
+  },
+  updateKnowledgeConfig: (config) => {
+    set((prev) => {
+      const next = { ...prev.settings, knowledge: config };
+      writeSettings(next).catch(console.error);
+      return { settings: next };
     });
   },
   loadFromDb: async () => {

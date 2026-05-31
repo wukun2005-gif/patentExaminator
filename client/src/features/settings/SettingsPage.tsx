@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { ProvidersConfigPanel } from "./ProvidersConfigPanel";
 import { AgentsAssignmentPanel } from "./AgentsAssignmentPanel";
 import { SearchProvidersConfigPanel } from "./SearchProvidersConfigPanel";
+import { KnowledgeConfigPanel } from "./KnowledgeConfigPanel";
 
-type Tab = "providers" | "agents" | "search";
+type Tab = "providers" | "agents" | "search" | "knowledge";
 
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>("providers");
@@ -53,12 +54,21 @@ export function SettingsPage() {
         >
           专利搜索
         </button>
+        <button
+          type="button"
+          className={`settings-tab ${tab === "knowledge" ? "settings-tab--active" : ""}`}
+          onClick={() => setTab("knowledge")}
+          data-testid="tab-knowledge"
+        >
+          知识库
+        </button>
       </div>
 
       <div className="settings-content">
         {tab === "providers" && <ProvidersConfigPanel />}
         {tab === "agents" && <AgentsAssignmentPanel />}
         {tab === "search" && <SearchProvidersConfigPanel />}
+        {tab === "knowledge" && <KnowledgeConfigPanel />}
       </div>
     </div>
   );
