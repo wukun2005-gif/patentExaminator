@@ -5057,3 +5057,44 @@ select.inline-edit-input {
   max-height: 300px;
   overflow-y: auto;
 }
+
+/* ── 知识库 Embedding 配置 ───────────────────────── */
+
+.knowledge-embed-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.knowledge-embed-options label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.knowledge-remote-config {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+}
+
+.knowledge-config-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.knowledge-config-row label {
+  min-width: 100px;
+  font-size: 0.85rem;
+}
+
+.knowledge-config-row select,
+.knowledge-config-row input[type="text"] {
+  flex: 1;
+}

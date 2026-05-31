@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { KnowledgeSource, KnowledgeConfig } from "@shared/types/knowledge";
 import { DEFAULT_KNOWLEDGE_CONFIG } from "@shared/types/knowledge";
+import type { ProviderId } from "@shared/types/agents";
+import { useSettingsStore } from "../../store";
 import {
   getAllSources,
   addSource,
@@ -31,6 +33,7 @@ const log = createLogger("KnowledgeConfigPanel");
 const ACCEPTED_FORMATS = ".pdf,.txt,.md,.docx,.doc,.json,.xlsx,.xls,.csv,.jpg,.jpeg,.png";
 
 export function KnowledgeConfigPanel() {
+  const { settings } = useSettingsStore();
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
   const [config, setConfig] = useState<KnowledgeConfig>(DEFAULT_KNOWLEDGE_CONFIG);
   const [stats, setStats] = useState({ sourceCount: 0, chunkCount: 0, embeddedCount: 0 });
@@ -41,6 +44,9 @@ export function KnowledgeConfigPanel() {
   const [testQuery, setTestQuery] = useState("");
   const [testResults, setTestResults] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 已启用的 Provider 列表（用于远程 embedding 选择）
+  const enabledProviders = settings.providers.filter((p) => p.enabled && p.apiKeyRef);
 
   const refresh = useCallback(async () => {
     setSources(await getAllSources());
@@ -176,8 +182,11 @@ export function KnowledgeConfigPanel() {
       const unembedded = await getUnembeddedChunks();
       if (unembedded.length === 0) return;
 
+      const provider = enabledProviders.find((p) => p.providerId === config.remoteProviderId);
       const embedConfig: EmbedderConfig = {
         type: config.embedProvider,
+        remoteBaseUrl: provider?.baseUrl,
+        remoteApiKey: provider?.apiKeyRef,
         remoteModelId: config.remoteModelId,
       };
 
@@ -249,6 +258,73 @@ export function KnowledgeConfigPanel() {
         <p className="knowledge-hint">
           启用后，Agent 调用时会自动检索相关法规知识注入 prompt，减少幻觉。
         </p>
+      </div>
+
+      {/* Embedding 配置 */}
+      <div className="knowledge-config-section">
+        <h4>Embedding 模型</h4>
+        <div className="knowledge-embed-options">
+          <label>
+            <input
+              type="radio"
+              name="embedProvider"
+              checked={config.embedProvider === "local"}
+              onChange={() => setConfig({ ...config, embedProvider: "local", remoteProviderId: undefined, remoteModelId: undefined })}
+            />
+            本地模型（Transformers.js + BGE-large-zh，首次需下载 ~400MB）
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="embedProvider"
+              checked={config.embedProvider === "remote"}
+              onChange={() => setConfig({ ...config, embedProvider: "remote" })}
+            />
+            远程 API（复用已配置的 Provider）
+          </label>
+        </div>
+
+        {config.embedProvider === "remote" && (
+          <div className="knowledge-remote-config">
+            <div className="knowledge-config-row">
+              <label>Provider:</label>
+              <select
+                value={config.remoteProviderId ?? ""}
+                onChange={(e) => {
+                  const pid = e.target.value as ProviderId;
+                  const provider = enabledProviders.find((p) => p.providerId === pid);
+                  setConfig({
+                    ...config,
+                    remoteProviderId: pid,
+                    remoteModelId: provider?.defaultModelId ?? "",
+                  });
+                }}
+              >
+                <option value="">选择 Provider</option>
+                {enabledProviders.map((p) => (
+                  <option key={p.providerId} value={p.providerId}>
+                    {p.providerId}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {config.remoteProviderId && (
+              <div className="knowledge-config-row">
+                <label>Embedding 模型 ID:</label>
+                <input
+                  type="text"
+                  value={config.remoteModelId ?? ""}
+                  onChange={(e) => setConfig({ ...config, remoteModelId: e.target.value })}
+                  placeholder="如 embedding-3、text-embedding-3-small"
+                />
+              </div>
+            )}
+            <p className="knowledge-hint">
+              支持 OpenAI-compatible Embedding API（如 GLM embedding-3、DeepSeek embed 等）。
+              模型 ID 需填写该 Provider 支持的 embedding 模型名称。
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 统计 */}
