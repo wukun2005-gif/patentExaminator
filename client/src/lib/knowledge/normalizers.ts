@@ -305,9 +305,16 @@ export function containsSensitiveInfo(text: string): boolean {
 
 // ── Chunk 文本 hash（用于去重） ─────────────────────────
 
-/** 计算 chunk 文本的 SHA-256 hash */
+/**
+ * 计算 chunk 文本的 SHA-256 hash
+ * 激进规范化：去空白、去标点、统一小写，确保跨格式同内容产生相同 hash
+ */
 export async function hashChunkText(text: string): Promise<string> {
-  const normalized = text.trim().replace(/\s+/g, " "); // 规范化空白后 hash
+  const normalized = text
+    .replace(/[\s　]/g, "")      // 去除所有空白（含全角空格）
+    .replace(/[，。；：！？、""''「」『』【】《》（）\(\)\[\]\{\}.,;:!?\"'<>]/g, "") // 去除标点
+    .toLowerCase()                    // 统一小写
+    .trim();
   const encoder = new TextEncoder();
   const data = encoder.encode(normalized);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
