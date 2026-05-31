@@ -504,19 +504,29 @@ export function KnowledgeConfigPanel() {
         </div>
       )}
 
-      {/* 向量化 */}
+      {/* 知识库状态 */}
       <div className="knowledge-config-section">
-        <h4>向量化状态</h4>
+        <h4>知识库状态</h4>
         {embedding ? (
-          <p className="knowledge-hint">向量化中... {embedProgress.done}/{embedProgress.total}</p>
+          <p className="knowledge-hint">处理中... {embedProgress.done}/{embedProgress.total}</p>
         ) : embedError ? (
           <p className="knowledge-hint" style={{ color: "var(--danger)" }}>❌ {embedError}</p>
         ) : stats.chunkCount === stats.embeddedCount && stats.chunkCount > 0 ? (
-          <p className="knowledge-hint">✅ 全部已向量化（{stats.embeddedCount} 个 chunk）</p>
+          <p className="knowledge-hint">✅ 就绪（{stats.chunkCount} 条知识）</p>
         ) : stats.chunkCount > 0 ? (
-          <p className="knowledge-hint">⏳ 等待向量化（{stats.embeddedCount}/{stats.chunkCount}）</p>
+          <div>
+            <p className="knowledge-hint">⏳ 处理中（{stats.embeddedCount}/{stats.chunkCount}）</p>
+            <button
+              type="button"
+              onClick={() => autoVectorize()}
+              disabled={embedding}
+              style={{ marginTop: "0.5rem" }}
+            >
+              继续处理
+            </button>
+          </div>
         ) : (
-          <p className="knowledge-hint">上传文件后自动向量化</p>
+          <p className="knowledge-hint">上传文件后自动处理</p>
         )}
       </div>
 
@@ -559,16 +569,8 @@ export function KnowledgeConfigPanel() {
             <span className="stat-value">{stats.chunkCount}</span>
           </div>
           <div className="knowledge-stat-item">
-            <span className="stat-label">已向量化</span>
+            <span className="stat-label">已就绪</span>
             <span className="stat-value">{stats.embeddedCount}</span>
-          </div>
-          <div className="knowledge-stat-item">
-            <span className="stat-label">待向量化</span>
-            <span className="stat-value">{stats.chunkCount - stats.embeddedCount}</span>
-          </div>
-          <div className="knowledge-stat-item">
-            <span className="stat-label">Embedding</span>
-            <span className="stat-value">{config.embedProvider === "local" ? "本地 BGE" : config.remoteModelId ?? "未配置"}</span>
           </div>
         </div>
       </div>
