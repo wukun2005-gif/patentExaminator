@@ -45,6 +45,7 @@ export function KnowledgeConfigPanel() {
   const [urlInput, setUrlInput] = useState("");
   const [testQuery, setTestQuery] = useState("");
   const [testResults, setTestResults] = useState<string>("");
+  const [importResult, setImportResult] = useState<string | null>(null);
   const [previewSourceId, setPreviewSourceId] = useState<string | null>(null);
   const [previewChunks, setPreviewChunks] = useState<Array<{ index: number; text: string; metadata: Record<string, unknown> }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,27 +73,30 @@ export function KnowledgeConfigPanel() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setImporting(true);
+    setImportResult(null);
+    const results: string[] = [];
     try {
       for (const file of Array.from(files)) {
-        await importFile(file);
+        const result = await importFile(file);
+        results.push(result);
       }
       await refresh();
+      setImportResult(results.join("\n"));
     } catch (err) {
-      log(`Import error: ${err}`);
+      setImportResult(`导入失败: ${err}`);
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  const importFile = async (file: File) => {
+  const importFile = async (file: File): Promise<string> => {
     // 文件级去重：检查 hash
     const fileHash = await computeFileHash(file);
     const existingSources = await getAllSources();
     const duplicate = existingSources.find((s) => (s as unknown as Record<string, unknown>).fileHash === fileHash);
     if (duplicate) {
-      log(`Duplicate file skipped: ${file.name} (same as ${duplicate.name})`);
-      return;
+      return `⏭ ${file.name} — 已存在（同 ${duplicate.name}）`;
     }
 
     const format = inferFileFormat(file.name);
@@ -174,6 +178,9 @@ export function KnowledgeConfigPanel() {
     if (chunks.length > 0) {
       await autoVectorize();
     }
+
+    const dedupMsg = dedupCount > 0 ? `，${dedupCount} 条重复跳过` : "";
+    return `✅ ${file.name} — ${chunks.length} 条知识已入库${dedupMsg}`;
   };
 
   // ── URL 导入 ──────────────────────────────────────
@@ -225,8 +232,9 @@ export function KnowledgeConfigPanel() {
       if (chunks.length > 0) {
         await autoVectorize();
       }
+      setImportResult(`✅ ${urlInput} — ${chunks.length} 条知识已入库`);
     } catch (err) {
-      log(`URL import error: ${err}`);
+      setImportResult(`❌ 导入失败: ${err}`);
     } finally {
       setImporting(false);
     }
@@ -441,8 +449,7 @@ export function KnowledgeConfigPanel() {
       {/* 统计 */}
       <div className="knowledge-stats">
         <span>来源: {stats.sourceCount}</span>
-        <span>切片: {stats.chunkCount}</span>
-        <span>已向量化: {stats.embeddedCount}</span>
+        <span>知识条目: {stats.chunkCount}</span>
       </div>
 
       {/* 文件上传 */}
@@ -480,6 +487,13 @@ export function KnowledgeConfigPanel() {
           </button>
         </div>
       </div>
+
+      {/* 导入结果 */}
+      {importResult && (
+        <div className="knowledge-config-section">
+          <pre className="knowledge-test-results" data-testid="import-result">{importResult}</pre>
+        </div>
+      )}
 
       {/* 文件列表 */}
       {sources.length > 0 && (
