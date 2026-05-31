@@ -31,6 +31,8 @@ export interface KnowledgeSource {
   mediaType: KnowledgeMediaType;
   /** 文件大小（字节），URL 来源为 0 */
   size: number;
+  /** 文件 SHA-256 hash（用于去重） */
+  fileHash?: string;
   /** 原始文件在 IndexedDB 中的 blob key（file 类型） */
   blobKey?: string;
   /** URL 来源的原始地址 */
@@ -97,6 +99,8 @@ export interface ChunkMetadata {
   imageSource?: "ocr" | "multimodal";
   /** 原始页码 */
   pageNumber?: number;
+  /** 文档类型标注 */
+  documentCategory?: string;
 }
 
 // ── 向量 ────────────────────────────────────────────────

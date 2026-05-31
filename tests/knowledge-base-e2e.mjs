@@ -235,6 +235,59 @@ async function testKnowledgeRepo() {
   assert(code.includes("clearAllKnowledge"), "Missing clearAllKnowledge");
 }
 
+// ── T-RAG-018: normalizers.ts 验证 ────────────────────
+
+async function testNormalizerCodeExists() {
+  const normalizerPath = path.join(CLIENT_SRC, "lib", "knowledge", "normalizers.ts");
+  assert(fileExists(normalizerPath), "normalizers.ts not found");
+  const code = readFile(normalizerPath);
+  assert(code.includes("cleanText"), "Missing cleanText");
+  assert(code.includes("normalizeLegalReference"), "Missing normalizeLegalReference");
+  assert(code.includes("normalizeDate"), "Missing normalizeDate");
+  assert(code.includes("normalizeWidth"), "Missing normalizeWidth");
+  assert(code.includes("isNoise"), "Missing isNoise");
+  assert(code.includes("isGarbled"), "Missing isGarbled");
+  assert(code.includes("classifyDocument"), "Missing classifyDocument");
+  assert(code.includes("hashChunkText"), "Missing hashChunkText");
+}
+
+// ── T-RAG-019: chunkers.ts 预处理验证 ─────────────────
+
+async function testChunkerPreprocessing() {
+  const chunkerPath = path.join(CLIENT_SRC, "lib", "knowledge", "chunkers.ts");
+  const code = readFile(chunkerPath);
+  assert(code.includes("filterNoise"), "Missing filterNoise");
+  assert(code.includes("enrichContext"), "Missing enrichContext");
+  assert(code.includes("addOverlap"), "Missing addOverlap");
+  assert(code.includes("classifyDocument"), "Missing classifyDocument import");
+  assert(code.includes("isNoise"), "Missing isNoise import");
+}
+
+// ── T-RAG-020: extractors.ts 规范化验证 ───────────────
+
+async function testExtractorNormalization() {
+  const extractorPath = path.join(CLIENT_SRC, "lib", "knowledge", "extractors.ts");
+  const code = readFile(extractorPath);
+  assert(code.includes("normalizeText"), "Missing normalizeText import");
+  assert(code.includes("normalizeText(result.text)") || code.includes("normalizeText(text)"), "normalizeText not applied");
+}
+
+// ── T-RAG-021: KnowledgeSource fileHash 验证 ──────────
+
+async function testFileHashField() {
+  const typesPath = path.join(SHARED_SRC, "types", "knowledge.ts");
+  const code = readFile(typesPath);
+  assert(code.includes("fileHash"), "Missing fileHash in KnowledgeSource");
+}
+
+// ── T-RAG-022: ChunkMetadata documentCategory 验证 ────
+
+async function testDocumentCategoryField() {
+  const typesPath = path.join(SHARED_SRC, "types", "knowledge.ts");
+  const code = readFile(typesPath);
+  assert(code.includes("documentCategory"), "Missing documentCategory in ChunkMetadata");
+}
+
 // ── Main ─────────────────────────────────────────────
 
 async function main() {
@@ -262,6 +315,13 @@ async function main() {
   await runTest("T-RAG-015: Agent 集成", testAgentIntegration);
   await runTest("T-RAG-016: 设置页面 UI", testSettingsUI);
   await runTest("T-RAG-017: 知识库 Repository", testKnowledgeRepo);
+
+  console.log("\n── 预处理模块验证 ──");
+  await runTest("T-RAG-018: normalizers.ts 存在且包含清洗函数", testNormalizerCodeExists);
+  await runTest("T-RAG-019: chunkers.ts 包含噪声过滤和重叠窗口", testChunkerPreprocessing);
+  await runTest("T-RAG-020: extractors.ts 集成 normalizeText", testExtractorNormalization);
+  await runTest("T-RAG-021: KnowledgeSource 包含 fileHash 字段", testFileHashField);
+  await runTest("T-RAG-022: ChunkMetadata 包含 documentCategory 字段", testDocumentCategoryField);
 
   // Summary
   console.log("\n" + "═".repeat(50));

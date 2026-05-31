@@ -6,6 +6,7 @@ import type {
   ChunkMetadata,
 } from "@shared/types/knowledge";
 import type { ExtractionResult } from "./extractors";
+import { isNoise, isGarbled, classifyDocument } from "./normalizers";
 import { createLogger } from "../logger";
 
 const log = createLogger("KnowledgeChunker");
@@ -58,24 +59,48 @@ export function chunkContent(
 
   log(`Chunking ${fileName} with strategy=${strategy}`);
 
+  let chunks: RawChunk[];
   switch (strategy) {
     case "section":
-      return chunkBySection(extraction.text, fileName);
+      chunks = chunkBySection(extraction.text, fileName);
+      break;
     case "article":
-      return chunkByArticle(extraction.text, fileName);
+      chunks = chunkByArticle(extraction.text, fileName);
+      break;
     case "case-point":
-      return chunkByCasePoint(extraction.text, fileName);
+      chunks = chunkByCasePoint(extraction.text, fileName);
+      break;
     case "heading":
-      return chunkByHeading(extraction.text, fileName);
+      chunks = chunkByHeading(extraction.text, fileName);
+      break;
     case "json-key":
-      return chunkByJsonKey(extraction.text, fileName);
+      chunks = chunkByJsonKey(extraction.text, fileName);
+      break;
     case "table-row":
-      return chunkByTableRow(extraction, fileName);
+      chunks = chunkByTableRow(extraction, fileName);
+      break;
     case "image-ocr":
-      return chunkImageOcr(extraction.text, fileName);
+      chunks = chunkImageOcr(extraction.text, fileName);
+      break;
     default:
-      return chunkByHeading(extraction.text, fileName);
+      chunks = chunkByHeading(extraction.text, fileName);
+      break;
   }
+
+  // 后处理：噪声过滤 + 上下文补充 + 重叠窗口
+  chunks = filterNoise(chunks);
+  chunks = enrichContext(chunks, fileName, extraction.text);
+  chunks = addOverlap(chunks, 80);
+
+  // 添加文档类型标注
+  const docCategory = classifyDocument(fileName, extraction.text);
+  for (const chunk of chunks) {
+    if (!chunk.metadata.documentCategory) {
+      chunk.metadata.documentCategory = docCategory;
+    }
+  }
+
+  return chunks;
 }
 
 // ── 按章节切片（审查指南） ──────────────────────────────
@@ -377,6 +402,50 @@ function chunkImageOcr(text: string, fileName: string): RawChunk[] {
 }
 
 // ── 工具函数 ──────────────────────────────────────────
+
+// ── 后处理函数 ────────────────────────────────────────
+
+/** 过滤噪声 chunk */
+function filterNoise(chunks: RawChunk[]): RawChunk[] {
+  return chunks.filter((chunk) => {
+    if (isNoise(chunk.text)) return false;
+    if (isGarbled(chunk.text)) return false;
+    return true;
+  });
+}
+
+/** 上下文补充：chunk 前 prepend 章节/条文标识 */
+function enrichContext(chunks: RawChunk[], _fileName: string, _fullText: string): RawChunk[] {
+  return chunks.map((chunk) => {
+    const { sectionId, articleId } = chunk.metadata;
+    let prefix = "";
+
+    if (sectionId && !chunk.text.startsWith(sectionId)) {
+      prefix = `【${sectionId}】\n`;
+    } else if (articleId && !chunk.text.startsWith(articleId)) {
+      prefix = `【${articleId}】\n`;
+    }
+
+    if (prefix) {
+      return { ...chunk, text: prefix + chunk.text };
+    }
+    return chunk;
+  });
+}
+
+/** 添加重叠窗口：相邻 chunk 之间保留 overlapSize 字符的重叠 */
+function addOverlap(chunks: RawChunk[], overlapSize: number): RawChunk[] {
+  if (chunks.length <= 1 || overlapSize <= 0) return chunks;
+
+  const result: RawChunk[] = [chunks[0]];
+  for (let i = 1; i < chunks.length; i++) {
+    const prevText = chunks[i - 1].text;
+    const overlap = prevText.slice(-overlapSize);
+    const newText = overlap + chunks[i].text;
+    result.push({ ...chunks[i], text: newText });
+  }
+  return result;
+}
 
 /** 合并过小的 chunk，拆分过大的 chunk */
 function mergeSmallChunks(

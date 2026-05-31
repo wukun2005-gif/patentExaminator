@@ -27,6 +27,7 @@ import type { EmbedderConfig } from "../../lib/knowledge/embedder";
 import { buildVectorIndex, searchKnowledge, invalidateVectorIndex } from "../../lib/knowledge/vectorStore";
 import { embedSingle } from "../../lib/knowledge/embedder";
 import { formatRetrievedChunks } from "../../lib/knowledge/retriever";
+import { computeFileHash } from "../../lib/fileHash";
 import { createLogger } from "../../lib/logger";
 
 const log = createLogger("KnowledgeConfigPanel");
@@ -78,6 +79,15 @@ export function KnowledgeConfigPanel() {
   };
 
   const importFile = async (file: File) => {
+    // 文件级去重：检查 hash
+    const fileHash = await computeFileHash(file);
+    const existingSources = await getAllSources();
+    const duplicate = existingSources.find((s) => (s as unknown as Record<string, unknown>).fileHash === fileHash);
+    if (duplicate) {
+      log(`Duplicate file skipped: ${file.name} (same as ${duplicate.name})`);
+      return;
+    }
+
     const format = inferFileFormat(file.name);
     const mediaType = inferMediaType(format);
     const sourceId = `ks-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -89,6 +99,7 @@ export function KnowledgeConfigPanel() {
       format,
       mediaType,
       size: file.size,
+      fileHash,
       chunkCount: 0,
       embedStatus: "pending",
       createdAt: new Date().toISOString(),
@@ -99,22 +110,52 @@ export function KnowledgeConfigPanel() {
     const extraction = await extractFromFile(file);
     const rawChunks = chunkContent(extraction, file.name);
 
-    // 创建 chunk 记录
+    // Chunk 级去重：检查文本 hash
+    const { hashChunkText } = await import("../../lib/knowledge/normalizers");
+    const existingChunks = await import("../../lib/knowledge/knowledgeRepo").then((m) =>
+      m.getAllSources().then((sources) =>
+        Promise.all(sources.map((s) => m.getChunksBySource(s.id)))
+      ).then((arrays) => arrays.flat())
+    );
+    const existingHashes = new Set<string>();
+    for (const chunk of existingChunks) {
+      const h = await hashChunkText(chunk.text);
+      existingHashes.add(h);
+    }
+
+    // 创建 chunk 记录（跳过重复）
     const now = new Date().toISOString();
-    const chunks = rawChunks.map((rc, i) => ({
-      id: `${sourceId}-c${i}`,
-      sourceId,
-      index: i,
-      text: rc.text,
-      strategy: "auto" as const,
-      metadata: {
-        fileName: file.name,
-        mediaType,
-        ...rc.metadata,
-      },
-      embedded: false,
-      createdAt: now,
-    }));
+    const chunks: Array<{
+      id: string; sourceId: string; index: number; text: string;
+      strategy: "auto"; metadata: Record<string, unknown>; embedded: boolean; createdAt: string;
+    }> = [];
+    let dedupCount = 0;
+    for (let i = 0; i < rawChunks.length; i++) {
+      const rc = rawChunks[i];
+      const h = await hashChunkText(rc.text);
+      if (existingHashes.has(h)) {
+        dedupCount++;
+        continue;
+      }
+      chunks.push({
+        id: `${sourceId}-c${i}`,
+        sourceId,
+        index: i,
+        text: rc.text,
+        strategy: "auto" as const,
+        metadata: {
+          fileName: file.name,
+          mediaType,
+          ...rc.metadata,
+        },
+        embedded: false,
+        createdAt: now,
+      });
+    }
+
+    if (dedupCount > 0) {
+      log(`Dedup: skipped ${dedupCount} duplicate chunks from ${file.name}`);
+    }
 
     source.chunkCount = chunks.length;
     await addSource(source);

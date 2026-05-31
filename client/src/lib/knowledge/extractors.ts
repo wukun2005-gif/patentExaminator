@@ -5,6 +5,7 @@ import type { KnowledgeFileFormat, KnowledgeMediaType } from "@shared/types/know
 import { extractPdfText } from "../pdfText";
 import { extractDocxText } from "../docxText";
 import { extractHtmlText } from "../htmlText";
+import { normalizeText } from "./normalizers";
 import { createLogger } from "../logger";
 
 const log = createLogger("KnowledgeExtractor");
@@ -74,22 +75,22 @@ export async function extractFromFile(file: File): Promise<ExtractionResult> {
 
 async function extractFromPdf(file: File): Promise<ExtractionResult> {
   const result = await extractPdfText(file);
-  return { text: result.text, mediaType: "text" };
+  return { text: normalizeText(result.text), mediaType: "text" };
 }
 
 async function extractFromDocx(file: File): Promise<ExtractionResult> {
   const result = await extractDocxText(file);
-  return { text: result.text, mediaType: "text" };
+  return { text: normalizeText(result.text), mediaType: "text" };
 }
 
 async function extractFromText(file: File): Promise<ExtractionResult> {
   const text = await file.text();
-  return { text: text.trim(), mediaType: "text" };
+  return { text: normalizeText(text), mediaType: "text" };
 }
 
 async function extractFromJson(file: File): Promise<ExtractionResult> {
   const raw = await file.text();
-  // 保留原始 JSON 文本，chunking 阶段再按 key/数组拆分
+  // 保留原始 JSON 文本，chunking 阶段再按 key/数组拆分（不做 normalize，保留 JSON 结构）
   return { text: raw.trim(), mediaType: "text" };
 }
 
@@ -186,5 +187,5 @@ export async function extractFromUrl(url: string): Promise<ExtractionResult> {
   }
   const html = await response.text();
   const result = extractHtmlText(html);
-  return { text: result.text, mediaType: "text" };
+  return { text: normalizeText(result.text), mediaType: "text" };
 }
