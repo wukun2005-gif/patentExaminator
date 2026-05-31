@@ -45,8 +45,8 @@ export function KnowledgeConfigPanel() {
   const [testResults, setTestResults] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 已启用的 Provider 列表（用于远程 embedding 选择）
-  const enabledProviders = settings.providers.filter((p) => p.enabled && p.apiKeyRef);
+  // 所有已配置的 Provider 列表（用于远程 embedding 选择）
+  const configuredProviders = settings.providers.filter((p) => p.apiKeyRef);
 
   const refresh = useCallback(async () => {
     setSources(await getAllSources());
@@ -182,7 +182,7 @@ export function KnowledgeConfigPanel() {
       const unembedded = await getUnembeddedChunks();
       if (unembedded.length === 0) return;
 
-      const provider = enabledProviders.find((p) => p.providerId === config.remoteProviderId);
+      const provider = configuredProviders.find((p) => p.providerId === config.remoteProviderId);
       const embedConfig: EmbedderConfig = {
         type: config.embedProvider,
         remoteBaseUrl: provider?.baseUrl,
@@ -286,28 +286,36 @@ export function KnowledgeConfigPanel() {
 
         {config.embedProvider === "remote" && (
           <div className="knowledge-remote-config">
-            <div className="knowledge-config-row">
-              <label>Provider:</label>
-              <select
-                value={config.remoteProviderId ?? ""}
-                onChange={(e) => {
-                  const pid = e.target.value as ProviderId;
-                  const provider = enabledProviders.find((p) => p.providerId === pid);
-                  setConfig({
-                    ...config,
-                    remoteProviderId: pid,
-                    remoteModelId: provider?.defaultModelId ?? "",
-                  });
-                }}
-              >
-                <option value="">选择 Provider</option>
-                {enabledProviders.map((p) => (
-                  <option key={p.providerId} value={p.providerId}>
-                    {p.providerId}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {configuredProviders.length === 0 ? (
+              <p className="knowledge-hint" style={{ color: "var(--danger)" }}>
+                请先在"模型连接" tab 中配置至少一个 Provider 并填写 API Key，才能使用远程 Embedding。
+              </p>
+            ) : (
+              <>
+                <div className="knowledge-config-row">
+                  <label>Provider:</label>
+                  <select
+                    value={config.remoteProviderId ?? ""}
+                    onChange={(e) => {
+                      const pid = e.target.value as ProviderId;
+                      const provider = configuredProviders.find((p) => p.providerId === pid);
+                      setConfig({
+                        ...config,
+                        remoteProviderId: pid,
+                        remoteModelId: provider?.defaultModelId ?? "",
+                      });
+                    }}
+                  >
+                    <option value="">选择 Provider</option>
+                    {configuredProviders.map((p) => (
+                      <option key={p.providerId} value={p.providerId}>
+                        {p.providerId}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
             {config.remoteProviderId && (
               <div className="knowledge-config-row">
                 <label>Embedding 模型 ID:</label>
