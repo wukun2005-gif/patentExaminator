@@ -7,6 +7,7 @@ import { embedSingle } from "./embedder";
 import { searchKnowledge } from "./vectorStore";
 import { getKnowledgeStats } from "./knowledgeRepo";
 import { expandQuery, expandCrossLanguage } from "./normalizers";
+import { expandQueryWithGraph } from "./knowledgeGraph";
 import { hybridSearch } from "./hybridSearch";
 import { createLogger } from "../logger";
 
@@ -97,8 +98,8 @@ export async function retrieve(
     return cached.results;
   }
 
-  // 多语言扩展
-  const expandedQuery = expandCrossLanguage(query);
+  // 多语言扩展 + 法条图谱扩展
+  const expandedQuery = expandCrossLanguage(expandQueryWithGraph(query));
 
   // 使用混合检索（语义 + BM25 RRF 融合）
   const results = await hybridSearch(expandedQuery, config, embedConfig, topK);
