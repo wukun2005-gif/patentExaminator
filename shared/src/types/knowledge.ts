@@ -43,6 +43,10 @@ export interface KnowledgeSource {
   expiryDate?: string;
   /** 切片总数 */
   chunkCount: number;
+  /** 文档摘要（用于快速匹配） */
+  summary?: string;
+  /** 文档摘要向量（用于文档级检索） */
+  summaryVector?: number[];
   /** 向量化状态 */
   embedStatus: "pending" | "processing" | "completed" | "failed";
   /** 错误信息 */
