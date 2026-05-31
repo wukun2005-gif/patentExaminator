@@ -5098,3 +5098,71 @@ select.inline-edit-input {
 .knowledge-config-row input[type="text"] {
   flex: 1;
 }
+
+/* ── 知识库统计和浏览器 ───────────────────────────── */
+
+.knowledge-stats-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.knowledge-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.knowledge-browser {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.knowledge-source-detail {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.knowledge-source-detail summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.doc-category-tag {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 3px;
+}
+
+.knowledge-source-info {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.knowledge-source-info p {
+  margin: 0.25rem 0;
+}

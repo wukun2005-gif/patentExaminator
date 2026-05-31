@@ -508,6 +508,56 @@ export function KnowledgeConfigPanel() {
           </pre>
         )}
       </div>
+
+      {/* 知识库统计 */}
+      <div className="knowledge-config-section">
+        <h4>知识库统计</h4>
+        <div className="knowledge-stats-detail">
+          <div className="knowledge-stat-item">
+            <span className="stat-label">来源文件</span>
+            <span className="stat-value">{stats.sourceCount}</span>
+          </div>
+          <div className="knowledge-stat-item">
+            <span className="stat-label">切片总数</span>
+            <span className="stat-value">{stats.chunkCount}</span>
+          </div>
+          <div className="knowledge-stat-item">
+            <span className="stat-label">已向量化</span>
+            <span className="stat-value">{stats.embeddedCount}</span>
+          </div>
+          <div className="knowledge-stat-item">
+            <span className="stat-label">待向量化</span>
+            <span className="stat-value">{stats.chunkCount - stats.embeddedCount}</span>
+          </div>
+          <div className="knowledge-stat-item">
+            <span className="stat-label">Embedding</span>
+            <span className="stat-value">{config.embedProvider === "local" ? "本地 BGE" : config.remoteModelId ?? "未配置"}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 知识库浏览器 */}
+      {sources.length > 0 && (
+        <div className="knowledge-config-section">
+          <h4>知识库浏览器</h4>
+          <div className="knowledge-browser">
+            {sources.map((s) => (
+              <details key={s.id} className="knowledge-source-detail">
+                <summary>
+                  {s.name} ({s.chunkCount} 切片, {s.mediaType})
+                  {s.documentCategory && <span className="doc-category-tag">{s.documentCategory}</span>}
+                </summary>
+                <div className="knowledge-source-info">
+                  <p>格式: {s.format} | 大小: {s.size > 0 ? `${(s.size / 1024).toFixed(1)} KB` : "URL"}</p>
+                  {s.sourceUrl && <p>来源: {s.sourceUrl}</p>}
+                  {s.fileHash && <p>Hash: {s.fileHash.slice(0, 16)}...</p>}
+                  <p>创建时间: {new Date(s.createdAt).toLocaleString()}</p>
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
