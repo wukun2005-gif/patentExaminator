@@ -165,9 +165,15 @@ export function KnowledgeConfigPanel() {
     }
 
     source.chunkCount = chunks.length;
+    source.embedStatus = "processing";
     await addSource(source);
     await addChunks(chunks);
     log(`Imported ${file.name}: ${chunks.length} chunks`);
+
+    // 自动向量化
+    if (chunks.length > 0) {
+      await autoVectorize();
+    }
   };
 
   // ── URL 导入 ──────────────────────────────────────
@@ -213,8 +219,12 @@ export function KnowledgeConfigPanel() {
       await addSource(source);
       await addChunks(chunks);
       setUrlInput("");
-      await refresh();
       log(`Imported URL: ${urlInput} (${chunks.length} chunks)`);
+
+      // 自动向量化
+      if (chunks.length > 0) {
+        await autoVectorize();
+      }
     } catch (err) {
       log(`URL import error: ${err}`);
     } finally {
@@ -222,9 +232,9 @@ export function KnowledgeConfigPanel() {
     }
   };
 
-  // ── 向量化 ────────────────────────────────────────
+  // ── 向量化（自动） ──────────────────────────────────
 
-  const handleEmbed = async () => {
+  const autoVectorize = async () => {
     setEmbedding(true);
     setEmbedProgress({ done: 0, total: 0 });
     try {
@@ -305,32 +315,6 @@ export function KnowledgeConfigPanel() {
     await clearAllKnowledge();
     invalidateVectorIndex();
     await refresh();
-  };
-
-  const handleDedup = async () => {
-    const allSources = await getAllSources();
-    const seen = new Map<string, string>(); // fileHash -> sourceId
-    let removedCount = 0;
-
-    for (const source of allSources) {
-      const hash = (source as unknown as Record<string, string>).fileHash;
-      if (!hash) continue;
-
-      if (seen.has(hash)) {
-        // 重复文件，删除
-        await deleteSource(source.id);
-        removedCount++;
-        log(`Dedup: removed duplicate "${source.name}" (hash: ${hash.slice(0, 16)}...)`);
-      } else {
-        seen.set(hash, source.id);
-      }
-    }
-
-    if (removedCount > 0) {
-      invalidateVectorIndex();
-      await refresh();
-      log(`Dedup complete: removed ${removedCount} duplicate sources`);
-    }
   };
 
   return (
@@ -503,31 +487,24 @@ export function KnowledgeConfigPanel() {
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button type="button" onClick={handleDedup} className="btn-dedup">
-              清理重复
-            </button>
-            <button type="button" onClick={handleClearAll} className="btn-clear-all">
-              清空全部
-            </button>
-          </div>
+          <button type="button" onClick={handleClearAll} className="btn-clear-all">
+            清空全部
+          </button>
         </div>
       )}
 
       {/* 向量化 */}
       <div className="knowledge-config-section">
-        <h4>向量化</h4>
-        <button
-          type="button"
-          onClick={handleEmbed}
-          disabled={embedding || stats.chunkCount === stats.embeddedCount}
-        >
-          {embedding
-            ? `向量化中 (${embedProgress.done}/${embedProgress.total})`
-            : stats.chunkCount === stats.embeddedCount
-              ? "全部已向量化"
-              : "开始向量化"}
-        </button>
+        <h4>向量化状态</h4>
+        {embedding ? (
+          <p className="knowledge-hint">向量化中... {embedProgress.done}/{embedProgress.total}</p>
+        ) : stats.chunkCount === stats.embeddedCount && stats.chunkCount > 0 ? (
+          <p className="knowledge-hint">✅ 全部已向量化（{stats.embeddedCount} 个 chunk）</p>
+        ) : stats.chunkCount > 0 ? (
+          <p className="knowledge-hint">⏳ 等待向量化（{stats.embeddedCount}/{stats.chunkCount}）</p>
+        ) : (
+          <p className="knowledge-hint">上传文件后自动向量化</p>
+        )}
       </div>
 
       {/* 检索测试 */}
