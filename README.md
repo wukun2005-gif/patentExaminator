@@ -50,7 +50,8 @@ npm run dev
 | 专利简述 | 生成专利申请简述 | `/cases/:id/summary` |
 | 导出 | 导出 HTML 或 Markdown 格式审查辅助材料 | `/cases/:id/export` |
 | 案件历史 | 查看和加载历史案件 | `/cases` |
-| 设置 | 配置 AI Provider 和 Agent 分配 | `/settings` |
+| 知识库 | 上传法规文件，AI 检索相关法规注入 prompt 减少幻觉 | `/settings` (知识库 tab) |
+| 设置 | 配置 AI Provider、Agent 分配和知识库 | `/settings` |
 
 ---
 
@@ -58,6 +59,26 @@ npm run dev
 
 - API Key 仅存储在服务器内存中，不写入磁盘或 localStorage
 - 导出文件包含法律声明，明确标注为「审查辅助素材，不构成法律结论」
+
+---
+
+## 知识库（RAG）
+
+设置页面"知识库"tab 支持上传法规文件，AI 在分析时自动检索相关法规注入 prompt，减少专业问题幻觉。
+
+**支持的输入格式**：PDF, TXT, MD, DOCX, JSON, Excel, CSV, PNG, 在线 URL
+
+**建议上传的法规文件**（用户自行下载，不随代码分发）：
+
+| 文件 | 来源 |
+|------|------|
+| 《专利审查指南》2023版 | cnipa.gov.cn |
+| 《专利法》2020修正 | cnipa.gov.cn |
+| 《专利法实施细则》2023修订 | cnipa.gov.cn |
+| 最高法专利授权确权司法解释 | 最高法公报 |
+| 复审无效典型案例汇编 | cnipa.gov.cn |
+
+**Embedding 模型**：默认使用本地 BGE-large-zh（Transformers.js），也可配置远程 API。
 
 ---
 
@@ -70,6 +91,7 @@ npm run dev
 | 状态管理 | Zustand 4.5 |
 | 后端 | Express 4 |
 | AI 适配 | OpenAI-compatible 协议 |
+| 知识库 RAG | Transformers.js (BGE-large-zh) + minisearch (BM25) |
 | 运行时校验 | Zod 3.23 |
 | 单元测试 | Vitest 2.1 |
 | E2E 测试 | Playwright 1.47 |
