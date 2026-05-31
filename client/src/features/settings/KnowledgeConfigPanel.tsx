@@ -250,7 +250,10 @@ export function KnowledgeConfigPanel() {
     setEmbedProgress({ done: 0, total: 0 });
     try {
       const unembedded = await getUnembeddedChunks();
-      if (unembedded.length === 0) return;
+      if (unembedded.length === 0) {
+        setEmbedding(false);
+        return;
+      }
 
       // 检查 embedding 配置
       if (config.embedProvider === "remote" && !config.remoteProviderId) {
