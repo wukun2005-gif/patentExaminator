@@ -25,6 +25,19 @@ export async function getAllSources(): Promise<KnowledgeSource[]> {
   return db.getAll("knowledgeSources");
 }
 
+/** 分页获取 chunk */
+export async function getChunksPaginated(
+  offset: number = 0,
+  limit: number = 50
+): Promise<{ chunks: KnowledgeChunk[]; total: number }> {
+  const db = await getDB();
+  const all = await db.getAll("knowledgeChunks");
+  return {
+    chunks: all.slice(offset, offset + limit),
+    total: all.length,
+  };
+}
+
 export async function deleteSource(id: string): Promise<void> {
   const db = await getDB();
   // 删除关联的 chunks 和 vectors
