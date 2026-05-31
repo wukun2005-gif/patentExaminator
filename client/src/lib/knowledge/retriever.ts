@@ -205,3 +205,21 @@ export function formatRetrievedChunks(results: KnowledgeSearchResult[], maxToken
 
   return parts.join("\n");
 }
+
+/**
+ * 高亮检索结果中的匹配关键词（用于 UI 显示）
+ * @param text 原始文本
+ * @param query 检索 query
+ * @returns 带高亮标记的文本（使用 **keyword** 标记）
+ */
+export function highlightMatches(text: string, query: string): string {
+  const keywords = query
+    .split(/\s+/)
+    .filter((w) => w.length >= 2)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // 转义正则特殊字符
+
+  if (keywords.length === 0) return text;
+
+  const pattern = new RegExp(`(${keywords.join("|")})`, "gi");
+  return text.replace(pattern, "**$1**");
+}
