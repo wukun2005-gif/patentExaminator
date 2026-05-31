@@ -69,6 +69,12 @@ export interface KnowledgeChunk {
   sourceId: string;
   /** 切片在源文件中的序号（从 0 开始） */
   index: number;
+  /** 父 chunk ID（用于分层索引） */
+  parentChunkId?: string;
+  /** 子 chunk ID 列表（用于分层索引） */
+  childChunkIds?: string[];
+  /** 层级深度（0=文档级摘要，1=章节，2=段落） */
+  depth?: number;
   /** 切片文本内容 */
   text: string;
   /** 切片策略 */
@@ -105,6 +111,10 @@ export interface ChunkMetadata {
   pageNumber?: number;
   /** 文档类型标注 */
   documentCategory?: string;
+  /** 引用的法条编号列表 */
+  articleRefs?: string[];
+  /** 引用的专利号列表 */
+  patentNumbers?: string[];
 }
 
 // ── 向量 ────────────────────────────────────────────────

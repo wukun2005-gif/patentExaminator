@@ -155,6 +155,30 @@ export function classifyDocument(fileName: string, text: string): DocumentCatego
   return "其他";
 }
 
+// ── 法条-案例关联 ─────────────────────────────────────
+
+/** 从 chunk 文本中提取引用的法条编号 */
+export function extractArticleRefs(text: string): string[] {
+  const refs = text.match(/第[一二三四五六七八九十百千零\d]+条(?:第[一二三四五六七八九十百千零\d]+款)?/g);
+  return [...new Set(refs ?? [])];
+}
+
+/** 从 chunk 文本中提取引用的专利号 */
+export function extractPatentNumbers(text: string): string[] {
+  const patterns = [
+    /CN\d{9,12}[A-Z]\d?/g,      // 中国专利号
+    /US\d{7,8}[A-Z]\d?/g,       // 美国专利号
+    /EP\d{7,8}[A-Z]\d?/g,       // 欧洲专利号
+    /WO\d{4}\/\d{6}[A-Z]?\d?/g, // PCT 申请号
+  ];
+  const numbers: string[] = [];
+  for (const pattern of patterns) {
+    const matches = text.match(pattern);
+    if (matches) numbers.push(...matches);
+  }
+  return [...new Set(numbers)];
+}
+
 // ── 多语言支持 ─────────────────────────────────────────
 
 /** 检测文本主要语言 */

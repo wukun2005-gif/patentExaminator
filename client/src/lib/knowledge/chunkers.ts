@@ -6,7 +6,7 @@ import type {
   ChunkMetadata,
 } from "@shared/types/knowledge";
 import type { ExtractionResult } from "./extractors";
-import { isNoise, isGarbled, classifyDocument, containsPromptInjection, containsSensitiveInfo } from "./normalizers";
+import { isNoise, isGarbled, classifyDocument, containsPromptInjection, containsSensitiveInfo, extractArticleRefs, extractPatentNumbers } from "./normalizers";
 import { createLogger } from "../logger";
 
 const log = createLogger("KnowledgeChunker");
@@ -92,12 +92,14 @@ export function chunkContent(
   chunks = enrichContext(chunks, fileName, extraction.text);
   chunks = addOverlap(chunks, 80);
 
-  // 添加文档类型标注
+  // 添加文档类型标注 + 法条/专利号引用提取
   const docCategory = classifyDocument(fileName, extraction.text);
   for (const chunk of chunks) {
     if (!chunk.metadata.documentCategory) {
       chunk.metadata.documentCategory = docCategory;
     }
+    chunk.metadata.articleRefs = extractArticleRefs(chunk.text);
+    chunk.metadata.patentNumbers = extractPatentNumbers(chunk.text);
   }
 
   return chunks;
