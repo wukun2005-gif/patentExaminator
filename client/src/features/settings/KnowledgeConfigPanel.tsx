@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { KnowledgeSource, KnowledgeConfig } from "@shared/types/knowledge";
 import { DEFAULT_KNOWLEDGE_CONFIG } from "@shared/types/knowledge";
 import type { ProviderId } from "@shared/types/agents";
+import { PRESET_MODEL_PROVIDERS } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
 import {
   getAllSources,
@@ -286,50 +287,56 @@ export function KnowledgeConfigPanel() {
 
         {config.embedProvider === "remote" && (
           <div className="knowledge-remote-config">
-            {configuredProviders.length === 0 ? (
-              <p className="knowledge-hint" style={{ color: "var(--danger)" }}>
-                请先在"模型连接" tab 中配置至少一个 Provider 并填写 API Key，才能使用远程 Embedding。
-              </p>
-            ) : (
-              <>
-                <div className="knowledge-config-row">
-                  <label>Provider:</label>
-                  <select
-                    value={config.remoteProviderId ?? ""}
-                    onChange={(e) => {
-                      const pid = e.target.value as ProviderId;
-                      const provider = configuredProviders.find((p) => p.providerId === pid);
-                      setConfig({
-                        ...config,
-                        remoteProviderId: pid,
-                        remoteModelId: provider?.defaultModelId ?? "",
-                      });
-                    }}
-                  >
-                    <option value="">选择 Provider</option>
-                    {configuredProviders.map((p) => (
-                      <option key={p.providerId} value={p.providerId}>
-                        {p.providerId}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-            {config.remoteProviderId && (
-              <div className="knowledge-config-row">
-                <label>Embedding 模型 ID:</label>
-                <input
-                  type="text"
-                  value={config.remoteModelId ?? ""}
-                  onChange={(e) => setConfig({ ...config, remoteModelId: e.target.value })}
-                  placeholder="如 embedding-3、text-embedding-3-small"
-                />
-              </div>
-            )}
+            <div className="knowledge-config-row">
+              <label>Provider:</label>
+              <select
+                value={config.remoteProviderId ?? ""}
+                onChange={(e) => {
+                  const pid = e.target.value as ProviderId;
+                  setConfig({ ...config, remoteProviderId: pid, remoteModelId: "" });
+                }}
+              >
+                <option value="">选择 Provider</option>
+                {PRESET_MODEL_PROVIDERS.map((preset) => {
+                  const configured = configuredProviders.find((p) => p.providerId === preset.id);
+                  const hasKey = !!configured?.apiKeyRef;
+                  return (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.displayName} — {preset.desc}{hasKey ? "" : " (未配置 API Key)"}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+            {config.remoteProviderId && (() => {
+              const configured = configuredProviders.find((p) => p.providerId === config.remoteProviderId);
+              const preset = PRESET_MODEL_PROVIDERS.find((p) => p.id === config.remoteProviderId);
+              if (!configured?.apiKeyRef) {
+                return (
+                  <p className="knowledge-hint" style={{ color: "var(--danger)" }}>
+                    该 Provider 未配置 API Key，请先在"模型连接" tab 中添加并填写 Key。
+                  </p>
+                );
+              }
+              return (
+                <>
+                  <div className="knowledge-config-row">
+                    <label>Embedding 模型 ID:</label>
+                    <input
+                      type="text"
+                      value={config.remoteModelId ?? ""}
+                      onChange={(e) => setConfig({ ...config, remoteModelId: e.target.value })}
+                      placeholder={`如 ${preset?.id === "glm" ? "embedding-3" : preset?.id === "openrouter" ? "text-embedding-3-small" : "embedding-model-id"}`}
+                    />
+                  </div>
+                  <p className="knowledge-hint">
+                    API 地址: {configured.baseUrl ?? preset?.baseUrl ?? "默认"}
+                  </p>
+                </>
+              );
+            })()}
             <p className="knowledge-hint">
-              支持 OpenAI-compatible Embedding API（如 GLM embedding-3、DeepSeek embed 等）。
-              模型 ID 需填写该 Provider 支持的 embedding 模型名称。
+              支持 OpenAI-compatible Embedding API。常见 embedding 模型：GLM embedding-3、OpenRouter text-embedding-3-small。
             </p>
           </div>
         )}
