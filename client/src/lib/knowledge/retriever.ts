@@ -6,11 +6,41 @@ import type { EmbedderConfig } from "./embedder";
 import { embedSingle } from "./embedder";
 import { searchKnowledge } from "./vectorStore";
 import { getKnowledgeStats } from "./knowledgeRepo";
-import { expandQuery } from "./normalizers";
+import { expandQuery, expandCrossLanguage } from "./normalizers";
 import { hybridSearch } from "./hybridSearch";
 import { createLogger } from "../logger";
 
 const log = createLogger("KnowledgeRetriever");
+
+// 检索日志
+interface RetrievalLog {
+  timestamp: string;
+  query: string;
+  topK: number;
+  resultCount: number;
+  scores: number[];
+  chunkIds: string[];
+}
+
+const retrievalLogs: RetrievalLog[] = [];
+const MAX_RETRIEVAL_LOGS = 200;
+
+function recordRetrievalLog(query: string, topK: number, results: KnowledgeSearchResult[]) {
+  retrievalLogs.push({
+    timestamp: new Date().toISOString(),
+    query: query.slice(0, 200),
+    topK,
+    resultCount: results.length,
+    scores: results.map((r) => r.score),
+    chunkIds: results.map((r) => r.chunk.id),
+  });
+  if (retrievalLogs.length > MAX_RETRIEVAL_LOGS) retrievalLogs.shift();
+}
+
+/** 获取检索日志 */
+export function getRetrievalLogs(): RetrievalLog[] {
+  return [...retrievalLogs];
+}
 
 export interface RetrieveOptions {
   query: string;
@@ -51,15 +81,54 @@ export async function retrieve(
     return cached.results;
   }
 
+  // 多语言扩展
+  const expandedQuery = expandCrossLanguage(query);
+
   // 使用混合检索（语义 + BM25 RRF 融合）
-  const results = await hybridSearch(query, config, embedConfig, topK);
+  const results = await hybridSearch(expandedQuery, config, embedConfig, topK);
+
+  // 父文档检索：为每个命中 chunk 补充相邻上下文
+  const enrichedResults = await enrichWithParentContext(results);
 
   // 缓存结果
-  searchCache.set(cacheKey, { results, timestamp: Date.now() });
+  searchCache.set(cacheKey, { results: enrichedResults, timestamp: Date.now() });
 
-  log(`Retrieved ${results.length} chunks via hybrid search`);
+  recordRetrievalLog(query, topK, enrichedResults);
+  log(`Retrieved ${enrichedResults.length} chunks via hybrid search`);
 
-  return results;
+  return enrichedResults;
+}
+
+/** 父文档检索：为命中 chunk 补充相邻上下文 */
+async function enrichWithParentContext(
+  results: KnowledgeSearchResult[]
+): Promise<KnowledgeSearchResult[]> {
+  const { getChunksBySource } = await import("./knowledgeRepo");
+  const enriched: KnowledgeSearchResult[] = [];
+
+  for (const result of results) {
+    enriched.push(result);
+
+    // 获取同源的相邻 chunk
+    const sourceChunks = await getChunksBySource(result.chunk.sourceId);
+    const currentIndex = result.chunk.index;
+
+    // 添加前一个 chunk（如果存在且未在结果中）
+    if (currentIndex > 0) {
+      const prevChunk = sourceChunks.find((c) => c.index === currentIndex - 1);
+      if (prevChunk && !results.some((r) => r.chunk.id === prevChunk.id)) {
+        enriched.push({ chunk: prevChunk, score: result.score * 0.8 });
+      }
+    }
+
+    // 添加后一个 chunk（如果存在且未在结果中）
+    const nextChunk = sourceChunks.find((c) => c.index === currentIndex + 1);
+    if (nextChunk && !results.some((r) => r.chunk.id === nextChunk.id)) {
+      enriched.push({ chunk: nextChunk, score: result.score * 0.8 });
+    }
+  }
+
+  return enriched;
 }
 
 /**

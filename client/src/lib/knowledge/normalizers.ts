@@ -155,6 +155,59 @@ export function classifyDocument(fileName: string, text: string): DocumentCatego
   return "其他";
 }
 
+// ── 多语言支持 ─────────────────────────────────────────
+
+/** 检测文本主要语言 */
+export function detectLanguage(text: string): "zh" | "en" | "mixed" {
+  const zhChars = (text.match(/[一-鿿]/g) ?? []).length;
+  const enChars = (text.match(/[a-zA-Z]/g) ?? []).length;
+  const total = zhChars + enChars;
+  if (total === 0) return "en";
+  const zhRatio = zhChars / total;
+  if (zhRatio > 0.7) return "zh";
+  if (zhRatio < 0.3) return "en";
+  return "mixed";
+}
+
+/** 中英文术语映射：英文 query 也能匹配中文 chunk */
+export const CROSS_LANG_MAP: Record<string, string[]> = {
+  "inventive step": ["创造性", "三步法"],
+  "novelty": ["新颖性"],
+  "claim": ["权利要求"],
+  "specification": ["说明书"],
+  "prior art": ["现有技术"],
+  "closest prior art": ["最接近现有技术"],
+  "distinguishing feature": ["区别特征"],
+  "technical motivation": ["技术启示"],
+  "reexamination": ["复审"],
+  "invalidation": ["无效宣告"],
+  "unity": ["单一性"],
+  "sufficient disclosure": ["充分公开"],
+  "added matter": ["修改超范围"],
+  "divisional application": ["分案申请"],
+  "priority date": ["优先权日"],
+};
+
+/** 跨语言 query 扩展 */
+export function expandCrossLanguage(query: string): string {
+  const lower = query.toLowerCase();
+  const expanded = new Set<string>([query]);
+
+  for (const [enTerm, zhTerms] of Object.entries(CROSS_LANG_MAP)) {
+    if (lower.includes(enTerm)) {
+      for (const zh of zhTerms) expanded.add(zh);
+    }
+    for (const zh of zhTerms) {
+      if (lower.includes(zh)) {
+        expanded.add(enTerm);
+        for (const otherZh of zhTerms) expanded.add(otherZh);
+      }
+    }
+  }
+
+  return Array.from(expanded).join(" ");
+}
+
 // ── 术语标准化映射（同义词表） ─────────────────────────
 
 /** 专利法律领域同义词表：用于 query 扩展和检索增强 */
