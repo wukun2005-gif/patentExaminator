@@ -46,8 +46,8 @@ export function KnowledgeConfigPanel() {
   const [testResults, setTestResults] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 所有已配置的 Provider 列表（用于远程 embedding 选择）
-  const configuredProviders = settings.providers.filter((p) => p.apiKeyRef);
+  // 所有已添加的 Provider 列表（用于远程 embedding 选择）
+  const configuredProviders = settings.providers;
 
   const refresh = useCallback(async () => {
     setSources(await getAllSources());
