@@ -91,6 +91,18 @@
  * ├── testFullPipelineMock_G1      - G1: 案件→Chart→Novelty→Export
  * └── testFullPipelineMock_G2      - G2: 案件→Chart→Inventive→Export
  *
+ * 【知识库测试】修改 knowledge 模块时运行
+ * ├── testKnowledgeUploadTxt       - 上传 TXT 文件
+ * ├── testKnowledgeUploadMd        - 上传 MD 文件
+ * ├── testKnowledgeUploadJson      - 上传 JSON 文件
+ * ├── testKnowledgeUploadCsv       - 上传 CSV 文件
+ * ├── testKnowledgeDuplicateDetection - 重复文件检测
+ * ├── testKnowledgeStats           - 统计信息
+ * ├── testKnowledgeSearch          - 检索测试
+ * ├── testKnowledgeSourcesList     - 来源列表
+ * ├── testKnowledgeDelete          - 删除来源
+ * └── testKnowledgeClearAll        - 清空全部
+ *
  * 【UI 改动】跳过 E2E 自动测试，人类手工验证
  *
  * Usage:
@@ -2349,6 +2361,129 @@ async function testEpoVerifyKey() {
   }
 }
 
+// ── Knowledge Base Tests ─────────────────────────────────────────────
+
+const KNOWLEDGE_BASE = path.join(PROJECT_ROOT, "samples", "knowledge-base");
+
+function uploadKnowledgeFile(fileName) {
+  const filePath = path.join(KNOWLEDGE_BASE, fileName);
+  const buffer = fs.readFileSync(filePath);
+  const blob = new Blob([buffer]);
+  const form = new FormData();
+  form.append("file", blob, fileName);
+  return fetch(`${BASE}/knowledge/upload`, { method: "POST", body: form });
+}
+
+async function testKnowledgeUploadTxt() {
+  const res = await uploadKnowledgeFile("测试网页内容.txt");
+  const data = await res.json();
+  log("Knowledge upload TXT ok", data.ok === true, `ok=${data.ok}, chunks=${data.chunkCount}`);
+  log("Knowledge upload TXT has chunks", (data.chunkCount ?? 0) > 0, `chunkCount=${data.chunkCount}`);
+  log("Knowledge upload TXT message", typeof data.message === "string", `message=${data.message}`);
+}
+
+async function testKnowledgeUploadLargeFile() {
+  // 专利法实施细则 76KB — 验证 token 截断不会导致 ONNX 崩溃
+  const filePath = path.join(KNOWLEDGE_BASE, "专利法实施细则_2023.txt");
+  if (!fs.existsSync(filePath)) {
+    log("Knowledge upload large file - file missing", false);
+    return;
+  }
+  const res = await uploadKnowledgeFile("专利法实施细则_2023.txt");
+  const data = await res.json();
+  log("Knowledge upload large file ok", data.ok === true, `ok=${data.ok}, chunks=${data.chunkCount}`);
+  log("Knowledge upload large file multiple chunks", (data.chunkCount ?? 0) > 10, `chunkCount=${data.chunkCount}`);
+}
+
+async function testKnowledgeUploadMd() {
+  const res = await uploadKnowledgeFile("专利法条文速查.md");
+  const data = await res.json();
+  log("Knowledge upload MD ok", data.ok === true, `ok=${data.ok}, chunks=${data.chunkCount}`);
+  log("Knowledge upload MD has chunks", (data.chunkCount ?? 0) > 0, `chunkCount=${data.chunkCount}`);
+}
+
+async function testKnowledgeUploadJson() {
+  const res = await uploadKnowledgeFile("测试案例.json");
+  const data = await res.json();
+  log("Knowledge upload JSON ok", data.ok === true, `ok=${data.ok}, chunks=${data.chunkCount}`);
+  log("Knowledge upload JSON has chunks", (data.chunkCount ?? 0) > 0, `chunkCount=${data.chunkCount}`);
+}
+
+async function testKnowledgeUploadCsv() {
+  const res = await uploadKnowledgeFile("审查标准速查表.csv");
+  const data = await res.json();
+  log("Knowledge upload CSV ok", data.ok === true, `ok=${data.ok}, chunks=${data.chunkCount}`);
+}
+
+async function testKnowledgeDuplicateDetection() {
+  const res = await uploadKnowledgeFile("测试网页内容.txt");
+  const data = await res.json();
+  log("Knowledge duplicate detection", data.skipped === true, `skipped=${data.skipped}, message=${data.message}`);
+}
+
+async function testKnowledgeStats() {
+  const res = await fetch(`${BASE}/knowledge/stats`);
+  const data = await res.json();
+  log("Knowledge stats ok", data.ok === true, `ok=${data.ok}`);
+  log("Knowledge stats has sources", data.sourceCount > 0, `sourceCount=${data.sourceCount}`);
+  log("Knowledge stats has chunks", data.chunkCount > 0, `chunkCount=${data.chunkCount}`);
+  log("Knowledge stats has embeddings", data.embeddedCount > 0, `embeddedCount=${data.embeddedCount}`);
+}
+
+async function testKnowledgeSearch() {
+  const res = await fetch(`${BASE}/knowledge/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: "新颖性判断", topK: 3 }),
+  });
+  const data = await res.json();
+  log("Knowledge search ok", data.ok === true, `ok=${data.ok}`);
+  log("Knowledge search has results", (data.results?.length ?? 0) > 0, `results=${data.results?.length}`);
+  if (data.results?.[0]) {
+    log("Knowledge search result has score", typeof data.results[0].score === "number", `score=${data.results[0].score}`);
+    log("Knowledge search result has text", typeof data.results[0].text === "string" && data.results[0].text.length > 0);
+  }
+}
+
+async function testKnowledgeSourcesList() {
+  const res = await fetch(`${BASE}/knowledge/sources`);
+  const data = await res.json();
+  log("Knowledge sources list ok", data.ok === true, `ok=${data.ok}`);
+  log("Knowledge sources list non-empty", (data.sources?.length ?? 0) > 0, `count=${data.sources?.length}`);
+}
+
+async function testKnowledgeDelete() {
+  // Get sources first
+  const listRes = await fetch(`${BASE}/knowledge/sources`);
+  const listData = await listRes.json();
+  if (!listData.sources?.length) {
+    log("Knowledge delete - no sources to delete", false);
+    return;
+  }
+
+  const sourceId = listData.sources[0].id;
+  const delRes = await fetch(`${BASE}/knowledge/sources/${sourceId}`, { method: "DELETE" });
+  const delData = await delRes.json();
+  log("Knowledge delete ok", delData.ok === true, `deleted=${sourceId}`);
+
+  // Verify deletion
+  const statsRes = await fetch(`${BASE}/knowledge/stats`);
+  const stats = await statsRes.json();
+  log("Knowledge delete reflected in stats", stats.sourceCount < listData.sources.length,
+    `before=${listData.sources.length}, after=${stats.sourceCount}`);
+}
+
+async function testKnowledgeClearAll() {
+  const res = await fetch(`${BASE}/knowledge/clear`, { method: "DELETE" });
+  const data = await res.json();
+  log("Knowledge clear all ok", data.ok === true);
+
+  const statsRes = await fetch(`${BASE}/knowledge/stats`);
+  const stats = await statsRes.json();
+  log("Knowledge clear all reflected", stats.sourceCount === 0 && stats.chunkCount === 0,
+    `sourceCount=${stats.sourceCount}, chunkCount=${stats.chunkCount}`);
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -2508,6 +2643,20 @@ async function main() {
       testFigureCaptionExtraction();
       testFigureSectionDetection();
       testLikelyFigurePage();
+
+      // Knowledge Base
+      console.log("\n--- Knowledge Base ---");
+      await maybe(testKnowledgeUploadTxt);
+      await maybe(testKnowledgeUploadLargeFile);
+      await maybe(testKnowledgeUploadMd);
+      await maybe(testKnowledgeUploadJson);
+      await maybe(testKnowledgeUploadCsv);
+      await maybe(testKnowledgeDuplicateDetection);
+      await maybe(testKnowledgeStats);
+      await maybe(testKnowledgeSearch);
+      await maybe(testKnowledgeSourcesList);
+      await maybe(testKnowledgeDelete);
+      await maybe(testKnowledgeClearAll);
 
       // Import Gate
       console.log("\n--- Import Gate ---");
