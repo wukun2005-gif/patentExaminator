@@ -50,6 +50,22 @@ export interface RetrieveOptions {
 
 // 检索结果缓存：query hash → results
 const searchCache = new Map<string, { results: KnowledgeSearchResult[]; timestamp: number }>();
+
+// 反馈数据：chunkId → { positive, negative }
+const chunkFeedback = new Map<string, { positive: number; negative: number }>();
+
+/** 记录 chunk 的反馈 */
+export function recordChunkFeedback(chunkId: string, isPositive: boolean): void {
+  const current = chunkFeedback.get(chunkId) ?? { positive: 0, negative: 0 };
+  if (isPositive) current.positive++;
+  else current.negative++;
+  chunkFeedback.set(chunkId, current);
+}
+
+/** 获取 chunk 反馈统计 */
+export function getChunkFeedbackStats(): Map<string, { positive: number; negative: number }> {
+  return new Map(chunkFeedback);
+}
 const CACHE_TTL = 5 * 60 * 1000; // 5 分钟缓存
 
 function getCacheKey(query: string, topK: number, scoreThreshold: number): string {
