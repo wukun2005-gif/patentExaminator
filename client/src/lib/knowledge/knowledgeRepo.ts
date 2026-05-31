@@ -190,6 +190,34 @@ export async function fixConsistency(): Promise<ConsistencyReport> {
   return { ...report, orphanedVectors: [], isConsistent: report.orphanedChunks.length === 0 };
 }
 
+// ── 文档摘要 ──────────────────────────────────────────
+
+/** 为 source 生成摘要（基于前几个 chunk 的内容） */
+export async function generateSourceSummary(sourceId: string): Promise<string> {
+  const chunks = await getChunksBySource(sourceId);
+  if (chunks.length === 0) return "";
+
+  // 取前 3 个 chunk 的前 200 字作为摘要
+  const summaryParts = chunks
+    .slice(0, 3)
+    .map((c) => c.text.slice(0, 200))
+    .filter((t) => t.length > 20);
+
+  return summaryParts.join("\n---\n");
+}
+
+/** 更新 source 的摘要 */
+export async function updateSourceSummary(sourceId: string): Promise<void> {
+  const source = await getSource(sourceId);
+  if (!source) return;
+
+  const summary = await generateSourceSummary(sourceId);
+  source.summary = summary;
+  source.updatedAt = new Date().toISOString();
+  await addSource(source);
+  log(`Updated summary for source: ${sourceId}`);
+}
+
 // ── 存储空间 ──────────────────────────────────────────
 
 export interface StorageEstimate {
