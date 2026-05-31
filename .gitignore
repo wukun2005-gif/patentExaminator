@@ -33,6 +33,9 @@ scripts/
 /Users/wukun/Documents/tmp/patentExaminator/docs/lesson-learned-57.md
 opencode.json
 
+# Sync database (local only)
+data/
+
 # Legal reference documents (knowledge base, too large for git)
 docs/专利*.pdf
 docs/专利*.txt

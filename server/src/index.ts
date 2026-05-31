@@ -4,8 +4,10 @@ import { healthRouter } from "./routes/health.js";
 import { aiRouter } from "./routes/ai.js";
 import { settingsRouter } from "./routes/settings.js";
 import { searchRouter } from "./routes/search.js";
+import { syncRouter } from "./routes/sync.js";
 import { setApiKey } from "./security/keyStore.js";
 import { logger } from "./lib/logger.js";
+import { closeSyncDb } from "./lib/syncDb.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -62,6 +64,7 @@ app.use("/api", healthRouter);
 app.use("/api", rateLimiter, aiRouter);
 app.use("/api", settingsRouter);
 app.use("/api", rateLimiter, searchRouter);
+app.use("/api", syncRouter);
 
 // Serve client static files if dist exists
 const clientDist = path.resolve(__dirname, "../../client/dist");
@@ -77,10 +80,15 @@ const server = app.listen(PORT, () => {
 });
 
 function shutdown() {
+  closeSyncDb();
   server.closeAllConnections?.();
   server.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 3000).unref();
+  // Force exit if graceful close stalls (e.g. keep-alive connections)
+  setTimeout(() => process.exit(1), 1000).unref();
 }
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+process.on("exit", () => {
+  server.closeAllConnections?.();
+});

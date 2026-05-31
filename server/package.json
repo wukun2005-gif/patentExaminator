@@ -9,12 +9,16 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@types/multer": "^2.1.0",
+    "better-sqlite3": "^12.10.0",
     "dotenv": "^16.4.0",
     "express": "^4.19.0",
+    "multer": "^2.1.1",
     "pino": "^9.3.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^4.17.0",
     "tsx": "^4.17.0",
     "typescript": "^5.5.0"

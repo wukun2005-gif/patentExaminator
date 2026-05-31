@@ -116,7 +116,7 @@
 │  └──────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐   │
-│  │ 静态文件托管 (client/dist) + 路由 /api/*                     │   │
+│  │ 静态文件托管 (client/dist) + 路由 /api/* + 同步 /api/sync/*  │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 │  data/                                                               │
@@ -1387,6 +1387,7 @@ Supabase（后端服务）
 | 2026-05-31 | feat(B-018-1): 知识库数据预处理 — 新增 normalizers.ts（文本清洗/法条规范化/日期规范化/编码统一/噪声过滤/文档类型分类/chunk hash）、extractors 集成规范化、chunkers 添加 filterNoise/enrichContext/addOverlap 后处理、KnowledgeConfigPanel 文件级+chunk 级去重、5 个新 E2E 测试用例 | `shared/src/types/knowledge.ts`、`client/src/lib/knowledge/normalizers.ts`、`extractors.ts`、`chunkers.ts`、`KnowledgeConfigPanel.tsx`、`tests/knowledge-base-e2e.mjs` | 待提交 |
 | 2026-05-27 | fix(bg-28): AI 检索文献 Invalid API Key — `runWithFallback` 新增 `providerApiKeys` 参数，各调用点（`ai.ts`、`search.ts`）按 provider 分别传入 API Key；`search.ts` schema 新增 `modelFallbacks`/`enableModelFallback`/`providerBaseUrls` 字段，搜索三步（extract/translate/filter）均传递完整 fallback 配置 | `server/src/providers/registry.ts`、`server/src/routes/ai.ts`、`server/src/routes/search.ts`、`client/src/agent/AgentClient.ts` | 待提交 |
 | 2026-05-27 | fix(bg-28): 推理模型 maxTokens 不足致输出为空 — extract 800→8192、translate 500→4096、filter 2000→8192；`ProviderAdapter` 移除 `reasoning_content` fallback、增强空响应日志 | `server/src/routes/search.ts`、`server/src/providers/ProviderAdapter.ts`、`server/src/providers/gemini.ts` | 待提交 |
+| 2026-05-31 | feat(B-020): 服务器端数据同步 — 新增 syncDb.ts（SQLite 存储）、sync.ts（同步 API 路由）、syncClient.ts（客户端同步模块）、SyncConfigPanel.tsx（同步设置 UI），设置页面新增"同步" tab | `server/src/lib/syncDb.ts`、`server/src/routes/sync.ts`、`client/src/lib/syncClient.ts`、`client/src/features/settings/SyncConfigPanel.tsx`、`server/src/index.ts`、`settingsSlice.ts` | 待提交 |
 | 2026-05-31 | feat(B-018): 法规知识库 RAG 系统 — 新增知识库类型定义、多格式提取器（PDF/TXT/MD/DOCX/JSON/Excel/CSV/PNG/URL）、切片引擎（6 种策略）、向量化引擎（本地 Transformers.js BGE-large-zh + 远程 API）、IndexedDB 向量存储、余弦相似度检索、Prompt 注入、设置页面知识库 tab、7 个 Agent 集成、17 个 E2E 测试用例 | `shared/src/types/knowledge.ts`、`client/src/lib/knowledge/*`、`client/src/lib/indexedDb.ts`、`client/src/agent/AgentClient.ts`、`client/src/features/settings/KnowledgeConfigPanel.tsx`、`tests/knowledge-base-e2e.mjs` | 待提交 |
 | 2026-05-27 | fix(bg-28): Provider 重排不生效 — `ProvidersConfigPanel` 拖拽重排后同步更新 `settings.providers` 数组 | `client/src/features/settings/ProvidersConfigPanel.tsx` | 待提交 |
 | 2026-05-27 | fix(bg-28): ECONNREFUSED health check 失败 — 移除 `checkServerHealth` 中冗余的 `/health` 路径拼接 | `client/src/lib/serverReady.ts` | 待提交 |

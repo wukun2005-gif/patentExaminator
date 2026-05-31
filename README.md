@@ -51,7 +51,8 @@ npm run dev
 | 导出 | 导出 HTML 或 Markdown 格式审查辅助材料 | `/cases/:id/export` |
 | 案件历史 | 查看和加载历史案件 | `/cases` |
 | 知识库 | 上传法规文件，AI 检索相关法规注入 prompt 减少幻觉 | `/settings` (知识库 tab) |
-| 设置 | 配置 AI Provider、Agent 分配和知识库 | `/settings` |
+| 数据同步 | 跨设备数据同步，服务器 SQLite 存储 | `/settings` (同步 tab) |
+| 设置 | 配置 AI Provider、Agent 分配、知识库和同步 | `/settings` |
 
 ---
 

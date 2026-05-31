@@ -8,10 +8,18 @@ import { idbWriteGuard } from "../../../lib/idbWriteGuard";
 
 const log = createLogger("SettingsSlice");
 
+export interface SyncStatus {
+  connected: boolean;
+  lastSync: string | null;
+  syncing: boolean;
+  error: string | null;
+}
+
 export interface SettingsSlice {
   settings: AppSettings;
   isLoading: boolean;
   isInitialized: boolean;
+  syncStatus: SyncStatus;
 
   setSettings: (settings: AppSettings) => void;
   updateMode: (mode: AppMode) => void;
@@ -19,6 +27,7 @@ export interface SettingsSlice {
   loadFromDb: () => Promise<void>;
   addProviderError: (error: Omit<ProviderErrorMessage, "id">) => void;
   updateKnowledgeConfig: (config: KnowledgeConfig) => void;
+  setSyncStatus: (status: Partial<SyncStatus>) => void;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -39,6 +48,7 @@ export const createSettingsSlice = (
   settings: DEFAULT_SETTINGS,
   isLoading: false,
   isInitialized: false,
+  syncStatus: { connected: false, lastSync: null, syncing: false, error: null },
 
   setSettings: (settings) => {
     set(() => ({ settings }));
@@ -82,6 +92,9 @@ export const createSettingsSlice = (
       writeSettings(next).catch(idbWriteGuard("settings"));
       return { settings: next };
     });
+  },
+  setSyncStatus: (status) => {
+    set((prev) => ({ syncStatus: { ...prev.syncStatus, ...status } }));
   },
   loadFromDb: async () => {
     try {
