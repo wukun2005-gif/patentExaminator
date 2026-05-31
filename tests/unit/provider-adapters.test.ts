@@ -271,3 +271,119 @@ describe("resolveMaxTokens", () => {
     expect(resolveMaxTokens("mimo-v2.5-pro")).toBe(16384);
   });
 });
+
+// ──────────────────────────────────────────────────
+// 5. GeminiAdapter — chat() tests (independent implementation)
+// ──────────────────────────────────────────────────
+
+describe("GeminiAdapter.chat()", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns text on success with x-goog-api-key header", async () => {
+    const geminiResponse = {
+      candidates: [{ content: { parts: [{ text: "Gemini says hello" }] } }],
+      usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 }
+    };
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: geminiResponse }));
+
+    const { GeminiAdapter } = await import("@server/providers/gemini.js");
+    const adapter = new GeminiAdapter();
+    const result = await adapter.chat(makeChatRequest({ modelId: "gemini-2.5-flash" }));
+
+    expect(result.text).toBe("Gemini says hello");
+    expect(result.tokenUsage).toEqual({ input: 10, output: 5, total: 15 });
+
+    const [, init] = mockFetch.mock.calls[0]!;
+    expect(init.headers).toHaveProperty("x-goog-api-key", "test-key");
+    expect(init.headers).not.toHaveProperty("Authorization");
+  });
+
+  it("throws on 401 with status attached", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ status: 401, text: '{"error":"invalid key"}' })
+    );
+
+    const { GeminiAdapter } = await import("@server/providers/gemini.js");
+    const adapter = new GeminiAdapter();
+    await expect(adapter.chat(makeChatRequest({ modelId: "gemini-2.5-flash" }))).rejects.toThrow(/401/);
+  });
+
+  it("throws on 500", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ status: 500, text: "Internal Server Error" })
+    );
+
+    const { GeminiAdapter } = await import("@server/providers/gemini.js");
+    const adapter = new GeminiAdapter();
+    await expect(adapter.chat(makeChatRequest({ modelId: "gemini-2.5-flash" }))).rejects.toThrow(/500/);
+  });
+
+  it("constructs correct URL with modelId", async () => {
+    const geminiResponse = {
+      candidates: [{ content: { parts: [{ text: "ok" }] } }],
+    };
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: geminiResponse }));
+
+    const { GeminiAdapter } = await import("@server/providers/gemini.js");
+    const adapter = new GeminiAdapter();
+    await adapter.chat(makeChatRequest({ modelId: "gemini-2.5-pro" }));
+
+    const [url] = mockFetch.mock.calls[0]!;
+    expect(url).toContain("/models/gemini-2.5-pro:generateContent");
+  });
+});
+
+// ──────────────────────────────────────────────────
+// 6. BedrockAdapter — chat() tests (independent implementation)
+// ──────────────────────────────────────────────────
+
+describe("BedrockAdapter.chat()", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns text on success", async () => {
+    const bedrockResponse = {
+      choices: [{ message: { content: "Bedrock says hello" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+    };
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: bedrockResponse }));
+
+    const { BedrockAdapter } = await import("@server/providers/bedrock.js");
+    const adapter = new BedrockAdapter();
+    const result = await adapter.chat(makeChatRequest({ modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0" }));
+
+    expect(result.text).toBe("Bedrock says hello");
+    expect(result.tokenUsage).toEqual({ input: 10, output: 5, total: 15 });
+  });
+
+  it("throws on 401", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ status: 401, text: "Unauthorized" })
+    );
+
+    const { BedrockAdapter } = await import("@server/providers/bedrock.js");
+    const adapter = new BedrockAdapter();
+    await expect(adapter.chat(makeChatRequest())).rejects.toThrow(/401/);
+  });
+
+  it("throws on 429", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ status: 429, text: "Rate limited" })
+    );
+
+    const { BedrockAdapter } = await import("@server/providers/bedrock.js");
+    const adapter = new BedrockAdapter();
+    await expect(adapter.chat(makeChatRequest())).rejects.toThrow(/429/);
+  });
+});
