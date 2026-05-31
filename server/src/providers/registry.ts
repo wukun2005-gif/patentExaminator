@@ -164,6 +164,8 @@ export class ProviderRegistry {
     let lastError: unknown;
     let lastErrInfo: ErrorInfo | undefined;
 
+    const clientSignal = req.signal;
+
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       if (attempt > 0) {
         await sleep(BACKOFF_DELAYS[attempt - 1] ?? 3000);
@@ -173,7 +175,6 @@ export class ProviderRegistry {
         const timeoutController = new AbortController();
         const timeout = setTimeout(() => timeoutController.abort(), TIMEOUT_MS);
 
-        const clientSignal = req.signal;
         if (clientSignal?.aborted) {
           throw new Error("Request aborted by client");
         }
