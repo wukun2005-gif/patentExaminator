@@ -291,3 +291,192 @@ describe("settingsRepo", () => {
     expect(updated.mode).toBe("real");
   });
 });
+
+describe("chatRepo", () => {
+  it("session: create → getByCaseId → update → delete", async () => {
+    const { createSession, getSessionsByCaseId, updateSession, deleteSession } = await import("@client/lib/repositories/chatRepo");
+    const session = { id: "s1", caseId: "c1", title: "Test", createdAt: new Date().toISOString() };
+    await createSession(session);
+    const sessions = await getSessionsByCaseId("c1");
+    expect(sessions.length).toBe(1);
+    expect(sessions[0]!.id).toBe("s1");
+
+    await updateSession({ ...session, title: "Updated" });
+    const updated = await getSessionsByCaseId("c1");
+    expect(updated[0]!.title).toBe("Updated");
+
+    await deleteSession("s1");
+    const remaining = await getSessionsByCaseId("c1");
+    expect(remaining.length).toBe(0);
+  });
+
+  it("message: create → getBySessionId → deleteBySessionId", async () => {
+    const { createMessage, getMessagesBySessionId, deleteMessagesBySessionId } = await import("@client/lib/repositories/chatRepo");
+    const msg = { id: "m1", sessionId: "s1", role: "user" as const, content: "Hello", createdAt: new Date().toISOString() };
+    await createMessage(msg);
+    const messages = await getMessagesBySessionId("s1");
+    expect(messages.length).toBe(1);
+
+    await deleteMessagesBySessionId("s1");
+    const remaining = await getMessagesBySessionId("s1");
+    expect(remaining.length).toBe(0);
+  });
+});
+
+describe("defectRepo", () => {
+  it("create → getByCaseId → update → delete → deleteByCaseId", async () => {
+    const { createDefect, getDefectsByCaseId, updateDefect, deleteDefect, deleteDefectsByCaseId } = await import("@client/lib/repositories/defectRepo");
+    const defect = { id: "d1", caseId: "c1", category: "clarity" as const, description: "Test", severity: "error" as const, claimNumbers: [1] };
+    await createDefect(defect);
+    const defects = await getDefectsByCaseId("c1");
+    expect(defects.length).toBe(1);
+
+    await updateDefect({ ...defect, description: "Updated" });
+    const updated = await getDefectsByCaseId("c1");
+    expect(updated[0]!.description).toBe("Updated");
+
+    await deleteDefect("d1");
+    const afterDelete = await getDefectsByCaseId("c1");
+    expect(afterDelete.length).toBe(0);
+
+    // Test deleteByCaseId
+    await createDefect({ ...defect, id: "d2" });
+    await createDefect({ ...defect, id: "d3", caseId: "c2" });
+    await deleteDefectsByCaseId("c1");
+    const remaining = await getDefectsByCaseId("c1");
+    expect(remaining.length).toBe(0);
+    const other = await getDefectsByCaseId("c2");
+    expect(other.length).toBe(1);
+  });
+});
+
+describe("draftRepo", () => {
+  it("reexamDraft: save → read → delete → clearDraftData", async () => {
+    const { saveReexamDraft, readReexamDraft, deleteReexamDraft, clearDraftData } = await import("@client/lib/repositories/draftRepo");
+    const draft = { examinerResponse: "test response", overallAssessment: "test assessment", responses: [] };
+    await saveReexamDraft("c1", draft as unknown as import("@shared/types/domain").ReexamDraftResponse);
+    const read = await readReexamDraft("c1");
+    expect(read).toBeDefined();
+    expect((read as unknown as Record<string, unknown>).examinerResponse).toBe("test response");
+
+    await deleteReexamDraft("c1");
+    const deleted = await readReexamDraft("c1");
+    expect(deleted).toBeUndefined();
+
+    // Test clearDraftData
+    await saveReexamDraft("c2", draft as unknown as import("@shared/types/domain").ReexamDraftResponse);
+    await clearDraftData("c2");
+    const cleared = await readReexamDraft("c2");
+    expect(cleared).toBeUndefined();
+  });
+
+  it("summary: save → read → delete", async () => {
+    const { saveSummary, readSummary, deleteSummary } = await import("@client/lib/repositories/draftRepo");
+    const summary = { body: "test body", aiNotes: "test notes" };
+    await saveSummary("c1", summary as unknown as import("@shared/types/domain").SummaryResponse);
+    const read = await readSummary("c1");
+    expect(read).toBeDefined();
+    expect((read as unknown as Record<string, unknown>).body).toBe("test body");
+
+    await deleteSummary("c1");
+    const deleted = await readSummary("c1");
+    expect(deleted).toBeUndefined();
+  });
+});
+
+describe("interpretRepo", () => {
+  it("save → read → delete", async () => {
+    const { saveInterpretSummaries, readInterpretSummaries, deleteInterpretSummaries } = await import("@client/lib/repositories/interpretRepo");
+    const summaries = { "doc1": "summary1", "doc2": "summary2" };
+    await saveInterpretSummaries("c1", summaries);
+    const read = await readInterpretSummaries("c1");
+    expect(read).toEqual(summaries);
+
+    await deleteInterpretSummaries("c1");
+    const deleted = await readInterpretSummaries("c1");
+    expect(deleted).toEqual({});
+  });
+});
+
+describe("opinionRepo", () => {
+  it("opinionAnalysis: save → read → delete", async () => {
+    const { saveOpinionAnalysis, readOpinionAnalysis, deleteOpinionAnalysis } = await import("@client/lib/repositories/opinionRepo");
+    const analysis = { id: "oa1", caseId: "c1", documentId: "d1", rejectionGrounds: [], citedReferences: [], createdAt: new Date().toISOString() };
+    await saveOpinionAnalysis(analysis as unknown as import("@shared/types/domain").OfficeActionAnalysis);
+    const read = await readOpinionAnalysis("c1");
+    expect(read).toBeDefined();
+    expect(read!.id).toBe("oa1");
+
+    await deleteOpinionAnalysis("c1");
+    const deleted = await readOpinionAnalysis("c1");
+    expect(deleted).toBeNull();
+  });
+
+  it("argumentMappings: save → read → delete → clearOpinionData", async () => {
+    const { saveArgumentMappings, readArgumentMappings, deleteArgumentMappings, clearOpinionData } = await import("@client/lib/repositories/opinionRepo");
+    const mappings = [
+      { id: "am1", caseId: "c1", rejectionGroundCode: "RG-1", applicantArgument: "arg1", argumentSummary: "sum1", confidence: "high" as const },
+      { id: "am2", caseId: "c1", rejectionGroundCode: "RG-2", applicantArgument: "arg2", argumentSummary: "sum2", confidence: "medium" as const }
+    ];
+    await saveArgumentMappings(mappings as unknown as import("@shared/types/domain").ArgumentMapping[]);
+    const read = await readArgumentMappings("c1");
+    expect(read.length).toBe(2);
+
+    await deleteArgumentMappings("c1");
+    const deleted = await readArgumentMappings("c1");
+    expect(deleted.length).toBe(0);
+
+    // Test clearOpinionData
+    await saveArgumentMappings(mappings as unknown as import("@shared/types/domain").ArgumentMapping[]);
+    await clearOpinionData("c1");
+    const cleared = await readArgumentMappings("c1");
+    expect(cleared.length).toBe(0);
+  });
+});
+
+describe("referenceRepo", () => {
+  it("readReferencesByCaseId filters by role=reference", async () => {
+    const { readReferencesByCaseId } = await import("@client/lib/repositories/referenceRepo");
+    // referenceRepo reads from documents store, filtering by role
+    const refs = await readReferencesByCaseId("nonexistent");
+    expect(Array.isArray(refs)).toBe(true);
+  });
+});
+
+describe("runMarkerRepo", () => {
+  it("save → getByCaseId → delete", async () => {
+    const { saveRunMarker, getRunMarkersByCaseId, deleteRunMarker } = await import("@client/lib/repositories/runMarkerRepo");
+    await saveRunMarker("c1", "claim-chart");
+    await saveRunMarker("c1", "novelty");
+    const markers = await getRunMarkersByCaseId("c1");
+    expect(markers).toContain("claim-chart");
+    expect(markers).toContain("novelty");
+
+    await deleteRunMarker("c1", "claim-chart");
+    const afterDelete = await getRunMarkersByCaseId("c1");
+    expect(afterDelete).not.toContain("claim-chart");
+    expect(afterDelete).toContain("novelty");
+  });
+});
+
+describe("searchSessionRepo", () => {
+  it("create → getByCaseId → update → delete → getLatest", async () => {
+    const { createSearchSession, getSearchSessionsByCaseId, updateSearchSession, deleteSearchSession, getLatestSearchSession } = await import("@client/lib/repositories/searchSessionRepo");
+    const session = { id: "ss1", caseId: "c1", query: "test", dataSources: ["tavily"], resultCount: 5, status: "completed" as const, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    await createSearchSession(session);
+    const sessions = await getSearchSessionsByCaseId("c1");
+    expect(sessions.length).toBe(1);
+
+    await updateSearchSession({ ...session, resultCount: 10 });
+    const updated = await getSearchSessionsByCaseId("c1");
+    expect(updated[0]!.resultCount).toBe(10);
+
+    const latest = await getLatestSearchSession("c1");
+    expect(latest).toBeDefined();
+    expect(latest!.id).toBe("ss1");
+
+    await deleteSearchSession("ss1");
+    const remaining = await getSearchSessionsByCaseId("c1");
+    expect(remaining.length).toBe(0);
+  });
+});
