@@ -6,7 +6,7 @@
 export function checkFaithfulness(
   agentOutput: string,
   injectedChunks: Array<{ text: string; metadata: { fileName?: string; sectionId?: string; articleId?: string } }>,
-  threshold: number = 0.3
+  _threshold: number = 0.3
 ): { score: number; matchedChunks: number; totalChunks: number; details: string[] } {
   if (injectedChunks.length === 0) {
     return { score: 1, matchedChunks: 0, totalChunks: 0, details: ["无注入内容"] };

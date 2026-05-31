@@ -242,7 +242,7 @@ export async function estimateStorage(): Promise<StorageEstimate> {
   for (const vec of vectors) {
     totalBytes += vec.vector.length * 8; // float64 = 8 bytes
   }
-  for (const source of sources) {
+  for (const _source of sources) {
     totalBytes += 500; // 元数据约 500 字节
   }
 

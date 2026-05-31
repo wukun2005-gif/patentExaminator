@@ -3,10 +3,8 @@
  */
 import type { KnowledgeSearchResult, KnowledgeConfig } from "@shared/types/knowledge";
 import type { EmbedderConfig } from "./embedder";
-import { embedSingle } from "./embedder";
-import { searchKnowledge } from "./vectorStore";
 import { getKnowledgeStats } from "./knowledgeRepo";
-import { expandQuery, expandCrossLanguage } from "./normalizers";
+import { expandCrossLanguage } from "./normalizers";
 import { expandQueryWithGraph } from "./knowledgeGraph";
 import { rerank } from "./reranker";
 import { hybridSearch } from "./hybridSearch";

@@ -5,7 +5,7 @@ import type { KnowledgeSearchResult, KnowledgeConfig } from "@shared/types/knowl
 import type { EmbedderConfig } from "./embedder";
 import { embedSingle } from "./embedder";
 import { searchKnowledge } from "./vectorStore";
-import { searchBM25, buildBM25Index } from "./bm25Search";
+import { searchBM25 } from "./bm25Search";
 import { getKnowledgeStats } from "./knowledgeRepo";
 import { expandQuery } from "./normalizers";
 import { createLogger } from "../logger";
