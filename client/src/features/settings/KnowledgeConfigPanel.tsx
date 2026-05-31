@@ -307,6 +307,32 @@ export function KnowledgeConfigPanel() {
     await refresh();
   };
 
+  const handleDedup = async () => {
+    const allSources = await getAllSources();
+    const seen = new Map<string, string>(); // fileHash -> sourceId
+    let removedCount = 0;
+
+    for (const source of allSources) {
+      const hash = (source as unknown as Record<string, string>).fileHash;
+      if (!hash) continue;
+
+      if (seen.has(hash)) {
+        // 重复文件，删除
+        await deleteSource(source.id);
+        removedCount++;
+        log(`Dedup: removed duplicate "${source.name}" (hash: ${hash.slice(0, 16)}...)`);
+      } else {
+        seen.set(hash, source.id);
+      }
+    }
+
+    if (removedCount > 0) {
+      invalidateVectorIndex();
+      await refresh();
+      log(`Dedup complete: removed ${removedCount} duplicate sources`);
+    }
+  };
+
   return (
     <div className="knowledge-config-panel" data-testid="knowledge-config-panel">
       {/* 启用开关 */}
@@ -477,9 +503,14 @@ export function KnowledgeConfigPanel() {
               </div>
             ))}
           </div>
-          <button type="button" onClick={handleClearAll} className="btn-clear-all">
-            清空全部
-          </button>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button type="button" onClick={handleDedup} className="btn-dedup">
+              清理重复
+            </button>
+            <button type="button" onClick={handleClearAll} className="btn-clear-all">
+              清空全部
+            </button>
+          </div>
         </div>
       )}
 
@@ -558,19 +589,19 @@ export function KnowledgeConfigPanel() {
           <h4>知识库浏览器</h4>
           <div className="knowledge-browser">
             {sources.map((s) => (
-              <details key={s.id} className="knowledge-source-detail">
-                <summary>
-                  {s.name} ({s.chunkCount} 切片, {s.mediaType})
+              <div key={s.id} className="knowledge-source-detail">
+                <div className="knowledge-source-header">
+                  <span>{s.name} ({s.chunkCount} 切片, {s.mediaType})</span>
                   {s.documentCategory && <span className="doc-category-tag">{s.documentCategory}</span>}
                   <button
                     type="button"
                     className="btn-preview"
-                    onClick={(e) => { e.preventDefault(); handlePreview(s.id); }}
+                    onClick={() => handlePreview(s.id)}
                     data-testid={`btn-preview-${s.id}`}
                   >
                     {previewSourceId === s.id ? "收起" : "预览"}
                   </button>
-                </summary>
+                </div>
                 <div className="knowledge-source-info">
                   <p>格式: {s.format} | 大小: {s.size > 0 ? `${(s.size / 1024).toFixed(1)} KB` : "URL"}</p>
                   {s.sourceUrl && <p>来源: {s.sourceUrl}</p>}
@@ -588,7 +619,7 @@ export function KnowledgeConfigPanel() {
                     ))}
                   </div>
                 )}
-              </details>
+              </div>
             ))}
           </div>
         </div>

@@ -5208,3 +5208,13 @@ select.inline-edit-input {
   color: var(--text-primary);
   word-break: break-all;
 }
+
+/* ── 知识库浏览器头部 ───────────────────────────── */
+
+.knowledge-source-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  padding: 0.25rem 0;
+}
