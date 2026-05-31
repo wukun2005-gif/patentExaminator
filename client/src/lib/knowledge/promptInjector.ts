@@ -107,6 +107,29 @@ export async function injectKnowledge(options: InjectOptions): Promise<string> {
 }
 
 /**
+ * 主动注入：面板加载时预取相关法规，不等 Agent 调用
+ * 返回检索到的 chunk 文本，可直接显示在 UI 中
+ */
+export async function proactiveInject(
+  agentType: string,
+  contextText: string,
+  config: KnowledgeConfig,
+  embedConfig: EmbedderConfig
+): Promise<string> {
+  if (!config.enabled || !contextText) return "";
+
+  try {
+    const results = await retrieve({ query: contextText }, config, embedConfig);
+    if (results.length === 0) return "";
+
+    const contextPrefix = getAgentContext(agentType);
+    return `## 参考法规（预加载）\n${contextPrefix}\n\n${formatRetrievedChunks(results, 2000).replace(/^[^\n]+\n[^\n]+\n/, "")}`;
+  } catch {
+    return "";
+  }
+}
+
+/**
  * 从 Agent 请求数据中提取检索 query
  * 不同 Agent 使用不同的字段作为 query
  */
