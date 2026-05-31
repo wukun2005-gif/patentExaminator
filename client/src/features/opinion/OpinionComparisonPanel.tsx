@@ -263,7 +263,7 @@ export function OpinionComparisonPanel({
 
       {!documentId && !hasOfficeAction && (
         <p className="placeholder-hint">
-          请先在案件导入页上传审查意见通知书（文件类型选择"审查意见通知书"）。
+          请先在案件导入页上传审查意见通知书（文件类型选择&quot;审查意见通知书&quot;）。
         </p>
       )}
       {hasOfficeAction && !hasResponse && (

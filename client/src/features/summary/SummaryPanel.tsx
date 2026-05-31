@@ -67,7 +67,7 @@ export function SummaryPanel({ caseId, runSummary }: SummaryPanelProps) {
             <li><strong>审查意见简述（本页）</strong>：简要概述审查意见的核心要点，包含新颖性、创造性的主要结论和关键依据，适合快速了解整体情况或作为汇报材料。</li>
             <li><strong>复审意见草稿（草稿页面）</strong>：完整的审查意见正文草稿，包含详细的事实认定、法律适用分析、原文引用、技术启示论证等，可直接用于起草正式审查意见通知书。</li>
           </ul>
-          <p className="summary-diff-help-tip">建议：先生成"审查意见简述"确认整体方向，再到"草稿"页面生成完整正文。</p>
+          <p className="summary-diff-help-tip">建议：先生成&quot;审查意见简述&quot;确认整体方向，再到&quot;草稿&quot;页面生成完整正文。</p>
         </details>
       </div>
 
@@ -116,7 +116,7 @@ export function SummaryPanel({ caseId, runSummary }: SummaryPanelProps) {
               )}
             </h3>
             <p className="summary-ai-notes-desc">
-              这是 AI 的辅助注释，未经出处验证，请谨慎参考。AI 备注区的内容与整个产品的"候选/待确认"设计语义一致——所有未经原文引用验证的信息都不会进入正文，只在此处展示供审查员参考。
+              这是 AI 的辅助注释，未经出处验证，请谨慎参考。AI 备注区的内容与整个产品的&quot;候选/待确认&quot;设计语义一致——所有未经原文引用验证的信息都不会进入正文，只在此处展示供审查员参考。
             </p>
             {summary.aiNotes != null ? (
               <InlineEdit
