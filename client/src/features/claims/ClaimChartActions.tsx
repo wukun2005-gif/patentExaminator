@@ -4,11 +4,14 @@ import { AgentClient } from "../../agent/AgentClient";
 import { useClaimsStore, useCaseStore, useSettingsStore } from "../../store";
 import { ErrorBanner } from "../../lib/errorDisplay";
 import type { ClaimNode } from "@shared/types/domain";
+import { createLogger } from "../../lib/logger";
 
 interface ClaimChartActionsProps {
   claimNodes: ClaimNode[];
   specificationText: string;
 }
+
+const log = createLogger("ClaimChartActions");
 
 export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartActionsProps) {
   const { caseId } = useParams<{ caseId: string }>();
@@ -27,7 +30,7 @@ export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartA
       isMountedRef.current = false;
       controllers.forEach((controller, key) => {
         controller.abort();
-        console.log(`[ClaimChartActions] Aborted request ${key} on unmount`);
+        log(`Aborted request ${key} on unmount`);
       });
       controllers.clear();
     };

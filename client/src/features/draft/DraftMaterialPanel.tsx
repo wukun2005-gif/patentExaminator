@@ -3,6 +3,7 @@ import { useCaseStore, useClaimsStore, useNoveltyStore, useInventiveStore, useDe
 import type { ReexamDraftResponse } from "../../agent/contracts";
 import { InlineEdit } from "../../components/InlineEdit";
 import { ErrorBanner } from "../../lib/errorDisplay";
+import { createLogger } from "../../lib/logger";
 
 interface DraftMaterialPanelProps {
   caseId: string;
@@ -38,6 +39,8 @@ const REEXAM_CONCLUSION_LABELS: Record<string, string> = {
   "needs-further-review": "需进一步审查"
 };
 
+const log = createLogger("DraftMaterialPanel");
+
 export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPanelProps) {
   const { currentCase } = useCaseStore();
   const { claimFeatures } = useClaimsStore();
@@ -55,7 +58,7 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
       isMountedRef.current = false;
       controllers.forEach((controller, key) => {
         controller.abort();
-        console.log(`[DraftMaterialPanel] Aborted request ${key} on unmount`);
+        log(`Aborted request ${key} on unmount`);
       });
       controllers.clear();
     };

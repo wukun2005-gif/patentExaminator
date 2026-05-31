@@ -6,6 +6,7 @@ import { FigureExtractPanel } from "./FigureExtractPanel";
 import { renderMarkdown } from "../../lib/markdown";
 import { AiGatewayError, type AiErrorType } from "../../agent/contracts";
 import { formatAiErrorMessage } from "../../lib/errorDisplay";
+import { createLogger } from "../../lib/logger";
 
 export type InterpretDocumentType = "application" | "office-action" | "office-action-response";
 
@@ -124,6 +125,8 @@ export function buildCombinedSummarySections(
     .join("\n\n");
 }
 
+const log = createLogger("InterpretPanel");
+
 export function InterpretPanel({
   caseId,
   documents,
@@ -222,7 +225,7 @@ export function InterpretPanel({
       // Abort all in-flight requests
       abortControllersRef.current.forEach((controller, docId) => {
         controller.abort();
-        console.log(`[InterpretPanel] Aborted request for document ${docId} on unmount`);
+        log(`Aborted request for document ${docId} on unmount`);
       });
       abortControllersRef.current.clear();
     };

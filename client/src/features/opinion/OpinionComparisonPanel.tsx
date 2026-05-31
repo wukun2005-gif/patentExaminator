@@ -4,6 +4,7 @@ import type { ArgumentMapping } from "@shared/types/domain";
 import { useOpinionStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
 import { ErrorBanner } from "../../lib/errorDisplay";
+import { createLogger } from "../../lib/logger";
 
 interface Props {
   caseId: string;
@@ -52,6 +53,8 @@ const CONFIDENCE_CLASS: Record<string, string> = {
   medium: "conf-medium",
   low: "conf-low"
 };
+
+const log = createLogger("OpinionComparisonPanel");
 
 export function OpinionComparisonPanel({
   caseId: _caseId,
@@ -107,7 +110,7 @@ export function OpinionComparisonPanel({
       isMountedRef.current = false;
       controllers.forEach((controller, key) => {
         controller.abort();
-        console.log(`[OpinionComparisonPanel] Aborted request ${key} on unmount`);
+        log(`Aborted request ${key} on unmount`);
       });
       controllers.clear();
     };

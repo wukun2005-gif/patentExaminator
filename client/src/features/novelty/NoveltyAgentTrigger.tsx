@@ -40,7 +40,7 @@ export function NoveltyAgentTrigger({
       isMountedRef.current = false;
       controllers.forEach((controller, key) => {
         controller.abort();
-        console.log(`[NoveltyAgentTrigger] Aborted request ${key} on unmount`);
+        debugLog(`Aborted request ${key} on unmount`);
       });
       controllers.clear();
     };

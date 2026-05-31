@@ -4,6 +4,7 @@ import type { RejectionGround, RejectionCitedReference } from "@shared/types/dom
 import { useOpinionStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
 import { ErrorBanner } from "../../lib/errorDisplay";
+import { createLogger } from "../../lib/logger";
 
 interface Props {
   caseId: string;
@@ -31,6 +32,8 @@ const CATEGORY_CLASS: Record<string, string> = {
   amendment: "cat-amendment",
   other: "cat-other"
 };
+
+const log = createLogger("OpinionAnalysisPanel");
 
 export function OpinionAnalysisPanel({
   caseId: _caseId,
@@ -63,7 +66,7 @@ export function OpinionAnalysisPanel({
       isMountedRef.current = false;
       controllers.forEach((controller, key) => {
         controller.abort();
-        console.log(`[OpinionAnalysisPanel] Aborted request ${key} on unmount`);
+        log(`Aborted request ${key} on unmount`);
       });
       controllers.clear();
     };
