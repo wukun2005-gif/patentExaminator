@@ -2,23 +2,24 @@
  * 知识库向量存储 — 管理向量的索引和检索
  */
 import type { KnowledgeSearchResult, KnowledgeChunk } from "@shared/types/knowledge";
-import { cosineSimilarity } from "./embedder";
 import * as repo from "./knowledgeRepo";
 import { buildBM25Index } from "./bm25Search";
+import { ANNIndex } from "./annIndex";
 import { createLogger } from "../logger";
 
 const log = createLogger("KnowledgeVectorStore");
 
-// ── 内存向量索引 ──────────────────────────────────────
+// ── 内存向量索引（ANN 优化版） ────────────────────────
 
-let vectorIndex: Map<string, { vector: number[]; chunk: KnowledgeChunk }> | null = null;
+let annIndex: ANNIndex | null = null;
+let chunkLookup: Map<string, KnowledgeChunk> | null = null;
 let indexBuiltAt = 0;
 
 /** 构建内存向量索引（首次检索时自动构建，已构建则跳过） */
 export async function buildVectorIndex(): Promise<void> {
   // 如果索引已构建且未失效，跳过重建
-  if (vectorIndex && vectorIndex.size > 0 && indexBuiltAt > 0) {
-    log(`Vector index already built (${vectorIndex.size} entries), skipping rebuild`);
+  if (annIndex && annIndex.size > 0 && indexBuiltAt > 0) {
+    log(`ANN index already built (${annIndex.size} entries), skipping rebuild`);
     return;
   }
 
@@ -26,34 +27,35 @@ export async function buildVectorIndex(): Promise<void> {
 
   // 获取所有 chunk
   const sources = await repo.getAllSources();
-  const chunkMap = new Map<string, KnowledgeChunk>();
+  chunkLookup = new Map<string, KnowledgeChunk>();
 
   for (const source of sources) {
     const sourceChunks = await repo.getChunksBySource(source.id);
     for (const chunk of sourceChunks) {
-      chunkMap.set(chunk.id, chunk);
+      chunkLookup.set(chunk.id, chunk);
     }
   }
 
-  vectorIndex = new Map();
+  annIndex = new ANNIndex();
   for (const vec of vectors) {
-    const chunk = chunkMap.get(vec.chunkId);
+    const chunk = chunkLookup.get(vec.chunkId);
     if (chunk) {
-      vectorIndex.set(vec.chunkId, { vector: vec.vector, chunk });
+      annIndex.add(vec.chunkId, chunk, vec.vector);
     }
   }
 
   indexBuiltAt = Date.now();
 
   // 同时构建 BM25 索引
-  const allChunks = Array.from(chunkMap.values());
+  const allChunks = Array.from(chunkLookup.values());
   buildBM25Index(allChunks);
 
-  log(`Built vector index: ${vectorIndex.size} entries, BM25 index: ${allChunks.length} documents`);
+  log(`Built ANN index: ${annIndex.size} entries, BM25 index: ${allChunks.length} documents`);
 }
 
 export function invalidateVectorIndex(): void {
-  vectorIndex = null;
+  annIndex = null;
+  chunkLookup = null;
   indexBuiltAt = 0;
 }
 
@@ -64,11 +66,11 @@ export async function searchKnowledge(
   topK: number = 5,
   scoreThreshold: number = 0.3
 ): Promise<KnowledgeSearchResult[]> {
-  if (!vectorIndex || vectorIndex.size === 0) {
+  if (!annIndex || annIndex.size === 0) {
     await buildVectorIndex();
   }
 
-  if (!vectorIndex || vectorIndex.size === 0) {
+  if (!annIndex || annIndex.size === 0) {
     return [];
   }
 
@@ -82,28 +84,15 @@ export async function searchKnowledge(
     }
   }
 
-  const scores: Array<{ chunkId: string; score: number }> = [];
+  // 使用 ANN 索引搜索（Float32Array + 预计算范数）
+  const results = annIndex.search(queryVector, topK * 2, scoreThreshold);
 
-  for (const [chunkId, { vector, chunk }] of vectorIndex) {
-    // 版本管理：跳过已废止的 chunk
-    if (expiredSourceIds.has(chunk.sourceId)) {
-      continue;
-    }
+  // 过滤已废止的 chunk，取 top-k
+  const filtered = results
+    .filter((r) => !expiredSourceIds.has(r.chunk.sourceId))
+    .slice(0, topK);
 
-    const score = cosineSimilarity(queryVector, vector);
-    if (score >= scoreThreshold) {
-      scores.push({ chunkId, score });
-    }
-  }
-
-  // 按相似度降序排列，取 top-k
-  scores.sort((a, b) => b.score - a.score);
-  const topResults = scores.slice(0, topK);
-
-  return topResults.map(({ chunkId, score }) => ({
-    chunk: vectorIndex!.get(chunkId)!.chunk,
-    score,
-  }));
+  return filtered.map(({ chunkId, chunk, score }) => ({ chunkId, chunk, score }));
 }
 
 // ── 统计 ─────────────────────────────────────────────
