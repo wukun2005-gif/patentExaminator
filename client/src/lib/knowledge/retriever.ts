@@ -48,8 +48,9 @@ export async function retrieve(
 
 /**
  * 将检索结果格式化为 Prompt 注入文本
+ * @param maxTokens 最大 token 预算（约 1 token ≈ 1.5 中文字符），超出时截断
  */
-export function formatRetrievedChunks(results: KnowledgeSearchResult[]): string {
+export function formatRetrievedChunks(results: KnowledgeSearchResult[], maxTokens?: number): string {
   if (results.length === 0) return "";
 
   const parts = [
@@ -58,9 +59,14 @@ export function formatRetrievedChunks(results: KnowledgeSearchResult[]): string 
     ``,
   ];
 
+  let totalChars = 0;
+  const charLimit = maxTokens ? Math.floor(maxTokens * 1.5) : Infinity;
+
   for (const result of results) {
     const { chunk, score } = result;
     const { metadata } = chunk;
+
+    // 构造此 chunk 的注入文本
     const sourceLabel = metadata.sectionId
       ? `${metadata.fileName} ${metadata.sectionId}`
       : metadata.articleId
@@ -69,20 +75,30 @@ export function formatRetrievedChunks(results: KnowledgeSearchResult[]): string 
           ? `${metadata.fileName} - ${metadata.sheetName} 行${metadata.rowIndex}`
           : metadata.fileName;
 
-    parts.push(`> 【来源：${sourceLabel} · 相似度: ${score.toFixed(2)}】`);
+    const chunkLines: string[] = [];
+    chunkLines.push(`> 【来源：${sourceLabel} · 相似度: ${score.toFixed(2)}】`);
 
-    // 表格类型保留格式
     if (metadata.mediaType === "table") {
-      const lines = chunk.text.split(" | ");
-      for (const line of lines) {
-        parts.push(`> ${line}`);
+      for (const line of chunk.text.split(" | ")) {
+        chunkLines.push(`> ${line}`);
       }
     } else {
       for (const line of chunk.text.split("\n")) {
-        parts.push(`> ${line}`);
+        chunkLines.push(`> ${line}`);
       }
     }
-    parts.push(``);
+    chunkLines.push(``);
+
+    const chunkText = chunkLines.join("\n");
+
+    // 检查是否超出 token 预算
+    if (totalChars + chunkText.length > charLimit) {
+      log(`Token budget reached: ${totalChars}/${charLimit} chars, skipping remaining chunks`);
+      break;
+    }
+
+    parts.push(chunkText);
+    totalChars += chunkText.length;
   }
 
   return parts.join("\n");

@@ -280,6 +280,7 @@ export function KnowledgeConfigPanel() {
   };
 
   const handleClearAll = async () => {
+    if (!window.confirm("确定要清空全部知识库数据吗？此操作不可恢复，所有切片和向量数据将被删除。")) return;
     await clearAllKnowledge();
     invalidateVectorIndex();
     await refresh();
@@ -312,6 +313,9 @@ export function KnowledgeConfigPanel() {
               name="embedProvider"
               checked={config.embedProvider === "local"}
               onChange={() => {
+                if (stats.embeddedCount > 0 && config.embedProvider !== "local") {
+                  if (!window.confirm(`切换 embedding 模型后，已有的 ${stats.embeddedCount} 个向量需要全部重新生成。确定切换吗？`)) return;
+                }
                 const { remoteProviderId: _rp, remoteModelId: _rm, ...rest } = config;
                 void _rp; void _rm;
                 setConfig({ ...rest, embedProvider: "local" });
@@ -324,7 +328,12 @@ export function KnowledgeConfigPanel() {
               type="radio"
               name="embedProvider"
               checked={config.embedProvider === "remote"}
-              onChange={() => setConfig({ ...config, embedProvider: "remote" })}
+              onChange={() => {
+                if (stats.embeddedCount > 0 && config.embedProvider !== "remote") {
+                  if (!window.confirm(`切换 embedding 模型后，已有的 ${stats.embeddedCount} 个向量需要全部重新生成。确定切换吗？`)) return;
+                }
+                setConfig({ ...config, embedProvider: "remote" });
+              }}
             />
             远程 API（复用已配置的 Provider）
           </label>

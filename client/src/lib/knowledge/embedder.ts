@@ -106,7 +106,12 @@ export async function embedTexts(
   if (config.type === "local") {
     return embedLocal(texts);
   } else {
-    return embedRemote(texts, config);
+    try {
+      return await embedRemote(texts, config);
+    } catch (err) {
+      log(`Remote embedding failed, falling back to local: ${err}`);
+      return embedLocal(texts);
+    }
   }
 }
 
@@ -119,6 +124,9 @@ export async function embedSingle(
 }
 
 // ── 批量向量化 chunk ──────────────────────────────────
+
+// Embedding 缓存：chunk text hash → vector
+const embeddingCache = new Map<string, number[]>();
 
 export async function embedChunks(
   chunks: KnowledgeChunk[],
@@ -134,23 +142,46 @@ export async function embedChunks(
   const vectors: KnowledgeVector[] = [];
   const now = new Date().toISOString();
 
-  for (let i = 0; i < chunks.length; i += batchSize) {
-    const batch = chunks.slice(i, i + batchSize);
+  // 分离已缓存和未缓存的 chunk
+  const { hashChunkText } = await import("./normalizers");
+  const uncachedChunks: KnowledgeChunk[] = [];
+  const uncachedHashes: string[] = [];
+
+  for (const chunk of chunks) {
+    const hash = await hashChunkText(chunk.text);
+    const cached = embeddingCache.get(hash);
+    if (cached) {
+      vectors.push({ chunkId: chunk.id, vector: cached, modelId, createdAt: now });
+    } else {
+      uncachedChunks.push(chunk);
+      uncachedHashes.push(hash);
+    }
+  }
+
+  if (uncachedChunks.length > 0) {
+    log(`Embedding: ${vectors.length} cached, ${uncachedChunks.length} to compute`);
+  }
+
+  for (let i = 0; i < uncachedChunks.length; i += batchSize) {
+    const batch = uncachedChunks.slice(i, i + batchSize);
+    const batchHashes = uncachedHashes.slice(i, i + batchSize);
     const texts = batch.map((c) => c.text);
     const embeddings = await embedTexts(texts, config);
 
     for (let j = 0; j < batch.length; j++) {
       const chunk = batch[j]!;
       const embedding = embeddings[j]!;
+      const hash = batchHashes[j]!;
       vectors.push({
         chunkId: chunk.id,
         vector: embedding,
         modelId,
         createdAt: now,
       });
+      embeddingCache.set(hash, embedding); // 缓存
     }
 
-    onProgress?.(Math.min(i + batchSize, chunks.length), chunks.length);
+    onProgress?.(Math.min(i + batchSize, uncachedChunks.length), uncachedChunks.length);
   }
 
   log(`Embedded ${vectors.length} chunks with model=${modelId}`);
