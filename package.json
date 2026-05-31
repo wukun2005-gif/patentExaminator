@@ -40,6 +40,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.0.0",
+    "@types/supertest": "^7.2.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "concurrently": "^9.0.0",
@@ -50,6 +51,7 @@
     "happy-dom": "^15.0.0",
     "pdfkit": "^0.18.0",
     "prettier": "^3.3.0",
+    "supertest": "^7.2.2",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   },
