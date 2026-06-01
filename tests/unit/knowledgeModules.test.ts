@@ -3,10 +3,11 @@
  *
  * Covers:
  * - bm25Search: TF-IDF search, empty index, Chinese text
- * - chunkers: strategy selection, content chunking, edge cases
  * - hybridSearch: search interface (mocked dependencies)
  *
  * Strategy: test pure functions directly, mock IndexedDB and external deps.
+ *
+ * Note: chunkers tests removed — chunkers.ts deleted in B-021, chunking moved to server.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { KnowledgeChunk } from "@shared/types/knowledge";
@@ -97,57 +98,6 @@ describe("BM25 Search", () => {
 
     invalidateBM25Index();
     expect(searchBM25("test", 5)).toEqual([]);
-  });
-});
-
-// ──────────────────────────────────────────────────
-// 2. Chunkers tests
-// ──────────────────────────────────────────────────
-
-describe("Chunkers", () => {
-  it("selectChunkStrategy returns a valid strategy", async () => {
-    const { selectChunkStrategy } = await import("@client/lib/knowledge/chunkers");
-    const strategy = selectChunkStrategy("text/plain");
-    expect(typeof strategy).toBe("string");
-    expect(strategy.length).toBeGreaterThan(0);
-  });
-
-  it("chunkContent produces chunks from text", async () => {
-    const { chunkContent } = await import("@client/lib/knowledge/chunkers");
-    const text = "第一章 总则\n这是第一章的内容。\n\n第二章 详细说明\n这是第二章的内容，包含更多技术细节。";
-
-    const chunks = chunkContent(
-      { text, mediaType: "text/plain" },
-      "test.txt"
-    );
-
-    expect(chunks.length).toBeGreaterThan(0);
-    for (const chunk of chunks) {
-      expect(chunk.text.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("chunkContent handles empty input", async () => {
-    const { chunkContent } = await import("@client/lib/knowledge/chunkers");
-    const chunks = chunkContent(
-      { text: "", mediaType: "text/plain" },
-      "empty.txt"
-    );
-    expect(chunks).toEqual([]);
-  });
-
-  it("chunkContent handles very long text", async () => {
-    const { chunkContent } = await import("@client/lib/knowledge/chunkers");
-    const longText = "A".repeat(100000);
-
-    const chunks = chunkContent(
-      { text: longText, mediaType: "text/plain" },
-      "long.txt"
-    );
-
-    expect(chunks.length).toBeGreaterThanOrEqual(1);
-    const totalText = chunks.map(c => c.text).join("");
-    expect(totalText.length).toBeGreaterThan(0);
   });
 });
 

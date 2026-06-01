@@ -8,6 +8,7 @@
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|---------|
+| v0.1.0-r36 | 2026-06-01 | B-021: 客户端知识库死代码清理 — 删除 chunkers.ts/extractors.ts/cozeCompat.ts/evalSet.ts/faithfulness.ts（5 个死代码文件），清理 normalizers.ts 中未使用函数（cleanText/normalizeLegalReference/normalizeDate/normalizeWidth/normalizeTraditional/normalizeText/detectLanguage/hashChunkText），保留活跃函数 | chunkers.ts, extractors.ts, cozeCompat.ts, evalSet.ts, faithfulness.ts, normalizers.ts, index.ts |
 | v0.1.0-r35 | 2026-06-01 | B-033: 知识库 embedding 批处理优化 — batch_size 20→100、断点续传（text_hash + findChunksByHashes）、短 chunk 过滤（<50字）、长度排序；knowledgeDb.ts 增量升级 text_hash 列 + 索引 | knowledgeDb.ts, knowledge.ts |
 | v0.1.0-r34 | 2026-05-27 | nf-7: AI 辅助检索两步式流程 — 新增 extract-search-terms/search-with-terms 端点、SearchSession IndexedDB 存储（v8→v9）、searchSessionRepo、ReferenceSearchPanel 两步 UI（可编辑检索词 + 逐 Provider 结果计数 + 持久化） | search.ts, indexedDb.ts, searchSessionRepo.ts, referencesSlice.ts, AgentClient.ts, ReferenceSearchPanel.tsx, app.css, api.ts, domain.ts, contracts.ts |
 | v0.1.0-r33 | 2026-05-27 | B25: 默认 agent 分配去硬编码 — settingsRepo.ts 中 8 个 agent 默认配置的 providerOrder 从 ["gemini"] 改为 []、modelId 改为 ""，由 AgentClient 从首个 enabled provider 动态获取 | settingsRepo.ts |
@@ -1383,6 +1384,7 @@ Supabase（后端服务）
 
 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|---------|---------|------------|
+| 2026-06-01 | fix(B-021): 客户端知识库死代码清理 — 删除 5 个死代码文件（chunkers.ts/extractors.ts/cozeCompat.ts/evalSet.ts/faithfulness.ts），清理 normalizers.ts 中 8 个未使用函数，保留活跃函数（isNoise/isGarbled/classifyDocument/expandCrossLanguage/expandQuery 等） | `client/src/lib/knowledge/` 8 个文件 | 待提交 |
 | 2026-06-01 | feat(B-033): 知识库 embedding 批处理优化 — batch_size 20→100、断点续传（text_hash + findChunksByHashes）、短 chunk 过滤（<50字）、长度排序减少 padding；11 文件上传耗时从 15-20 分钟降到 ~12 分钟 | `server/src/lib/knowledgeDb.ts`、`server/src/routes/knowledge.ts` | 待提交 |
 | 2026-05-31 | feat(B-019): 反馈按钮 UI 接入 — ClaimChartTable/NoveltyComparisonTable/InventiveStepPanel 新增 FeedbackButtons 列，数据通过 feedbackRepo 持久化到 localStorage | `ClaimChartTable.tsx`、`NoveltyComparisonTable.tsx`、`InventiveStepPanel.tsx` | 待提交 |
 | 2026-05-31 | feat(B-018-2): RAG 增强 — 新增 annIndex.ts/bm25Search.ts/hybridSearch.ts/reranker.ts/faithfulness.ts/evalSet.ts/knowledgeGraph.ts/cozeCompat.ts；retriever 集成混合检索+重排序+多语言扩展+知识图谱扩展+父文档检索；promptInjector 添加分Agent注入格式+注入量控制+主动注入+审计日志；knowledgeRepo 添加导入导出/备份恢复/冲突检测/存储估算/文档摘要/分页；KnowledgeConfigPanel 添加远程 embedding 配置/清空确认/模型切换提示/统计面板/知识库浏览器/Chunk 预览 | `client/src/lib/knowledge/` 12 个模块、`KnowledgeConfigPanel.tsx`、`shared/src/types/knowledge.ts` | 待提交 |

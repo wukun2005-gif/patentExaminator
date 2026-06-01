@@ -143,20 +143,8 @@ async function testPngValidity() {
   assert(buf[0] === 0x89 && buf[1] === 0x50, "Not valid PNG");
 }
 
-// ── T-RAG-009: 切片引擎代码验证 ─────────────────────
-
-async function testChunkerCodeExists() {
-  const chunkerPath = path.join(CLIENT_SRC, "lib", "knowledge", "chunkers.ts");
-  assert(fileExists(chunkerPath), "chunkers.ts not found");
-  const code = readFile(chunkerPath);
-  assert(code.includes("chunkBySection"), "Missing chunkBySection");
-  assert(code.includes("chunkByArticle"), "Missing chunkByArticle");
-  assert(code.includes("chunkByHeading"), "Missing chunkByHeading");
-  assert(code.includes("chunkByJsonKey"), "Missing chunkByJsonKey");
-  assert(code.includes("chunkByTableRow"), "Missing chunkByTableRow");
-  assert(code.includes("chunkImageOcr"), "Missing chunkImageOcr");
-  assert(code.includes("selectChunkStrategy"), "Missing selectChunkStrategy");
-}
+// ── T-RAG-009: 切片引擎代码验证（已移至服务端）─────────
+// chunkers.ts 已删除，切片逻辑已移至 server/src/routes/knowledge.ts
 
 // ── T-RAG-010: 向量化引擎代码验证 ────────────────────
 
@@ -261,36 +249,16 @@ async function testNormalizerCodeExists() {
   const normalizerPath = path.join(CLIENT_SRC, "lib", "knowledge", "normalizers.ts");
   assert(fileExists(normalizerPath), "normalizers.ts not found");
   const code = readFile(normalizerPath);
-  assert(code.includes("cleanText"), "Missing cleanText");
-  assert(code.includes("normalizeLegalReference"), "Missing normalizeLegalReference");
-  assert(code.includes("normalizeDate"), "Missing normalizeDate");
-  assert(code.includes("normalizeWidth"), "Missing normalizeWidth");
   assert(code.includes("isNoise"), "Missing isNoise");
   assert(code.includes("isGarbled"), "Missing isGarbled");
   assert(code.includes("classifyDocument"), "Missing classifyDocument");
-  assert(code.includes("hashChunkText"), "Missing hashChunkText");
 }
 
-// ── T-RAG-019: chunkers.ts 预处理验证 ─────────────────
+// ── T-RAG-019: 切片预处理验证（已移至服务端）──────────
+// chunkers.ts 已删除，切片逻辑已移至 server/src/routes/knowledge.ts
 
-async function testChunkerPreprocessing() {
-  const chunkerPath = path.join(CLIENT_SRC, "lib", "knowledge", "chunkers.ts");
-  const code = readFile(chunkerPath);
-  assert(code.includes("filterNoise"), "Missing filterNoise");
-  assert(code.includes("enrichContext"), "Missing enrichContext");
-  assert(code.includes("addOverlap"), "Missing addOverlap");
-  assert(code.includes("classifyDocument"), "Missing classifyDocument import");
-  assert(code.includes("isNoise"), "Missing isNoise import");
-}
-
-// ── T-RAG-020: extractors.ts 规范化验证 ───────────────
-
-async function testExtractorNormalization() {
-  const extractorPath = path.join(CLIENT_SRC, "lib", "knowledge", "extractors.ts");
-  const code = readFile(extractorPath);
-  assert(code.includes("normalizeText"), "Missing normalizeText import");
-  assert(code.includes("normalizeText(result.text)") || code.includes("normalizeText(text)"), "normalizeText not applied");
-}
+// ── T-RAG-020: 规范化验证（已移至服务端）────────────────
+// extractors.ts 已删除，规范化逻辑已移至 server/src/routes/knowledge.ts
 
 // ── T-RAG-021: KnowledgeSource fileHash 验证 ──────────
 
@@ -386,7 +354,7 @@ async function main() {
   await runTest("T-RAG-008: PNG 有效性", testPngValidity);
 
   console.log("\n── 代码结构验证 ──");
-  await runTest("T-RAG-009: 切片引擎代码", testChunkerCodeExists);
+  // T-RAG-009: 切片引擎已移至服务端
   await runTest("T-RAG-010: 向量化引擎代码", testEmbedderCodeExists);
   await runTest("T-RAG-011: 检索引擎代码", testRetrieverCodeExists);
   await runTest("T-RAG-012: Prompt 注入代码", testPromptInjectorCodeExists);
@@ -397,9 +365,7 @@ async function main() {
   await runTest("T-RAG-017: 知识库 Repository", testKnowledgeRepo);
 
   console.log("\n── 预处理模块验证 ──");
-  await runTest("T-RAG-018: normalizers.ts 存在且包含清洗函数", testNormalizerCodeExists);
-  await runTest("T-RAG-019: chunkers.ts 包含噪声过滤和重叠窗口", testChunkerPreprocessing);
-  await runTest("T-RAG-020: extractors.ts 集成 normalizeText", testExtractorNormalization);
+  await runTest("T-RAG-018: normalizers.ts 存在且包含噪声过滤函数", testNormalizerCodeExists);
   await runTest("T-RAG-021: KnowledgeSource 包含 fileHash 字段", testFileHashField);
   await runTest("T-RAG-022: ChunkMetadata 包含 documentCategory 字段", testDocumentCategoryField);
 

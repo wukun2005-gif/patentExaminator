@@ -2,65 +2,16 @@
  * Unit tests for client/src/lib/knowledge/* modules.
  *
  * Covers:
- * - chunkers: selectChunkStrategy, chunkBySection, chunkByArticle, chunkByJsonKey, chunkTableRow
- * - embedder: cosineSimilarity, resolveMaxTokens
+ * - embedder: cosineSimilarity
  * - vectorStore: addVector, searchVectors, cosineSimilarity
  * - retriever: formatRetrievedChunks
  * - promptInjector: buildKnowledgeContext
  *
  * Test strategy: pure function tests, no IndexedDB or network calls.
+ *
+ * Note: chunkers tests removed — chunkers.ts deleted in B-021, chunking moved to server.
  */
 import { describe, it, expect } from "vitest";
-
-// ──────────────────────────────────────────────────
-// 1. chunkers tests
-// ──────────────────────────────────────────────────
-
-describe("chunkers", () => {
-  describe("selectChunkStrategy", () => {
-    it("returns 'table-row' for table media type", async () => {
-      const { selectChunkStrategy } = await import("@client/lib/knowledge/chunkers");
-      expect(selectChunkStrategy("data.xlsx", "table")).toBe("table-row");
-    });
-
-    it("returns 'image-ocr' for image media type", async () => {
-      const { selectChunkStrategy } = await import("@client/lib/knowledge/chunkers");
-      expect(selectChunkStrategy("image.png", "image")).toBe("image-ocr");
-    });
-
-    it("returns 'section' for 审查指南 files", async () => {
-      const { selectChunkStrategy } = await import("@client/lib/knowledge/chunkers");
-      expect(selectChunkStrategy("审查指南.pdf", "text")).toBe("section");
-    });
-
-    it("returns 'article' for 专利法 files", async () => {
-      const { selectChunkStrategy } = await import("@client/lib/knowledge/chunkers");
-      expect(selectChunkStrategy("专利法.txt", "text")).toBe("article");
-    });
-
-    it("returns 'json-key' for JSON files", async () => {
-      const { selectChunkStrategy } = await import("@client/lib/knowledge/chunkers");
-      expect(selectChunkStrategy("data.json", "text")).toBe("json-key");
-    });
-
-    it("returns 'heading' for other text files", async () => {
-      const { selectChunkStrategy } = await import("@client/lib/knowledge/chunkers");
-      expect(selectChunkStrategy("document.md", "text")).toBe("heading");
-    });
-  });
-
-  describe("chunkContent", () => {
-    it("chunks text content by heading strategy", async () => {
-      const { chunkContent } = await import("@client/lib/knowledge/chunkers");
-      const extraction = {
-        text: "## 第一章 总则\n\n这是第一章的内容，包含了一些关于专利审查的基本规定和原则。\n\n## 第二章 新颖性\n\n这是第二章的内容，详细说明了新颖性的判断标准和方法。",
-        mediaType: "text" as const
-      };
-      const chunks = chunkContent(extraction, "test.md");
-      expect(chunks.length).toBeGreaterThan(0);
-    });
-  });
-});
 
 // ──────────────────────────────────────────────────
 // 2. embedder tests
