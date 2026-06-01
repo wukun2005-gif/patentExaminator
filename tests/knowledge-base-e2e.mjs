@@ -244,14 +244,15 @@ async function testKnowledgeRepo() {
 }
 
 // ── T-RAG-018: normalizers.ts 验证 ────────────────────
+// MIGRATE-007: 文本预处理函数已迁移到服务端，客户端仅保留查询扩展
 
 async function testNormalizerCodeExists() {
   const normalizerPath = path.join(CLIENT_SRC, "lib", "knowledge", "normalizers.ts");
   assert(fileExists(normalizerPath), "normalizers.ts not found");
   const code = readFile(normalizerPath);
-  assert(code.includes("isNoise"), "Missing isNoise");
-  assert(code.includes("isGarbled"), "Missing isGarbled");
-  assert(code.includes("classifyDocument"), "Missing classifyDocument");
+  assert(code.includes("expandCrossLanguage"), "Missing expandCrossLanguage");
+  assert(code.includes("expandQuery"), "Missing expandQuery");
+  assert(code.includes("hashChunkText"), "Missing hashChunkText");
 }
 
 // ── T-RAG-019: 切片预处理验证（已移至服务端）──────────
