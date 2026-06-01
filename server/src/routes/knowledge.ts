@@ -43,17 +43,13 @@ export async function getEmbedder() {
   logger.info("Loading embedding model...");
   try {
     const { pipeline } = await import("@xenova/transformers");
-    const MODEL_ID = process.env.EMBEDDING_MODEL || "Xenova/bge-large-zh-v1.5";
-    logger.info(`Loading embedding model: ${MODEL_ID}`);
-    const pipe = await pipeline("feature-extraction", MODEL_ID, {
+    const pipe = await pipeline("feature-extraction", "Xenova/bge-large-zh-v1.5", {
       quantized: true,
     });
     embedder = {
       embed: async (texts: string[]) => {
-        // 批量处理：将所有文本一次性传入 pipeline
         const truncated = texts.map((t) => t.length > 500 ? t.slice(0, 500) : t);
         const output = await pipe(truncated, { pooling: "mean", normalize: true });
-        // output.data 是 Float32Array，需要按维度切分
         const dims = (output as { dims?: number[] }).dims;
         const dim = dims ? dims[dims.length - 1] : 1024;
         const flat = Array.from((output as { data: Float32Array }).data);
@@ -63,7 +59,7 @@ export async function getEmbedder() {
         }
         return results;
       },
-      modelId: MODEL_ID,
+      modelId: "Xenova/bge-large-zh-v1.5",
     };
     logger.info("Embedding model loaded");
     return embedder;
@@ -379,7 +375,7 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
       if (!embedder) {
         sendEvent({ step: "loading-model", stepNum: 5, totalSteps: TOTAL_STEPS, message: "首次使用，正在加载 AI 模型（约 400MB）..." });
       }
-      sendEvent({ step: "embedding", stepNum: 5, totalSteps: TOTAL_STEPS, message: `向量化 ${chunks.length} 条知识（模型: ${process.env.EMBEDDING_MODEL || "bge-large-zh"}）...`, total: chunks.length });
+      sendEvent({ step: "embedding", stepNum: 5, totalSteps: TOTAL_STEPS, message: `向量化 ${chunks.length} 条知识...`, total: chunks.length });
       const emb = await getEmbedder();
       const batchSize = 20; // 批量处理，显著提升速度
 
