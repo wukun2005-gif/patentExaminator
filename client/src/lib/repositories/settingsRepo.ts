@@ -78,7 +78,7 @@ const DEFAULT_SETTINGS: AppSettings = {
       enabled: true
     }
   ],
-  persistKeysEncrypted: false,
+  // B-027: persistKeysEncrypted 已删除（从未有实现）
   enableProviderFallback: true
 };
 

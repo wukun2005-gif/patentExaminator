@@ -66,7 +66,7 @@ export interface AppSettings {
   searchProviders: SearchProviderConnection[];
   sanitizeRules?: Array<{ pattern: string; replace: string; note?: string }>;
   ocrQualityThresholds?: { good: number; poor: number };
-  persistKeysEncrypted: boolean;
+  // B-027: persistKeysEncrypted 已删除（从未有实现）
   enableProviderFallback?: boolean;
   providerErrorMessages?: ProviderErrorMessage[];
   knowledge?: KnowledgeConfig;

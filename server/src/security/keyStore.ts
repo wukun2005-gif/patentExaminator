@@ -1,7 +1,7 @@
 /**
  * In-memory key store for API keys.
  * Keys are stored in memory only by default.
- * Optional AES-256-GCM persistence can be enabled via persistKeysEncrypted setting.
+ * B-027: persistKeysEncrypted 注释已删除（从未有实现）
  */
 
 const keyStore = new Map<string, string>();
