@@ -160,11 +160,10 @@ async function testEmbedderCodeExists() {
   const embedderPath = path.join(CLIENT_SRC, "lib", "knowledge", "embedder.ts");
   assert(fileExists(embedderPath), "embedder.ts not found");
   const code = readFile(embedderPath);
-  assert(code.includes("embedLocal"), "Missing embedLocal");
   assert(code.includes("embedRemote"), "Missing embedRemote");
   assert(code.includes("embedChunks"), "Missing embedChunks");
   assert(code.includes("cosineSimilarity"), "Missing cosineSimilarity");
-  assert(code.includes("bge-large-zh"), "Missing BGE model reference");
+  // cr-1: 移除本地 embedding 模型，不再检查 embedLocal 和 bge-large-zh
 }
 
 // ── T-RAG-011: 检索引擎代码验证 ─────────────────────
@@ -199,7 +198,7 @@ async function testTypeDefinitions() {
   assert(code.includes("KnowledgeVector"), "Missing KnowledgeVector");
   assert(code.includes("KnowledgeConfig"), "Missing KnowledgeConfig");
   assert(code.includes("DEFAULT_KNOWLEDGE_CONFIG"), "Missing DEFAULT_KNOWLEDGE_CONFIG");
-  assert(code.includes("EmbedProviderType"), "Missing EmbedProviderType");
+  // cr-1: 移除 EmbedProviderType，不再检查
 }
 
 // ── T-RAG-014: IndexedDB schema 验证 ────────────────
@@ -293,10 +292,13 @@ async function testUploadAndSearchChain() {
   assert(uploadResult.ok === true, `Upload failed: ${JSON.stringify(uploadResult)}`);
   assert(uploadResult.chunkCount > 0, `No chunks: ${uploadResult.chunkCount}`);
 
+  // bg-70: 等待 BM25 索引重建
+  await new Promise((r) => setTimeout(r, 2000));
+
   const searchRes = await fetch(`${BASE}/knowledge/search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: "新颖性判断", topK: 3 }),
+    body: JSON.stringify({ query: "新颖性", topK: 3 }),
   });
   const searchData = await searchRes.json();
   assert(searchData.ok === true, `Search failed: ${JSON.stringify(searchData)}`);

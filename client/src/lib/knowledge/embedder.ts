@@ -1,7 +1,7 @@
 /**
- * 知识库向量化引擎 — 本地 Transformers.js + 远程 API
+ * 知识库向量化引擎 — 纯远程 API（cr-1: 移除本地 Embedding 模型）
  */
-import type { KnowledgeChunk, KnowledgeVector, EmbedProviderType } from "@shared/types/knowledge";
+import type { KnowledgeChunk, KnowledgeVector } from "@shared/types/knowledge";
 import { createLogger } from "../logger";
 
 const log = createLogger("KnowledgeEmbedder");
@@ -14,58 +14,12 @@ export interface EmbedResult {
 }
 
 export interface EmbedderConfig {
-  type: EmbedProviderType;
   /** 远程 embedding API 的基础 URL */
   remoteBaseUrl?: string;
   /** 远程 embedding API 的 API Key */
   remoteApiKey?: string;
   /** 远程 embedding 模型 ID */
   remoteModelId?: string;
-}
-
-// ── 本地 Embedder（Transformers.js + BGE） ─────────────
-
-let localPipeline: unknown = null;
-let localModelId = "";
-
-const DEFAULT_LOCAL_MODEL = "Xenova/bge-large-zh-v1.5";
-
-async function getLocalPipeline(modelId: string = DEFAULT_LOCAL_MODEL) {
-  if (localPipeline && localModelId === modelId) {
-    return localPipeline;
-  }
-
-  log(`Loading local embedding model: ${modelId}`);
-  const { pipeline } = await import("@huggingface/transformers");
-  localPipeline = await pipeline("feature-extraction", modelId, {
-    dtype: "fp32",
-    device: "wasm",
-  });
-  localModelId = modelId;
-  log(`Local model loaded: ${modelId}`);
-  return localPipeline;
-}
-
-/** 截断文本以适配 BGE 模型 512 token 限制（中文约 1.5 字符/token） */
-function truncateForEmbedding(text: string, maxTokens: number = 512): string {
-  const maxChars = Math.floor(maxTokens * 1.5); // ~750 字符
-  if (text.length <= maxChars) return text;
-  return text.slice(0, maxChars);
-}
-
-async function embedLocal(texts: string[]): Promise<number[][]> {
-  const pipe = (await getLocalPipeline()) as (
-    text: string,
-    opts: { pooling: string; normalize: boolean }
-  ) => Promise<{ data: Float32Array }>;
-
-  const results: number[][] = [];
-  for (const text of texts) {
-    const truncated = truncateForEmbedding(text);
-    const output = await pipe(truncated, { pooling: "mean", normalize: true });
-    results.push(Array.from(output.data));
-  }
-  return results;
 }
 
 // ── 远程 Embedder（OpenAI-compatible API） ──────────────
@@ -109,18 +63,13 @@ export async function embedTexts(
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
 
-  log(`Embedding ${texts.length} texts (type=${config.type})`);
+  log(`Embedding ${texts.length} texts (remote)`);
 
-  if (config.type === "local") {
-    return embedLocal(texts);
-  } else {
-    try {
-      return await embedRemote(texts, config);
-    } catch (err) {
-      log(`Remote embedding failed, falling back to local: ${err}`);
-      return embedLocal(texts);
-    }
+  if (!config.remoteBaseUrl || !config.remoteApiKey) {
+    throw new Error("Remote embedding API not configured. Please configure Embedding Provider in settings.");
   }
+
+  return await embedRemote(texts, config);
 }
 
 export async function embedSingle(
@@ -142,10 +91,7 @@ export async function embedChunks(
   batchSize: number = 10,
   onProgress?: (done: number, total: number) => void
 ): Promise<KnowledgeVector[]> {
-  const modelId =
-    config.type === "local"
-      ? DEFAULT_LOCAL_MODEL
-      : config.remoteModelId ?? "text-embedding-3-small";
+  const modelId = config.remoteModelId ?? "text-embedding-3-small";
 
   const vectors: KnowledgeVector[] = [];
   const now = new Date().toISOString();

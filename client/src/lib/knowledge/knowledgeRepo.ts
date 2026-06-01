@@ -38,6 +38,12 @@ export async function getChunksPaginated(
   };
 }
 
+/** 获取所有 chunk（用于 BM25 检索） */
+export async function getAllChunks(): Promise<KnowledgeChunk[]> {
+  const db = await getDB();
+  return db.getAll("knowledgeChunks");
+}
+
 export async function deleteSource(id: string): Promise<void> {
   const db = await getDB();
   // 删除关联的 chunks 和 vectors

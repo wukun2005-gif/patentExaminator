@@ -1,12 +1,12 @@
 /**
  * 混合检索 — 语义检索 + BM25 关键词检索，RRF 融合排序
  */
-import type { KnowledgeSearchResult, KnowledgeConfig } from "@shared/types/knowledge";
+import type { KnowledgeSearchResult, KnowledgeConfig, KnowledgeChunk } from "@shared/types/knowledge";
 import type { EmbedderConfig } from "./embedder";
 import { embedSingle } from "./embedder";
 import { searchKnowledge } from "./vectorStore";
 import { searchBM25 } from "./bm25Search";
-import { getKnowledgeStats } from "./knowledgeRepo";
+import { getKnowledgeStats, getAllChunks } from "./knowledgeRepo";
 import { expandQuery } from "./normalizers";
 import { createLogger } from "../logger";
 
@@ -53,23 +53,43 @@ export async function hybridSearch(
   filters?: SearchFilters
 ): Promise<KnowledgeSearchResult[]> {
   const stats = await getKnowledgeStats();
-  if (!config.enabled || stats.chunkCount === 0 || stats.embeddedCount === 0) {
+  if (!config.enabled || stats.chunkCount === 0) {
     return [];
   }
 
   const expandedQuery = expandQuery(query);
 
-  // 语义检索
-  const queryVector = await embedSingle(expandedQuery, embedConfig);
-  const semanticResults = await searchKnowledge(queryVector, topK * 2, config.scoreThreshold);
-  const semanticRanking = semanticResults.map((r) => ({ id: r.chunk.id, score: r.score }));
+  // bg-70: 语义检索 — embedding 失败时降级到纯 BM25
+  let semanticRanking: Array<{ id: string; score: number }> = [];
+  let semanticResults: KnowledgeSearchResult[] = [];
+
+  // cr-1: 仅在配置了远程 embedding API 且有 embedding 数据时进行语义检索
+  if (embedConfig.remoteBaseUrl && embedConfig.remoteApiKey && stats.embeddedCount > 0) {
+    try {
+      const queryVector = await embedSingle(expandedQuery, embedConfig);
+      semanticResults = await searchKnowledge(queryVector, topK * 2, config.scoreThreshold);
+      semanticRanking = semanticResults.map((r) => ({ id: r.chunk.id, score: r.score }));
+    } catch (err) {
+      // bg-70: Embedding 失败时降级到纯 BM25，不抛出异常
+      log(`Embedding failed, falling back to pure BM25: ${err}`);
+      semanticResults = [];
+      semanticRanking = [];
+    }
+  } else {
+    log("No embedding provider configured or no embedded data, using pure BM25 search");
+  }
 
   // BM25 检索
   const bm25Results = searchBM25(expandedQuery, topK * 2);
   const bm25Ranking = bm25Results.map((r) => ({ id: r.id, score: r.score }));
 
-  // RRF 融合
-  const fusedRanking = reciprocalRankFusion([semanticRanking, bm25Ranking]);
+  // RRF 融合（如果只有 BM25，则直接使用 BM25 结果）
+  const rankings = [semanticRanking, bm25Ranking].filter((r) => r.length > 0);
+  const fusedRanking = rankings.length > 0 ? reciprocalRankFusion(rankings) : [];
+
+  // 构建 chunkId → chunk 映射（用于 BM25 结果）
+  const allChunks = getAllChunks();
+  const chunkMap = new Map<string, KnowledgeChunk>(allChunks.map((c) => [c.id, c]));
 
   // 取 top-K 并映射回 KnowledgeSearchResult，应用元数据过滤
   const semanticMap = new Map(semanticResults.map((r) => [r.chunk.id, r]));
@@ -77,17 +97,22 @@ export async function hybridSearch(
 
   for (const { id } of fusedRanking) {
     if (results.length >= topK) break;
+    // 优先使用语义检索结果（如果有的话），否则使用 BM25 结果
     const semanticResult = semanticMap.get(id);
-    if (!semanticResult) continue;
+    const chunk = semanticResult?.chunk ?? chunkMap.get(id);
+
+    if (!chunk) continue;
 
     // 元数据过滤
-    if (filters?.documentCategory && semanticResult.chunk.metadata.documentCategory !== filters.documentCategory) continue;
-    if (filters?.mediaType && semanticResult.chunk.metadata.mediaType !== filters.mediaType) continue;
-    if (filters?.sourceId && semanticResult.chunk.sourceId !== filters.sourceId) continue;
+    if (filters?.documentCategory && chunk.metadata.documentCategory !== filters.documentCategory) continue;
+    if (filters?.mediaType && chunk.metadata.mediaType !== filters.mediaType) continue;
+    if (filters?.sourceId && chunk.sourceId !== filters.sourceId) continue;
     // 图片过滤：默认包含，设为 false 时排除
-    if (filters?.includeImages === false && semanticResult.chunk.metadata.mediaType === "image") continue;
+    if (filters?.includeImages === false && chunk.metadata.mediaType === "image") continue;
 
-    results.push(semanticResult);
+    // 使用语义检索的分数（如果有的话），否则使用 RRF 融合分数
+    const score = semanticResult?.score ?? (fusedRanking.find((r) => r.id === id)?.score ?? 0);
+    results.push({ chunk, score });
   }
 
   // 表格语义查询：如果有 tableQuery，额外匹配表格 chunk 的列值

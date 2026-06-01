@@ -297,11 +297,11 @@ export function KnowledgeConfigPanel() {
         <span>知识条目: {stats.chunkCount}</span>
       </div>
 
-      {/* bg-41: Embedding Provider 配置 — 有远程用远程，没有用本地 */}
+      {/* cr-1: Embedding Provider 配置 — 纯远程 API，可选 */}
       <div className="knowledge-config-section">
-        <h4>Embedding Provider</h4>
+        <h4>Embedding Provider（可选）</h4>
         <p className="knowledge-hint" style={{ marginBottom: "8px" }}>
-          配置远程 Embedding API 后自动使用，未配置时使用本地模型（BGE-large-zh，首次需下载 ~400MB）。
+          配置远程 Embedding API 后启用语义检索（hybrid search），未配置时仅使用 BM25 关键词检索。
         </p>
         {PRESET_KNOWLEDGE_PROVIDERS.filter((p) => p.providerType === "embedding").map((preset) => {
           const existing = knowledgeProviders.find(

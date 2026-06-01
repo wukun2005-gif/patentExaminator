@@ -151,14 +151,13 @@ export class AgentClient {
       const { injectKnowledge, getInjectionCitations } = await import("../lib/knowledge/promptInjector");
       const { readSettings } = await import("../lib/repositories/settingsRepo");
       const settings = await readSettings();
-      const knowledgeConfig = settings.knowledge ?? { enabled: false, embedProvider: "local" as const, topK: 5, scoreThreshold: 0.3 };
+      const knowledgeConfig = settings.knowledge ?? { enabled: false, topK: 5, scoreThreshold: 0.3 };
 
       // nf-9: 从 knowledgeProviders 获取 embedding 配置
       const embeddingProvider = settings.knowledgeProviders?.find(
         (p) => p.providerType === "embedding" && p.enabled
       );
       const embedConfig = {
-        type: knowledgeConfig.embedProvider,
         remoteBaseUrl: embeddingProvider?.baseUrl,
         remoteApiKey: embeddingProvider?.apiKeyRef,
         remoteModelId: embeddingProvider?.modelId,

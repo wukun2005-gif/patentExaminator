@@ -24,6 +24,7 @@ import {
 import { extractText, extractFromUrl } from "../lib/knowledgeExtract.js";
 import { logger } from "../lib/logger.js";
 import { localRerank } from "../lib/reranker.js";
+import { invalidateBM25Index } from "../lib/hybridSearch.js";
 
 export const knowledgeRouter = Router();
 
@@ -36,12 +37,9 @@ function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// ── Embedding（内联实现，避免大型依赖） ──────────────
+// ── Embedding（纯远程 API，cr-1: 移除本地模型） ──────────────
 
-let embedder: { embed: (texts: string[]) => Promise<number[][]>; modelId: string } | null = null;
-let embedderLoading: Promise<ReturnType<typeof getEmbedder>> | null = null;
-
-// bg-41: 远程 embedding 配置缓存
+// 远程 embedding 配置缓存
 let remoteEmbedderConfig: { baseUrl: string; apiKey: string; modelId: string } | null = null;
 let remoteEmbedder: { embed: (texts: string[]) => Promise<number[][]>; modelId: string } | null = null;
 
@@ -76,54 +74,19 @@ function createRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId
   };
 }
 
-/** bg-41: 设置远程 embedding 配置 */
+/** 设置远程 embedding 配置 */
 export function setRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId: string } | null) {
   remoteEmbedderConfig = config;
   remoteEmbedder = config ? createRemoteEmbedder(config) : null;
   logger.info(`Remote embedding ${config ? `configured: ${config.modelId}` : "disabled"}`);
 }
 
+/** 获取 embedder（仅远程，无配置时返回 null） */
 export async function getEmbedder() {
-  // bg-41: 优先使用远程 embedding
   if (remoteEmbedder) {
     return remoteEmbedder;
   }
-
-  if (embedder) return embedder;
-  // 防止并发加载：只有一个请求实际加载模型，其他请求等待
-  if (embedderLoading) return embedderLoading;
-
-  embedderLoading = (async () => {
-    logger.info("Loading local embedding model...");
-    try {
-      const { pipeline } = await import("@xenova/transformers");
-      const pipe = await pipeline("feature-extraction", "Xenova/bge-large-zh-v1.5", {
-        quantized: true,
-    });
-    embedder = {
-      embed: async (texts: string[]) => {
-        const truncated = texts.map((t) => t.length > 500 ? t.slice(0, 500) : t);
-        const output = await pipe(truncated, { pooling: "mean", normalize: true });
-        const dims = (output as { dims?: number[] }).dims;
-        const dim = dims ? dims[dims.length - 1] : 1024;
-        const flat = Array.from((output as { data: Float32Array }).data);
-        const results: number[][] = [];
-        for (let i = 0; i < truncated.length; i++) {
-          results.push(flat.slice(i * dim, (i + 1) * dim));
-        }
-        return results;
-      },
-      modelId: "Xenova/bge-large-zh-v1.5",
-    };
-    logger.info("Local embedding model loaded");
-    return embedder;
-  } catch (err) {
-    logger.error(`Failed to load local embedding model: ${err}`);
-    embedderLoading = null; // 允许重试
-    throw err;
-  }
-  })();
-  return embedderLoading;
+  return null;
 }
 
 // ── 文本预处理 ────────────────────────────────────────
@@ -439,12 +402,10 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
     addChunks(chunks);
 
     // Step 5/5: 向量化（全局队列 + 断点续传 + 批处理优化）
-    if (chunks.length > 0) {
-      if (!embedder) {
-        sendEvent({ step: "loading-model", stepNum: 5, totalSteps: TOTAL_STEPS, message: "首次使用，正在加载 AI 模型（约 400MB）..." });
-      }
+    // cr-1: 仅在配置了远程 embedding API 时进行向量化
+    const emb = await getEmbedder();
+    if (chunks.length > 0 && emb) {
       sendEvent({ step: "embedding", stepNum: 5, totalSteps: TOTAL_STEPS, message: `向量化 ${chunks.length} 条知识...`, total: chunks.length });
-      const emb = await getEmbedder();
 
       // B-033 优化：断点续传 — 跳过已有 embedding 的 chunk
       const chunkHashes = chunks.map((c) => computeTextHash(c.text));
@@ -515,10 +476,22 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
           filtered: shortChunkCount,
         });
       }
+    } else if (chunks.length > 0 && !emb) {
+      // cr-1: 未配置远程 embedding API，跳过向量化，仅存储 chunk
+      logger.info(`[Embedding] 未配置远程 embedding API，跳过向量化，仅存储 ${chunks.length} 条知识`);
+      sendEvent({ step: "embedding", stepNum: 5, totalSteps: TOTAL_STEPS, message: `未配置 Embedding API，仅存储文本（可通过 BM25 关键词检索）`, total: chunks.length, skipped: chunks.length });
+      // 标记所有 chunk 为已嵌入（避免下次重复处理）
+      for (const chunk of chunks) {
+        markChunkEmbedded(chunk.id);
+      }
     }
 
     // 完成
-    logger.info(`Uploaded ${fileName}: ${chunks.length} chunks embedded`);
+    logger.info(`Uploaded ${fileName}: ${chunks.length} chunks${emb ? " embedded" : " (no embedding, BM25 only)"}`);
+
+    // 清除 BM25 索引缓存，强制下次检索时重建
+    invalidateBM25Index();
+
     sendEvent({
       step: "done",
       ok: true,
@@ -699,8 +672,6 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
       setRemoteEmbedder(null);
     }
 
-    const emb = await getEmbedder();
-    const queryVector = (await emb.embed([query]))[0]!;
     const allChunks = getAllChunks();
     const allVectors = getAllVectors();
 
@@ -708,25 +679,37 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
     const chunkMap = new Map(allChunks.map((c) => [c.id, c]));
     const vectorMap = new Map(allVectors.map((v) => [v.chunkId, v]));
 
-    // 余弦相似度计算
-    const scores: Array<{ chunkId: string; score: number }> = [];
-    for (const [chunkId, vec] of vectorMap) {
-      const chunk = chunkMap.get(chunkId);
-      if (!chunk) continue;
+    // bg-70: 向量相似度计算 — embedding 失败时降级到纯 BM25
+    let scores: Array<{ chunkId: string; score: number }> = [];
+    const emb = await getEmbedder();
 
-      let dot = 0, normA = 0, normB = 0;
-      for (let i = 0; i < queryVector.length; i++) {
-        dot += queryVector[i]! * vec.vector[i]!;
-        normA += queryVector[i]! * queryVector[i]!;
-        normB += vec.vector[i]! * vec.vector[i]!;
+    if (emb) {
+      try {
+        const queryVector = (await emb.embed([query]))[0]!;
+        for (const [chunkId, vec] of vectorMap) {
+          const chunk = chunkMap.get(chunkId);
+          if (!chunk) continue;
+
+          let dot = 0, normA = 0, normB = 0;
+          for (let i = 0; i < queryVector.length; i++) {
+            dot += queryVector[i]! * vec.vector[i]!;
+            normA += queryVector[i]! * queryVector[i]!;
+            normB += vec.vector[i]! * vec.vector[i]!;
+          }
+          const score = dot / (Math.sqrt(normA) * Math.sqrt(normB));
+          if (score >= 0.3) {
+            scores.push({ chunkId, score });
+          }
+        }
+        scores.sort((a, b) => b.score - a.score);
+      } catch (embedErr) {
+        // bg-70: Embedding 失败时降级到纯 BM25，不返回 500
+        logger.warn(`Embedding failed, falling back to pure BM25: ${embedErr}`);
+        scores = []; // 传空 scores 给 hybridSearch，让 BM25 独立返回结果
       }
-      const score = dot / (Math.sqrt(normA) * Math.sqrt(normB));
-      if (score >= 0.3) {
-        scores.push({ chunkId, score });
-      }
+    } else {
+      logger.info("No embedding provider configured, using pure BM25 search");
     }
-
-    scores.sort((a, b) => b.score - a.score);
 
     // bg-41: 混合检索 — 向量相似度 + BM25，RRF 融合
     const { hybridSearch } = await import("../lib/hybridSearch.js");

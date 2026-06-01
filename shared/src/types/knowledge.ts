@@ -142,13 +142,9 @@ export interface KnowledgeSearchResult {
 
 // ── 配置 ────────────────────────────────────────────────
 
-export type EmbedProviderType = "local" | "remote";
-
 export interface KnowledgeConfig {
   /** 是否启用知识库 */
   enabled: boolean;
-  /** embedding 提供方式 */
-  embedProvider: EmbedProviderType;
   /** nf-9: 远程 embedding 配置已迁移到 knowledgeProviders */
   /** 检索返回的 top-k 数量 */
   topK: number;
@@ -158,7 +154,6 @@ export interface KnowledgeConfig {
 
 export const DEFAULT_KNOWLEDGE_CONFIG: KnowledgeConfig = {
   enabled: false,
-  embedProvider: "local",
   topK: 5,
   scoreThreshold: 0.3,
 };
