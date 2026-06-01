@@ -335,13 +335,16 @@ async function testMultiFileUploadAndSearch() {
   assert(stats.sourceCount >= 3, `Expected >= 3 sources, got ${stats.sourceCount}`);
   assert(stats.chunkCount >= 3, `Expected >= 3 chunks, got ${stats.chunkCount}`);
 
+  // bg-41: 等待 BM25 索引刷新
+  await new Promise((r) => setTimeout(r, 1000));
+
   const searchRes = await fetch(`${BASE}/knowledge/search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query: "创造性", topK: 5 }),
   });
   const searchData = await searchRes.json();
-  assert(searchData.ok === true, "Search failed");
+  assert(searchData.ok === true, `Search failed: ${JSON.stringify(searchData)}`);
   assert(searchData.results.length > 0, "No results for multi-file search");
 }
 

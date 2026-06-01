@@ -728,9 +728,15 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
 
     scores.sort((a, b) => b.score - a.score);
 
+    // bg-41: 混合检索 — 向量相似度 + BM25，RRF 融合
+    const { hybridSearch } = await import("../lib/hybridSearch.js");
+    const hybridScores = hybridSearch(query, scores, topK * 3);
+
     // bg-41: Re-ranker 集成 — 有远程用远程，没有用本地启发式算法
-    let rerankedScores = scores;
-    const topCandidates = scores.slice(0, topK * 3);
+    // 过滤掉 chunkMap 中不存在的 chunkId（BM25 可能返回已删除的 chunk）
+    const validHybridScores = hybridScores.filter((s) => chunkMap.has(s.chunkId));
+    let rerankedScores = validHybridScores;
+    const topCandidates = validHybridScores.slice(0, topK * 3);
     // 构建 localRerank 需要的格式
     const candidatesForRerank = topCandidates.map((s) => {
       const chunk = chunkMap.get(s.chunkId)!;
