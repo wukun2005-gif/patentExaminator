@@ -23,5 +23,5 @@ export async function extractHtmlText(html: string): Promise<HtmlExtractionResul
 
   const data = await res.json() as { ok: boolean; text: string };
 
-  return { text: data.text, textIndex: buildTextIndex(data.text) };
+  return { text: data.text, textIndex: await buildTextIndex(data.text) };
 }

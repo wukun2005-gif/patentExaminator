@@ -73,7 +73,7 @@ export function ReferenceLibraryPanel() {
         textStatus = "empty";
       }
 
-      const textIndex = buildTextIndex(text);
+      const textIndex = await buildTextIndex(text);
       const meta = parsePatentMeta(text, file.name);
 
       const ref: ReferenceDocument = {

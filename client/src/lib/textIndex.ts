@@ -1,71 +1,24 @@
-import type { TextIndex, TextParagraph, TextLine } from "@shared/types/domain";
+import type { TextIndex } from "@shared/types/domain";
 
 /**
  * Build a TextIndex from raw extracted text.
- * Splits text into paragraphs (double newline or numbered § paragraphs)
- * and lines, computing character offsets for each.
+ * MIGRATE-011: 调用后端 API 构建文本索引
  */
-export function buildTextIndex(text: string): TextIndex {
-  const paragraphs = extractParagraphs(text);
-  const lines = extractLines(text);
+export async function buildTextIndex(text: string): Promise<TextIndex> {
+  const res = await fetch("/api/documents/build-text-index", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Build text index failed: ${res.status} ${res.statusText}`);
+  }
+
+  const data = await res.json() as { ok: boolean } & TextIndex;
   return {
-    pages: [], // Page detection requires PDF-specific logic; populated by pdfText.ts
-    paragraphs,
-    lineMap: lines
+    pages: data.pages,
+    paragraphs: data.paragraphs,
+    lineMap: data.lineMap,
   };
-}
-
-function extractParagraphs(text: string): TextParagraph[] {
-  const paragraphs: TextParagraph[] = [];
-  // Split on double newline or § paragraph markers
-  const rawParts = text.split(/\n\s*\n/);
-  let offset = 0;
-
-  for (const raw of rawParts) {
-    const trimmed = raw.trim();
-    if (!trimmed) {
-      offset += raw.length + 2; // +2 for the \n\n
-      continue;
-    }
-
-    const startOffset = text.indexOf(trimmed, offset);
-    if (startOffset === -1) {
-      offset += raw.length + 2;
-      continue;
-    }
-    const endOffset = startOffset + trimmed.length;
-
-    // Try to extract paragraph number (§0001, [0001], etc.)
-    const paraNumMatch = trimmed.match(/^(?:§|\[)(\d+)(?:\])?\s/);
-    const paragraphNumber = paraNumMatch ? paraNumMatch[1] : undefined;
-
-    const para: TextParagraph = {
-      id: `p-${paragraphs.length}`,
-      text: trimmed,
-      startOffset,
-      endOffset
-    };
-    if (paragraphNumber) para.paragraphNumber = paragraphNumber;
-    paragraphs.push(para);
-
-    offset = endOffset + 2;
-  }
-
-  return paragraphs;
-}
-
-function extractLines(text: string): TextLine[] {
-  const lines: TextLine[] = [];
-  let offset = 0;
-  const textLines = text.split("\n");
-
-  for (let i = 0; i < textLines.length; i++) {
-    const line = textLines[i]!;
-    const startOffset = offset;
-    const endOffset = offset + line.length;
-    lines.push({ line: i + 1, startOffset, endOffset });
-    offset = endOffset + 1; // +1 for the newline
-  }
-
-  return lines;
 }

@@ -31,7 +31,7 @@ export async function extractPdfText(file: File): Promise<PdfExtractionResult> {
     hasTextLayer: boolean;
   };
 
-  const textIndex = buildTextIndex(data.text);
+  const textIndex = await buildTextIndex(data.text);
   textIndex.pages = data.pages;
 
   return {

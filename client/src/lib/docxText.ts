@@ -25,5 +25,5 @@ export async function extractDocxText(file: File): Promise<DocxExtractionResult>
 
   const data = await res.json() as { ok: boolean; text: string };
 
-  return { text: data.text, textIndex: buildTextIndex(data.text) };
+  return { text: data.text, textIndex: await buildTextIndex(data.text) };
 }

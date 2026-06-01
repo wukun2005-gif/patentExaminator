@@ -290,7 +290,7 @@ export function CaseSetupPage() {
           textStatus = text ? "extracted" : "empty";
         }
 
-        const textIndex = buildTextIndex(text);
+        const textIndex = await buildTextIndex(text);
         const doc: SourceDocument = {
           id: `doc-${fileHash.slice(0, 8)}`,
           caseId,
@@ -425,7 +425,7 @@ export function CaseSetupPage() {
           textStatus = text ? "extracted" : "empty";
         }
 
-        const textIndex = buildTextIndex(text);
+        const textIndex = await buildTextIndex(text);
         // 批量上传时先使用 'reference' 作为默认角色，后续由 AI 分类
         const doc: SourceDocument = {
           id: `doc-${fileHash.slice(0, 8)}`,

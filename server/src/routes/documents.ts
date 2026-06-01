@@ -191,3 +191,29 @@ documentsRouter.post("/documents/match-citation", express.json(), async (req, re
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }
 });
+
+/** POST /api/documents/build-text-index — 构建文本索引 */
+documentsRouter.post("/documents/build-text-index", express.json(), async (req, res) => {
+  try {
+    const { text } = req.body as { text: string };
+    if (text === undefined || text === null) {
+      res.status(400).json({ ok: false, error: "Missing text" });
+      return;
+    }
+
+    logger.info(`Build text index request: ${text.length} chars`);
+
+    const { buildTextIndex } = await import("../lib/textIndex.js");
+    const result = buildTextIndex(text);
+
+    logger.info(`Build text index completed: ${result.paragraphs.length} paragraphs, ${result.lineMap.length} lines`);
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (err) {
+    logger.error("Build text index error: " + (err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});

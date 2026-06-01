@@ -68,7 +68,7 @@ export function DocumentUploadPanel() {
           textStatus = text ? "extracted" : "empty";
         }
 
-        const textIndex = buildTextIndex(text);
+        const textIndex = await buildTextIndex(text);
 
         const doc: SourceDocument = {
           id: `doc-${fileHash.slice(0, 8)}`,
