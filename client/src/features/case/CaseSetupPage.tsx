@@ -14,6 +14,7 @@ import { readCaseById, createCase, updateCase } from "../../lib/repositories/cas
 import { useCaseStore, useDocumentsStore, useClaimsStore, useSettingsStore, useReferencesStore } from "../../store";
 import { AgentClient } from "../../agent/AgentClient";
 import { createLogger } from "../../lib/logger";
+import { runOcr, type OcrProgress } from "../../lib/ocrWorker";
 
 const log = createLogger("CaseSetupPage");
 import { ErrorBanner } from "../../lib/errorDisplay";
@@ -253,6 +254,27 @@ export function CaseSetupPage() {
           text = result.text;
           textLayerStatus = result.hasTextLayer ? "present" : "absent";
           textStatus = result.text ? "extracted" : "empty";
+
+          // B-024: 如果 PDF 没有文本层，调用 OCR 管线
+          if (textLayerStatus === "absent" && !text) {
+            setFileStatuses((prev) => ({ ...prev, [file.name]: "OCR 识别中..." }));
+            try {
+              const ocrResult = await runOcr(file, "chi_sim+eng", (progress: OcrProgress) => {
+                if (isMountedRef.current) {
+                  const percent = Math.round(progress.progress * 100);
+                  setFileStatuses((prev) => ({ ...prev, [file.name]: `OCR ${percent}%` }));
+                }
+              });
+              if (!isMountedRef.current) break;
+              text = ocrResult.text;
+              textStatus = text ? "extracted" : "empty";
+              textLayerStatus = "ocr";
+              log(`OCR completed for ${file.name}: ${ocrResult.confidence}% confidence, ${text.length} chars`);
+            } catch (ocrErr) {
+              log(`OCR failed for ${file.name}: ${ocrErr}`);
+              textStatus = "empty";
+            }
+          }
         } else if (ext === ".docx") {
           const result = await extractDocxText(file);
           if (!isMountedRef.current) break;
@@ -360,6 +382,27 @@ export function CaseSetupPage() {
           text = result.text;
           textLayerStatus = result.hasTextLayer ? "present" : "absent";
           textStatus = result.text ? "extracted" : "empty";
+
+          // B-024: 如果 PDF 没有文本层，调用 OCR 管线
+          if (textLayerStatus === "absent" && !text) {
+            setFileStatuses((prev) => ({ ...prev, [file.name]: "OCR 识别中..." }));
+            try {
+              const ocrResult = await runOcr(file, "chi_sim+eng", (progress: OcrProgress) => {
+                if (isMountedRef.current) {
+                  const percent = Math.round(progress.progress * 100);
+                  setFileStatuses((prev) => ({ ...prev, [file.name]: `OCR ${percent}%` }));
+                }
+              });
+              if (!isMountedRef.current) break;
+              text = ocrResult.text;
+              textStatus = text ? "extracted" : "empty";
+              textLayerStatus = "ocr";
+              log(`OCR completed for ${file.name}: ${ocrResult.confidence}% confidence, ${text.length} chars`);
+            } catch (ocrErr) {
+              log(`OCR failed for ${file.name}: ${ocrErr}`);
+              textStatus = "empty";
+            }
+          }
         } else if (ext === ".docx") {
           const result = await extractDocxText(file);
           if (!isMountedRef.current) break;
