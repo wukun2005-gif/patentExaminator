@@ -1,13 +1,11 @@
 /**
  * 知识库检索器 — 将用户 query 向量化后检索相关 chunk
+ * MIGRATE-004: 检索已迁移到后端，客户端只做缓存和扩展
  */
 import type { KnowledgeSearchResult, KnowledgeConfig } from "@shared/types/knowledge";
 import type { EmbedderConfig } from "./embedder";
-import { getKnowledgeStats } from "./knowledgeRepo";
 import { expandCrossLanguage } from "./normalizers";
 import { expandQueryWithGraph } from "./knowledgeGraph";
-import { rerank } from "./reranker";
-import { hybridSearch } from "./hybridSearch";
 import { createLogger } from "../logger";
 
 const log = createLogger("KnowledgeRetriever");
