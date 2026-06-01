@@ -71,6 +71,76 @@ aiRouter.post("/ai/run", async (req, res) => {
     prompt = sanitizeText(prompt);
   }
 
+  // MIGRATE-008: 知识库 Prompt 注入（后端执行）
+  // 从 metadata 中获取知识库配置
+  const knowledgeEnabled = (request.metadata as Record<string, unknown>).knowledgeEnabled as boolean | undefined;
+  if (knowledgeEnabled) {
+    try {
+      const { getEmbedder } = await import("./knowledge.js");
+      const { getAllChunks, getAllVectors } = await import("../lib/knowledgeDb.js");
+
+      const emb = await getEmbedder();
+      const queryVector = (await emb.embed([prompt]))[0]!;
+      const allChunks = getAllChunks();
+      const allVectors = getAllVectors();
+
+      // 余弦相似度检索
+      const chunkMap = new Map(allChunks.map((c) => [c.id, c]));
+      const vectorMap = new Map(allVectors.map((v) => [v.chunkId, v]));
+      const scores: Array<{ chunkId: string; score: number }> = [];
+
+      for (const [chunkId, vec] of vectorMap) {
+        const chunk = chunkMap.get(chunkId);
+        if (!chunk) continue;
+
+        let dot = 0, normA = 0, normB = 0;
+        for (let i = 0; i < queryVector.length; i++) {
+          dot += queryVector[i]! * vec.vector[i]!;
+          normA += queryVector[i]! * queryVector[i]!;
+          normB += vec.vector[i]! * vec.vector[i]!;
+        }
+        const score = dot / (Math.sqrt(normA) * Math.sqrt(normB));
+        if (score >= 0.3) {
+          scores.push({ chunkId, score });
+        }
+      }
+
+      scores.sort((a, b) => b.score - a.score);
+      const topResults = scores.slice(0, 5).map((s) => {
+        const chunk = chunkMap.get(s.chunkId)!;
+        return {
+          text: chunk.text,
+          metadata: JSON.parse(chunk.metadata) as Record<string, unknown>,
+          score: s.score,
+        };
+      });
+
+      if (topResults.length > 0) {
+        const citationBlock = topResults.map((r) => {
+          const source = (r.metadata.sectionId ?? r.metadata.articleId ?? r.metadata.fileName) as string;
+          return `[来源: ${source}] ${r.text.slice(0, 300)}`;
+        }).join("\n\n");
+
+        const injection = `## 参考法规（由知识库自动检索，作为回答的依据）
+
+以下段落与当前分析内容相关，请在回答时参考但不仅限于此：
+
+${citationBlock}
+
+## 引用要求
+- 回答时**必须引用上述参考法规的具体条文**作为依据
+- 引用格式：在相关论述后标注【来源：文件名 章节/条文号】
+- 如果参考法规中没有直接相关的内容，明确说明"参考法规中未找到直接依据"
+- 不要编造参考法规中没有的内容`;
+
+        prompt = `${prompt}\n\n${injection}`;
+        logger.info(`Knowledge injection: ${topResults.length} chunks injected`);
+      }
+    } catch (knowledgeErr) {
+      logger.warn(`Knowledge injection failed, proceeding without: ${knowledgeErr}`);
+    }
+  }
+
   // Build chat messages
   const messages = [{ role: "user" as const, content: prompt }];
 

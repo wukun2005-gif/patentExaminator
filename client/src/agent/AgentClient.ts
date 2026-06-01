@@ -84,6 +84,7 @@ export class AgentClient {
   private providerSettings: ProviderConnection[];
   private enableProviderFallback: boolean;
   private llmApiKey: string;
+  private knowledgeConfig: { enabled: boolean } | undefined;
 
   constructor(
     private mode: "mock" | "real",
@@ -98,6 +99,7 @@ export class AgentClient {
       this.providerSettings = [];
       this.enableProviderFallback = true;
       this.llmApiKey = "";
+      this.knowledgeConfig = undefined;
     } else if (settings) {
       this.agentAssignments = settings.agents ?? [];
       const enabled = settings.providers.filter((p) => p.enabled && p.apiKeyRef);
@@ -108,6 +110,7 @@ export class AgentClient {
       this.providerSettings = settings.providers;
       this.enableProviderFallback = settings.enableProviderFallback ?? true;
       this.llmApiKey = firstEnabled?.apiKeyRef ?? "";
+      this.knowledgeConfig = settings.knowledge;
     } else {
       this.agentAssignments = [];
       this.fallbackProvider = "gemini";
@@ -116,6 +119,7 @@ export class AgentClient {
       this.providerSettings = [];
       this.enableProviderFallback = true;
       this.llmApiKey = "";
+      this.knowledgeConfig = undefined;
     }
   }
 
@@ -644,6 +648,9 @@ export class AgentClient {
       ? [resolved.providerId, ...this.enabledProviders.filter((p) => p !== resolved.providerId)]
       : [resolved.providerId];
 
+    // MIGRATE-008: 传递知识库配置给 server
+    const knowledgeEnabled = this.knowledgeConfig?.enabled ?? false;
+
     const request: AiRunRequest = {
       agent,
       providerPreference: providerPreference as ProviderId[],
@@ -657,7 +664,8 @@ export class AgentClient {
       metadata: {
         caseId: meta.caseId,
         moduleScope: meta.moduleScope,
-        tokenEstimate: estimateTokens(prompt)
+        tokenEstimate: estimateTokens(prompt),
+        knowledgeEnabled,
       }
     };
 
