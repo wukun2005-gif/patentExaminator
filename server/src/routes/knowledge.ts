@@ -682,3 +682,73 @@ knowledgeRouter.delete("/knowledge/clear", (_req, res) => {
     res.status(500).json({ ok: false, error: errMsg(err) });
   }
 });
+
+// ── nf-9: 知识库 Provider API ──────────────────────────
+
+/** POST /api/knowledge/providers/test — 测试知识库 Provider 连接 */
+knowledgeRouter.post("/knowledge/providers/test", express.json(), async (req, res) => {
+  try {
+    const { providerType, baseUrl, apiKey, modelId } = req.body as {
+      providerType: string;
+      baseUrl: string;
+      apiKey: string;
+      modelId: string;
+    };
+
+    if (!baseUrl || !apiKey) {
+      res.status(400).json({ ok: false, error: "Missing baseUrl or apiKey" });
+      return;
+    }
+
+    if (providerType === "embedding") {
+      // 测试 Embedding API
+      const response = await fetch(`${baseUrl}/v1/embeddings`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelId,
+          input: ["test"],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        res.json({ ok: false, error: `HTTP ${response.status}: ${errorText}` });
+        return;
+      }
+
+      res.json({ ok: true });
+    } else if (providerType === "reranker") {
+      // 测试 Re-ranker API
+      const response = await fetch(`${baseUrl}/v1/rerank`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelId,
+          query: "test",
+          documents: ["test document"],
+          top_n: 1,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        res.json({ ok: false, error: `HTTP ${response.status}: ${errorText}` });
+        return;
+      }
+
+      res.json({ ok: true });
+    } else {
+      res.status(400).json({ ok: false, error: `Unknown provider type: ${providerType}` });
+    }
+  } catch (err) {
+    logger.error("Knowledge provider test error: " + errMsg(err));
+    res.status(500).json({ ok: false, error: errMsg(err) });
+  }
+});

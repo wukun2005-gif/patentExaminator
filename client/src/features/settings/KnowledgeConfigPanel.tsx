@@ -1,11 +1,12 @@
 /**
  * 知识库配置面板 — 调用 server API 处理提取/切片/向量化
+ * nf-9: 知识库独立 API Provider 配置
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { KnowledgeConfig } from "@shared/types/knowledge";
 import { DEFAULT_KNOWLEDGE_CONFIG } from "@shared/types/knowledge";
-import type { ProviderId } from "@shared/types/agents";
-import { PRESET_MODEL_PROVIDERS } from "@shared/types/agents";
+import type { KnowledgeProviderConnection, KnowledgeProviderType } from "@shared/types/agents";
+import { PRESET_KNOWLEDGE_PROVIDERS } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
 import { AgentClient } from "../../agent/AgentClient";
 import { createLogger } from "../../lib/logger";
@@ -30,7 +31,7 @@ interface SourceInfo {
 }
 
 export function KnowledgeConfigPanel() {
-  const { settings, updateKnowledgeConfig } = useSettingsStore();
+  const { settings, updateKnowledgeConfig, setSettings } = useSettingsStore();
   const [sources, setSources] = useState<SourceInfo[]>([]);
   const [config, setConfig] = useState<KnowledgeConfig>(settings.knowledge ?? DEFAULT_KNOWLEDGE_CONFIG);
   const [configLoaded, setConfigLoaded] = useState(false);
@@ -52,7 +53,14 @@ export function KnowledgeConfigPanel() {
   const [searching, setSearching] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const configuredProviders = settings.providers;
+  // nf-9: 知识库独立 Provider 配置
+  const knowledgeProviders = settings.knowledgeProviders ?? [];
+  const embeddingProvider = knowledgeProviders.find((p) => p.providerType === "embedding" && p.enabled);
+
+  /** 更新 settings（用于 knowledgeProviders） */
+  const updateSettings = (partial: Partial<typeof settings>) => {
+    setSettings({ ...settings, ...partial });
+  };
 
   const refresh = useCallback(async () => {
     try {
@@ -277,9 +285,9 @@ export function KnowledgeConfigPanel() {
         <span>知识条目: {stats.chunkCount}</span>
       </div>
 
-      {/* Embedding 配置 */}
+      {/* nf-9: Embedding Provider 配置 */}
       <div className="knowledge-config-section">
-        <h4>Embedding 模型</h4>
+        <h4>Embedding Provider</h4>
         <div className="knowledge-embed-options">
           <label>
             <input
@@ -290,7 +298,7 @@ export function KnowledgeConfigPanel() {
                 if (stats.embeddedCount > 0 && config.embedProvider !== "local") {
                   if (!window.confirm(`切换 embedding 模型后，已有的 ${stats.embeddedCount} 个向量需要全部重新生成。确定切换吗？`)) return;
                 }
-                setConfig({ ...config, embedProvider: "local", remoteProviderId: undefined, remoteModelId: undefined });
+                setConfig({ ...config, embedProvider: "local" });
               }}
             />
             本地模型（BGE-large-zh，服务端运行，首次需下载 ~400MB）
@@ -307,65 +315,33 @@ export function KnowledgeConfigPanel() {
                 setConfig({ ...config, embedProvider: "remote" });
               }}
             />
-            远程 API（复用已配置的 Provider）
+            远程 API（独立配置知识库 Provider）
           </label>
         </div>
 
         {config.embedProvider === "remote" && (
           <div className="knowledge-remote-config">
-            {configuredProviders.length === 0 ? (
-              <p className="knowledge-hint" style={{ color: "var(--danger)" }}>
-                请先在"模型连接" tab 中配置至少一个 Provider 并填写 API Key。
-              </p>
-            ) : (
-              <>
-                <div className="knowledge-config-row">
-                  <label>Provider:</label>
-                  <select
-                    value={config.remoteProviderId ?? ""}
-                    onChange={(e) => {
-                      const pid = e.target.value as ProviderId;
-                      setConfig({ ...config, remoteProviderId: pid, remoteModelId: "" });
-                    }}
-                  >
-                    <option value="">选择 Provider</option>
-                    {PRESET_MODEL_PROVIDERS.map((preset) => {
-                      const configured = configuredProviders.find((p) => p.providerId === preset.id);
-                      const hasKey = !!configured?.apiKeyRef;
-                      return (
-                        <option key={preset.id} value={preset.id}>
-                          {preset.displayName} — {preset.desc}{hasKey ? "" : " (未配置 API Key)"}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                {config.remoteProviderId && (() => {
-                  const configured = configuredProviders.find((p) => p.providerId === config.remoteProviderId);
-                  if (!configured?.apiKeyRef) {
-                    return (
-                      <p className="knowledge-hint" style={{ color: "var(--danger)" }}>
-                        该 Provider 未配置 API Key，请先在"模型连接" tab 中添加。
-                      </p>
+            {PRESET_KNOWLEDGE_PROVIDERS.filter((p) => p.providerType === "embedding").map((preset) => {
+              const existing = knowledgeProviders.find(
+                (p) => p.providerType === "embedding" && p.providerId === preset.providerId
+              );
+              return (
+                <KnowledgeProviderCard
+                  key={preset.providerId}
+                  preset={preset}
+                  existing={existing}
+                  onUpdate={(updated) => {
+                    const others = knowledgeProviders.filter(
+                      (p) => !(p.providerType === "embedding" && p.providerId === preset.providerId)
                     );
-                  }
-                  return (
-                    <div className="knowledge-config-row">
-                      <label>Embedding 模型 ID:</label>
-                      <input
-                        type="text"
-                        value={config.remoteModelId ?? ""}
-                        onChange={(e) => setConfig({ ...config, remoteModelId: e.target.value })}
-                        placeholder="如 embedding-3、text-embedding-3-small"
-                      />
-                    </div>
-                  );
-                })()}
-                <p className="knowledge-hint">
-                  支持 OpenAI-compatible Embedding API。常见：GLM embedding-3、OpenRouter text-embedding-3-small。
-                </p>
-              </>
-            )}
+                    updateSettings({ knowledgeProviders: [...others, updated] });
+                  }}
+                />
+              );
+            })}
+            <p className="knowledge-hint">
+              支持 OpenAI-compatible Embedding API。默认使用硅基流动（SiliconFlow）。
+            </p>
           </div>
         )}
       </div>
@@ -494,6 +470,146 @@ export function KnowledgeConfigPanel() {
                 <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>{c.excerpt}...</p>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── nf-9: 知识库 Provider 卡片组件 ─────────────────────
+
+interface KnowledgeProviderCardProps {
+  preset: typeof PRESET_KNOWLEDGE_PROVIDERS[number];
+  existing?: KnowledgeProviderConnection;
+  onUpdate: (provider: KnowledgeProviderConnection) => void;
+}
+
+function KnowledgeProviderCard({ preset, existing, onUpdate }: KnowledgeProviderCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [apiKey, setApiKey] = useState(existing?.apiKeyRef ?? "");
+  const [modelId, setModelId] = useState(existing?.modelId ?? preset.defaultModelId);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
+  const isEnabled = existing?.enabled ?? false;
+  const hasKey = !!existing?.apiKeyRef;
+
+  const handleToggle = () => {
+    onUpdate({
+      providerType: preset.providerType,
+      providerId: preset.providerId,
+      displayName: preset.displayName,
+      baseUrl: preset.baseUrl,
+      apiKeyRef: apiKey,
+      modelId,
+      availableModels: existing?.availableModels ?? [],
+      enabled: !isEnabled,
+    });
+  };
+
+  const handleSaveKey = () => {
+    onUpdate({
+      providerType: preset.providerType,
+      providerId: preset.providerId,
+      displayName: preset.displayName,
+      baseUrl: preset.baseUrl,
+      apiKeyRef: apiKey,
+      modelId,
+      availableModels: existing?.availableModels ?? [],
+      enabled: isEnabled,
+    });
+  };
+
+  const handleTestConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/knowledge/providers/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerType: preset.providerType,
+          baseUrl: preset.baseUrl,
+          apiKey,
+          modelId,
+        }),
+      });
+      const data = await res.json() as { ok: boolean; error?: string };
+      setTestResult(data.ok ? "连接成功" : `连接失败: ${data.error}`);
+    } catch (err) {
+      setTestResult(`测试失败: ${err}`);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <div className="provider-card" style={{
+      border: "1px solid var(--border-color, #ddd)",
+      borderRadius: "8px",
+      padding: "12px",
+      marginBottom: "8px",
+      background: isEnabled ? "var(--bg-primary, #fff)" : "var(--bg-secondary, #f5f5f5)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setExpanded(!expanded)}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <input
+            type="checkbox"
+            checked={isEnabled}
+            onChange={(e) => { e.stopPropagation(); handleToggle(); }}
+          />
+          <strong>{preset.displayName}</strong>
+          <span style={{ fontSize: "0.85rem", color: "var(--text-secondary, #666)" }}>{preset.desc}</span>
+        </div>
+        <span>{expanded ? "▲" : "▼"}</span>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: "12px", paddingLeft: "24px" }}>
+          <div style={{ marginBottom: "8px" }}>
+            <label style={{ display: "block", marginBottom: "4px" }}>Base URL:</label>
+            <input
+              type="text"
+              value={preset.baseUrl}
+              readOnly
+              style={{ width: "100%", padding: "6px", background: "var(--bg-secondary, #f5f5f5)" }}
+            />
+          </div>
+          <div style={{ marginBottom: "8px" }}>
+            <label style={{ display: "block", marginBottom: "4px" }}>API Key:</label>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={preset.keyPlaceholder}
+                style={{ flex: 1, padding: "6px" }}
+              />
+              <button onClick={handleSaveKey} style={{ padding: "6px 12px" }}>
+                {hasKey ? "更新" : "保存"}
+              </button>
+            </div>
+          </div>
+          <div style={{ marginBottom: "8px" }}>
+            <label style={{ display: "block", marginBottom: "4px" }}>模型 ID:</label>
+            <input
+              type="text"
+              value={modelId}
+              onChange={(e) => setModelId(e.target.value)}
+              placeholder={preset.defaultModelId}
+              style={{ width: "100%", padding: "6px" }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button onClick={handleTestConnection} disabled={testing || !apiKey}>
+              {testing ? "测试中..." : "测试连接"}
+            </button>
+            {testResult && (
+              <span style={{ color: testResult.includes("成功") ? "var(--success, #28a745)" : "var(--danger, #dc3545)" }}>
+                {testResult}
+              </span>
+            )}
           </div>
         </div>
       )}

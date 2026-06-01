@@ -70,6 +70,8 @@ export interface AppSettings {
   enableProviderFallback?: boolean;
   providerErrorMessages?: ProviderErrorMessage[];
   knowledge?: KnowledgeConfig;
+  /** nf-9: 知识库独立 API Provider 配置 */
+  knowledgeProviders?: KnowledgeProviderConnection[];
 }
 
 export interface PresetModelProvider {
@@ -105,4 +107,50 @@ export const PRESET_SEARCH_PROVIDERS: PresetSearchProvider[] = [
   { id: "tavily", displayName: "Tavily", desc: "免费额度 1000 次/月，注册地址: app.tavily.com", baseUrl: "https://api.tavily.com", keyPlaceholder: "tvly-..." },
   { id: "serpapi", displayName: "SerpAPI", desc: "Google 专利搜索 API，免费额度 100 次/月", baseUrl: "https://serpapi.com", keyPlaceholder: "your-serpapi-key" },
   { id: "epo", displayName: "EPO OPS", desc: "欧洲专利局官方 API (OPS v3.2)，结构化专利数据", baseUrl: "https://ops.epo.org/3.2", keyPlaceholder: "Consumer Key / Consumer Secret" }
+];
+
+// ── nf-9: 知识库独立 API Provider ─────────────────────
+
+export type KnowledgeProviderType = "embedding" | "reranker";
+
+export interface KnowledgeProviderConnection {
+  providerType: KnowledgeProviderType;
+  providerId: string;
+  displayName: string;
+  baseUrl: string;
+  apiKeyRef: string;
+  modelId: string;
+  availableModels: string[];
+  enabled: boolean;
+}
+
+export interface PresetKnowledgeProvider {
+  providerType: KnowledgeProviderType;
+  providerId: string;
+  displayName: string;
+  desc: string;
+  baseUrl: string;
+  defaultModelId: string;
+  keyPlaceholder: string;
+}
+
+export const PRESET_KNOWLEDGE_PROVIDERS: PresetKnowledgeProvider[] = [
+  {
+    providerType: "embedding",
+    providerId: "siliconflow",
+    displayName: "硅基流动 Embedding",
+    desc: "SiliconFlow Embedding API（免费额度）",
+    baseUrl: "https://api.siliconflow.cn/v1",
+    defaultModelId: "BAAI/bge-m3",
+    keyPlaceholder: "sk-...",
+  },
+  {
+    providerType: "reranker",
+    providerId: "siliconflow",
+    displayName: "硅基流动 Re-ranker",
+    desc: "SiliconFlow Re-ranker API（免费额度）",
+    baseUrl: "https://api.siliconflow.cn/v1",
+    defaultModelId: "BAAI/bge-reranker-v2-m3",
+    keyPlaceholder: "sk-...",
+  },
 ];

@@ -149,10 +149,7 @@ export interface KnowledgeConfig {
   enabled: boolean;
   /** embedding 提供方式 */
   embedProvider: EmbedProviderType;
-  /** 远程 embedding 时使用的 provider ID（复用现有 ProviderId） */
-  remoteProviderId?: string;
-  /** 远程 embedding 时使用的模型 ID */
-  remoteModelId?: string;
+  /** nf-9: 远程 embedding 配置已迁移到 knowledgeProviders */
   /** 检索返回的 top-k 数量 */
   topK: number;
   /** 相似度阈值（低于此值不返回） */
