@@ -1,17 +1,10 @@
 import { Router } from "express";
-import { setApiKey, getApiKey, removeApiKey, listProviders } from "../security/keyStore.js";
+import { setApiKey, getApiKey, removeApiKey } from "../security/keyStore.js";
 import { registry } from "../providers/registry.js";
 
 export const settingsRouter = Router();
 
-// Get configured providers
-settingsRouter.get("/settings/providers", (_req, res) => {
-  const providers = listProviders().map((id) => ({
-    providerId: id,
-    hasKey: true
-  }));
-  res.json({ providers });
-});
+// B-026: GET /settings/providers 端点已删除（死代码，client 是 source of truth）
 
 // Set provider API key
 settingsRouter.put("/settings/providers/:providerId", (req, res) => {
@@ -31,27 +24,8 @@ settingsRouter.put("/settings/providers/:providerId", (req, res) => {
   res.json({ ok: true, providerId });
 });
 
-// Remove provider API key
-settingsRouter.delete("/settings/providers/:providerId", (req, res) => {
-  const { providerId } = req.params;
-  if (!providerId) {
-    res.status(400).json({ error: "providerId is required" });
-    return;
-  }
-  const removed = removeApiKey(providerId);
-  res.json({ ok: removed, providerId });
-});
-
-// Check if provider has key
-settingsRouter.get("/settings/providers/:providerId", (req, res) => {
-  const { providerId } = req.params;
-  if (!providerId) {
-    res.status(400).json({ error: "providerId is required" });
-    return;
-  }
-  const key = getApiKey(providerId);
-  res.json({ providerId, hasKey: !!key });
-});
+// B-026: DELETE /settings/providers/:providerId 端点已删除（死代码）
+// B-026: GET /settings/providers/:providerId 端点已删除（死代码）
 
 // List available models for a provider
 settingsRouter.get("/providers/:providerId/models", async (req, res) => {

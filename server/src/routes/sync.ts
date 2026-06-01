@@ -4,14 +4,10 @@
  */
 import { Router } from "express";
 import express from "express";
-import multer from "multer";
 import {
   uploadAllData,
   downloadAllData,
   getSyncStatus,
-  saveFile,
-  readFile,
-  listFiles,
 } from "../lib/syncDb.js";
 import { logger } from "../lib/logger.js";
 
@@ -66,49 +62,4 @@ syncRouter.get("/sync/download", (_req, res) => {
   }
 });
 
-/** POST /api/sync/files — 上传文件 */
-syncRouter.post("/sync/files", upload.single("file"), (req, res) => {
-  try {
-    if (!req.file) {
-      res.status(400).json({ ok: false, error: "No file provided" });
-      return;
-    }
-
-    const fileId = req.body.fileId ?? `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const fileName = req.file.originalname;
-    const fileType = req.file.mimetype;
-
-    saveFile(fileId, fileName, fileType, req.file.buffer);
-    res.json({ ok: true, fileId, fileName, fileSize: req.file.size });
-  } catch (err) {
-    logger.error("File upload error: " + errMsg(err));
-    res.status(500).json({ ok: false, error: errMsg(err) });
-  }
-});
-
-/** GET /api/sync/files/:id — 下载文件 */
-syncRouter.get("/sync/files/:id", (req, res) => {
-  try {
-    const data = readFile(req.params.id);
-    if (!data) {
-      res.status(404).json({ ok: false, error: "File not found" });
-      return;
-    }
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.send(data);
-  } catch (err) {
-    logger.error("File download error: " + errMsg(err));
-    res.status(500).json({ ok: false, error: errMsg(err) });
-  }
-});
-
-/** GET /api/sync/files — 列出所有文件 */
-syncRouter.get("/sync/files", (_req, res) => {
-  try {
-    const files = listFiles();
-    res.json({ ok: true, files });
-  } catch (err) {
-    logger.error("File list error: " + errMsg(err));
-    res.status(500).json({ ok: false, error: errMsg(err) });
-  }
-});
+// B-026: sync/files 端点已删除（死代码，客户端只用 JSON 级批量同步）

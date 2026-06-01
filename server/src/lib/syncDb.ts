@@ -129,48 +129,7 @@ export function getSyncStatus(): { lastSync: string | null; totalRecords: number
   };
 }
 
-/** 保存文件 */
-export function saveFile(fileId: string, fileName: string, fileType: string, fileData: Buffer): string {
-  const filesDir = path.join(DATA_DIR, "files");
-  if (!fs.existsSync(filesDir)) {
-    fs.mkdirSync(filesDir, { recursive: true });
-  }
-
-  const filePath = path.join(filesDir, fileId);
-  fs.writeFileSync(filePath, fileData);
-
-  const db = getSyncDb();
-  db.prepare("INSERT OR REPLACE INTO sync_files (file_id, file_name, file_type, file_size, file_path) VALUES (?, ?, ?, ?, ?)")
-    .run(fileId, fileName, fileType, fileData.length, filePath);
-
-  logger.info(`Saved file: ${fileName} (${fileData.length} bytes)`);
-  return filePath;
-}
-
-/** 读取文件 */
-export function readFile(fileId: string): Buffer | null {
-  const db = getSyncDb();
-  const row = db.prepare("SELECT file_path FROM sync_files WHERE file_id = ?").get(fileId) as { file_path: string } | undefined;
-  if (!row) return null;
-
-  try {
-    return fs.readFileSync(row.file_path);
-  } catch {
-    return null;
-  }
-}
-
-/** 获取文件列表 */
-export function listFiles(): Array<{ fileId: string; fileName: string; fileType: string; fileSize: number; createdAt: string }> {
-  const db = getSyncDb();
-  return db.prepare("SELECT file_id as fileId, file_name as fileName, file_type as fileType, file_size as fileSize, created_at as createdAt FROM sync_files").all() as Array<{
-    fileId: string;
-    fileName: string;
-    fileType: string;
-    fileSize: number;
-    createdAt: string;
-  }>;
-}
+// B-026: saveFile、readFile、listFiles 函数已删除（死代码）
 
 /** 关闭数据库 */
 export function closeSyncDb(): void {
