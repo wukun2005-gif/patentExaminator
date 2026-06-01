@@ -620,6 +620,9 @@ knowledgeRouter.post("/knowledge/import-url", express.json(), async (req, res) =
       logger.info("No embedding provider configured, URL import stored as BM25-only");
     }
 
+    // 清除 BM25 索引缓存，强制下次检索时重建
+    invalidateBM25Index();
+
     res.json({ ok: true, sourceId, chunkCount: chunks.length, message: `✅ ${url} — ${chunks.length} 条知识已入库` });
   } catch (err) {
     logger.error("Knowledge URL import error: " + errMsg(err));
