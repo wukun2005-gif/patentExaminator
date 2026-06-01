@@ -34,7 +34,11 @@ export async function extractText(fileBuffer: Buffer, fileName: string): Promise
 async function extractPdf(buffer: Buffer): Promise<ExtractionResult> {
   try {
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+    const pdf = await pdfjsLib.getDocument({
+      data: new Uint8Array(buffer),
+      disableFontFace: true,
+      useSystemFonts: false,
+    }).promise;
     const texts: string[] = [];
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
