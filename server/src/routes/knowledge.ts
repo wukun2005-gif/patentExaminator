@@ -41,13 +41,60 @@ function errMsg(err: unknown): string {
 let embedder: { embed: (texts: string[]) => Promise<number[][]>; modelId: string } | null = null;
 let embedderLoading: Promise<ReturnType<typeof getEmbedder>> | null = null;
 
+// bg-41: 远程 embedding 配置缓存
+let remoteEmbedderConfig: { baseUrl: string; apiKey: string; modelId: string } | null = null;
+let remoteEmbedder: { embed: (texts: string[]) => Promise<number[][]>; modelId: string } | null = null;
+
+/** 创建远程 embedding 函数 */
+function createRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId: string }) {
+  return {
+    modelId: config.modelId,
+    embed: async (texts: string[]): Promise<number[][]> => {
+      const baseUrl = config.baseUrl.endsWith("/v1") ? config.baseUrl : `${config.baseUrl}/v1`;
+      const response = await fetch(`${baseUrl}/embeddings`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.modelId,
+          input: texts.map((t) => t.length > 500 ? t.slice(0, 500) : t),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Remote embedding API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json() as {
+        data: Array<{ embedding: number[] }>;
+      };
+
+      return data.data.map((d) => d.embedding);
+    },
+  };
+}
+
+/** bg-41: 设置远程 embedding 配置 */
+export function setRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId: string } | null) {
+  remoteEmbedderConfig = config;
+  remoteEmbedder = config ? createRemoteEmbedder(config) : null;
+  logger.info(`Remote embedding ${config ? `configured: ${config.modelId}` : "disabled"}`);
+}
+
 export async function getEmbedder() {
+  // bg-41: 优先使用远程 embedding
+  if (remoteEmbedder) {
+    return remoteEmbedder;
+  }
+
   if (embedder) return embedder;
   // 防止并发加载：只有一个请求实际加载模型，其他请求等待
   if (embedderLoading) return embedderLoading;
 
   embedderLoading = (async () => {
-    logger.info("Loading embedding model...");
+    logger.info("Loading local embedding model...");
     try {
       const { pipeline } = await import("@xenova/transformers");
       const pipe = await pipeline("feature-extraction", "Xenova/bge-large-zh-v1.5", {
@@ -68,10 +115,10 @@ export async function getEmbedder() {
       },
       modelId: "Xenova/bge-large-zh-v1.5",
     };
-    logger.info("Embedding model loaded");
+    logger.info("Local embedding model loaded");
     return embedder;
   } catch (err) {
-    logger.error(`Failed to load embedding model: ${err}`);
+    logger.error(`Failed to load local embedding model: ${err}`);
     embedderLoading = null; // 允许重试
     throw err;
   }
