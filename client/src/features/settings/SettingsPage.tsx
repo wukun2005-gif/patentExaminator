@@ -7,9 +7,19 @@ import { KnowledgeConfigPanel } from "./KnowledgeConfigPanel";
 
 type Tab = "providers" | "agents" | "search" | "knowledge";
 
+const TAB_KEY = "patent-examiner-settings-tab";
+
 export function SettingsPage() {
-  const [tab, setTab] = useState<Tab>("providers");
+  const [tab, setTab] = useState<Tab>(() => {
+    const saved = localStorage.getItem(TAB_KEY);
+    return (saved as Tab) ?? "providers";
+  });
   const navigate = useNavigate();
+
+  const handleTabChange = (newTab: Tab) => {
+    setTab(newTab);
+    localStorage.setItem(TAB_KEY, newTab);
+  };
 
   return (
     <div className="settings-page" data-testid="settings-page">
@@ -33,7 +43,7 @@ export function SettingsPage() {
         <button
           type="button"
           className={`settings-tab ${tab === "providers" ? "settings-tab--active" : ""}`}
-          onClick={() => setTab("providers")}
+          onClick={() => handleTabChange("providers")}
           data-testid="tab-providers"
         >
           模型连接
@@ -41,7 +51,7 @@ export function SettingsPage() {
         <button
           type="button"
           className={`settings-tab ${tab === "agents" ? "settings-tab--active" : ""}`}
-          onClick={() => setTab("agents")}
+          onClick={() => handleTabChange("agents")}
           data-testid="tab-agents"
         >
           功能分配
@@ -49,7 +59,7 @@ export function SettingsPage() {
         <button
           type="button"
           className={`settings-tab ${tab === "search" ? "settings-tab--active" : ""}`}
-          onClick={() => setTab("search")}
+          onClick={() => handleTabChange("search")}
           data-testid="tab-search"
         >
           专利搜索
@@ -57,7 +67,7 @@ export function SettingsPage() {
         <button
           type="button"
           className={`settings-tab ${tab === "knowledge" ? "settings-tab--active" : ""}`}
-          onClick={() => setTab("knowledge")}
+          onClick={() => handleTabChange("knowledge")}
           data-testid="tab-knowledge"
         >
           知识库
