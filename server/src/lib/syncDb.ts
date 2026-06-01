@@ -8,8 +8,9 @@ import path from "path";
 import fs from "fs";
 import { logger } from "./logger.js";
 
-const DATA_DIR = path.resolve(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "patent-examiner.db");
+// 支持通过环境变量指定数据库路径（测试隔离）
+const DATA_DIR = process.env.SYNC_DB_DIR ?? path.resolve(process.cwd(), "data");
+const DB_PATH = process.env.SYNC_DB_PATH ?? path.join(DATA_DIR, "patent-examiner.db");
 
 let db: Database.Database | null = null;
 
