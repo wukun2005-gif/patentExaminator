@@ -201,7 +201,8 @@ export function CaseSetupPage() {
         targetClaimNumber: watchAll.targetClaimNumber,
         guidelineVersion: "2023",
         reexaminationRound: currentCase?.reexaminationRound ?? 1,
-        workflowState: (currentCase?.workflowState ?? "empty") as PatentCase["workflowState"],
+        // B-031: 推进 workflowState 到 case-ready
+        workflowState: "case-ready" as PatentCase["workflowState"],
         createdAt: currentCase?.createdAt ?? now,
         updatedAt: now,
         ...(watchAll.applicant ? { applicant: watchAll.applicant } : {}),
@@ -312,6 +313,13 @@ export function CaseSetupPage() {
         if (!isMountedRef.current) break;
         setFileStatuses((prev) => ({ ...prev, [file.name]: `出错: ${err}` }));
       }
+    }
+
+    // B-031: 文件上传完成后推进到 documents-uploaded
+    if (currentCase && currentCase.workflowState === "case-ready") {
+      const updatedCase = { ...currentCase, workflowState: "documents-uploaded" as PatentCase["workflowState"], updatedAt: new Date().toISOString() };
+      await updateCase(updatedCase);
+      setCurrentCase(updatedCase);
     }
 
     // Reset file input so the same file can be re-selected
