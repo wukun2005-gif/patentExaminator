@@ -8,6 +8,14 @@ import { createLogger } from "../logger";
 
 const log = createLogger("KnowledgePromptInjector");
 
+// 最近一次注入的引用详情
+let lastCitations: Array<{ source: string; score: number; excerpt: string }> = [];
+
+/** 获取最近一次注入的引用详情 */
+export function getInjectionCitations(): Array<{ source: string; score: number; excerpt: string }> {
+  return [...lastCitations];
+}
+
 // 注入审计日志
 interface InjectionAudit {
   timestamp: string;
@@ -96,6 +104,13 @@ export async function injectKnowledge(options: InjectOptions): Promise<string> {
     const contextPrefix = getAgentContext(agentType);
     const injection = `## 参考法规（由知识库检索，仅供参考）\n${contextPrefix}\n\n${formatRetrievedChunks(results).replace(/^[^\n]+\n[^\n]+\n/, "")}`;
     const enhanced = `${systemPrompt}\n\n${injection}`;
+
+    // 记录引用详情
+    lastCitations = results.map((r) => ({
+      source: r.chunk.metadata.sectionId ?? r.chunk.metadata.articleId ?? r.chunk.metadata.fileName,
+      score: r.score,
+      excerpt: r.chunk.text.slice(0, 150),
+    }));
 
     recordAudit(agentType ?? "unknown", query, results);
     log(`Injected ${results.length} knowledge chunks into prompt (agent=${agentType ?? "default"})`);

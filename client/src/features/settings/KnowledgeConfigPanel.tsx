@@ -7,6 +7,7 @@ import { DEFAULT_KNOWLEDGE_CONFIG } from "@shared/types/knowledge";
 import type { ProviderId } from "@shared/types/agents";
 import { PRESET_MODEL_PROVIDERS } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
+import { AgentClient } from "../../agent/AgentClient";
 import { createLogger } from "../../lib/logger";
 
 const log = createLogger("KnowledgeConfigPanel");
@@ -68,12 +69,10 @@ export function KnowledgeConfigPanel() {
     if (!files || files.length === 0) return;
     setImporting(true);
     setImportResult(null);
-    const results: string[] = [];
     try {
-      for (const file of Array.from(files)) {
-        const fileResult = await uploadFileWithProgress(file);
-        results.push(fileResult);
-      }
+      // 并行上传所有文件
+      const fileArray = Array.from(files);
+      const results = await Promise.all(fileArray.map((file) => uploadFileWithProgress(file)));
       await refresh();
       setImportResult(results.join("\n"));
     } catch (err) {
@@ -375,6 +374,22 @@ export function KnowledgeConfigPanel() {
           </pre>
         )}
       </div>
+
+      {/* 最近知识库引用（Agent 调用时自动更新） */}
+      {AgentClient.lastKnowledgeCitations.length > 0 && (
+        <div className="knowledge-config-section">
+          <h4>最近引用的知识库内容</h4>
+          <p className="knowledge-hint">以下是最近一次 Agent 调用时从知识库检索到的内容：</p>
+          <div className="knowledge-test-results">
+            {AgentClient.lastKnowledgeCitations.map((c, i) => (
+              <div key={i} style={{ marginBottom: "0.5rem", borderBottom: "1px solid var(--border-color, #eee)", paddingBottom: "0.5rem" }}>
+                <strong>【{c.source} · {c.score.toFixed(2)}】</strong>
+                <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>{c.excerpt}...</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

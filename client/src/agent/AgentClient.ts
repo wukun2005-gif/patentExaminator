@@ -74,6 +74,9 @@ const INTERPRET_DOCUMENT_LABELS: Record<InterpretDocumentType, string> = {
  * In real mode, calls the server API.
  */
 export class AgentClient {
+  /** 最近一次知识库注入的引用详情（静态，供 UI 读取） */
+  static lastKnowledgeCitations: Array<{ source: string; score: number; excerpt: string }> = [];
+
   private agentAssignments: AgentAssignment[];
   private fallbackProvider: ProviderId;
   private fallbackModel: string;
@@ -139,9 +142,9 @@ export class AgentClient {
     prompt: string,
     query: string,
     _agentType: string
-  ): Promise<string> {
+  ): Promise<{ prompt: string; knowledgeCitations: Array<{ source: string; score: number; excerpt: string }> }> {
     try {
-      const { injectKnowledge } = await import("../lib/knowledge/promptInjector");
+      const { injectKnowledge, getInjectionCitations } = await import("../lib/knowledge/promptInjector");
       const { readSettings } = await import("../lib/repositories/settingsRepo");
       const settings = await readSettings();
       const knowledgeConfig = settings.knowledge ?? { enabled: false, embedProvider: "local" as const, topK: 5, scoreThreshold: 0.3 };
@@ -149,9 +152,11 @@ export class AgentClient {
         type: knowledgeConfig.embedProvider,
         remoteModelId: knowledgeConfig.remoteModelId,
       };
-      return await injectKnowledge({ query, systemPrompt: prompt, config: knowledgeConfig, embedConfig });
+      const enhanced = await injectKnowledge({ query, systemPrompt: prompt, config: knowledgeConfig, embedConfig });
+      const citations = getInjectionCitations();
+      return { prompt: enhanced, knowledgeCitations: citations };
     } catch {
-      return prompt;
+      return { prompt, knowledgeCitations: [] };
     }
   }
 
@@ -162,11 +167,12 @@ export class AgentClient {
     if (this.mode === "mock") {
       return mockClaimChart(request);
     }
-    const prompt = await this.enhancePromptWithKnowledge(
+    const { prompt, knowledgeCitations } = await this.enhancePromptWithKnowledge(
       buildClaimChartPrompt(request),
       request.claims?.map((c) => c.rawText).join(" ") ?? "",
       "claim-chart"
     );
+    AgentClient.lastKnowledgeCitations = knowledgeCitations;
     const raw = await this.callGateway<unknown>("claim-chart", prompt, {
       caseId: request.caseId,
       moduleScope: "claim-chart",
@@ -182,7 +188,7 @@ export class AgentClient {
     if (this.mode === "mock") {
       return this.callGatewayMock<NoveltyResponse>("novelty", request.caseId, "novelty");
     }
-    const prompt = await this.enhancePromptWithKnowledge(
+    const { prompt } = await this.enhancePromptWithKnowledge(
       buildNoveltyPrompt(request),
       request.features?.map((f) => f.description).join(" ") ?? "",
       "novelty"
@@ -201,7 +207,7 @@ export class AgentClient {
     if (this.mode === "mock") {
       return mockInventive(request);
     }
-    const prompt = await this.enhancePromptWithKnowledge(
+    const { prompt } = await this.enhancePromptWithKnowledge(
       buildInventivePrompt(request),
       request.features?.map((f) => f.description).join(" ") ?? "",
       "inventive"
@@ -485,7 +491,7 @@ export class AgentClient {
         "opinion-analysis"
       );
     }
-    const prompt = await this.enhancePromptWithKnowledge(
+    const { prompt } = await this.enhancePromptWithKnowledge(
       buildOpinionAnalysisPrompt(request),
       request.opinionText?.slice(0, 500) ?? "",
       "opinion-analysis"
@@ -508,7 +514,7 @@ export class AgentClient {
         "argument-mapping"
       );
     }
-    const prompt = await this.enhancePromptWithKnowledge(
+    const { prompt } = await this.enhancePromptWithKnowledge(
       buildArgumentAnalysisPrompt(request),
       request.argumentText?.slice(0, 500) ?? "",
       "argument-analysis"
@@ -527,7 +533,7 @@ export class AgentClient {
     if (this.mode === "mock") {
       return this.callGatewayMock<ReexamDraftResponse>("reexam-draft", request.caseId, "draft");
     }
-    const prompt = await this.enhancePromptWithKnowledge(
+    const { prompt } = await this.enhancePromptWithKnowledge(
       buildReexamDraftPrompt(request),
       request.rejectionGrounds?.map((r) => r.summary).join(" ") ?? "",
       "reexam-draft"
