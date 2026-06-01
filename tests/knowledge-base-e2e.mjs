@@ -345,6 +345,35 @@ async function testMultiFileUploadAndSearch() {
   assert(searchData.results.length > 0, "No results for multi-file search");
 }
 
+// ── T-RAG-026: 知识库 Provider 测试连接 ─────────────────
+
+async function testKnowledgeProviderTestEndpoint() {
+  // 测试缺少参数
+  const missingParams = await fetch(`${BASE}/knowledge/providers/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  const missingData = await missingParams.json();
+  assert(missingData.ok === false, "Should fail with missing params");
+
+  // 测试无效 API key（应返回连接错误，不是 404）
+  const invalidKey = await fetch(`${BASE}/knowledge/providers/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      providerType: "embedding",
+      baseUrl: "https://api.siliconflow.cn/v1",
+      apiKey: "invalid-key",
+      modelId: "BAAI/bge-m3",
+    }),
+  });
+  const invalidKeyData = await invalidKey.json();
+  // 应该返回 ok: false（鉴权失败），而不是 404（URL 错误）
+  assert(invalidKeyData.ok === false, "Should fail with invalid key");
+  assert(!invalidKeyData.error?.includes("404"), `Should not get 404, got: ${invalidKeyData.error}`);
+}
+
 // ── Server 生命周期管理 ────────────────────────────────
 
 async function startTestServer() {
@@ -451,6 +480,7 @@ async function main() {
     await runTest("T-RAG-023: 上传→检索完整链路", testUploadAndSearchChain);
     await runTest("T-RAG-024: 检索结果包含元数据", testSearchResultMetadata);
     await runTest("T-RAG-025: 多文件上传后检索", testMultiFileUploadAndSearch);
+    await runTest("T-RAG-026: 知识库 Provider 测试连接端点", testKnowledgeProviderTestEndpoint);
   } finally {
     stopTestServer();
     cleanupTestDb();
