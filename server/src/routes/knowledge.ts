@@ -358,6 +358,17 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
     const file = req.file;
     const fileHash = crypto.createHash("sha256").update(file.buffer).digest("hex");
 
+    // bg-41: 读取 embedding 配置
+    const embeddingConfigStr = req.body?.embeddingConfig;
+    if (embeddingConfigStr) {
+      try {
+        const embeddingConfig = JSON.parse(embeddingConfigStr) as { baseUrl: string; apiKey: string; modelId: string };
+        setRemoteEmbedder(embeddingConfig);
+      } catch (e) {
+        logger.warn(`Failed to parse embeddingConfig: ${e}`);
+      }
+    }
+
     // 文件级去重
     const existing = findDuplicateByHash(fileHash);
     if (existing) {

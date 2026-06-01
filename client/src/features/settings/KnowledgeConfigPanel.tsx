@@ -126,6 +126,18 @@ export function KnowledgeConfigPanel() {
     const formData = new FormData();
     formData.append("file", file);
 
+    // bg-41: 传递 embedding 配置
+    const embeddingProvider = knowledgeProviders.find(
+      (p) => p.providerType === "embedding" && p.enabled && p.apiKeyRef
+    );
+    if (embeddingProvider) {
+      formData.append("embeddingConfig", JSON.stringify({
+        baseUrl: embeddingProvider.baseUrl,
+        apiKey: embeddingProvider.apiKeyRef,
+        modelId: embeddingProvider.modelId,
+      }));
+    }
+
     const res = await fetch(`${API}/upload`, { method: "POST", body: formData });
 
     if (!res.ok) {
