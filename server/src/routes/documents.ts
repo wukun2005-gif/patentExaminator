@@ -73,3 +73,32 @@ documentsRouter.post("/documents/extract-pdf", upload.single("file"), async (req
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }
 });
+
+/** POST /api/documents/extract-docx — 提取 DOCX 文本 */
+documentsRouter.post("/documents/extract-docx", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ ok: false, error: "No file provided" });
+      return;
+    }
+
+    const file = req.file;
+    logger.info(`DOCX extraction request: ${file.originalname} (${file.size} bytes)`);
+
+    // 动态导入 mammoth
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ buffer: file.buffer });
+
+    const text = result.value.trim();
+
+    logger.info(`DOCX extraction completed: ${file.originalname} - ${text.length} chars`);
+
+    res.json({
+      ok: true,
+      text,
+    });
+  } catch (err) {
+    logger.error("DOCX extraction error: " + (err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
