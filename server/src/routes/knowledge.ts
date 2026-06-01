@@ -23,7 +23,7 @@ import {
 } from "../lib/knowledgeDb.js";
 import { extractText, extractFromUrl } from "../lib/knowledgeExtract.js";
 import { logger } from "../lib/logger.js";
-import { localRerank } from "../lib/reranker.js";
+import { localRerank, crossEncoderRerank } from "../lib/reranker.js";
 import { invalidateBM25Index } from "../lib/hybridSearch.js";
 import { expandQueryFull } from "../lib/queryExpand.js";
 
@@ -774,23 +774,23 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
           logger.info(`Remote re-ranker applied: ${rerankedScores.length} results`);
         } else {
           const errorText = await rerankRes.text();
-          logger.warn(`Remote re-ranker failed (${rerankRes.status}), falling back to local: ${errorText}`);
-          // 远程失败，回退到本地 reranker
-          const localResults = localRerank(candidatesForRerank, query);
-          rerankedScores = localResults.map((r) => ({ chunkId: r.chunkId, score: r.score }));
-          logger.info(`Local re-ranker applied as fallback: ${rerankedScores.length} results`);
+          logger.warn(`Remote re-ranker failed (${rerankRes.status}), falling back to cross-encoder: ${errorText}`);
+          // 远程失败，回退到 Cross-Encoder 本地重排序
+          const crossResults = await crossEncoderRerank(candidatesForRerank, query);
+          rerankedScores = crossResults.map((r) => ({ chunkId: r.chunkId, score: r.score }));
+          logger.info(`Cross-encoder re-ranker applied as fallback: ${rerankedScores.length} results`);
         }
       } catch (rerankErr) {
-        logger.warn(`Remote re-ranker error, falling back to local: ${rerankErr}`);
-        const localResults = localRerank(candidatesForRerank, query);
-        rerankedScores = localResults.map((r) => ({ chunkId: r.chunkId, score: r.score }));
-        logger.info(`Local re-ranker applied as fallback: ${rerankedScores.length} results`);
+        logger.warn(`Remote re-ranker error, falling back to cross-encoder: ${rerankErr}`);
+        const crossResults = await crossEncoderRerank(candidatesForRerank, query);
+        rerankedScores = crossResults.map((r) => ({ chunkId: r.chunkId, score: r.score }));
+        logger.info(`Cross-encoder re-ranker applied as fallback: ${rerankedScores.length} results`);
       }
     } else {
-      // bg-41: 没有远程 Re-ranker 时，使用本地启发式重排序（不再跳过）
-      const localResults = localRerank(candidatesForRerank, query);
-      rerankedScores = localResults.map((r) => ({ chunkId: r.chunkId, score: r.score }));
-      logger.info(`Local re-ranker applied: ${rerankedScores.length} results`);
+      // cr-2: 没有远程 Re-ranker 时，使用 Cross-Encoder 本地重排序（模型不可用时降级为启发式）
+      const crossResults = await crossEncoderRerank(candidatesForRerank, query);
+      rerankedScores = crossResults.map((r) => ({ chunkId: r.chunkId, score: r.score }));
+      logger.info(`Cross-encoder re-ranker applied: ${rerankedScores.length} results`);
     }
 
     const topResults = rerankedScores.slice(0, topK).map((s) => {

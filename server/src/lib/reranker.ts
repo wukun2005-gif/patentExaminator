@@ -2,9 +2,12 @@
  * 服务端重排序器 — 使用多信号评分对检索结果重新排序
  * 从 client/src/lib/knowledge/reranker.ts 迁移到服务端
  *
- * 当没有远程 Re-ranker API 时，使用本地启发式算法。
+ * cr-2: 优先使用 Cross-Encoder 模型（BAAI/bge-reranker-v2-m3）精排，
+ * 模型不可用时降级为本地启发式算法。
  * 5 个信号加权：语义相似度、关键词匹配、文档类型、法条引用、chunk 深度
  */
+
+import { logger } from "./logger.js";
 
 export interface RerankConfig {
   semanticWeight: number;
@@ -114,4 +117,88 @@ function extractTerms(text: string): string[] {
   tokens.push(...chineseChars, ...englishWords.map((w) => w.toLowerCase()));
 
   return [...new Set(tokens.filter((t) => !stopWords.has(t) && t.length >= 2))];
+}
+
+// ── Cross-Encoder 重排序（cr-2） ──────────────────────────────
+
+// 模型缓存（单例）
+let crossEncoderModel: unknown = null;
+let crossEncoderLoading = false;
+let crossEncoderFailed = false;
+
+const RERANKER_MODEL = "Xenova/bge-reranker-v2-m3";
+
+/** 获取 Cross-Encoder 模型（懒加载，失败后不再重试） */
+async function getCrossEncoder(): Promise<unknown> {
+  if (crossEncoderFailed) return null;
+  if (crossEncoderModel) return crossEncoderModel;
+  if (crossEncoderLoading) {
+    // 等待加载完成
+    while (crossEncoderLoading) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return crossEncoderModel;
+  }
+
+  crossEncoderLoading = true;
+  try {
+    const { pipeline } = await import("@xenova/transformers");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    crossEncoderModel = await (pipeline as any)("text-classification", RERANKER_MODEL, {
+      quantized: true,
+    });
+    logger.info(`Cross-encoder reranker loaded: ${RERANKER_MODEL}`);
+    return crossEncoderModel;
+  } catch (err) {
+    logger.warn(`Failed to load cross-encoder reranker: ${err}`);
+    crossEncoderFailed = true;
+    return null;
+  } finally {
+    crossEncoderLoading = false;
+  }
+}
+
+interface CrossEncoderInput {
+  chunkId: string;
+  text: string;
+  metadata: Record<string, unknown>;
+  score: number;
+}
+
+interface CrossEncoderOutput {
+  chunkId: string;
+  score: number;
+}
+
+/** Cross-Encoder 精排：对 (query, chunk) pair 逐一评分 */
+export async function crossEncoderRerank(
+  results: CrossEncoderInput[],
+  query: string
+): Promise<CrossEncoderOutput[]> {
+  const model = await getCrossEncoder();
+  if (!model) {
+    logger.info("Cross-encoder not available, falling back to local rerank");
+    return localRerank(results, query);
+  }
+
+  try {
+    // 构造 (query, chunk) pairs
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const classifier = model as any;
+    const scored: CrossEncoderOutput[] = [];
+
+    for (const result of results) {
+      // bge-reranker 输入格式: "query [SEP] chunk"
+      const input = `${query} [SEP] ${result.text.slice(0, 512)}`;
+      const output = await classifier(input, { topk: 1 });
+      // 输出格式: [{ label: string, score: number }]
+      const relevanceScore = output?.[0]?.score ?? 0;
+      scored.push({ chunkId: result.chunkId, score: relevanceScore });
+    }
+
+    return scored.sort((a, b) => b.score - a.score);
+  } catch (err) {
+    logger.warn(`Cross-encoder inference failed, falling back to local rerank: ${err}`);
+    return localRerank(results, query);
+  }
 }
