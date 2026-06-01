@@ -285,65 +285,30 @@ export function KnowledgeConfigPanel() {
         <span>知识条目: {stats.chunkCount}</span>
       </div>
 
-      {/* nf-9: Embedding Provider 配置 */}
+      {/* bg-41: Embedding Provider 配置 — 有远程用远程，没有用本地 */}
       <div className="knowledge-config-section">
         <h4>Embedding Provider</h4>
-        <div className="knowledge-embed-options">
-          <label>
-            <input
-              type="radio"
-              name="embedProvider"
-              checked={config.embedProvider === "local"}
-              onChange={() => {
-                if (stats.embeddedCount > 0 && config.embedProvider !== "local") {
-                  if (!window.confirm(`切换 embedding 模型后，已有的 ${stats.embeddedCount} 个向量需要全部重新生成。确定切换吗？`)) return;
-                }
-                setConfig({ ...config, embedProvider: "local" });
+        <p className="knowledge-hint" style={{ marginBottom: "8px" }}>
+          配置远程 Embedding API 后自动使用，未配置时使用本地模型（BGE-large-zh，首次需下载 ~400MB）。
+        </p>
+        {PRESET_KNOWLEDGE_PROVIDERS.filter((p) => p.providerType === "embedding").map((preset) => {
+          const existing = knowledgeProviders.find(
+            (p) => p.providerType === "embedding" && p.providerId === preset.providerId
+          );
+          return (
+            <KnowledgeProviderCard
+              key={preset.providerId}
+              preset={preset}
+              existing={existing}
+              onUpdate={(updated) => {
+                const others = knowledgeProviders.filter(
+                  (p) => !(p.providerType === "embedding" && p.providerId === preset.providerId)
+                );
+                updateSettings({ knowledgeProviders: [...others, updated] });
               }}
             />
-            本地模型（BGE-large-zh，服务端运行，首次需下载 ~400MB）
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="embedProvider"
-              checked={config.embedProvider === "remote"}
-              onChange={() => {
-                if (stats.embeddedCount > 0 && config.embedProvider !== "remote") {
-                  if (!window.confirm(`切换 embedding 模型后，已有的 ${stats.embeddedCount} 个向量需要全部重新生成。确定切换吗？`)) return;
-                }
-                setConfig({ ...config, embedProvider: "remote" });
-              }}
-            />
-            远程 API（独立配置知识库 Provider）
-          </label>
-        </div>
-
-        {config.embedProvider === "remote" && (
-          <div className="knowledge-remote-config">
-            {PRESET_KNOWLEDGE_PROVIDERS.filter((p) => p.providerType === "embedding").map((preset) => {
-              const existing = knowledgeProviders.find(
-                (p) => p.providerType === "embedding" && p.providerId === preset.providerId
-              );
-              return (
-                <KnowledgeProviderCard
-                  key={preset.providerId}
-                  preset={preset}
-                  existing={existing}
-                  onUpdate={(updated) => {
-                    const others = knowledgeProviders.filter(
-                      (p) => !(p.providerType === "embedding" && p.providerId === preset.providerId)
-                    );
-                    updateSettings({ knowledgeProviders: [...others, updated] });
-                  }}
-                />
-              );
-            })}
-            <p className="knowledge-hint">
-              支持 OpenAI-compatible Embedding API。默认使用硅基流动（SiliconFlow）。
-            </p>
-          </div>
-        )}
+          );
+        })}
       </div>
 
       {/* nf-9: Re-ranker Provider 配置 */}

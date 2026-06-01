@@ -667,17 +667,25 @@ knowledgeRouter.get("/knowledge/stats", (_req, res) => {
   }
 });
 
-/** POST /api/knowledge/search — 检索（支持 Re-ranker） */
+/** POST /api/knowledge/search — 检索（支持 Re-ranker + 远程 Embedding） */
 knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
   try {
-    const { query, topK = 5, reranker } = req.body as {
+    const { query, topK = 5, reranker, embedding } = req.body as {
       query: string;
       topK?: number;
       reranker?: { baseUrl: string; apiKey: string; modelId: string };
+      embedding?: { baseUrl: string; apiKey: string; modelId: string };
     };
     if (!query) {
       res.status(400).json({ ok: false, error: "Missing query" });
       return;
+    }
+
+    // bg-41: 设置远程 embedding 配置（如果有）
+    if (embedding?.baseUrl && embedding?.apiKey && embedding?.modelId) {
+      setRemoteEmbedder(embedding);
+    } else {
+      setRemoteEmbedder(null);
     }
 
     const emb = await getEmbedder();

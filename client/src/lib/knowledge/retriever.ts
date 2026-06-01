@@ -98,11 +98,14 @@ export async function retrieve(
 
   // 调用 server 端检索 API
   try {
-    // nf-9: 传递 Re-ranker 配置
+    // nf-9: 传递 Re-ranker + Embedding 配置
     const { readSettings } = await import("../repositories/settingsRepo");
     const settings = await readSettings();
     const rerankerProvider = settings.knowledgeProviders?.find(
       (p) => p.providerType === "reranker" && p.enabled && p.apiKeyRef
+    );
+    const embeddingProvider = settings.knowledgeProviders?.find(
+      (p) => p.providerType === "embedding" && p.enabled && p.apiKeyRef
     );
 
     const res = await fetch("/api/knowledge/search", {
@@ -115,6 +118,12 @@ export async function retrieve(
           baseUrl: rerankerProvider.baseUrl,
           apiKey: rerankerProvider.apiKeyRef,
           modelId: rerankerProvider.modelId,
+        } : undefined,
+        // bg-41: 传递远程 Embedding 配置
+        embedding: embeddingProvider ? {
+          baseUrl: embeddingProvider.baseUrl,
+          apiKey: embeddingProvider.apiKeyRef,
+          modelId: embeddingProvider.modelId,
         } : undefined,
       }),
     });
