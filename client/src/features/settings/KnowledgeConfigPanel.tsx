@@ -84,8 +84,24 @@ export function KnowledgeConfigPanel() {
     }
   };
 
-  /** 上传文件并实时显示进度（SSE） */
+  /** 上传文件并实时显示进度（SSE），失败自动重试一次 */
   const uploadFileWithProgress = async (file: File): Promise<string> => {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const result = await doUploadWithSSE(file);
+        if (!result.startsWith("❌") || attempt === 2) return result;
+        // 首次失败，等待 2 秒后重试
+        setImportResult(`⏳ ${file.name} — 上传失败，${attempt < 2 ? "正在重试..." : ""}`);
+        await new Promise((r) => setTimeout(r, 2000));
+      } catch (err) {
+        if (attempt === 2) return `❌ ${file.name} — ${err}`;
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+    return `❌ ${file.name} — 未知错误`;
+  };
+
+  const doUploadWithSSE = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append("file", file);
 
