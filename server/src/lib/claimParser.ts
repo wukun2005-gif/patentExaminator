@@ -1,4 +1,8 @@
-import type { ClaimNode } from "@shared/types/domain";
+/**
+ * 服务端权利要求解析模块 — MIGRATE-009
+ * 从前端 claimParser.ts 迁移到后端
+ */
+import type { ClaimNode } from "@shared/types/domain.js";
 
 export interface ParseClaimsResult {
   claims: ClaimNode[];
@@ -7,21 +11,39 @@ export interface ParseClaimsResult {
 
 /**
  * Parse claim text into ClaimNode[] with type detection and dependency chain.
- * MIGRATE-009: 调用后端 API 进行权利要求解析
  */
-export async function parseClaims(text: string, caseId: string): Promise<ParseClaimsResult> {
-  const res = await fetch("/api/documents/parse-claims", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, caseId }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Parse claims failed: ${res.status} ${res.statusText}`);
+export function parseClaims(text: string, caseId: string): ParseClaimsResult {
+  const warnings: string[] = [];
+  const region = locateClaimRegion(text);
+  if (!region) {
+    warnings.push("no-claim-region");
+    return { claims: [], warnings };
   }
 
-  const data = await res.json() as { ok: boolean; claims: ClaimNode[]; warnings: string[] };
-  return { claims: data.claims, warnings: data.warnings };
+  const rawClaims = splitClaims(region);
+  if (rawClaims.length === 0) {
+    warnings.push("no-claims-found");
+    return { claims: [], warnings };
+  }
+
+  const claims: ClaimNode[] = rawClaims.map(({ claimNumber, rawText }) => {
+    const type = detectClaimType(rawText);
+    const dependsOn = type === "dependent" ? extractDependencies(rawText) : [];
+
+    return {
+      id: `${caseId}-claim-${claimNumber}`,
+      caseId,
+      claimNumber,
+      type,
+      dependsOn,
+      rawText
+    };
+  });
+
+  // Validation
+  validateClaims(claims, warnings);
+
+  return { claims, warnings };
 }
 
 /**
@@ -125,26 +147,30 @@ function extractDependencies(rawText: string): number[] {
  * Validate claims consistency.
  */
 function validateClaims(claims: ClaimNode[], warnings: string[]): void {
-  // Check for at least one independent claim
-  const hasIndependent = claims.some((c) => c.type === "independent");
-  if (!hasIndependent) warnings.push("no-independent-claim");
+  if (claims.length === 0) return;
 
-  // Check numbering continuity
-  const numbers = claims.map((c) => c.claimNumber).sort((a, b) => a - b);
-  for (let i = 1; i < numbers.length; i++) {
-    if (numbers[i]! - numbers[i - 1]! > 1) {
-      warnings.push(`gap-in-claim-numbers: ${numbers[i - 1]}-${numbers[i]}`);
+  // Check for duplicate claim numbers
+  const numbers = claims.map((c) => c.claimNumber);
+  const duplicates = numbers.filter((n, i) => numbers.indexOf(n) !== i);
+  if (duplicates.length > 0) {
+    warnings.push(`duplicate-claim-numbers: ${[...new Set(duplicates)].join(", ")}`);
+  }
+
+  // Check for missing claim numbers (gaps)
+  const maxNum = Math.max(...numbers);
+  for (let i = 1; i <= maxNum; i++) {
+    if (!numbers.includes(i)) {
+      warnings.push(`missing-claim-${i}`);
     }
   }
 
-  // Check dependency validity
+  // Check dependent claims reference valid claims
   for (const claim of claims) {
-    for (const dep of claim.dependsOn) {
-      if (dep >= claim.claimNumber) {
-        warnings.push(`invalid-dependency: claim ${claim.claimNumber} depends on ${dep}`);
-      }
-      if (!claims.some((c) => c.claimNumber === dep)) {
-        warnings.push(`missing-dependency: claim ${claim.claimNumber} depends on non-existent ${dep}`);
+    if (claim.type === "dependent") {
+      for (const dep of claim.dependsOn) {
+        if (!numbers.includes(dep)) {
+          warnings.push(`claim-${claim.claimNumber}-references-missing-${dep}`);
+        }
       }
     }
   }

@@ -68,7 +68,7 @@ export async function extractCaseFields(
  * Fallback: regex for bibliographic fields, parseClaims for claims.
  * Exported for use when AI extraction fails.
  */
-export function extractCaseFieldsFallback(
+export async function extractCaseFieldsFallback(
   documents: Array<{ fileName: string; text: string }>,
   caseId: string
 ): ExtractedFields {
@@ -98,11 +98,11 @@ export function extractCaseFieldsFallback(
   const priorityDate = extractDate(front, /优先权[日]?[：:\s]*/);
   if (priorityDate) confidence.priorityDate = "high";
 
-  // Use parseClaims for claims
+  // Use parseClaims for claims (MIGRATE-009: async API call)
   let claims: ClaimNode[] = [];
   let targetClaimNumber: number | null = null;
   try {
-    const parsed = parseClaims(combined, caseId);
+    const parsed = await parseClaims(combined, caseId);
     claims = parsed.claims;
     const indep = claims.filter((c) => c.type === "independent");
     if (indep.length > 0) {

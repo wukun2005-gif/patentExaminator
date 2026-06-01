@@ -159,7 +159,7 @@ export function CaseSetupPage() {
     } catch (err) {
       if (!isMountedRef.current) return;
       setExtractError(`AI 提取失败: ${err instanceof Error ? err.message : String(err)}，已降级为本地解析`);
-      const fallback = extractCaseFieldsFallback(docInputs, caseId);
+      const fallback = await extractCaseFieldsFallback(docInputs, caseId);
       setExtracted(fallback);
       applyExtracted(fallback, currentCase);
       await persistClaims(fallback.claims, setClaimNodes);

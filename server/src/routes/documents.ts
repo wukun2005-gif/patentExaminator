@@ -139,3 +139,29 @@ documentsRouter.post("/documents/extract-html", express.json(), async (req, res)
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }
 });
+
+/** POST /api/documents/parse-claims — 解析权利要求 */
+documentsRouter.post("/documents/parse-claims", express.json(), async (req, res) => {
+  try {
+    const { text, caseId } = req.body as { text: string; caseId: string };
+    if (!text || !caseId) {
+      res.status(400).json({ ok: false, error: "Missing text or caseId" });
+      return;
+    }
+
+    logger.info(`Parse claims request: caseId=${caseId}, text=${text.length} chars`);
+
+    const { parseClaims } = await import("../lib/claimParser.js");
+    const result = parseClaims(text, caseId);
+
+    logger.info(`Parse claims completed: ${result.claims.length} claims, ${result.warnings.length} warnings`);
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (err) {
+    logger.error("Parse claims error: " + (err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
