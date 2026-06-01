@@ -9,6 +9,10 @@
  */
 import { logger } from "./logger.js";
 
+function truncate(text: string, maxLen: number): string {
+  return text.length > maxLen ? text.slice(0, maxLen) : text;
+}
+
 // ── 类型定义 ──────────────────────────────────────────
 
 export interface AgentRunRequest {
@@ -90,7 +94,7 @@ function buildNoveltyPrompt(request: Record<string, unknown>): string {
   const referenceId = request.referenceId as string ?? "";
   const claimNumber = request.claimNumber as number ?? 1;
   const caseId = request.caseId as string ?? "";
-  const specExcerpt = referenceText.length > 8000 ? referenceText.slice(0, 8000) : referenceText;
+  const specExcerpt = truncate(referenceText, 8000);
 
   const parts = [
     `你是一名专利复审辅助系统，负责在复审阶段逐特征重新评估新颖性对照。`,
@@ -125,6 +129,341 @@ function buildNoveltyPrompt(request: Record<string, unknown>): string {
     `}`
   ];
   return parts.join("\n");
+}
+
+function buildInventivePrompt(request: Record<string, unknown>): string {
+  const features = request.features as Array<{ featureCode: string; description: string }> ?? [];
+  const availableReferences = request.availableReferences as Array<{ label: string; referenceId: string; excerpt: string }> ?? [];
+  const caseId = request.caseId as string ?? "";
+  const claimNumber = request.claimNumber as number ?? 1;
+  const closestPriorArtId = request.closestPriorArtId as string | null ?? null;
+  const applicantArguments = request.applicantArguments as string | undefined;
+  const amendedClaimText = request.amendedClaimText as string | undefined;
+
+  const parts = [
+    `你是一名专利复审辅助系统，负责在复审阶段进行创造性三步法分析。`,
+    ``,
+    `## 复审上下文`,
+    `本次分析基于以下复审背景：`,
+    `- 审查意见通知书中的驳回理由`,
+    `- 申请人的答辩理由（如提供）`,
+    `- 申请人修改后的权利要求（如提供）`,
+    ``,
+    `## 输入数据`,
+    `案件 ID: ${caseId}`,
+    `权利要求号: ${claimNumber}`,
+    `技术特征:`,
+    ...features.map((f) => `  ${f.featureCode}: ${f.description}`),
+    ``,
+    `可用对比文件:`,
+    ...availableReferences.map((r) => `  ${r.label} (${r.referenceId}): ${truncate(r.excerpt, 500)}`),
+    ``,
+    `用户指定最接近现有技术: ${closestPriorArtId ?? "由 AI 推荐"}`
+  ];
+  if (applicantArguments) {
+    parts.push(``, `申请人答辩理由:`, applicantArguments);
+  }
+  if (amendedClaimText) {
+    parts.push(``, `修改后权利要求:`, truncate(amendedClaimText, 4000));
+  }
+  parts.push(
+    ``,
+    `## 输出要求`,
+    `严格按以下 JSON 格式输出：`,
+    `{`,
+    `  "claimNumber": ${claimNumber},`,
+    `  "closestPriorArtId": "最接近现有技术的 referenceId",`,
+    `  "sharedFeatureCodes": ["共有特征"],`,
+    `  "distinguishingFeatureCodes": ["区别特征"],`,
+    `  "objectiveTechnicalProblem": "客观技术问题",`,
+    `  "motivationEvidence": [{ "referenceId": "ID", "label": "标签", "quote": "引文", "confidence": "high|medium|low" }],`,
+    `  "candidateAssessment": "possibly-inventive|possibly-lacks-inventiveness|insufficient-evidence",`,
+    `  "cautions": ["注意事项"],`,
+    `  "examinerResponse": "审查员回应草稿",`,
+    `  "legalCaution": "法律风险提示"`,
+    `}`,
+    ``,
+    `注意：`,
+    `- closestPriorArtId 必须填写`,
+    `- sharedFeatureCodes 和 distinguishingFeatureCodes 并集必须等于所有 features`,
+    `- candidateAssessment 只能是 possibly-inventive、possibly-lacks-inventiveness 或 insufficient-evidence`
+  );
+  return parts.join("\n");
+}
+
+function buildDefectPrompt(request: Record<string, unknown>): string {
+  const claimText = request.claimText as string ?? "";
+  const specificationText = request.specificationText as string ?? "";
+  const claimFeatures = request.claimFeatures as Array<{ featureCode: string; description: string }> ?? [];
+  const caseId = request.caseId as string ?? "";
+
+  return [
+    `你是一位资深专利审查员，擅长识别专利申请文件中的形式缺陷。`,
+    `案件 ID: ${caseId}`,
+    ``,
+    `权利要求文本:`,
+    truncate(claimText, 4000),
+    ``,
+    `说明书文本:`,
+    truncate(specificationText, 8000),
+    ``,
+    `技术特征:`,
+    ...claimFeatures.map((f) => `  ${f.featureCode}: ${f.description}`),
+    ``,
+    `请检测形式缺陷，严格按以下 JSON 格式输出：`,
+    `{`,
+    `  "defects": [{ "category": "类别", "description": "描述", "location": "位置(可选)", "severity": "error|warning|info", "previouslyRaised": false, "overcomeStatus": "overcome|not-overcome|partially-overcome(可选)" }],`,
+    `  "warnings": [],`,
+    `  "legalCaution": "AI 辅助检测，需审查员确认"`,
+    `}`
+  ].join("\n");
+}
+
+function buildChatPrompt(request: Record<string, unknown>): string {
+  const caseId = request.caseId as string ?? "";
+  const moduleScope = request.moduleScope as string ?? "";
+  const contextSummary = request.contextSummary as string ?? "";
+  const history = request.history as Array<{ role: string; content: string }> ?? [];
+  const userMessage = request.userMessage as string ?? "";
+
+  return [
+    `案件 ID: ${caseId}`,
+    `当前模块: ${moduleScope}`,
+    ``,
+    `=== 当前模块数据 ===`,
+    contextSummary,
+    ``,
+    `=== 对话历史 ===`,
+    ...history.map((m) => `[${m.role}]: ${m.content}`),
+    ``,
+    `=== 用户消息 ===`,
+    userMessage
+  ].join("\n");
+}
+
+const INTERPRET_TEMPLATES: Record<string, { title: string; instructions: string[] }> = {
+  application: {
+    title: "专利申请文件解读",
+    instructions: [
+      "1. 【技术领域】该专利属于哪个技术领域",
+      "2. 【核心技术方案】概括发明的技术方案",
+      "3. 【主要权利要求】列出独立权利要求的核心技术特征",
+      "4. 【关键实施例】概括关键实施例及其技术效果",
+      "5. 【创新点分析】该发明相对于现有技术的创新之处",
+      "6. 【潜在问题】可能存在的形式或实质性问题"
+    ]
+  },
+  "office-action": {
+    title: "审查意见通知书解读",
+    instructions: [
+      "1. 【通知书基本信息】发文日、通知书编号、审查员姓名（如有）",
+      "2. 【审查结论】整体审查结论概述",
+      "3. 【驳回理由清单】逐条列出驳回理由及其法律依据",
+      "4. 【引用对比文件】列出引用的对比文件及其公开号、公开日",
+      "5. 【权利要求对应关系】每项驳回理由涉及的权利要求号",
+      "6. 【申请人答复期限】答复截止日期及注意事项"
+    ]
+  },
+  "office-action-response": {
+    title: "意见陈述书解读",
+    instructions: [
+      "1. 【陈述书基本信息】提交日、对应审查意见通知书编号",
+      "2. 【答复策略概述】申请人采取的整体答复策略",
+      "3. 【权利要求修改情况】是否修改权利要求，修改内容及依据",
+      "4. 【争辩要点】逐条回应驳回理由的核心论点",
+      "5. 【新增证据或论证】是否有新的技术证据或论证",
+      "6. 【未解决问题】审查员可能继续质疑的问题点"
+    ]
+  }
+};
+
+function buildInterpretPrompt(request: Record<string, unknown>): string {
+  const documentType = request.documentType as string ?? "application";
+  const template = INTERPRET_TEMPLATES[documentType] ?? INTERPRET_TEMPLATES.application;
+  const caseId = request.caseId as string ?? "";
+  const documentId = request.documentId as string ?? "unknown";
+  const fileName = request.fileName as string ?? "未命名文件";
+  const documentText = request.documentText as string ?? "";
+  const relatedDocuments = request.relatedDocuments as Array<{ fileName: string; documentType: string }> ?? [];
+  const relatedStr = relatedDocuments.length
+    ? relatedDocuments.map((doc) => `- ${doc.fileName}（${doc.documentType}）`).join("\n")
+    : "无";
+
+  return [
+    `你是一个专利审查助手。请对以下${template.title}进行深度解读：`,
+    "",
+    ...template.instructions,
+    "",
+    "请用中文回答，结构清晰，每个维度用标题分隔。",
+    "必须在开头明确写出当前解读文件名。",
+    "",
+    `案件 ID: ${caseId}`,
+    `文件 ID: ${documentId}`,
+    `文件名: ${fileName}`,
+    "",
+    "=== 同案相关文件 ===",
+    relatedStr,
+    "",
+    "=== 文档内容 ===",
+    truncate(documentText, 12000)
+  ].join("\n");
+}
+
+function buildOpinionAnalysisPrompt(request: Record<string, unknown>): string {
+  const caseId = request.caseId as string ?? "";
+  const documentId = request.documentId as string ?? "";
+  const officeActionText = request.officeActionText as string ?? "";
+
+  return [
+    `你是一位资深专利审查员，擅长分析审查意见通知书。`,
+    `案件 ID: ${caseId}`,
+    `文档 ID: ${documentId}`,
+    ``,
+    `审查意见通知书文本:`,
+    truncate(officeActionText, 12000),
+    ``,
+    `请提取驳回理由和引用文献，严格按以下 JSON 格式输出：`,
+    `{`,
+    `  "documentId": "${documentId}",`,
+    `  "rejectionGrounds": [{ "code": "RG-1", "category": "novelty|inventive|clarity|support|amendment|other", "claimNumbers": [1], "summary": "摘要", "legalBasis": "法律依据", "originalText": "原文" }],`,
+    `  "citedReferences": [{ "publicationNumber": "公开号", "rejectionGroundCodes": ["RG-1"], "featureMapping": "特征映射" }],`,
+    `  "legalCaution": "AI 分析法律风险提示"`,
+    `}`
+  ].join("\n");
+}
+
+function buildArgumentAnalysisPrompt(request: Record<string, unknown>): string {
+  const caseId = request.caseId as string ?? "";
+  const rejectionGrounds = request.rejectionGrounds as Array<{ code: string; category: string; summary: string }> ?? [];
+  const responseText = request.responseText as string ?? "";
+  const amendedClaimsText = request.amendedClaimsText as string | undefined;
+
+  const parts = [
+    `你是一位资深专利审查员，擅长分析意见陈述书中的答辩理由。`,
+    `案件 ID: ${caseId}`,
+    ``,
+    `驳回理由清单:`,
+    ...rejectionGrounds.map((g) => `  ${g.code} (${g.category}): ${g.summary}`),
+    ``,
+    `意见陈述书文本:`,
+    truncate(responseText, 12000)
+  ];
+  if (amendedClaimsText) {
+    parts.push(``, `修改后权利要求:`, truncate(amendedClaimsText, 4000));
+  }
+  parts.push(
+    ``,
+    `请将每条驳回理由与答辩内容映射，严格按 JSON 格式输出：`,
+    `{`,
+    `  "mappings": [{ "rejectionGroundCode": "RG-1", "applicantArgument": "答辩原文", "argumentSummary": "摘要", "confidence": "high|medium|low", "amendedClaims": [], "newEvidence": "" }],`,
+    `  "unmappedGrounds": ["未映射的 code"],`,
+    `  "legalCaution": "AI 分析法律风险提示"`,
+    `}`
+  );
+  return parts.join("\n");
+}
+
+function buildReexamDraftPrompt(request: Record<string, unknown>): string {
+  const caseId = request.caseId as string ?? "";
+  const claimNumber = request.claimNumber as number ?? 1;
+  const rejectionGrounds = request.rejectionGrounds as Array<{ code: string; category: string; summary: string }> ?? [];
+  const argumentMappings = request.argumentMappings as Array<{ rejectionGroundCode: string; argumentSummary: string; confidence: string }> ?? [];
+  const noveltyResults = request.noveltyResults as string | undefined;
+  const inventiveResults = request.inventiveResults as string | undefined;
+  const defectResults = request.defectResults as string | undefined;
+
+  const parts = [
+    `你是一位资深专利审查员，负责起草复审意见草稿。`,
+    `案件 ID: ${caseId}`,
+    `权利要求号: ${claimNumber}`,
+    ``,
+    `驳回理由清单:`,
+    ...rejectionGrounds.map((g) => `  ${g.code} (${g.category}): ${g.summary}`),
+    ``,
+    `答辩映射:`,
+    ...argumentMappings.map((m) => `  ${m.rejectionGroundCode}: ${m.argumentSummary} [${m.confidence}]`)
+  ];
+  if (noveltyResults) parts.push(``, `新颖性复核:`, truncate(noveltyResults, 4000));
+  if (inventiveResults) parts.push(``, `创造性复核:`, truncate(inventiveResults, 4000));
+  if (defectResults) parts.push(``, `缺陷复查:`, truncate(defectResults, 2000));
+  parts.push(
+    ``,
+    `请起草复审意见草稿，严格按 JSON 格式输出：`,
+    `{`,
+    `  "claimNumber": ${claimNumber},`,
+    `  "responseItems": [{ "rejectionGroundCode": "RG-1", "category": "类别", "applicantArgumentSummary": "摘要", "examinerResponse": "回应", "conclusion": "argument-accepted|argument-partially-accepted|argument-rejected|needs-further-review", "supportingEvidence": [] }],`,
+    `  "overallAssessment": "综合评估",`,
+    `  "defectReviewSummary": "缺陷复查总结(可选)",`,
+    `  "legalCaution": "法律风险提示"`,
+    `}`
+  );
+  return parts.join("\n");
+}
+
+function buildSummaryPrompt(request: Record<string, unknown>): string {
+  const caseBaseline = request.caseBaseline as string ?? "";
+  const confirmedFeatures = request.confirmedFeatures as string ?? "";
+  const reviewedNoveltyComparisons = request.reviewedNoveltyComparisons as string ?? "";
+  const inventiveAnalysis = request.inventiveAnalysis as string ?? "";
+
+  return [
+    `你是一位资深专利审查员，负责撰写审查意见简述。`,
+    `案件基线: ${caseBaseline}`,
+    ``,
+    `Claim Chart:`,
+    truncate(confirmedFeatures, 4000),
+    ``,
+    `新颖性对照:`,
+    truncate(reviewedNoveltyComparisons, 4000),
+    ``,
+    `创造性分析:`,
+    truncate(inventiveAnalysis, 4000),
+    ``,
+    `请撰写审查意见简述，严格按 JSON 格式输出：`,
+    `{`,
+    `  "body": "简述正文",`,
+    `  "aiNotes": "AI 备注",`,
+    `  "legalCaution": "法律风险提示"`,
+    `}`
+  ].join("\n");
+}
+
+function buildTranslatePrompt(request: Record<string, unknown>): string {
+  return truncate(request.documentText as string ?? "", 12000);
+}
+
+function buildExtractCaseFieldsPrompt(request: Record<string, unknown>): string {
+  const caseId = request.caseId as string ?? "";
+  const documents = request.documents as Array<{ fileName: string; text: string }> ?? [];
+  const docSections = documents.map((doc, i) => `=== 文件 ${i + 1}: ${doc.fileName} ===\n${doc.text}`);
+
+  return [
+    "你是一个专利文档信息提取助手。请从以下专利申请文件中提取案件基本信息和权利要求结构。",
+    "",
+    "请严格返回 JSON 格式，字段无法确定时设为 null。",
+    "",
+    JSON.stringify({ title: "string|null", applicationNumber: "string|null", applicant: "string|null", applicationDate: "YYYY-MM-DD|null", priorityDate: "YYYY-MM-DD|null", claims: [{ claimNumber: 1, type: "independent|dependent", dependsOn: [], rawText: "全文" }] }, null, 2),
+    "",
+    `案件 ID: ${caseId}`,
+    "",
+    ...docSections
+  ].join("\n");
+}
+
+function buildClassifyDocumentsPrompt(request: Record<string, unknown>): string {
+  const documents = request.documents as Array<{ fileIndex: number; fileName: string; textSample: string }> ?? [];
+  const docSections = documents.map((doc) => `=== 文件 ${doc.fileIndex}: ${doc.fileName} ===\n${doc.textSample}`);
+
+  return [
+    "你是一个专利文档分类助手。请根据文件名和内容识别每个文件的类型。",
+    "",
+    "类型：application(申请文件)、office-action(审查意见通知书)、office-action-response(意见陈述书)、reference(对比文件)",
+    "",
+    "请严格返回 JSON 格式：",
+    JSON.stringify({ classifications: [{ fileIndex: 0, fileName: "文件名", role: "application|office-action|office-action-response|reference", confidence: "high|medium|low", reason: "理由" }] }, null, 2),
+    "",
+    ...docSections
+  ].join("\n");
 }
 
 // ── 知识库增强 ──────────────────────────────────────────
@@ -185,6 +524,10 @@ function getAgentContext(agentType: string): string {
     case "novelty": return "以下法规段落与新颖性判断相关，请参考：";
     case "inventive": return "以下法规段落与创造性判断相关，请参考：";
     case "claim-chart": return "以下法规段落与权利要求解释相关，请参考：";
+    case "opinion-analysis": return "以下法规段落与审查意见解析相关，请参考：";
+    case "argument-analysis": return "以下法规段落与答辩理由评估相关，请参考：";
+    case "reexam-draft": return "以下法规段落与复审意见草稿相关，请参考：";
+    case "defects": return "以下法规段落与形式缺陷检查相关，请参考：";
     default: return "以下段落与当前分析内容相关，请参考：";
   }
 }
@@ -203,8 +546,41 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       case "novelty":
         prompt = buildNoveltyPrompt(req.request);
         break;
+      case "inventive":
+        prompt = buildInventivePrompt(req.request);
+        break;
+      case "defects":
+        prompt = buildDefectPrompt(req.request);
+        break;
+      case "chat":
+        prompt = buildChatPrompt(req.request);
+        break;
+      case "interpret":
+        prompt = buildInterpretPrompt(req.request);
+        break;
+      case "opinion-analysis":
+        prompt = buildOpinionAnalysisPrompt(req.request);
+        break;
+      case "argument-analysis":
+        prompt = buildArgumentAnalysisPrompt(req.request);
+        break;
+      case "reexam-draft":
+        prompt = buildReexamDraftPrompt(req.request);
+        break;
+      case "summary":
+        prompt = buildSummaryPrompt(req.request);
+        break;
+      case "translate":
+        prompt = buildTranslatePrompt(req.request);
+        break;
+      case "extract-case-fields":
+        prompt = buildExtractCaseFieldsPrompt(req.request);
+        break;
+      case "classify-documents":
+        prompt = buildClassifyDocumentsPrompt(req.request);
+        break;
       default:
-        return { ok: false, error: { type: "unsupported", message: `Agent ${req.agent} not yet migrated to server orchestrator` } };
+        return { ok: false, error: { type: "unsupported", message: `Unknown agent: ${req.agent}` } };
     }
 
     // 2. 知识库增强
@@ -244,7 +620,27 @@ function extractQuery(agent: string, request: Record<string, unknown>): string {
     case "claim-chart":
       return (request.claims as Array<{ rawText: string }> ?? []).map((c) => c.rawText).join(" ") ?? "";
     case "novelty":
+    case "inventive":
       return (request.features as Array<{ description: string }> ?? []).map((f) => f.description).join(" ") ?? "";
+    case "defects":
+      return (request.claimText as string ?? "").slice(0, 200);
+    case "interpret":
+      return (request.fileName as string ?? "") + " " + (request.documentText as string ?? "").slice(0, 200);
+    case "opinion-analysis":
+      return (request.officeActionText as string ?? "").slice(0, 200);
+    case "argument-analysis":
+      return (request.responseText as string ?? "").slice(0, 200);
+    case "reexam-draft":
+      return request.rejectionGrounds
+        ? (request.rejectionGrounds as Array<{ summary: string }>).map((g) => g.summary).join(" ")
+        : "";
+    case "summary":
+      return (request.confirmedFeatures as string ?? "").slice(0, 200);
+    case "chat":
+      return (request.userMessage as string ?? "");
+    case "extract-case-fields":
+    case "classify-documents":
+      return (request.documents as Array<{ fileName: string }> ?? []).map((d) => d.fileName).join(" ");
     default:
       return "";
   }
