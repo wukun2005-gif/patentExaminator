@@ -67,6 +67,81 @@ async function getEmbedder() {
   }
 }
 
+// ── 文本预处理 ────────────────────────────────────────
+
+/** 清洗：去页眉页脚、水印、多余空白 */
+function cleanText(text: string): string {
+  let cleaned = text;
+  cleaned = cleaned.replace(/^第\s*\d+\s*页.*$/gm, "");
+  cleaned = cleaned.replace(/^-\s*\d+\s*-$/gm, "");
+  cleaned = cleaned.replace(/^\d+\s*\/\s*\d+$/gm, "");
+  cleaned = cleaned.replace(/^(仅供|内部|草稿|DRAFT|CONFIDENTIAL).{0,20}$/gim, "");
+  cleaned = cleaned.replace(/[ \t]+/g, " ");
+  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
+  cleaned = cleaned.replace(/^\s+$/gm, "");
+  return cleaned.trim();
+}
+
+/** 法条引用规范化 */
+function normalizeLegalReference(text: string): string {
+  let n = text;
+  n = n.replace(/§(\d+)\.(\d+)/g, "第$1条第$2款");
+  n = n.replace(/§(\d+)/g, "第$1条");
+  n = n.replace(/Article\s+(\d+)/gi, "第$1条");
+  return n;
+}
+
+/** 日期规范化 */
+function normalizeDate(text: string): string {
+  let n = text;
+  n = n.replace(/(\d{4})年(\d{1,2})月(\d{1,2})日/g, (_, y, m, d) => `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+  n = n.replace(/(\d{4})\.(\d{1,2})\.(\d{1,2})/g, (_, y, m, d) => `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+  return n;
+}
+
+/** 全角转半角 */
+function normalizeWidth(text: string): string {
+  return text.replace(/[！-～]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0));
+}
+
+/** 文档类型推断 */
+function classifyDocument(fileName: string, text: string): string {
+  const lower = fileName.toLowerCase();
+  const head = text.slice(0, 500);
+  if (lower.includes("审查指南") || head.includes("专利审查指南")) return "审查指南";
+  if (lower.includes("司法解释") || head.includes("最高人民法院")) return "司法解释";
+  if (lower.includes("专利法实施细则") || head.includes("国务院令")) return "行政法规";
+  if (lower.includes("专利法") || head.includes("全国人民代表大会")) return "法律";
+  if (lower.includes("案例") || lower.includes("决定要点")) return "案例";
+  return "其他";
+}
+
+/** 法条引用提取 */
+function extractArticleRefs(text: string): string[] {
+  const refs = text.match(/第[一二三四五六七八九十百千零\d]+条(?:第[一二三四五六七八九十百千零\d]+款)?/g);
+  return [...new Set(refs ?? [])];
+}
+
+/** 噪声检测 */
+function isNoise(text: string): boolean {
+  const t = text.trim();
+  if (t.length === 0) return true;
+  if (/^[\d\s]+$/.test(t)) return true;
+  if (/^[^\w一-鿿]+$/.test(t)) return true;
+  if (t.length < 5 && !/[一-鿿]/.test(t)) return true;
+  return false;
+}
+
+/** 完整预处理流水线 */
+function preprocessText(text: string, fileName: string): string {
+  let result = text;
+  result = cleanText(result);
+  result = normalizeLegalReference(result);
+  result = normalizeDate(result);
+  result = normalizeWidth(result);
+  return result;
+}
+
 // ── 简化切片 ─────────────────────────────────────────
 
 function simpleChunk(text: string, fileName: string): Array<{ text: string; metadata: Record<string, unknown> }> {
@@ -140,13 +215,26 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
     const extraction = await extractText(file.buffer, fileName);
     sendEvent({ step: "extracting", done: true, chars: extraction.text.length });
 
-    // Step 2: 切片
-    sendEvent({ step: "chunking", message: "切片处理中..." });
-    const rawChunks = simpleChunk(extraction.text, fileName);
-    sendEvent({ step: "chunking", done: true, total: rawChunks.length });
+    // Step 2: 预处理（清洗 + 规范化）
+    sendEvent({ step: "preprocessing", message: "文本清洗与规范化..." });
+    const cleanedText = preprocessText(extraction.text, fileName);
+    sendEvent({ step: "preprocessing", done: true });
 
-    // Step 3: 存储
-    sendEvent({ step: "storing", message: `存储 ${rawChunks.length} 条知识...` });
+    // Step 3: 切片
+    sendEvent({ step: "chunking", message: "切片处理中..." });
+    const rawChunks = simpleChunk(cleanedText, fileName);
+
+    // Step 4: 噪声过滤 + 元数据增强
+    const docCategory = classifyDocument(fileName, cleanedText);
+    const filteredChunks = rawChunks.filter((rc) => !isNoise(rc.text));
+    for (const chunk of filteredChunks) {
+      chunk.metadata.documentCategory = docCategory;
+      chunk.metadata.articleRefs = extractArticleRefs(chunk.text);
+    }
+    sendEvent({ step: "chunking", done: true, total: filteredChunks.length });
+
+    // Step 4: 存储
+    sendEvent({ step: "storing", message: `存储 ${filteredChunks.length} 条知识...` });
     addSource({
       id: sourceId,
       name: fileName,
@@ -155,11 +243,11 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
       mediaType: extraction.mediaType,
       size: file.size,
       fileHash,
-      chunkCount: rawChunks.length,
+      chunkCount: filteredChunks.length,
       embedStatus: "processing",
     });
 
-    const chunks = rawChunks.map((rc, i) => ({
+    const chunks = filteredChunks.map((rc, i) => ({
       id: `${sourceId}-c${i}`,
       sourceId,
       index: i,
@@ -169,7 +257,7 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
     }));
     addChunks(chunks);
 
-    // Step 4: 向量化（分批报告进度）
+    // Step 5: 向量化（分批报告进度）
     if (chunks.length > 0) {
       sendEvent({ step: "embedding", message: `向量化 ${chunks.length} 条知识...`, total: chunks.length });
       const emb = await getEmbedder();
@@ -226,7 +314,14 @@ knowledgeRouter.post("/knowledge/import-url", express.json(), async (req, res) =
 
     const sourceId = `ks-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const extraction = await extractFromUrl(url);
-    const rawChunks = simpleChunk(extraction.text, url);
+    const cleanedText = preprocessText(extraction.text, url);
+    const rawChunks = simpleChunk(cleanedText, url);
+    const docCategory = classifyDocument(url, cleanedText);
+    const filteredChunks = rawChunks.filter((rc) => !isNoise(rc.text));
+    for (const chunk of filteredChunks) {
+      chunk.metadata.documentCategory = docCategory;
+      chunk.metadata.articleRefs = extractArticleRefs(chunk.text);
+    }
 
     addSource({
       id: sourceId,
@@ -235,11 +330,11 @@ knowledgeRouter.post("/knowledge/import-url", express.json(), async (req, res) =
       format: "html",
       mediaType: "text",
       sourceUrl: url,
-      chunkCount: rawChunks.length,
+      chunkCount: filteredChunks.length,
       embedStatus: "processing",
     });
 
-    const chunks = rawChunks.map((rc, i) => ({
+    const chunks = filteredChunks.map((rc, i) => ({
       id: `${sourceId}-c${i}`,
       sourceId,
       index: i,
