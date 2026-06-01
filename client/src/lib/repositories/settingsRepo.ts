@@ -100,6 +100,7 @@ export async function readSettings(): Promise<AppSettings> {
       if (stored.sanitizeRules) result.sanitizeRules = stored.sanitizeRules;
       if (stored.ocrQualityThresholds) result.ocrQualityThresholds = stored.ocrQualityThresholds;
       if (stored.providerErrorMessages) result.providerErrorMessages = stored.providerErrorMessages;
+      if (stored.knowledge) result.knowledge = stored.knowledge;
       // Also sync to localStorage as backup
       try { localStorage.setItem(LS_KEY, JSON.stringify(result)); } catch { /* ignore */ }
       return result;
