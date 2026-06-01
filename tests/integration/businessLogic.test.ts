@@ -32,89 +32,89 @@ describe("Citation Match", () => {
     lineMap: []
   };
 
-  it("Level 1: 精确段落号匹配 → high confidence", () => {
+  it("Level 1: 精确段落号匹配 → high confidence", async () => {
     const citation: Citation = {
       documentId: "doc-1",
       label: "说明书第0002段",
       paragraph: "0002",
       confidence: "high"
     };
-    const result = matchCitation(citation, textIndex);
+    const result = await matchCitation(citation, textIndex);
     expect(result.status).toBe("found");
     expect(result.confidence).toBe("high");
     expect(result.matchedParagraphId).toBe("p-1");
   });
 
-  it("Level 1: 带前导零的段落号匹配（0001 vs 1）", () => {
+  it("Level 1: 带前导零的段落号匹配（0001 vs 1）", async () => {
     const citation: Citation = {
       documentId: "doc-1",
       label: "说明书第0001段",
       paragraph: "1",
       confidence: "high"
     };
-    const result = matchCitation(citation, textIndex);
+    const result = await matchCitation(citation, textIndex);
     expect(result.status).toBe("found");
     expect(result.confidence).toBe("high");
   });
 
-  it("Level 2: ±1 邻居段落匹配 → medium confidence", () => {
+  it("Level 2: ±1 邻居段落匹配 → medium confidence", async () => {
     const citation: Citation = {
       documentId: "doc-1",
       label: "第3段附近",
       paragraph: "0003",
       confidence: "medium"
     };
-    const result = matchCitation(citation, textIndex);
+    const result = await matchCitation(citation, textIndex);
     expect(result.status).toBe("found");
     expect(result.confidence).toBe("high");
   });
 
-  it("Level 3: 引用文本子串搜索（≥10 chars，唯一匹配）→ medium", () => {
+  it("Level 3: 引用文本子串搜索（≥10 chars，唯一匹配）→ medium", async () => {
     const citation: Citation = {
       documentId: "doc-1",
       label: "LED散热装置",
       quote: "LED散热装置，包括散热基板和导热界面层",
       confidence: "medium"
     };
-    const result = matchCitation(citation, textIndex);
+    const result = await matchCitation(citation, textIndex);
     expect(result.status).toBe("found");
     expect(result.confidence).toBe("medium");
     expect(result.matchedParagraphId).toBe("p-0");
   });
 
-  it("Level 3: 引用文本匹配不到 → not-found", () => {
+  it("Level 3: 引用文本匹配不到 → not-found", async () => {
     const citation: Citation = {
       documentId: "doc-1",
       label: "不存在的描述",
       quote: "这句话在原文中完全不存在",
       confidence: "low"
     };
-    const result = matchCitation(citation, textIndex);
+    const result = await matchCitation(citation, textIndex);
     expect(result.status).toBe("not-found");
   });
 
-  it("Level 4: 无 paragraph 无 quote → not-found", () => {
+  it("Level 4: 无 paragraph 无 quote → not-found", async () => {
     const citation: Citation = {
       documentId: "doc-1",
       label: "",
       confidence: "low"
     };
-    const result = matchCitation(citation, textIndex);
+    const result = await matchCitation(citation, textIndex);
     expect(result.status).toBe("not-found");
   });
 
-  it("引用文本 < 10 字符 → 不触发子串搜索", () => {
+  it("引用文本 < 10 字符 → 不触发子串搜索", async () => {
     const citation: Citation = {
       documentId: "doc-1",
       label: "短引用",
       quote: "散热",
       confidence: "low"
     };
-    const result = matchCitation(citation, textIndex);
+    const result = await matchCitation(citation, textIndex);
     expect(result.status).toBe("not-found");
   });
 
-  it("段落号不存在 → 降级到子串搜索", () => {
+  it("段落号不存在 → 降级到子串搜索", async () => {
     const citation: Citation = {
       documentId: "doc-1",
       label: "第999段",
@@ -122,7 +122,7 @@ describe("Citation Match", () => {
       quote: "LED散热装置，包括散热基板和导热界面层",
       confidence: "low"
     };
-    const result = matchCitation(citation, textIndex);
+    const result = await matchCitation(citation, textIndex);
     expect(result.status).toBe("found");
     expect(result.confidence).toBe("medium");
   });
