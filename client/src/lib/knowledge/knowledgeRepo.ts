@@ -2,7 +2,7 @@
  * 知识库 Repository — dataClient CRUD 操作
  * B-034: 从 IndexedDB 迁移到 dataClient API
  */
-import { getAll, getById, create, update, remove, clearStore, query } from "../dataClient";
+import { getAll, getById, create, update, remove, clearStore, query } from "../repos";
 import type { KnowledgeSource, KnowledgeChunk, KnowledgeVector } from "@shared/types/knowledge";
 import { createLogger } from "../logger";
 

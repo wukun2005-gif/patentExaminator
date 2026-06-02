@@ -2,7 +2,7 @@
  * 客户端同步模块 — 与服务器 SQLite 数据库同步数据
  * B-034: 从 IndexedDB 迁移到 dataClient API
  */
-import { getAll, create } from "./dataClient";
+import { getAll, create } from "./repos";
 import { createLogger } from "./logger";
 
 const log = createLogger("SyncClient");
