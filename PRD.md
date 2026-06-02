@@ -641,7 +641,7 @@ gantt
 
 ### 12.1 前端
 
-- **OCR：** Tesseract.js（浏览器端，本地运行，数据不外发）
+- **OCR：** Node.js Tesseract（后端执行，本地运行，数据不外发）
 - **文件处理：** File System Access API（选择文件夹）；FileReader（单文件上传）
 - **持久化：** localStorage（低敏配置）；后端 SQLite（生成结果持久化）
 - **技术选型：** 详见 Design §4.1
@@ -650,7 +650,7 @@ gantt
 
 - **运行时：** Node.js（轻量，内网单机可运行）
 - **API 网关：** 代理转发各 AI Provider 请求；脱敏拦截层在此实现（用户启用时生效，见 §7.1）
-- **文档解析：** PDF → 文本（pdfjs-dist）；DOCX → 文本（mammoth）；OCR（浏览器端 Tesseract.js，详见 Design ADR-006）
+- **文档解析：** PDF → 文本（pdfjs-dist）；DOCX → 文本（mammoth）；OCR（后端 Node.js Tesseract，详见 Design ADR-006）
 - **向量检索（RAG）：** 法规知识库 RAG 系统（v0.2.0 已实现），全部运行在服务端。支持混合检索（语义 + BM25 RRF 融合）+ 三级重排序（远程 API → 本地 cross-encoder → 启发式）+ 法条知识图谱扩展。Embedding 为可选远程 API，无配置时降级纯 BM25。详见 `server/src/routes/knowledge.ts`、`server/src/lib/`
 - **加密：** API Key 默认仅保存在 server 进程内存；可选持久化时使用用户主密码 + PBKDF2 派生密钥 + AES-256-GCM 加密至 `data/keystore.enc`；浏览器端不持久保存任何 API Key 明文/密文（详见 Dev Plan §8.10）
 

@@ -139,19 +139,15 @@
 ```mermaid
 flowchart LR
     U["审查员"] --> UI["React UI"]
+    UI -->|"调用后端 API"| API["后端 API"]
     API -->|"读写"| DB["SQLite\n(案件/文档/分析结果/知识库)"]
-    UI --> API["后端 API"]
-    AC -->|"检索知识库\n(/api/knowledge/search)"| KB["Server Knowledge Module\n(BM25+语义+RRF融合+三级重排序+图谱扩展)"]
-    AC -->|"读取案件数据"| IDB
-    AC -->|"Mock 模式"| MP["MockProvider\n(本地 fixture)"]
-    AC -->|"真实模式"| CF["ExternalSendConfirm\n(用户确认 + 可选脱敏)"]
-    CF -->|"sanitize 脱敏层（可选）"| GW["AI Gateway\n/api/ai/run"]
+    API -->|"检索知识库"| KB["Server Knowledge Module\n(BM25+语义+RRF融合+三级重排序+图谱扩展)"]
+    API -->|"Mock 模式"| MP["Mock 响应\n(服务端处理)"]
+    API -->|"真实模式"| GW["AI Gateway\n/api/agent/run"]
     GW --> PA["Provider Adapter\n(Kimi/GLM/Minimax/MiMo/Deepseek)"]
     PA --> EXT["外部 AI API"]
-    MP --> IDB
-    GW -->|"返回分析结果 + tokenUsage"| AC
-    AC -->|"restore 还原脱敏内容"| AC
-    AC -->|"写入分析结果 + tokenUsage + calibrationFactor"| IDB
+    GW -->|"返回分析结果 + tokenUsage"| API
+    API -->|"写入分析结果"| DB
 ```
 
 ### 1.3 仓库结构
@@ -561,7 +557,7 @@ empty → case-ready → documents-uploaded
 |------|------|------|
 | 文件夹导入 | `showDirectoryPicker` | `<input type="file" multiple>` + 提示"当前浏览器不支持文件夹导入" |
 | 大量文本缓存 | 后端 SQLite（主） | localStorage 仅存偏好 |
-| OCR Worker | `tesseract.js` Web Worker | 同步 fallback（仅小文件，加警告） |
+| OCR | 后端 Node.js Tesseract | 服务端执行，前端不需要 |
 | 复制到剪贴板 | `navigator.clipboard` | 文本区 + 手动 Ctrl/Cmd+C |
 | 导出保存 | `showSaveFilePicker` | `<a download>` 下载 |
 
