@@ -169,18 +169,9 @@ export function InterpretPanel({
         const persistedSummary = persistedSummaries[doc.id];
         const legacySummary = doc.role === "application" ? persistedSummaries[LEGACY_INTERPRET_KEY] : undefined;
         const summary = persistedSummary ?? legacySummary ?? prev[doc.id]?.summary ?? "";
-        const prevDoc = prev[doc.id];
-        next[doc.id] = {
-          summary,
-          error: prevDoc?.error ?? null,
-          isLoading: prevDoc?.isLoading ?? false,
-          sourceLanguage: prevDoc?.sourceLanguage ?? "zh",
-          translatedText: prevDoc?.translatedText ?? "",
-          isTranslating: prevDoc?.isTranslating ?? false,
-          translateError: prevDoc?.translateError ?? null,
-          showOriginal: prevDoc?.showOriginal ?? false,
-          previewMode: prevDoc?.previewMode ?? false,
-        };
+        next[doc.id] = prev[doc.id]
+          ? { ...prev[doc.id], summary }  // preserve user edits
+          : { ...EMPTY_CARD_STATE, summary };
       }
       return next;
     });

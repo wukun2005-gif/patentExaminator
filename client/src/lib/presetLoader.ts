@@ -18,9 +18,6 @@ import { createInventive } from "./repos";
 import { createDefect } from "./repos";
 import { createSession, createMessage, getSessionsByCaseId, getMessagesBySessionId } from "./repos";
 import { useCaseStore, useDocumentsStore, useReferencesStore, useClaimsStore, useNoveltyStore, useInventiveStore, useDefectsStore, useChatStore } from "../store";
-import { createLogger } from "./logger";
-
-const log = createLogger("PresetLoader");
 
 import presetData from "@shared/fixtures/preset-demo.json";
 
@@ -48,7 +45,7 @@ export async function loadPresetCase(): Promise<string> {
     const existing = await readCaseById(theCase.id);
     isFirstLoad = !existing;
   } catch (e) {
-    log("Failed to read existing case:", e);
+    console.warn("[presetLoader] readCaseById failed, assuming first load:", e);
     isFirstLoad = true;
   }
 
@@ -94,7 +91,7 @@ export async function loadPresetCase(): Promise<string> {
     try {
       existingSessions = await getSessionsByCaseId(theCase.id);
     } catch (e) {
-      log("Failed to read chat sessions:", e);
+      console.warn("[presetLoader] getSessionsByCaseId failed:", e);
       existingSessions = [];
     }
     const allMessages: ChatMessage[] = [];
@@ -102,7 +99,7 @@ export async function loadPresetCase(): Promise<string> {
       try {
         const msgs = await getMessagesBySessionId(s.id);
         allMessages.push(...msgs);
-      } catch { /* skip */ }
+      } catch (e) { console.warn("[presetLoader] getMessagesBySessionId failed:", e); }
     }
     // Use load* methods since data was already written to IndexedDB above
     useChatStore.getState().loadSessions(existingSessions);
@@ -133,7 +130,7 @@ export async function loadPresetCase(): Promise<string> {
         d.role === "reference"
       ) as ReferenceDocument[];
     } catch (e) {
-      log("Failed to read documents:", e);
+      console.warn("[presetLoader] readDocumentsByCaseId failed:", e);
       existingRefs = data.referenceDocs as unknown as ReferenceDocument[];
     }
     useReferencesStore.getState().setReferences(existingRefs);

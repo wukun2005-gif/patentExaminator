@@ -926,8 +926,7 @@ searchRouter.post("/search-with-terms", async (req, res) => {
         const fallbackCandidates = extractFallbackCandidates(filterRes.text);
         if (fallbackCandidates.length > 0) candidates = fallbackCandidates.slice(0, request.maxResults);
       }
-    } catch (e) {
-      logger.warn("Failed to parse LLM filter output: " + String(e));
+    } catch {
       const fallbackCandidates = extractFallbackCandidates(filterRes.text);
       if (fallbackCandidates.length > 0) candidates = fallbackCandidates.slice(0, request.maxResults);
     }

@@ -140,18 +140,19 @@ ${citationBlock}
 export async function proactiveInject(
   agentType: string,
   contextText: string,
-  config: KnowledgeConfig
+  config: KnowledgeConfig,
+  embedConfig: EmbedderConfig
 ): Promise<string> {
   if (!config.enabled || !contextText) return "";
 
   try {
-    const results = await retrieve({ query: contextText }, config);
+    const results = await retrieve({ query: contextText }, config, embedConfig);
     if (results.length === 0) return "";
 
     const contextPrefix = getAgentContext(agentType);
     return `## 参考法规（预加载）\n${contextPrefix}\n\n${formatRetrievedChunks(results, 2000).replace(/^[^\n]+\n[^\n]+\n/, "")}`;
   } catch (e) {
-    log("Knowledge preload failed:", e);
+    log("preloadKnowledge error:", e);
     return "";
   }
 }

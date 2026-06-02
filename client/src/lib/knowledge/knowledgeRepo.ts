@@ -303,7 +303,8 @@ export async function restoreFromBackup(file: File): Promise<{
   let data: KnowledgeExportData;
   try {
     data = JSON.parse(text) as KnowledgeExportData;
-  } catch {
+  } catch (e) {
+    log("restoreFromBackup JSON.parse failed:", e);
     throw new Error("备份文件格式无效：无法解析 JSON");
   }
   if (data.version !== 1) {
@@ -332,7 +333,8 @@ export async function checkStorageQuota(): Promise<{
       return { available: true, usage, quota, usagePercent: percent, warning };
     }
     return { available: true, usage: 0, quota: 0, usagePercent: "未知", warning: null };
-  } catch {
+  } catch (e) {
+    log("checkStorageQuota error:", e);
     return { available: false, usage: 0, quota: 0, usagePercent: "0", warning: "存储不可用" };
   }
 }

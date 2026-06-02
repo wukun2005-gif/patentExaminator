@@ -1,7 +1,4 @@
 import type { FeedbackEntry } from "@shared/types/domain";
-import { createLogger } from "./logger";
-
-const log = createLogger("FeedbackRepo");
 
 const STORAGE_KEY = "patent-examiner-feedback";
 
@@ -11,7 +8,7 @@ function readAll(): FeedbackEntry[] {
     if (!raw) return [];
     return JSON.parse(raw) as FeedbackEntry[];
   } catch (e) {
-    log("Failed to read feedback from localStorage:", e);
+    console.warn("[feedbackRepo] JSON.parse failed:", e);
     return [];
   }
 }
