@@ -9,9 +9,6 @@ import { createDocument } from "../../lib/repos";
 import { getLatestSearchSession, createSearchSession, updateSearchSession } from "../../lib/repos";
 import { searchReferences as _searchReferences, extractSearchTerms, searchWithTerms } from "../../lib/repos";
 import { ErrorBanner } from "../../lib/errorDisplay";
-import { createLogger } from "../../lib/logger";
-
-const log = createLogger("ReferenceSearch");
 
 interface ReferenceSearchPanelProps {
   claimText: string;
@@ -30,7 +27,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
     addSearchTerm, updateSearchTerm, removeSearchTerm
   } = useReferencesStore();
   const { references } = useReferencesStore();
-  const { currentCase, updateWorkflowState } = useCaseStore();
+  const { currentCase } = useCaseStore();
   const { settings } = useSettingsStore();
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -73,7 +70,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
           setSearchStep("done");
         }
       } catch (e) {
-        log("Failed to restore search session:", e);
+        console.warn("Failed to restore search session:", e);
       }
     })();
   }, [caseId, setSearchTerms, setProviderResults, setSearchSessionId, setSearchStep]);
@@ -206,7 +203,6 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
       }
       setCandidates(merged);
       setSearchStep("done");
-      updateWorkflowState("references-ready");
 
       // 持久化到 IndexedDB
       const sessionData = {
@@ -233,7 +229,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
       abortControllersRef.current.delete("searchWithTerms");
     }
   }, [searchTerms, caseId, claimText, features, settings, searchSessionId, references.length,
-      setIsSearching, setSearchStep, setCandidates, setProviderResults, setSearchSessionId, updateWorkflowState]);
+      setIsSearching, setSearchStep, setCandidates, setProviderResults, setSearchSessionId]);
 
   // 回到编辑模式
   const handleBackToEdit = useCallback(() => {

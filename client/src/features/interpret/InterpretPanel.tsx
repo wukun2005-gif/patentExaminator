@@ -169,9 +169,7 @@ export function InterpretPanel({
         const persistedSummary = persistedSummaries[doc.id];
         const legacySummary = doc.role === "application" ? persistedSummaries[LEGACY_INTERPRET_KEY] : undefined;
         const summary = persistedSummary ?? legacySummary ?? prev[doc.id]?.summary ?? "";
-        next[doc.id] = prev[doc.id]
-          ? { ...prev[doc.id], summary }  // preserve user edits
-          : { ...EMPTY_CARD_STATE, summary };
+        next[doc.id] = { ...(prev[doc.id] ?? EMPTY_CARD_STATE), summary };
       }
       return next;
     });

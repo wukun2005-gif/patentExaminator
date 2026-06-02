@@ -120,7 +120,7 @@ export async function syncWithServer(): Promise<SyncResult> {
   log(`Sync complete: uploaded ${uploadResult.uploaded}, downloaded ${downloadResult.downloaded}`);
   return {
     ok: true,
-    ...(uploadResult.uploaded !== undefined ? { uploaded: uploadResult.uploaded } : {}),
-    ...(downloadResult.downloaded !== undefined ? { downloaded: downloadResult.downloaded } : {}),
+    ...(uploadResult.uploaded !== undefined && { uploaded: uploadResult.uploaded }),
+    ...(downloadResult.downloaded !== undefined && { downloaded: downloadResult.downloaded }),
   };
 }

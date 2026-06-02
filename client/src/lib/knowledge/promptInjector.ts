@@ -140,13 +140,12 @@ ${citationBlock}
 export async function proactiveInject(
   agentType: string,
   contextText: string,
-  config: KnowledgeConfig,
-  embedConfig: EmbedderConfig
+  config: KnowledgeConfig
 ): Promise<string> {
   if (!config.enabled || !contextText) return "";
 
   try {
-    const results = await retrieve({ query: contextText }, config, embedConfig);
+    const results = await retrieve({ query: contextText }, config);
     if (results.length === 0) return "";
 
     const contextPrefix = getAgentContext(agentType);
