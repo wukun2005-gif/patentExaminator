@@ -67,11 +67,6 @@ app.use("/api", ocrRouter);
 app.use("/api", documentsRouter);
 app.use("/api", rateLimiter, agentRouter);
 
-// Migration page
-app.get("/migrate", (_req, res) => {
-  res.type("html").sendFile(path.resolve(__dirname, "../public/migrate.html"));
-});
-
 // Serve client static files if dist exists
 const clientDist = path.resolve(__dirname, "../../client/dist");
 if (fs.existsSync(clientDist)) {
