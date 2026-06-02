@@ -42,7 +42,7 @@ const REEXAM_CONCLUSION_LABELS: Record<string, string> = {
 const log = createLogger("DraftMaterialPanel");
 
 export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPanelProps) {
-  const { currentCase, updateWorkflowState } = useCaseStore();
+  const { currentCase } = useCaseStore();
   const { claimFeatures } = useClaimsStore();
   const { comparisons } = useNoveltyStore();
   const { analyses } = useInventiveStore();
@@ -166,7 +166,7 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
 
       setReexamDraftLocal(draft);
       setReexamDraft(caseId, draft);
-      updateWorkflowState("draft-ready");
+      useCaseStore.getState().updateWorkflowState("draft-ready");
     } catch (err) {
       if (controller.signal.aborted) return;
       if (!isMountedRef.current) return;

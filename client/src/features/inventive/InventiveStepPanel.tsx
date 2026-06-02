@@ -37,7 +37,6 @@ export function InventiveStepPanel({
   runInventive
 }: InventiveStepPanelProps) {
   const { analyses, addAnalysis, updateAnalysis, isLoading, setLoading } = useInventiveStore();
-  const { updateWorkflowState } = useCaseStore();
   const analysis = analyses.find(
     (a) => a.caseId === caseId && a.id === `inventive-${caseId}-${claimNumber}`
   );
@@ -170,12 +169,12 @@ if (!isMountedRef.current || controller.signal.aborted) return;
       } else {
         addAnalysis(newAnalysis);
       }
+      useCaseStore.getState().updateWorkflowState("inventive-ready");
 
       setSelectedClosestId(response.closestPriorArtId ?? "");
       setSelectedDistinguishing(response.distinguishingFeatureCodes);
       setTechProblem(response.objectiveTechnicalProblem ?? "");
       setExaminerResponse(generatedResponse);
-      updateWorkflowState("inventive-ready");
     } finally {
       abortControllersRef.current.delete("inventive");
       if (isMountedRef.current) setLoading(false);

@@ -17,7 +17,7 @@ const log = createLogger("ClaimChartActions");
 export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartActionsProps) {
   const { caseId } = useParams<{ caseId: string }>();
   const { settings } = useSettingsStore();
-  const { currentCase, updateWorkflowState } = useCaseStore();
+  const { currentCase } = useCaseStore();
   const { addClaimFeature, addRanCase } = useClaimsStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
@@ -81,7 +81,7 @@ export function ClaimChartActions({ claimNodes, specificationText }: ClaimChartA
       }
 
       addRanCase(caseId);
-      updateWorkflowState("claim-chart-ready");
+      useCaseStore.getState().updateWorkflowState("claim-chart-ready");
     } catch (err) {
       if (controller.signal.aborted) return;
       if (!isMountedRef.current) return;

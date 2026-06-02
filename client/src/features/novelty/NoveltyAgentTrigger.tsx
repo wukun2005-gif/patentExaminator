@@ -28,7 +28,6 @@ export function NoveltyAgentTrigger({
   runNovelty
 }: NoveltyAgentTriggerProps) {
   const { addComparison, setLoading, isLoading } = useNoveltyStore();
-  const { updateWorkflowState } = useCaseStore();
   const [selectedRefId, setSelectedRefId] = useState<string>("");
   const [error, setError] = useState<unknown>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
@@ -169,7 +168,7 @@ export function NoveltyAgentTrigger({
       };
 
       addComparison(comparison);
-      updateWorkflowState("novelty-ready");
+      useCaseStore.getState().updateWorkflowState("novelty-ready");
     } catch (err) {
       if (controller.signal.aborted) return;
       if (!isMountedRef.current) return;

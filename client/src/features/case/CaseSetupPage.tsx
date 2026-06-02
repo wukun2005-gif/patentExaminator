@@ -232,6 +232,7 @@ export function CaseSetupPage() {
     const controller = new AbortController();
     abortControllersRef.current.set("fileChange", controller);
 
+    let hasExtractedDocs = false;
     for (const file of Array.from(files)) {
       if (!isMountedRef.current) break;
       const ext = getFileExtension(file.name);
@@ -282,7 +283,7 @@ export function CaseSetupPage() {
           text = result.text;
           textStatus = result.text ? "extracted" : "empty";
         } else if (ext === ".html") {
-          const result = await extractHtmlText(await file.text());
+          const result = extractHtmlText(await file.text());
           text = result.text;
           textStatus = result.text ? "extracted" : "empty";
         } else if (ext === ".txt") {
@@ -308,6 +309,7 @@ export function CaseSetupPage() {
         await createDocument(doc);
         if (!isMountedRef.current) break;
         addDocument(doc);
+        if (textStatus === "extracted") hasExtractedDocs = true;
         setFileStatuses((prev) => ({ ...prev, [file.name]: "完成" }));
       } catch (err) {
         if (!isMountedRef.current) break;
@@ -315,9 +317,15 @@ export function CaseSetupPage() {
       }
     }
 
-    // B-031: 文件上传完成后推进到 documents-uploaded + text-extracted
-    if (currentCase && currentCase.workflowState === "case-ready") {
-      const updatedCase = { ...currentCase, workflowState: "text-extracted" as PatentCase["workflowState"], updatedAt: new Date().toISOString() };
+    // BUG-024: 文本提取完成后推进到 text-extracted
+    if (currentCase && currentCase.workflowState === "case-ready" && hasExtractedDocs) {
+      const extractedCase = { ...currentCase, workflowState: "text-extracted" as PatentCase["workflowState"], updatedAt: new Date().toISOString() };
+      await updateCase(extractedCase);
+      setCurrentCase(extractedCase);
+    }
+    // B-031: 文件上传完成后推进到 documents-uploaded
+    if (currentCase && (currentCase.workflowState === "case-ready" || currentCase.workflowState === "text-extracted")) {
+      const updatedCase = { ...currentCase, workflowState: "documents-uploaded" as PatentCase["workflowState"], updatedAt: new Date().toISOString() };
       await updateCase(updatedCase);
       setCurrentCase(updatedCase);
     }
@@ -417,7 +425,7 @@ export function CaseSetupPage() {
           text = result.text;
           textStatus = result.text ? "extracted" : "empty";
         } else if (ext === ".html") {
-          const result = await extractHtmlText(await file.text());
+          const result = extractHtmlText(await file.text());
           text = result.text;
           textStatus = result.text ? "extracted" : "empty";
         } else if (ext === ".txt") {

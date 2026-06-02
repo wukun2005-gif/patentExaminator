@@ -2,6 +2,7 @@ import type { PatentCase, ClaimFeature, NoveltyComparison, InventiveStepAnalysis
 import type { ReexamDraftResponse, SummaryResponse } from "@shared/types/api";
 import { renderCaseHtml, downloadHtml } from "../../lib/exportHtml";
 import { buildExportFileName } from "../../lib/fileNameSanitize";
+import { useCaseStore } from "../../store";
 
 interface ExportPanelProps {
   caseData: PatentCase;
@@ -49,6 +50,7 @@ export function ExportPanel({
       new Date().toISOString().slice(0, 10)
     );
     downloadHtml(html, fileName);
+    useCaseStore.getState().updateWorkflowState("export-ready");
   };
 
   return (
