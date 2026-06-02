@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { setApiKey, getApiKey, removeApiKey } from "../security/keyStore.js";
+import { setApiKey, getApiKey as _getApiKey, removeApiKey as _removeApiKey } from "../security/keyStore.js";
 import { registry } from "../providers/registry.js";
 
 export const settingsRouter = Router();

@@ -1,7 +1,7 @@
 /**
  * 服务端知识库处理 — 提取、切片、向量化、存储
  */
-import type { KnowledgeSource, KnowledgeChunk, KnowledgeVector, KnowledgeConfig } from "@shared/types/knowledge";
+import type { KnowledgeSource as _KnowledgeSource, KnowledgeChunk as _KnowledgeChunk, KnowledgeVector as _KnowledgeVector, KnowledgeConfig as _KnowledgeConfig } from "@shared/types/knowledge";
 import { logger } from "./logger.js";
 
 // ── 提取 ──────────────────────────────────────────────

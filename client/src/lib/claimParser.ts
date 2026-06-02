@@ -27,7 +27,7 @@ export async function parseClaims(text: string, caseId: string): Promise<ParseCl
 /**
  * Locate the claim region in the full text.
  */
-function locateClaimRegion(text: string): string | null {
+function _locateClaimRegion(text: string): string | null {
   // Try: after "权利要求书" header
   const headerMatch = text.match(/权利\s*要求\s*书/);
   if (headerMatch) {
@@ -50,7 +50,7 @@ function locateClaimRegion(text: string): string | null {
 /**
  * Split claim region into individual claims.
  */
-function splitClaims(region: string): Array<{ claimNumber: number; rawText: string }> {
+function _splitClaims(region: string): Array<{ claimNumber: number; rawText: string }> {
   const CLAIM_HEAD = /(?:^|\n)\s*(?:权利要求)?\s*(\d{1,3})\s*[.．、。:：]\s*/g;
   const matches: Array<{ claimNumber: number; index: number; endIndex: number }> = [];
 
@@ -79,7 +79,7 @@ function splitClaims(region: string): Array<{ claimNumber: number; rawText: stri
 /**
  * Detect claim type: independent, dependent, or unknown.
  */
-function detectClaimType(rawText: string): ClaimNode["type"] {
+function _detectClaimType(rawText: string): ClaimNode["type"] {
   // Check for dependency references first (takes precedence)
   const depPattern = /(?:根据|如)?权利要求\s*(\d+)(?:\s*(?:或|至|到|[-–—])\s*(\d+))?\s*(?:所述|中)/;
   if (depPattern.test(rawText)) return "dependent";
@@ -94,7 +94,7 @@ function detectClaimType(rawText: string): ClaimNode["type"] {
 /**
  * Extract dependency claim numbers from dependent claim text.
  */
-function extractDependencies(rawText: string): number[] {
+function _extractDependencies(rawText: string): number[] {
   const deps: number[] = [];
 
   // Match "权利要求 N" and "权利要求 N 或 M" and "权利要求 N 至 M"
@@ -124,7 +124,7 @@ function extractDependencies(rawText: string): number[] {
 /**
  * Validate claims consistency.
  */
-function validateClaims(claims: ClaimNode[], warnings: string[]): void {
+function _validateClaims(claims: ClaimNode[], warnings: string[]): void {
   // Check for at least one independent claim
   const hasIndependent = claims.some((c) => c.type === "independent");
   if (!hasIndependent) warnings.push("no-independent-claim");

@@ -11,7 +11,7 @@ import {
   deleteSource,
   addChunks,
   addVectors,
-  getUnembeddedChunks,
+  getUnembeddedChunks as _getUnembeddedChunks,
   markChunkEmbedded,
   getAllVectors,
   getAllChunks,
@@ -23,7 +23,7 @@ import {
 } from "../lib/knowledgeDb.js";
 import { extractText, extractFromUrl } from "../lib/knowledgeExtract.js";
 import { logger } from "../lib/logger.js";
-import { localRerank, crossEncoderRerank } from "../lib/reranker.js";
+import { localRerank as _localRerank, crossEncoderRerank } from "../lib/reranker.js";
 import { invalidateBM25Index } from "../lib/hybridSearch.js";
 import { expandQueryFull } from "../lib/queryExpand.js";
 
@@ -41,7 +41,7 @@ function errMsg(err: unknown): string {
 // ── Embedding（纯远程 API，cr-1: 移除本地模型） ──────────────
 
 // 远程 embedding 配置缓存
-let remoteEmbedderConfig: { baseUrl: string; apiKey: string; modelId: string } | null = null;
+const _remoteEmbedderConfig: { baseUrl: string; apiKey: string; modelId: string } | null = null;
 let remoteEmbedder: { embed: (texts: string[]) => Promise<number[][]>; modelId: string } | null = null;
 
 /** 创建远程 embedding 函数 */
@@ -367,7 +367,7 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
     const filteredChunks: typeof rawChunks = [];
     for (const rc of rawChunks) {
       if (isNoise(rc.text) || isGarbled(rc.text)) continue;
-      const hash = crypto.createHash("sha256").update(rc.text.replace(/[\s　]/g, "").toLowerCase()).digest("hex");
+      const hash = crypto.createHash("sha256").update(rc.text.replace(/[\s　]/g, "").toLowerCase()).digest("hex"); // eslint-disable-line no-irregular-whitespace
       if (dedupHashes.has(hash)) continue;
       dedupHashes.add(hash);
       filteredChunks.push(rc);

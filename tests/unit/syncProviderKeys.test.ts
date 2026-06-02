@@ -1,8 +1,8 @@
 /**
- * syncProviderKeys Tests
- * ======================
+ * syncProviderKeys Tests (B-038 rewritten)
+ * =========================================
  *
- * 测试 syncProviderKeys 函数的各种场景：
+ * 测试 syncProviderKeys 功能（通过 settingsSlice.setSettings 触发）：
  * - 正常同步成功
  * - 服务器不可达时错误传播
  * - 部分 provider 同步失败
@@ -10,17 +10,23 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { syncProviderKeys } from "@client/lib/repos";
-import type { AppSettings } from "@shared/types/agents";
 
-// Mock waitForServerReady
+// Mock serverReady
 vi.mock("@client/lib/serverReady", () => ({
-  waitForServerReady: vi.fn().mockResolvedValue(undefined)
+  waitForServerReady: vi.fn().mockResolvedValue(undefined),
+  clearServerReadyCache: vi.fn()
 }));
 
-// Mock fetch
+// Mock idbWriteGuard
+vi.mock("@client/lib/idbWriteGuard", () => ({
+  idbWriteGuard: vi.fn(() => vi.fn())
+}));
+
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
+
+import { useSettingsStore } from "@client/store/features/settings/settingsSlice";
+import type { AppSettings } from "@shared/types/agents";
 
 function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
   return {
@@ -44,17 +50,15 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     ],
     agents: [],
     searchProviders: [],
-    persistKeysEncrypted: false,
     enableProviderFallback: true,
     ...overrides
   };
 }
 
-// B-038: settingsRepo inlined into settingsSlice
-describe.skip("syncProviderKeys", () => {
+describe("syncProviderKeys (via setSettings)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetch.mockResolvedValue({ ok: true, status: 200, statusText: "OK" });
+    mockFetch.mockResolvedValue({ ok: true, status: 200, statusText: "OK", json: () => Promise.resolve({ ok: true }) });
   });
 
   // ══════════════════════════════════════════════════════════════════════
@@ -63,12 +67,15 @@ describe.skip("syncProviderKeys", () => {
 
   it("syncs all enabled providers successfully", async () => {
     const settings = makeSettings();
-    const result = await syncProviderKeys(settings);
+    useSettingsStore.getState().setSettings(settings);
+    await new Promise((r) => setTimeout(r, 50));
 
-    expect(result.success).toBe(true);
-    expect(result.syncedProviders).toEqual(["gemini", "mimo"]);
-    expect(result.failedProviders).toEqual([]);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const providerCalls = mockFetch.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("/api/settings/providers/")
+    );
+    expect(providerCalls).toHaveLength(2);
+    expect(providerCalls[0]![0]).toBe("/api/settings/providers/gemini");
+    expect(providerCalls[1]![0]).toBe("/api/settings/providers/mimo");
   });
 
   it("skips disabled providers", async () => {
@@ -91,11 +98,14 @@ describe.skip("syncProviderKeys", () => {
       ]
     });
 
-    const result = await syncProviderKeys(settings);
+    useSettingsStore.getState().setSettings(settings);
+    await new Promise((r) => setTimeout(r, 50));
 
-    expect(result.success).toBe(true);
-    expect(result.syncedProviders).toEqual(["mimo"]);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const providerCalls = mockFetch.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("/api/settings/providers/")
+    );
+    expect(providerCalls).toHaveLength(1);
+    expect(providerCalls[0]![0]).toBe("/api/settings/providers/mimo");
   });
 
   it("skips providers without apiKeyRef", async () => {
@@ -118,107 +128,71 @@ describe.skip("syncProviderKeys", () => {
       ]
     });
 
-    const result = await syncProviderKeys(settings);
+    useSettingsStore.getState().setSettings(settings);
+    await new Promise((r) => setTimeout(r, 50));
 
-    expect(result.success).toBe(true);
-    expect(result.syncedProviders).toEqual(["mimo"]);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const providerCalls = mockFetch.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("/api/settings/providers/")
+    );
+    expect(providerCalls).toHaveLength(1);
+    expect(providerCalls[0]![0]).toBe("/api/settings/providers/mimo");
   });
 
   // ══════════════════════════════════════════════════════════════════════
   // 服务器不可达时错误传播
   // ══════════════════════════════════════════════════════════════════════
 
-  it("returns failure when server is unreachable", async () => {
+  it("handles server unreachable gracefully", async () => {
     mockFetch.mockRejectedValue(new Error("Failed to fetch"));
 
     const settings = makeSettings();
-    const result = await syncProviderKeys(settings);
-
-    expect(result.success).toBe(false);
-    expect(result.syncedProviders).toEqual([]);
-    expect(result.failedProviders).toHaveLength(2);
-    expect(result.failedProviders[0]!.providerId).toBe("gemini");
-    expect(result.failedProviders[0]!.error).toBe("Failed to fetch");
-  });
-
-  it("returns failure when network error occurs", async () => {
-    mockFetch.mockRejectedValue(new Error("NetworkError: net::ERR_CONNECTION_REFUSED"));
-
-    const settings = makeSettings();
-    const result = await syncProviderKeys(settings);
-
-    expect(result.success).toBe(false);
-    expect(result.failedProviders[0]!.error).toContain("NetworkError");
+    expect(() => useSettingsStore.getState().setSettings(settings)).not.toThrow();
+    await new Promise((r) => setTimeout(r, 50));
   });
 
   // ══════════════════════════════════════════════════════════════════════
   // HTTP 错误响应处理
   // ══════════════════════════════════════════════════════════════════════
 
-  it("handles HTTP 500 error", async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 500, statusText: "Internal Server Error" });
+  it("handles HTTP 500 error gracefully", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 500, statusText: "Internal Server Error", json: () => Promise.resolve({ ok: false }) });
 
     const settings = makeSettings();
-    const result = await syncProviderKeys(settings);
-
-    expect(result.success).toBe(false);
-    expect(result.failedProviders).toHaveLength(2);
-    expect(result.failedProviders[0]!.error).toContain("HTTP 500");
+    expect(() => useSettingsStore.getState().setSettings(settings)).not.toThrow();
+    await new Promise((r) => setTimeout(r, 50));
   });
 
-  it("handles HTTP 401 error", async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 401, statusText: "Unauthorized" });
+  it("handles HTTP 401 error gracefully", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 401, statusText: "Unauthorized", json: () => Promise.resolve({ ok: false }) });
 
     const settings = makeSettings();
-    const result = await syncProviderKeys(settings);
-
-    expect(result.success).toBe(false);
-    expect(result.failedProviders[0]!.error).toContain("HTTP 401");
+    expect(() => useSettingsStore.getState().setSettings(settings)).not.toThrow();
+    await new Promise((r) => setTimeout(r, 50));
   });
 
   // ══════════════════════════════════════════════════════════════════════
   // 部分 provider 同步失败
   // ══════════════════════════════════════════════════════════════════════
 
-  it("reports partial failure when some providers fail", async () => {
-    let callCount = 0;
-    mockFetch.mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) {
-        return Promise.resolve({ ok: true, status: 200, statusText: "OK" });
+  it("handles partial failure when some providers fail", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/data/settings")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
       }
-      return Promise.reject(new Error("Server unavailable"));
+      if (url.includes("/api/settings/providers/gemini")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+      }
+      return Promise.resolve({ ok: false, status: 503, statusText: "Service Unavailable", json: () => Promise.resolve({ ok: false }) });
     });
 
     const settings = makeSettings();
-    const result = await syncProviderKeys(settings);
+    expect(() => useSettingsStore.getState().setSettings(settings)).not.toThrow();
+    await new Promise((r) => setTimeout(r, 50));
 
-    expect(result.success).toBe(false);
-    expect(result.syncedProviders).toEqual(["gemini"]);
-    expect(result.failedProviders).toHaveLength(1);
-    expect(result.failedProviders[0]!.providerId).toBe("mimo");
-    expect(result.failedProviders[0]!.error).toBe("Server unavailable");
-  });
-
-  it("reports partial failure when some HTTP responses fail", async () => {
-    let callCount = 0;
-    mockFetch.mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) {
-        return Promise.resolve({ ok: true, status: 200, statusText: "OK" });
-      }
-      return Promise.resolve({ ok: false, status: 503, statusText: "Service Unavailable" });
-    });
-
-    const settings = makeSettings();
-    const result = await syncProviderKeys(settings);
-
-    expect(result.success).toBe(false);
-    expect(result.syncedProviders).toEqual(["gemini"]);
-    expect(result.failedProviders).toHaveLength(1);
-    expect(result.failedProviders[0]!.providerId).toBe("mimo");
-    expect(result.failedProviders[0]!.error).toContain("HTTP 503");
+    const providerCalls = mockFetch.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("/api/settings/providers/")
+    );
+    expect(providerCalls).toHaveLength(2);
   });
 
   // ══════════════════════════════════════════════════════════════════════
@@ -227,22 +201,13 @@ describe.skip("syncProviderKeys", () => {
 
   it("handles empty providers list", async () => {
     const settings = makeSettings({ providers: [] });
-    const result = await syncProviderKeys(settings);
+    useSettingsStore.getState().setSettings(settings);
+    await new Promise((r) => setTimeout(r, 50));
 
-    expect(result.success).toBe(true);
-    expect(result.syncedProviders).toEqual([]);
-    expect(result.failedProviders).toEqual([]);
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("handles non-Error exceptions", async () => {
-    mockFetch.mockRejectedValue("string error");
-
-    const settings = makeSettings();
-    const result = await syncProviderKeys(settings);
-
-    expect(result.success).toBe(false);
-    expect(result.failedProviders[0]!.error).toBe("string error");
+    const providerCalls = mockFetch.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("/api/settings/providers/")
+    );
+    expect(providerCalls).toHaveLength(0);
   });
 
   // ══════════════════════════════════════════════════════════════════════
@@ -251,24 +216,38 @@ describe.skip("syncProviderKeys", () => {
 
   it("sends correct API request format", async () => {
     const settings = makeSettings();
-    await syncProviderKeys(settings);
+    useSettingsStore.getState().setSettings(settings);
+    await new Promise((r) => setTimeout(r, 50));
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/settings/providers/gemini",
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: "test-key-1" })
-      }
+    const geminiCall = mockFetch.mock.calls.find(
+      (c: unknown[]) => c[0] === "/api/settings/providers/gemini"
     );
+    expect(geminiCall).toBeDefined();
+    expect(geminiCall![1]).toMatchObject({
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: "test-key-1" })
+    });
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/settings/providers/mimo",
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: "test-key-2" })
-      }
+    const mimoCall = mockFetch.mock.calls.find(
+      (c: unknown[]) => c[0] === "/api/settings/providers/mimo"
     );
+    expect(mimoCall).toBeDefined();
+    expect(mimoCall![1]).toMatchObject({
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: "test-key-2" })
+    });
+  });
+
+  it("does not sync when mode is mock", async () => {
+    const settings = makeSettings({ mode: "mock" });
+    useSettingsStore.getState().setSettings(settings);
+    await new Promise((r) => setTimeout(r, 50));
+
+    const providerCalls = mockFetch.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("/api/settings/providers/")
+    );
+    expect(providerCalls).toHaveLength(0);
   });
 });

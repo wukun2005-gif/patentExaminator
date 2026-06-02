@@ -1,49 +1,38 @@
+/**
+ * presetLoader.test.ts (B-038 rewritten)
+ * ========================================
+ *
+ * 测试 loadPresetCase 函数的各种场景：
+ * - 创建案件和关联数据
+ * - 写入正确的 repos 调用次数
+ * - hydrate Zustand stores
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock all repos
-vi.mock("@client/lib/repos", () => ({
-  createCase: vi.fn().mockResolvedValue(undefined),
-  updateCase: vi.fn().mockResolvedValue(undefined)
-}));
-vi.mock("@client/lib/repos", () => ({
-  createDocument: vi.fn().mockResolvedValue(undefined),
-  updateDocument: vi.fn().mockResolvedValue(undefined),
-  deleteDocument: vi.fn().mockResolvedValue(undefined)
-}));
-vi.mock("@client/lib/repos", () => ({
-  createClaimNode: vi.fn().mockResolvedValue(undefined),
-  createClaimFeature: vi.fn().mockResolvedValue(undefined)
-}));
-vi.mock("@client/lib/repos", () => ({
-  createNovelty: vi.fn().mockResolvedValue(undefined)
-}));
-vi.mock("@client/lib/repos", () => ({
-  createInventive: vi.fn().mockResolvedValue(undefined)
+// Mock serverReady
+vi.mock("@client/lib/serverReady", () => ({
+  waitForServerReady: vi.fn().mockResolvedValue(undefined),
+  clearServerReadyCache: vi.fn()
 }));
 
-// Mock IndexedDB for store slices
-vi.mock("@client/lib/repos", () => ({
-  getDB: vi.fn().mockResolvedValue({
-    get: vi.fn().mockResolvedValue(null),
-    put: vi.fn().mockResolvedValue(undefined)
-  }),
-  openPatentDB: vi.fn(),
-  setDBInstance: vi.fn()
+// Mock idbWriteGuard
+vi.mock("@client/lib/idbWriteGuard", () => ({
+  idbWriteGuard: vi.fn(() => vi.fn())
 }));
+
+// Track all fetch calls
+const createdRecords: Array<{ store: string; data: Record<string, unknown> }> = [];
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
 
 import { loadPresetCase } from "@client/lib/presetLoader";
-import { createCase } from "@client/lib/repos";
-import { createDocument } from "@client/lib/repos";
-import { createClaimNode, createClaimFeature } from "@client/lib/repos";
-import { createNovelty } from "@client/lib/repos";
-import { createInventive } from "@client/lib/repos";
 import { useCaseStore } from "@client/store/features/case/caseSlice";
 import { useClaimsStore } from "@client/store/features/claims/claimsSlice";
 import { useNoveltyStore } from "@client/store/features/novelty/noveltySlice";
 import { useInventiveStore } from "@client/store/features/inventive/inventiveSlice";
 
-// B-038: IndexedDB deleted
-describe.skip("loadPresetCase", () => {
+describe("loadPresetCase", () => {
   beforeEach(() => {
     // Reset stores
     useCaseStore.setState({ currentCase: null, cases: [] });
@@ -51,6 +40,30 @@ describe.skip("loadPresetCase", () => {
     useNoveltyStore.setState({ comparisons: [] });
     useInventiveStore.setState({ analyses: [] });
     vi.clearAllMocks();
+    createdRecords.length = 0;
+
+    // Mock fetch: track POST /api/data/{store} as creates, return ok for everything
+    mockFetch.mockImplementation((url: string, options?: { method?: string; body?: string }) => {
+      const method = options?.method ?? "GET";
+      if (method === "POST" && url.match(/\/api\/data\/[^/]+$/) && !url.includes("/query")) {
+        const store = url.replace("/api/data/", "");
+        if (options?.body) {
+          createdRecords.push({ store, data: JSON.parse(options.body) });
+        }
+      }
+      // For readCaseById on subsequent loads, return 404 (first load)
+      if (method === "GET" && url.match(/\/api\/data\/cases\//)) {
+        return Promise.resolve({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ ok: false })
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, records: [] })
+      });
+    });
   });
 
   it("returns preset case ID", async () => {
@@ -60,41 +73,43 @@ describe.skip("loadPresetCase", () => {
 
   it("calls createCase with preset data", async () => {
     await loadPresetCase();
-    expect(createCase).toHaveBeenCalledOnce();
-    const arg = vi.mocked(createCase).mock.calls[0]![0];
-    expect(arg.id).toBe("preset-demo-001");
-    expect(arg.title).toBe("一种LED散热装置");
+    const caseCreate = createdRecords.find((r) => r.store === "cases");
+    expect(caseCreate).toBeDefined();
+    expect(caseCreate!.data.id).toBe("preset-demo-001");
+    expect(caseCreate!.data.title).toBe("一种LED散热装置");
   });
 
   it("creates application document and reference documents", async () => {
     await loadPresetCase();
-    // 1 application doc + 2 reexam docs + 1 reference doc = 4 calls
-    expect(createDocument).toHaveBeenCalledTimes(4);
+    const docCreates = createdRecords.filter((r) => r.store === "documents");
+    expect(docCreates).toHaveLength(4);
   });
 
   it("creates claim nodes", async () => {
     await loadPresetCase();
-    expect(createClaimNode).toHaveBeenCalledTimes(2); // claim 1 + claim 2
+    const nodeCreates = createdRecords.filter((r) => r.store === "claimNodes");
+    expect(nodeCreates).toHaveLength(2);
   });
 
   it("creates claim features", async () => {
     await loadPresetCase();
-    expect(createClaimFeature).toHaveBeenCalledTimes(8); // A-H
+    const featureCreates = createdRecords.filter((r) => r.store === "claimCharts");
+    expect(featureCreates).toHaveLength(8);
   });
 
   it("creates novelty comparison", async () => {
     await loadPresetCase();
-    expect(createNovelty).toHaveBeenCalledOnce();
-    const arg = vi.mocked(createNovelty).mock.calls[0]![0];
-    expect(arg.caseId).toBe("preset-demo-001");
-    expect(arg.differenceFeatureCodes).toEqual(["E", "F", "G", "H"]);
+    const noveltyCreates = createdRecords.filter((r) => r.store === "novelty");
+    expect(noveltyCreates).toHaveLength(1);
+    expect(noveltyCreates[0]!.data.caseId).toBe("preset-demo-001");
+    expect(noveltyCreates[0]!.data.differenceFeatureCodes).toEqual(["E", "F", "G", "H"]);
   });
 
   it("creates inventive analysis", async () => {
     await loadPresetCase();
-    expect(createInventive).toHaveBeenCalledOnce();
-    const arg = vi.mocked(createInventive).mock.calls[0]![0];
-    expect(arg.candidateAssessment).toBe("possibly-inventive");
+    const inventiveCreates = createdRecords.filter((r) => r.store === "inventive");
+    expect(inventiveCreates).toHaveLength(1);
+    expect(inventiveCreates[0]!.data.candidateAssessment).toBe("possibly-inventive");
   });
 
   it("hydrates case store", async () => {

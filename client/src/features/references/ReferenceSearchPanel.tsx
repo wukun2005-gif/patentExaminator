@@ -7,7 +7,7 @@ import { TimelineStatusBadge } from "../../components/TimelineStatusBadge";
 import { useReferencesStore, useCaseStore, useSettingsStore } from "../../store";
 import { createDocument } from "../../lib/repos";
 import { getLatestSearchSession, createSearchSession, updateSearchSession } from "../../lib/repos";
-import { searchReferences, extractSearchTerms, searchWithTerms } from "../../lib/repos";
+import { searchReferences as _searchReferences, extractSearchTerms, searchWithTerms } from "../../lib/repos";
 import { ErrorBanner } from "../../lib/errorDisplay";
 
 interface ReferenceSearchPanelProps {

@@ -3,7 +3,6 @@
  * 使用 Node.js Tesseract 进行 OCR
  */
 import { Router } from "express";
-import express from "express";
 import multer from "multer";
 import { createWorker } from "tesseract.js";
 import { logger } from "../lib/logger.js";

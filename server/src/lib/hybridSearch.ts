@@ -3,7 +3,7 @@
  * 从 client/src/lib/knowledge/hybridSearch.ts + bm25Search.ts 迁移
  */
 import MiniSearch from "minisearch";
-import { getAllChunks, getAllVectors } from "./knowledgeDb.js";
+import { getAllChunks, getAllVectors as _getAllVectors } from "./knowledgeDb.js";
 import { logger } from "./logger.js";
 
 const RRF_K = 60; // RRF 常数
@@ -11,7 +11,7 @@ const RRF_K = 60; // RRF 常数
 // ── BM25 索引 ─────────────────────────────────────────
 
 let miniSearch: MiniSearch | null = null;
-let indexedSourceIds = new Set<string>();
+const _indexedSourceIds = new Set<string>();
 
 /** 构建或更新 BM25 索引 */
 function ensureBM25Index(): MiniSearch {

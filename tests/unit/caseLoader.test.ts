@@ -1,13 +1,26 @@
 /**
- * caseLoader.test.ts (td-8)
- * ==========================
+ * caseLoader.test.ts (B-038 rewritten)
+ * ======================================
  * Tests for loadCaseById from @client/lib/caseLoader.
- * Covers: successful load, partial IDB data, empty stores, corrupted data.
+ * Covers: successful load, partial data, empty stores, corrupted data.
  */
 
-import "fake-indexeddb/auto";
-import { describe, it, expect, beforeEach } from "vitest";
-import { openPatentDB, setDBInstance, getDB } from "@client/lib/repos";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// Mock serverReady
+vi.mock("@client/lib/serverReady", () => ({
+  waitForServerReady: vi.fn().mockResolvedValue(undefined),
+  clearServerReadyCache: vi.fn()
+}));
+
+// Mock idbWriteGuard
+vi.mock("@client/lib/idbWriteGuard", () => ({
+  idbWriteGuard: vi.fn(() => vi.fn())
+}));
+
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
 import { loadCaseById } from "@client/lib/caseLoader";
 import {
   useCaseStore,
@@ -210,26 +223,78 @@ function makeArgumentMapping(overrides: Partial<ArgumentMapping> = {}): Argument
   };
 }
 
-// B-038: IndexedDB deleted, tests need rewriting for server-side storage
-describe.skip("loadCaseById", () => {
-  beforeEach(async () => {
-    const db = await openPatentDB();
-    setDBInstance(db);
+/**
+ * Build a fetch mock that returns data from an in-memory store map.
+ * Supports GET /api/data/{store}/{id} and POST /api/data/{store}/query.
+ */
+function buildFetchMock(storeMap: Record<string, Record<string, unknown>[]>) {
+  return (url: string, options?: { method?: string; body?: string }) => {
+    const method = options?.method ?? "GET";
 
-    // Clear all IDB stores
-    const storeNames = Array.from(db.objectStoreNames);
-    const tx = db.transaction(storeNames, "readwrite");
-    await Promise.all([...storeNames.map((s) => tx.objectStore(s).clear()), tx.done]);
+    // POST /api/data/{store}/query
+    if (method === "POST" && url.match(/\/api\/data\/[^/]+\/query$/)) {
+      const store = url.replace("/api/data/", "").replace("/query", "");
+      const body = options?.body ? JSON.parse(options.body) : {};
+      const records = (storeMap[store] ?? []).filter(
+        (r) => (r as Record<string, unknown>)[body.field] === body.value
+      );
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, records })
+      });
+    }
 
+    // GET /api/data/{store}/{id}
+    if (method === "GET" && url.match(/\/api\/data\/[^/]+\/[^/]+$/)) {
+      const parts = url.replace("/api/data/", "").split("/");
+      const store = parts[0];
+      const id = parts[1];
+      const records = storeMap[store] ?? [];
+      const record = records.find((r) => (r as Record<string, unknown>).id === id);
+      if (record) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true, record })
+        });
+      }
+      return Promise.resolve({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        json: () => Promise.resolve({ ok: false, error: "Not found" })
+      });
+    }
+
+    // GET /api/data/{store} (getAll)
+    if (method === "GET" && url.match(/\/api\/data\/[^/]+$/)) {
+      const store = url.replace("/api/data/", "");
+      const records = storeMap[store] ?? [];
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, records })
+      });
+    }
+
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ ok: true })
+    });
+  };
+}
+
+describe("loadCaseById", () => {
+  beforeEach(() => {
     resetAllStores();
+    vi.clearAllMocks();
   });
 
   // ── successful load ────────────────────────────────────────────────
 
   describe("successful load", () => {
     it("returns the PatentCase and hydrates case store", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()]
+      }));
 
       const result = await loadCaseById(CASE_ID);
       expect(result).not.toBeNull();
@@ -239,33 +304,37 @@ describe.skip("loadCaseById", () => {
     });
 
     it("hydrates documents store", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("documents", makeDocument({ id: "d1", role: "application", fileName: "app.pdf" }));
-      await db.put("documents", makeDocument({
-        id: "d2", role: "reference", fileName: "ref.pdf"
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        documents: [
+          makeDocument({ id: "d1", role: "application", fileName: "app.pdf" }),
+          makeDocument({ id: "d2", role: "reference", fileName: "ref.pdf" })
+        ]
       }));
 
       await loadCaseById(CASE_ID);
-      // Documents store gets all docs; references store gets only role=reference
       expect(useDocumentsStore.getState().documents).toHaveLength(2);
     });
 
     it("hydrates references store with role=reference only", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("documents", makeDocument({ id: "d1", role: "application" }));
-      await db.put("documents", makeDocument({ id: "d2", role: "reference" }));
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        documents: [
+          makeDocument({ id: "d1", role: "application" }),
+          makeDocument({ id: "d2", role: "reference" })
+        ]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useReferencesStore.getState().references).toHaveLength(1);
     });
 
     it("hydrates claims store", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("claimNodes", makeClaimNode());
-      await db.put("claimCharts", makeClaimFeature());
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        claimNodes: [makeClaimNode()],
+        claimCharts: [makeClaimFeature()]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useClaimsStore.getState().claimNodes).toHaveLength(1);
@@ -273,9 +342,10 @@ describe.skip("loadCaseById", () => {
     });
 
     it("hydrates novelty store", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("novelty", makeNovelty());
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        novelty: [makeNovelty()]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useNoveltyStore.getState().comparisons).toHaveLength(1);
@@ -283,29 +353,34 @@ describe.skip("loadCaseById", () => {
     });
 
     it("hydrates inventive store", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("inventive", makeInventive());
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        inventive: [makeInventive()]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useInventiveStore.getState().analyses).toHaveLength(1);
     });
 
     it("hydrates defects store", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("defects", makeDefect());
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        defects: [makeDefect()]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useDefectsStore.getState().defects).toHaveLength(1);
     });
 
     it("hydrates chat sessions and messages", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("chatSessions", makeSession({ id: "s1" }));
-      await db.put("chatMessages", makeMessage({ id: "m1", sessionId: "s1" }));
-      await db.put("chatMessages", makeMessage({ id: "m2", sessionId: "s1", role: "assistant", content: "回复" }));
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        chatSessions: [makeSession({ id: "s1" })],
+        chatMessages: [
+          makeMessage({ id: "m1", sessionId: "s1" }),
+          makeMessage({ id: "m2", sessionId: "s1", role: "assistant", content: "回复" })
+        ]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useChatStore.getState().sessions).toHaveLength(1);
@@ -314,21 +389,24 @@ describe.skip("loadCaseById", () => {
     });
 
     it("sets activeSessionId to null when no sessions exist", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useChatStore.getState().activeSessionId).toBeNull();
     });
 
     it("hydrates interpret summaries", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("interpretSummaries", {
-        caseId: CASE_ID,
-        summaries: { doc1: "摘要一", doc2: "摘要二" },
-        updatedAt: "2023-03-15T00:00:00.000Z"
-      });
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        interpretSummaries: [{
+          id: CASE_ID,
+          caseId: CASE_ID,
+          summaries: { doc1: "摘要一", doc2: "摘要二" },
+          updatedAt: "2023-03-15T00:00:00.000Z"
+        }]
+      }));
 
       await loadCaseById(CASE_ID);
       const summaries = useInterpretStore.getState().interpretSummaries[CASE_ID];
@@ -337,9 +415,10 @@ describe.skip("loadCaseById", () => {
     });
 
     it("hydrates opinion analysis", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("opinionAnalyses", makeOpinionAnalysis());
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        opinionAnalyses: [makeOpinionAnalysis()]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useOpinionStore.getState().officeActionAnalysis).not.toBeNull();
@@ -347,29 +426,23 @@ describe.skip("loadCaseById", () => {
     });
 
     it("hydrates argument mappings", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("argumentMappings", makeArgumentMapping());
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        argumentMappings: [makeArgumentMapping()]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useOpinionStore.getState().argumentMappings).toHaveLength(1);
     });
 
     it("hydrates run markers to module slices", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("runMarkers", {
-        id: `${CASE_ID}::defects`,
-        caseId: CASE_ID,
-        module: "defects",
-        timestamp: "2023-03-15T00:00:00.000Z"
-      });
-      await db.put("runMarkers", {
-        id: `${CASE_ID}::claimChart`,
-        caseId: CASE_ID,
-        module: "claimChart",
-        timestamp: "2023-03-15T00:00:00.000Z"
-      });
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        runMarkers: [
+          { id: `${CASE_ID}::defects`, caseId: CASE_ID, module: "defects", timestamp: "2023-03-15T00:00:00.000Z" },
+          { id: `${CASE_ID}::claimChart`, caseId: CASE_ID, module: "claimChart", timestamp: "2023-03-15T00:00:00.000Z" }
+        ]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useDefectsStore.getState().ranCases).toContain(CASE_ID);
@@ -380,12 +453,16 @@ describe.skip("loadCaseById", () => {
   // ── empty / not found ──────────────────────────────────────────────
 
   describe("empty stores / not found", () => {
-    it("returns null when caseId does not exist in IDB", async () => {
+    it("returns null when caseId does not exist", async () => {
+      mockFetch.mockImplementation(buildFetchMock({}));
+
       const result = await loadCaseById("non-existent");
       expect(result).toBeNull();
     });
 
     it("does not hydrate any store when case is not found", async () => {
+      mockFetch.mockImplementation(buildFetchMock({}));
+
       await loadCaseById("non-existent");
       expect(useCaseStore.getState().currentCase).toBeNull();
       expect(useDocumentsStore.getState().documents).toHaveLength(0);
@@ -393,8 +470,9 @@ describe.skip("loadCaseById", () => {
     });
 
     it("loads successfully with all child stores empty", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()]
+      }));
 
       const result = await loadCaseById(CASE_ID);
       expect(result).not.toBeNull();
@@ -409,14 +487,14 @@ describe.skip("loadCaseById", () => {
     });
   });
 
-  // ── partial IDB failure ────────────────────────────────────────────
+  // ── partial data ──────────────────────────────────────────────────
 
-  describe("partial IDB data", () => {
+  describe("partial data", () => {
     it("handles session with missing messages gracefully", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("chatSessions", makeSession({ id: "s-orphan" }));
-      // No messages for this session — getMessagesBySessionId returns []
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        chatSessions: [makeSession({ id: "s-orphan" })]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useChatStore.getState().sessions).toHaveLength(1);
@@ -424,11 +502,11 @@ describe.skip("loadCaseById", () => {
     });
 
     it("loads partial data when only some stores have data", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("novelty", makeNovelty());
-      await db.put("defects", makeDefect());
-      // No documents, claims, inventive, chat, etc.
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        novelty: [makeNovelty()],
+        defects: [makeDefect()]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useNoveltyStore.getState().comparisons).toHaveLength(1);
@@ -438,12 +516,17 @@ describe.skip("loadCaseById", () => {
     });
 
     it("loads multiple sessions with messages from different sessions", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("chatSessions", makeSession({ id: "s1", title: "会话1" }));
-      await db.put("chatSessions", makeSession({ id: "s2", title: "会话2" }));
-      await db.put("chatMessages", makeMessage({ id: "m1", sessionId: "s1" }));
-      await db.put("chatMessages", makeMessage({ id: "m2", sessionId: "s2", content: "会话2消息" }));
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        chatSessions: [
+          makeSession({ id: "s1", title: "会话1" }),
+          makeSession({ id: "s2", title: "会话2" })
+        ],
+        chatMessages: [
+          makeMessage({ id: "m1", sessionId: "s1" }),
+          makeMessage({ id: "m2", sessionId: "s2", content: "会话2消息" })
+        ]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useChatStore.getState().sessions).toHaveLength(2);
@@ -456,22 +539,22 @@ describe.skip("loadCaseById", () => {
 
   describe("corrupted data", () => {
     it("loads case with minimal fields into store", async () => {
-      const db = await getDB();
-      // Put a case with missing optional fields
-      await db.put("cases", {
-        id: CASE_ID,
-        applicationNumber: null,
-        title: "",
-        applicationDate: "",
-        patentType: "invention",
-        textVersion: "original",
-        targetClaimNumber: 1,
-        guidelineVersion: "",
-        reexaminationRound: 1,
-        workflowState: "empty",
-        createdAt: "",
-        updatedAt: ""
-      } as PatentCase);
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [{
+          id: CASE_ID,
+          applicationNumber: null,
+          title: "",
+          applicationDate: "",
+          patentType: "invention",
+          textVersion: "original",
+          targetClaimNumber: 1,
+          guidelineVersion: "",
+          reexaminationRound: 1,
+          workflowState: "empty",
+          createdAt: "",
+          updatedAt: ""
+        } as unknown as PatentCase]
+      }));
 
       const result = await loadCaseById(CASE_ID);
       expect(result).not.toBeNull();
@@ -480,9 +563,10 @@ describe.skip("loadCaseById", () => {
     });
 
     it("handles novelty with empty rows array", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("novelty", makeNovelty({ rows: [], differenceFeatureCodes: [] }));
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        novelty: [makeNovelty({ rows: [], differenceFeatureCodes: [] })]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useNoveltyStore.getState().comparisons).toHaveLength(1);
@@ -490,19 +574,20 @@ describe.skip("loadCaseById", () => {
     });
 
     it("handles inventive with no optional fields", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      await db.put("inventive", {
-        id: "inv-minimal",
-        caseId: CASE_ID,
-        sharedFeatureCodes: [],
-        distinguishingFeatureCodes: [],
-        candidateAssessment: "not-analyzed",
-        motivationEvidence: [],
-        cautions: [],
-        legalCaution: "",
-        status: "draft"
-      });
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        inventive: [{
+          id: "inv-minimal",
+          caseId: CASE_ID,
+          sharedFeatureCodes: [],
+          distinguishingFeatureCodes: [],
+          candidateAssessment: "not-analyzed",
+          motivationEvidence: [],
+          cautions: [],
+          legalCaution: "",
+          status: "draft"
+        }]
+      }));
 
       await loadCaseById(CASE_ID);
       expect(useInventiveStore.getState().analyses).toHaveLength(1);
@@ -510,19 +595,19 @@ describe.skip("loadCaseById", () => {
     });
 
     it("handles legacy interpret summary format", async () => {
-      const db = await getDB();
-      await db.put("cases", makeCase());
-      // Legacy format: { caseId, summary, updatedAt } without summaries object
-      await db.put("interpretSummaries", {
-        caseId: CASE_ID,
-        summary: "旧格式摘要",
-        updatedAt: "2023-03-15T00:00:00.000Z"
-      });
+      mockFetch.mockImplementation(buildFetchMock({
+        cases: [makeCase()],
+        interpretSummaries: [{
+          id: CASE_ID,
+          caseId: CASE_ID,
+          summary: "旧格式摘要",
+          updatedAt: "2023-03-15T00:00:00.000Z"
+        }]
+      }));
 
       await loadCaseById(CASE_ID);
       const summaries = useInterpretStore.getState().interpretSummaries[CASE_ID];
       expect(summaries).toBeDefined();
-      // Legacy format wraps in __legacy__ key
       expect(summaries!["__legacy__"]).toBe("旧格式摘要");
     });
   });

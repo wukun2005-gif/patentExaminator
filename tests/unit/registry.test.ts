@@ -292,7 +292,7 @@ describe("ProviderRegistry", () => {
 
       const reqWithSignal = { ...baseReq, signal: controller.signal };
 
-      const result = await registry.runWithFallback(["abort-test"], reqWithSignal);
+      await registry.runWithFallback(["abort-test"], reqWithSignal);
 
       // Should stop after client abort
       expect(attempts).toBe(1);
