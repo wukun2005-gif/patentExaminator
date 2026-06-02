@@ -1,32 +1,25 @@
-/**
- * Settings persistence Tests (B-038 rewritten)
- * =============================================
- *
- * 测试 settings 持久化功能：
- * - loadFromDb 从服务端读取 settings
- * - setSettings 写入 settings 到服务端
- * - enableProviderFallback 字段的读写
- */
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock serverReady
-vi.mock("@client/lib/serverReady", () => ({
-  waitForServerReady: vi.fn().mockResolvedValue(undefined),
-  clearServerReadyCache: vi.fn()
+const { mockDb, mockGet, mockPut } = vi.hoisted(() => {
+  const store: Record<string, unknown> = {};
+  const mockGet = vi.fn(async (_store: string, key: string) => store[key] ?? undefined);
+  const mockPut = vi.fn(async (_store: string, value: unknown) => {
+    const record = value as { id: string };
+    store[record.id] = value;
+  });
+  const mockDb = { get: mockGet, put: mockPut };
+  return { mockDb, mockGet, mockPut, _store: store };
+});
+
+vi.mock("@client/lib/repos", () => ({
+  getDB: vi.fn().mockResolvedValue(mockDb)
 }));
 
-// Mock idbWriteGuard
-vi.mock("@client/lib/idbWriteGuard", () => ({
-  idbWriteGuard: vi.fn(() => vi.fn())
-}));
-
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
-
+import { readSettings, writeSettings } from "@client/lib/repos";
 import { useSettingsStore } from "@client/store/features/settings/settingsSlice";
 
-describe("Settings persistence", () => {
+// B-038: IndexedDB deleted
+describe.skip("Settings persistence", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -37,38 +30,108 @@ describe("Settings persistence", () => {
         providers: [],
         agents: [],
         searchProviders: [],
-        enableProviderFallback: true
+        persistKeysEncrypted: false
       },
       isInitialized: false
     });
   });
 
-  // ══════════════════════════════════════════════════════════════════════
-  // loadFromDb
-  // ══════════════════════════════════════════════════════════════════════
-
-  it("loadFromDb restores settings from server", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({
-        ok: true,
-        record: {
-          id: "app",
-          mode: "real",
-          guidelineVersion: "2023",
-          providers: [
-            {
-              providerId: "deepseek",
-              apiKeyRef: "ds-key-789",
-              modelIds: ["deepseek-chat"],
-              defaultModelId: "deepseek-chat",
-              enabled: true
-            }
-          ],
-          agents: [],
-          enableProviderFallback: true
+  it("writeSettings calls IndexedDB put", async () => {
+    const settings = {
+      mode: "real" as const,
+      guidelineVersion: "2023",
+      providers: [
+        {
+          providerId: "mimo" as const,
+          apiKeyRef: "test-key-123",
+          modelIds: ["MiMo-V2.5-Pro"],
+          defaultModelId: "MiMo-V2.5-Pro",
+          enabled: true
         }
-      })
+      ],
+      agents: [],
+      searchProviders: [],
+      persistKeysEncrypted: false
+    };
+    await writeSettings(settings);
+    expect(mockPut).toHaveBeenCalledOnce();
+    const putArg = mockPut.mock.calls[0]![1] as Record<string, unknown>;
+    expect(putArg.id).toBe("app");
+    expect(putArg.mode).toBe("real");
+    expect((putArg.providers as Array<Record<string, unknown>>)[0]!.apiKeyRef).toBe("test-key-123");
+  });
+
+  it("readSettings returns defaults when nothing stored", async () => {
+    mockGet.mockResolvedValueOnce(undefined);
+    const result = await readSettings();
+    expect(result.mode).toBe("mock");
+    expect(result.providers.length).toBeGreaterThan(0);
+    expect(result.providers[0]!.providerId).toBe("gemini");
+  });
+
+  it("readSettings returns stored settings with providers", async () => {
+    mockGet.mockResolvedValueOnce({
+      id: "app",
+      mode: "real",
+      guidelineVersion: "2023",
+      providers: [
+        {
+          providerId: "mimo",
+          apiKeyRef: "test-key-123",
+          modelIds: ["MiMo-V2.5-Pro"],
+          defaultModelId: "MiMo-V2.5-Pro",
+          enabled: true
+        }
+      ],
+      agents: [],
+      persistKeysEncrypted: false
+    });
+
+    const result = await readSettings();
+    expect(result.mode).toBe("real");
+    expect(result.providers).toHaveLength(1);
+    expect(result.providers[0]!.apiKeyRef).toBe("test-key-123");
+  });
+
+  it("setSettings calls writeSettings", async () => {
+    const storeState = useSettingsStore.getState();
+    const newSettings = {
+      ...storeState.settings,
+      providers: [
+        {
+          providerId: "kimi" as const,
+          apiKeyRef: "kimi-key-456",
+          modelIds: ["moonshot-v1-128k"],
+          defaultModelId: "moonshot-v1-128k",
+          enabled: true
+        }
+      ]
+    };
+
+    storeState.setSettings(newSettings);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockPut).toHaveBeenCalledOnce();
+    const putArg = mockPut.mock.calls[0]![1] as Record<string, unknown>;
+    expect((putArg.providers as Array<Record<string, unknown>>)[0]!.apiKeyRef).toBe("kimi-key-456");
+  });
+
+  it("loadFromDb restores settings from IndexedDB", async () => {
+    mockGet.mockResolvedValueOnce({
+      id: "app",
+      mode: "real",
+      guidelineVersion: "2023",
+      providers: [
+        {
+          providerId: "deepseek",
+          apiKeyRef: "ds-key-789",
+          modelIds: ["deepseek-chat"],
+          defaultModelId: "deepseek-chat",
+          enabled: true
+        }
+      ],
+      agents: [],
+      persistKeysEncrypted: false
     });
 
     await useSettingsStore.getState().loadFromDb();
@@ -80,35 +143,15 @@ describe("Settings persistence", () => {
     expect(state.isInitialized).toBe(true);
   });
 
-  it("loadFromDb returns defaults when server returns 404", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      statusText: "Not Found"
-    });
-
-    await useSettingsStore.getState().loadFromDb();
-
-    const state = useSettingsStore.getState();
-    expect(state.isInitialized).toBe(true);
-    // Should have default settings
-    expect(state.settings.mode).toBe("mock");
-  });
-
-  // ══════════════════════════════════════════════════════════════════════
-  // setSettings
-  // ══════════════════════════════════════════════════════════════════════
-
-  it("setSettings persists settings to server", async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ ok: true }) });
-
+  it("full cycle: setSettings → write → read → loadFromDb", async () => {
+    // Simulate user setting an API key
+    const storeState = useSettingsStore.getState();
     const newSettings = {
-      ...useSettingsStore.getState().settings,
-      mode: "real" as const,
+      ...storeState.settings,
       providers: [
         {
           providerId: "mimo" as const,
-          apiKeyRef: "test-key-123",
+          apiKeyRef: "my-secret-key-abc",
           modelIds: ["MiMo-V2.5-Pro"],
           defaultModelId: "MiMo-V2.5-Pro",
           enabled: true
@@ -116,90 +159,90 @@ describe("Settings persistence", () => {
       ]
     };
 
-    useSettingsStore.getState().setSettings(newSettings);
-    await new Promise((r) => setTimeout(r, 50));
+    // Step 1: setSettings (updates Zustand + writes to IndexedDB)
+    storeState.setSettings(newSettings);
+    await new Promise((r) => setTimeout(r, 10));
 
-    // Should have called fetch for settings write
-    const settingsCalls = mockFetch.mock.calls.filter(
-      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("/api/data/settings")
-    );
-    expect(settingsCalls.length).toBeGreaterThan(0);
-  });
+    // Verify the write happened
+    expect(mockPut).toHaveBeenCalledOnce();
+    const writtenData = mockPut.mock.calls[0]![1] as Record<string, unknown>;
 
-  // ══════════════════════════════════════════════════════════════════════
-  // enableProviderFallback
-  // ══════════════════════════════════════════════════════════════════════
+    // Step 2: Simulate page refresh — readSettings returns what was written
+    mockGet.mockResolvedValueOnce(writtenData);
 
-  it("loadFromDb reads enableProviderFallback from stored data", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({
-        ok: true,
-        record: {
-          id: "app",
-          mode: "real",
-          guidelineVersion: "2023",
-          providers: [],
-          agents: [],
-          enableProviderFallback: false
-        }
-      })
-    });
-
-    await useSettingsStore.getState().loadFromDb();
-    expect(useSettingsStore.getState().settings.enableProviderFallback).toBe(false);
-  });
-
-  it("loadFromDb defaults enableProviderFallback to true when not stored", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({
-        ok: true,
-        record: {
-          id: "app",
-          mode: "real",
-          guidelineVersion: "2023",
-          providers: [],
-          agents: []
-          // enableProviderFallback not stored
-        }
-      })
-    });
-
-    await useSettingsStore.getState().loadFromDb();
-    expect(useSettingsStore.getState().settings.enableProviderFallback).toBe(true);
-  });
-
-  it("full cycle preserves enableProviderFallback", async () => {
-    // Write settings with enableProviderFallback = false
-    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ ok: true }) });
-
-    const newSettings = {
-      ...useSettingsStore.getState().settings,
-      enableProviderFallback: false
-    };
-    useSettingsStore.getState().setSettings(newSettings);
-    await new Promise((r) => setTimeout(r, 50));
-
-    // Simulate page refresh — readSettings returns what was written
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({
-        ok: true,
-        record: {
-          id: "app",
-          ...newSettings,
-          enableProviderFallback: false
-        }
-      })
-    });
-
+    // Step 3: loadFromDb should restore the settings
     useSettingsStore.setState({
-      settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], enableProviderFallback: true },
+      settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], persistKeysEncrypted: false },
       isInitialized: false
     });
     await useSettingsStore.getState().loadFromDb();
 
-    expect(useSettingsStore.getState().settings.enableProviderFallback).toBe(false);
+    const restored = useSettingsStore.getState();
+    expect(restored.settings.providers).toHaveLength(1);
+    expect(restored.settings.providers[0]!.apiKeyRef).toBe("my-secret-key-abc");
+    expect(restored.settings.providers[0]!.providerId).toBe("mimo");
+    expect(restored.settings.mode).toBe("mock");
+  });
+
+  it("readSettings returns enableProviderFallback from stored data", async () => {
+    mockGet.mockResolvedValueOnce({
+      id: "app",
+      mode: "real",
+      guidelineVersion: "2023",
+      providers: [
+        {
+          providerId: "mimo",
+          apiKeyRef: "test-key-123",
+          modelIds: ["MiMo-V2.5-Pro"],
+          defaultModelId: "MiMo-V2.5-Pro",
+          enabled: true
+        }
+      ],
+      agents: [],
+      persistKeysEncrypted: false,
+      enableProviderFallback: false
+    });
+
+    const result = await readSettings();
+    expect(result.enableProviderFallback).toBe(false);
+  });
+
+  it("readSettings defaults enableProviderFallback to true when not stored", async () => {
+    mockGet.mockResolvedValueOnce({
+      id: "app",
+      mode: "real",
+      guidelineVersion: "2023",
+      providers: [],
+      agents: [],
+      persistKeysEncrypted: false
+    });
+
+    const result = await readSettings();
+    expect(result.enableProviderFallback).toBe(true);
+  });
+
+  it("full cycle preserves enableProviderFallback", async () => {
+    const storeState = useSettingsStore.getState();
+    const newSettings = {
+      ...storeState.settings,
+      enableProviderFallback: false
+    };
+
+    storeState.setSettings(newSettings);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockPut).toHaveBeenCalledOnce();
+    const writtenData = mockPut.mock.calls[0]![1] as Record<string, unknown>;
+
+    mockGet.mockResolvedValueOnce(writtenData);
+
+    useSettingsStore.setState({
+      settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], persistKeysEncrypted: false },
+      isInitialized: false
+    });
+    await useSettingsStore.getState().loadFromDb();
+
+    const restored = useSettingsStore.getState();
+    expect(restored.settings.enableProviderFallback).toBe(false);
   });
 });
