@@ -394,7 +394,7 @@ describe("buildContextSummary", () => {
 
   describe("moduleScope: opinion-analysis", () => {
     it("lists office action analyses", () => {
-      (useOpinionStore.setState as (partial: Record<string, unknown>) => void)({
+      useOpinionStore.setState({
         officeActionAnalysis: {
           id: "oa-1",
           caseId: CASE_ID,
@@ -418,12 +418,12 @@ describe("buildContextSummary", () => {
     });
 
     it("shows zero when no analyses exist", () => {
-      (useOpinionStore.setState as (partial: Record<string, unknown>) => void)({
+      useOpinionStore.setState({
         officeActionAnalysis: null
       });
 
       const result = buildContextSummary(CASE_ID, "opinion-analysis");
-      expect(result).toContain("暂无模块数据");
+      expect(result).toContain("审查意见解析: 0 份");
     });
   });
 

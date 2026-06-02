@@ -113,6 +113,8 @@ export function buildContextSummary(caseId: string, moduleScope: ModuleScope): s
         lines.push(`审查意见解析: 1 份`);
         lines.push(`  驳回理由: ${analysis.rejectionGrounds.length} 条`);
         lines.push(`  引用文献: ${analysis.citedReferences.length} 篇`);
+      } else {
+        lines.push(`审查意见解析: 0 份`);
       }
       break;
     }
