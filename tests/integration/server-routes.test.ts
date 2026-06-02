@@ -4,7 +4,7 @@
  * Covers:
  * - GET /api/health — health check
  * - POST /api/ai/run — normal request, missing params, provider not found
- * - GET/PUT/DELETE /api/settings/providers — CRUD API keys
+ * - PUT /api/settings/providers — set API key (B-026: GET/DELETE endpoints removed)
  *
  * Strategy: create a minimal Express app with the actual routers,
  * use supertest for HTTP assertions. Mock external dependencies (AI calls).
@@ -15,7 +15,7 @@ import request from "supertest";
 import { healthRouter } from "@server/routes/health.js";
 import { settingsRouter } from "@server/routes/settings.js";
 import { aiRouter } from "@server/routes/ai.js";
-import { setApiKey, clearAll } from "@server/security/keyStore.js";
+import { clearAll } from "@server/security/keyStore.js";
 
 // Mock the provider registry to avoid real AI calls
 vi.mock("@server/providers/registry.js", () => {
@@ -56,14 +56,6 @@ describe("Settings routes", () => {
     clearAll();
   });
 
-  it("GET /api/settings/providers returns empty list initially", async () => {
-    const app = createTestApp();
-    const res = await request(app).get("/api/settings/providers");
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("providers");
-    expect(Array.isArray(res.body.providers)).toBe(true);
-  });
-
   it("PUT /api/settings/providers/:id sets API key", async () => {
     const app = createTestApp();
     const res = await request(app)
@@ -81,22 +73,6 @@ describe("Settings routes", () => {
       .send({});
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty("error", "apiKey is required");
-  });
-
-  it("GET /api/settings/providers/:id checks key existence", async () => {
-    setApiKey("kimi", "test-key");
-    const app = createTestApp();
-    const res = await request(app).get("/api/settings/providers/kimi");
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("hasKey", true);
-  });
-
-  it("DELETE /api/settings/providers/:id removes key", async () => {
-    setApiKey("kimi", "test-key");
-    const app = createTestApp();
-    const res = await request(app).delete("/api/settings/providers/kimi");
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("ok", true);
   });
 });
 

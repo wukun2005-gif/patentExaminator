@@ -22,4 +22,6 @@ export function listProviders(): string[] {
   return Array.from(keyStore.keys());
 }
 
-// B-030: clearAll 已删除（从未被引用）
+export function clearAll(): void {
+  keyStore.clear();
+}
