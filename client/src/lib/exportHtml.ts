@@ -1,5 +1,5 @@
 import type { PatentCase, ClaimFeature, NoveltyComparison, InventiveStepAnalysis, FormalDefect } from "@shared/types/domain";
-import type { ReexamDraftResponse, SummaryResponse } from "../agent/contracts";
+import type { ReexamDraftResponse, SummaryResponse } from "@shared/types/api";
 
 export interface ExportViewModel {
   caseData: PatentCase;

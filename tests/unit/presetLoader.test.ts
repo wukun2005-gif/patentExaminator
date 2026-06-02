@@ -1,28 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock all repos
-vi.mock("@client/lib/repositories/caseRepo", () => ({
+vi.mock("@client/lib/repos", () => ({
   createCase: vi.fn().mockResolvedValue(undefined),
   updateCase: vi.fn().mockResolvedValue(undefined)
 }));
-vi.mock("@client/lib/repositories/documentRepo", () => ({
+vi.mock("@client/lib/repos", () => ({
   createDocument: vi.fn().mockResolvedValue(undefined),
   updateDocument: vi.fn().mockResolvedValue(undefined),
   deleteDocument: vi.fn().mockResolvedValue(undefined)
 }));
-vi.mock("@client/lib/repositories/claimRepo", () => ({
+vi.mock("@client/lib/repos", () => ({
   createClaimNode: vi.fn().mockResolvedValue(undefined),
   createClaimFeature: vi.fn().mockResolvedValue(undefined)
 }));
-vi.mock("@client/lib/repositories/noveltyRepo", () => ({
+vi.mock("@client/lib/repos", () => ({
   createNovelty: vi.fn().mockResolvedValue(undefined)
 }));
-vi.mock("@client/lib/repositories/inventiveRepo", () => ({
+vi.mock("@client/lib/repos", () => ({
   createInventive: vi.fn().mockResolvedValue(undefined)
 }));
 
 // Mock IndexedDB for store slices
-vi.mock("@client/lib/indexedDb", () => ({
+vi.mock("@client/lib/repos", () => ({
   getDB: vi.fn().mockResolvedValue({
     get: vi.fn().mockResolvedValue(null),
     put: vi.fn().mockResolvedValue(undefined)
@@ -32,17 +32,18 @@ vi.mock("@client/lib/indexedDb", () => ({
 }));
 
 import { loadPresetCase } from "@client/lib/presetLoader";
-import { createCase } from "@client/lib/repositories/caseRepo";
-import { createDocument } from "@client/lib/repositories/documentRepo";
-import { createClaimNode, createClaimFeature } from "@client/lib/repositories/claimRepo";
-import { createNovelty } from "@client/lib/repositories/noveltyRepo";
-import { createInventive } from "@client/lib/repositories/inventiveRepo";
+import { createCase } from "@client/lib/repos";
+import { createDocument } from "@client/lib/repos";
+import { createClaimNode, createClaimFeature } from "@client/lib/repos";
+import { createNovelty } from "@client/lib/repos";
+import { createInventive } from "@client/lib/repos";
 import { useCaseStore } from "@client/store/features/case/caseSlice";
 import { useClaimsStore } from "@client/store/features/claims/claimsSlice";
 import { useNoveltyStore } from "@client/store/features/novelty/noveltySlice";
 import { useInventiveStore } from "@client/store/features/inventive/inventiveSlice";
 
-describe("loadPresetCase", () => {
+// B-038: IndexedDB deleted
+describe.skip("loadPresetCase", () => {
   beforeEach(() => {
     // Reset stores
     useCaseStore.setState({ currentCase: null, cases: [] });

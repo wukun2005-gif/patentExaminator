@@ -3,12 +3,12 @@ import { useParams, useLocation } from "react-router-dom";
 import { useChatStore, useCaseStore } from "../../store";
 import { ChatBubble } from "./ChatBubble";
 import { buildContextSummary } from "../../lib/chatContext";
-import type { ChatResponse } from "../../agent/contracts";
-import { AgentClient } from "../../agent/AgentClient";
-import { createSession, createMessage, deleteSession, deleteMessagesBySessionId, updateSession, getSessionsByCaseId, getMessagesBySessionId } from "../../lib/repositories/chatRepo";
+import type { ChatResponse } from "@shared/types/api";
+import { agentRun } from "../../lib/agentApi";
+import { createSession, createMessage, deleteSession, deleteMessagesBySessionId, updateSession, getSessionsByCaseId, getMessagesBySessionId } from "../../lib/repos";
 import { formatAiErrorMessage } from "../../lib/errorDisplay";
 import type { ChatMessage, ChatSession, ModuleScope } from "@shared/types/domain";
-import type { ChatRequest } from "../../agent/contracts";
+import type { ChatRequest } from "@shared/types/api";
 
 import { createLogger } from "../../lib/logger";
 const log = createLogger("ChatPanel");
@@ -246,7 +246,6 @@ export function ChatPanel() {
     setLoading(true);
     try {
       const settings = (await import("../../store")).useSettingsStore.getState().settings;
-      const client = new AgentClient(settings.mode, "/api", settings);
 
       const contextSummary = buildContextSummary(caseId, moduleScope);
       // Use getState() to get the latest messages (including the just-added user message)
@@ -266,7 +265,7 @@ export function ChatPanel() {
       };
 
       log("Calling AI...");
-      const response = await client.run<ChatResponse>("chat", request, caseId, { signal: controller.signal });
+      const response = await agentRun<ChatResponse>("chat", request, settings, caseId, { signal: controller.signal });
       if (!isMountedRef.current) return;
 
       let replyContent = response.reply;

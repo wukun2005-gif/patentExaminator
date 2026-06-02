@@ -10,13 +10,13 @@ import type {
   ChatMessage,
   ReferenceDocument
 } from "@shared/types/domain";
-import { createCase, readCaseById } from "./repositories/caseRepo";
-import { createDocument, readDocumentsByCaseId } from "./repositories/documentRepo";
-import { createClaimNode, createClaimFeature } from "./repositories/claimRepo";
-import { createNovelty } from "./repositories/noveltyRepo";
-import { createInventive } from "./repositories/inventiveRepo";
-import { createDefect } from "./repositories/defectRepo";
-import { createSession, createMessage, getSessionsByCaseId, getMessagesBySessionId } from "./repositories/chatRepo";
+import { createCase, readCaseById } from "./repos";
+import { createDocument, readDocumentsByCaseId } from "./repos";
+import { createClaimNode, createClaimFeature } from "./repos";
+import { createNovelty } from "./repos";
+import { createInventive } from "./repos";
+import { createDefect } from "./repos";
+import { createSession, createMessage, getSessionsByCaseId, getMessagesBySessionId } from "./repos";
 import { useCaseStore, useDocumentsStore, useReferencesStore, useClaimsStore, useNoveltyStore, useInventiveStore, useDefectsStore, useChatStore } from "../store";
 
 import presetData from "@shared/fixtures/preset-demo.json";

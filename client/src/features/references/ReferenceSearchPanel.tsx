@@ -5,9 +5,9 @@ import type { SearchReferencesCandidate, SearchReferencesResponse } from "@share
 import { classifyReferenceDate } from "../../lib/dateRules";
 import { TimelineStatusBadge } from "../../components/TimelineStatusBadge";
 import { useReferencesStore, useCaseStore, useSettingsStore } from "../../store";
-import { createDocument } from "../../lib/repositories/documentRepo";
-import { getLatestSearchSession, createSearchSession, updateSearchSession } from "../../lib/repositories/searchSessionRepo";
-import { AgentClient } from "../../agent/AgentClient";
+import { createDocument } from "../../lib/repos";
+import { getLatestSearchSession, createSearchSession, updateSearchSession } from "../../lib/repos";
+import { searchReferences, extractSearchTerms, searchWithTerms } from "../../lib/agentApi";
 import { ErrorBanner } from "../../lib/errorDisplay";
 
 interface ReferenceSearchPanelProps {
@@ -87,12 +87,11 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
     setSearchStep("extracting");
 
     try {
-      const agentClient = new AgentClient(settings.mode, "/api", settings);
-      const res = await agentClient.extractSearchTerms({
+      const res = await extractSearchTerms({
         caseId: caseId ?? "",
         claimText,
         features
-      });
+      }, settings);
       if (!isMountedRef.current) return;
       if (!res.ok || res.queries.length === 0) {
         setError(res.error || "AI 提取检索词失败。");
@@ -132,13 +131,12 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
     const controller = new AbortController();
     abortControllersRef.current.set("searchWithTerms", controller);
     try {
-      const agentClient = new AgentClient(settings.mode, "/api", settings);
       const maxResults = MAX_REFERENCES - references.length;
       const perProvider = Math.max(3, Math.ceil(maxResults / enabledSearchProviders.length));
 
       const responses = await Promise.all(
         enabledSearchProviders.map((sp) =>
-          agentClient.searchWithTerms({
+          searchWithTerms({
             caseId: caseId ?? "",
             claimText,
             features,
@@ -147,7 +145,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
             searchProviderId: sp.providerId,
             searchApiKey: sp.apiKeyRef,
             ...(sp.baseUrl ? { searchBaseUrl: sp.baseUrl } : {})
-          }).catch((err): SearchReferencesResponse => ({
+          }, settings).catch((err): SearchReferencesResponse => ({
             ok: false,
             candidates: [],
             error: String(err)

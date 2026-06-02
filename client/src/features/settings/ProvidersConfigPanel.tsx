@@ -350,6 +350,7 @@ export function ProvidersConfigPanel() {
                     <div className="inline-edit">
                       <input
                         type="password"
+                        autoComplete="off"
                         value={keyInput}
                         onChange={(e) => setKeyInput(e.target.value)}
                         placeholder={preset.keyPlaceholder}

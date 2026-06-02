@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import type { InventiveStepAnalysis, ReferenceDocument } from "@shared/types/domain";
-import type { InventiveRequest, InventiveResponse } from "../../agent/contracts";
+import type { InventiveRequest, InventiveResponse } from "@shared/types/api";
 import { useInventiveStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
 import { FeedbackButtons } from "../../components/FeedbackButtons";
 import { getFeedback, saveFeedback } from "../../lib/feedbackRepo";
-import { updateInventive } from "../../lib/repositories/inventiveRepo";
+import { updateInventive } from "../../lib/repos";
 import { createLogger } from "../../lib/logger";
 
 const log = createLogger("InventiveStepPanel");

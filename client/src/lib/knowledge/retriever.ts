@@ -93,7 +93,8 @@ export async function retrieve(
   // 调用 server 端检索 API（bg-71: 查询扩展已迁移到服务端）
   try {
     // nf-9: 传递 Re-ranker + Embedding 配置
-    const { readSettings } = await import("../repositories/settingsRepo");
+    const { useSettingsStore } = await import("../../store");
+    const readSettings = () => Promise.resolve(useSettingsStore.getState().settings);
     const settings = await readSettings();
     const rerankerProvider = settings.knowledgeProviders?.find(
       (p) => p.providerType === "reranker" && p.enabled && p.apiKeyRef

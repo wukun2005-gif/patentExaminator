@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { AiGatewayError } from "@client/agent/contracts";
+import { AiGatewayError } from "@shared/types/api";
 import { DefectPanel } from "@client/features/defects/DefectPanel";
 import { NoveltyAgentTrigger } from "@client/features/novelty/NoveltyAgentTrigger";
 import { SummaryPanel } from "@client/features/summary/SummaryPanel";
 import { useDefectsStore, useNoveltyStore, useDraftStore } from "@client/store";
 import type { ReferenceDocument, ClaimFeature } from "@shared/types/domain";
-import type { DefectRequest, DefectResponse, NoveltyRequest, NoveltyResponse, SummaryResponse } from "@client/agent/contracts";
+import type { DefectRequest, DefectResponse, NoveltyRequest, NoveltyResponse, SummaryResponse } from "@shared/types/api";
 
 function makeAvailableRef(overrides: Partial<ReferenceDocument> = {}): ReferenceDocument {
   return {

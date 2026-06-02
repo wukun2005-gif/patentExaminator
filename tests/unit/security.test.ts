@@ -1,10 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { AgentClient } from "@client/agent/AgentClient";
-import type { ClaimChartResponse } from "@client/agent/contracts";
+import { agentRun } from "@client/lib/agentApi";
+import type { ClaimChartResponse } from "@shared/types/api";
+import type { AppSettings } from "@shared/types/agents";
 
-describe("AgentClient real mode", () => {
+const REAL_SETTINGS: AppSettings = {
+  mode: "real",
+  guidelineVersion: "2023",
+  providers: [{ providerId: "gemini", apiKeyRef: "test-key", modelIds: ["gemini-2.5-flash-lite"], defaultModelId: "gemini-2.5-flash-lite", enabled: true }],
+  agents: [],
+  searchProviders: [],
+  enableProviderFallback: true,
+};
+
+describe("agentRun real mode", () => {
   it("throws when gateway returns error", async () => {
-    // Mock fetch to return error
     const originalFetch = global.fetch;
     global.fetch = async () =>
       new Response(
@@ -12,14 +21,13 @@ describe("AgentClient real mode", () => {
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
 
-    const client = new AgentClient("real", "http://localhost:3000/api");
     await expect(
-      client.run<ClaimChartResponse>("claim-chart", {
+      agentRun<ClaimChartResponse>("claim-chart", {
         caseId: "test",
         claimText: "test claim",
         claimNumber: 1,
         specificationText: "test spec"
-      }, "test")
+      }, REAL_SETTINGS, "test")
     ).rejects.toThrow("No API keys");
 
     global.fetch = originalFetch;
@@ -55,13 +63,12 @@ describe("AgentClient real mode", () => {
         headers: { "Content-Type": "application/json" }
       });
 
-    const client = new AgentClient("real", "http://localhost:3000/api");
-    const result = await client.run<ClaimChartResponse>("claim-chart", {
+    const result = await agentRun<ClaimChartResponse>("claim-chart", {
       caseId: "test",
       claimText: "test claim",
       claimNumber: 1,
       specificationText: "test spec"
-    }, "test");
+    }, REAL_SETTINGS, "test");
 
     expect(result.features).toHaveLength(1);
     expect(result.features[0]!.id).toBe("test-chart-1-A");
@@ -100,13 +107,12 @@ describe("AgentClient real mode", () => {
       );
     };
 
-    const client = new AgentClient("real", "http://localhost:3000/api");
-    await client.run<ClaimChartResponse>("claim-chart", {
+    await agentRun<ClaimChartResponse>("claim-chart", {
       caseId: "g1-led",
       claimText: "一种LED散热装置",
       claimNumber: 1,
       specificationText: "test"
-    }, "g1-led");
+    }, REAL_SETTINGS, "g1-led");
 
     expect(capturedBody).toMatchObject({
       agent: "claim-chart",

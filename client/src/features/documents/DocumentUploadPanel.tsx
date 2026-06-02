@@ -6,7 +6,7 @@ import { extractDocxText } from "../../lib/docxText";
 import { extractHtmlText } from "../../lib/htmlText";
 import { buildTextIndex } from "../../lib/textIndex";
 import { computeFileHash } from "../../lib/fileHash";
-import { createDocument, readDocumentsByCaseId } from "../../lib/repositories/documentRepo";
+import { createDocument, readDocumentsByCaseId } from "../../lib/repos";
 import { useDocumentsStore } from "../../store";
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".html"];

@@ -6,7 +6,7 @@ import {
   deleteSession,
   createMessage,
   deleteMessagesBySessionId
-} from "../../../lib/repositories/chatRepo.js";
+} from "../../../lib/repos.js";
 
 import { createLogger } from "../../../lib/logger";
 const log = createLogger("chatSlice");

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ErrorBanner, formatAiErrorMessage } from "@client/lib/errorDisplay";
-import { AiGatewayError } from "@client/agent/contracts";
+import { AiGatewayError } from "@shared/types/api";
 
 describe("formatAiErrorMessage", () => {
   it("quota 类型返回配额消息", () => {

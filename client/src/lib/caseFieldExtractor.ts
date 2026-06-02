@@ -1,6 +1,7 @@
-import type { AgentClient } from "../agent/AgentClient";
-import type { ExtractCaseFieldsResponse } from "../agent/contracts";
+import type { ExtractCaseFieldsResponse } from "@shared/types/api";
+import type { AppSettings } from "@shared/types/agents";
 import type { ClaimNode } from "@shared/types/domain";
+import { agentRun } from "./agentApi";
 import { parseClaims } from "./claimParser";
 
 export interface ExtractedFields {
@@ -22,12 +23,12 @@ export interface ExtractedFields {
 export async function extractCaseFields(
   documents: Array<{ fileName: string; text: string }>,
   caseId: string,
-  agentClient: AgentClient
+  settings: AppSettings
 ): Promise<ExtractedFields> {
-  const response = await agentClient.run<ExtractCaseFieldsResponse>("extract-case-fields", {
+  const response = await agentRun<ExtractCaseFieldsResponse>("extract-case-fields", {
     caseId,
     documents
-  }, caseId);
+  }, settings, caseId);
 
   const claims: ClaimNode[] = (response.claims ?? []).map((c) => ({
     id: `${caseId}-claim-${c.claimNumber}`,
@@ -72,7 +73,7 @@ export async function extractCaseFields(
 export async function extractCaseFieldsFallback(
   documents: Array<{ fileName: string; text: string }>,
   caseId: string
-): ExtractedFields {
+): Promise<ExtractedFields> {
   const combined = documents.map((d) => d.text).join("\n\n");
   const front = combined.slice(0, 3000);
   const confidence: Record<string, "high" | null> = {

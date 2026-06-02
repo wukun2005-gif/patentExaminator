@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import interpretFixture from "@shared/fixtures/interpret-g1.json";
 import { useInterpretStore } from "@client/store";
-import { AiGatewayError, AiErrorType } from "@client/agent/contracts";
+import { AiGatewayError, AiErrorType } from "@shared/types/api";
 import {
   buildCombinedSummarySections,
   buildExpandedStateStorageKey,
@@ -10,7 +10,7 @@ import {
   writeExpandedState
 } from "@client/features/interpret/InterpretPanel";
 
-vi.mock("@client/lib/repositories/interpretRepo", () => ({
+vi.mock("@client/lib/repos", () => ({
   saveInterpretSummaries: vi.fn().mockResolvedValue(undefined),
   readInterpretSummaries: vi.fn().mockResolvedValue({}),
   deleteInterpretSummaries: vi.fn().mockResolvedValue(undefined)

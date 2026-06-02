@@ -1,11 +1,11 @@
 import { create } from "zustand";
-import type { ReexamDraftResponse, SummaryResponse } from "../../../agent/contracts";
+import type { ReexamDraftResponse, SummaryResponse } from "@shared/types/api";
 import { createLogger } from "../../../lib/logger";
 import {
   saveReexamDraft,
   saveSummary,
   clearDraftData as clearDraftDataInDB
-} from "../../../lib/repositories/draftRepo.js";
+} from "../../../lib/repos.js";
 
 const log = createLogger("DraftSlice");
 

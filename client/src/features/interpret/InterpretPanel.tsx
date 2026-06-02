@@ -4,7 +4,7 @@ import { LEGACY_INTERPRET_KEY, useInterpretStore } from "../../store";
 import type { DocumentFigure, SourceDocument } from "@shared/types/domain";
 import { FigureExtractPanel } from "./FigureExtractPanel";
 import { renderMarkdown } from "../../lib/markdown";
-import { AiGatewayError, type AiErrorType } from "../../agent/contracts";
+import { AiGatewayError, type AiErrorType } from "@shared/types/api";
 import { formatAiErrorMessage } from "../../lib/errorDisplay";
 import { createLogger } from "../../lib/logger";
 

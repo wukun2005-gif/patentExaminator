@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useCaseStore, useClaimsStore, useNoveltyStore, useInventiveStore, useDefectsStore, useDraftStore } from "../../store";
-import type { ReexamDraftResponse } from "../../agent/contracts";
+import type { ReexamDraftResponse } from "@shared/types/api";
 import { InlineEdit } from "../../components/InlineEdit";
 import { ErrorBanner } from "../../lib/errorDisplay";
 import { createLogger } from "../../lib/logger";

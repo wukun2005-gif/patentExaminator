@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach } from "vitest";
-import { setDBInstance, openPatentDB } from "@client/lib/indexedDb";
+import { setDBInstance, openPatentDB } from "@client/lib/repos";
 
 import { useSettingsStore } from "@client/store/features/settings/settingsSlice";
 import { useOpinionStore } from "@client/store/features/opinion/opinionSlice";
@@ -16,14 +16,14 @@ import { useInventiveStore } from "@client/store/features/inventive/inventiveSli
 import { useDefectsStore } from "@client/store/features/defects/defectsSlice";
 import { useChatStore } from "@client/store/features/chat/chatSlice";
 
-import * as caseRepo from "@client/lib/repositories/caseRepo";
-import * as documentRepo from "@client/lib/repositories/documentRepo";
-import * as claimRepo from "@client/lib/repositories/claimRepo";
-import * as settingsRepo from "@client/lib/repositories/settingsRepo";
+import * as repos from "@client/lib/repos";
+// import * as documentRepo from "@client/lib/repos";
+// import * as claimRepo from "@client/lib/repos";
+// import * as settingsRepo from "@client/lib/repos";
 
 import type { PatentCase, SourceDocument, ClaimFeature, OfficeActionAnalysis, ArgumentMapping, RejectionGround, RejectionCitedReference } from "@shared/types/domain";
 import type { AppSettings } from "@shared/types/agents";
-import type { ReexamDraftResponse, SummaryResponse } from "@client/agent/contracts";
+import type { ReexamDraftResponse, SummaryResponse } from "@shared/types/api";
 
 beforeEach(async () => {
   const db = await openPatentDB();
@@ -113,7 +113,7 @@ describe("Settings Full Chain (Store → Repo → DB)", () => {
     expect(useSettingsStore.getState().settings.providers[0]!.apiKeyRef).toBe("sk-test-key");
     expect(useSettingsStore.getState().settings.persistKeysEncrypted).toBe(true);
 
-    const dbSettings = await settingsRepo.readSettings();
+    const dbSettings = await repos.readSettings();
     expect(dbSettings.mode).toBe("real");
     expect(dbSettings.providers[0]!.apiKeyRef).toBe("sk-test-key");
     expect(dbSettings.persistKeysEncrypted).toBe(true);
@@ -145,7 +145,7 @@ describe("Settings Full Chain (Store → Repo → DB)", () => {
     expect(useSettingsStore.getState().settings.mode).toBe("real");
     expect(useSettingsStore.getState().settings.providers[0]!.apiKeyRef).toBe("key-123");
 
-    const dbSettings = await settingsRepo.readSettings();
+    const dbSettings = await repos.readSettings();
     expect(dbSettings.mode).toBe("real");
     expect(dbSettings.providers[0]!.apiKeyRef).toBe("key-123");
   });
@@ -159,7 +159,7 @@ describe("Settings Full Chain (Store → Repo → DB)", () => {
       searchProviders: [],
       persistKeysEncrypted: false
     };
-    await settingsRepo.writeSettings(preloaded);
+    await repos.writeSettings(preloaded);
 
     await useSettingsStore.getState().loadFromDb();
 
@@ -181,7 +181,7 @@ describe("Settings Full Chain (Store → Repo → DB)", () => {
     useSettingsStore.getState().setSettings(full);
     await new Promise((r) => setTimeout(r, 50));
 
-    const dbSettings = await settingsRepo.readSettings();
+    const dbSettings = await repos.readSettings();
     expect(dbSettings.sanitizeRules).toEqual([{ pattern: "\\d+", replace: "N", note: "redact" }]);
     expect(dbSettings.ocrQualityThresholds).toEqual({ good: 0.8, poor: 0.3 });
   });
@@ -198,7 +198,7 @@ describe("Settings Full Chain (Store → Repo → DB)", () => {
     useSettingsStore.getState().setSettings(s3);
     await new Promise((r) => setTimeout(r, 50));
 
-    const db = await settingsRepo.readSettings();
+    const db = await repos.readSettings();
     expect(db.mode).toBe("real");
     expect(db.guidelineVersion).toBe("2024");
   });
@@ -543,24 +543,24 @@ describe("Edge Cases: Concurrent / Duplicate / Empty / Partial", () => {
 
   it("重复创建同一 ID 的 Case → 应覆盖旧数据（upsert 语义）", async () => {
     const c1 = makeCase({ id: CASE_ID, title: "旧标题" });
-    await caseRepo.createCase(c1);
+    await repos.createCase(c1);
 
     const c2 = makeCase({ id: CASE_ID, title: "新标题" });
-    await caseRepo.createCase(c2);
+    await repos.createCase(c2);
 
-    const dbCases = await caseRepo.readAllCases();
+    const dbCases = await repos.readAllCases();
     expect(dbCases).toHaveLength(1);
     expect(dbCases[0]!.title).toBe("新标题");
   });
 
   it("从空 DB 读取 → 返回空数组/空结果", async () => {
-    const allCases = await caseRepo.readAllCases();
+    const allCases = await repos.readAllCases();
     expect(allCases).toHaveLength(0);
 
-    const features = await claimRepo.readClaimFeaturesByCaseId(CASE_ID);
+    const features = await repos.readClaimFeaturesByCaseId(CASE_ID);
     expect(features).toHaveLength(0);
 
-    const nodes = await claimRepo.readClaimNodesByCaseId(CASE_ID);
+    const nodes = await repos.readClaimNodesByCaseId(CASE_ID);
     expect(nodes).toHaveLength(0);
   });
 
@@ -571,12 +571,12 @@ describe("Edge Cases: Concurrent / Duplicate / Empty / Partial", () => {
       workflowState: "case-ready",
       applicationNumber: "CN2020100000001"
     });
-    await caseRepo.createCase(c);
+    await repos.createCase(c);
 
     const updated = { ...c, title: "修改后标题" };
-    await caseRepo.updateCase(updated);
+    await repos.updateCase(updated);
 
-    const db = await caseRepo.readAllCases();
+    const db = await repos.readAllCases();
     expect(db[0]!.title).toBe("修改后标题");
     expect(db[0]!.workflowState).toBe("case-ready");
     expect(db[0]!.applicationNumber).toBe("CN2020100000001");
@@ -584,15 +584,15 @@ describe("Edge Cases: Concurrent / Duplicate / Empty / Partial", () => {
 
   it("更新不存在的 Case → 创建新记录（put 语义）", async () => {
     const c = makeCase({ id: "nonexistent-case" });
-    await caseRepo.updateCase(c);
+    await repos.updateCase(c);
 
-    const db = await caseRepo.readAllCases();
+    const db = await repos.readAllCases();
     expect(db).toHaveLength(1);
     expect(db[0]!.id).toBe("nonexistent-case");
   });
 
   it("删除不存在的记录 → 不报错", async () => {
-    await expect(caseRepo.deleteCase("not-exist")).resolves.toBeUndefined();
+    await expect(repos.deleteCase("not-exist")).resolves.toBeUndefined();
   });
 
   it("并发写入多个 Case → 全部持久化", async () => {
@@ -600,9 +600,9 @@ describe("Edge Cases: Concurrent / Duplicate / Empty / Partial", () => {
       makeCase({ id: `concurrent-${i}`, title: `并发测试 ${i}` })
     );
 
-    await Promise.all(cases.map((c) => caseRepo.createCase(c)));
+    await Promise.all(cases.map((c) => repos.createCase(c)));
 
-    const db = await caseRepo.readAllCases();
+    const db = await repos.readAllCases();
     expect(db).toHaveLength(10);
     for (const c of cases) {
       const found = db.find((d) => d.id === c.id);
@@ -613,16 +613,16 @@ describe("Edge Cases: Concurrent / Duplicate / Empty / Partial", () => {
 
   it("批量写入 → 逐个删除 → 最终 DB 为空", async () => {
     const ids = ["batch-1", "batch-2", "batch-3"];
-    await Promise.all(ids.map((id) => caseRepo.createCase(makeCase({ id }))));
+    await Promise.all(ids.map((id) => repos.createCase(makeCase({ id }))));
 
-    let db = await caseRepo.readAllCases();
+    let db = await repos.readAllCases();
     expect(db).toHaveLength(3);
 
     for (const id of ids) {
-      await caseRepo.deleteCase(id);
+      await repos.deleteCase(id);
     }
 
-    db = await caseRepo.readAllCases();
+    db = await repos.readAllCases();
     expect(db).toHaveLength(0);
   });
 
@@ -638,9 +638,9 @@ describe("Edge Cases: Concurrent / Duplicate / Empty / Partial", () => {
       source: "mock" as const
     }));
 
-    await Promise.all(features.map((f) => claimRepo.createClaimFeature(f)));
+    await Promise.all(features.map((f) => repos.createClaimFeature(f)));
 
-    const db = await claimRepo.readClaimFeaturesByCaseId(CASE_ID);
+    const db = await repos.readClaimFeaturesByCaseId(CASE_ID);
     expect(db).toHaveLength(50);
   });
 
@@ -657,8 +657,8 @@ describe("Edge Cases: Concurrent / Duplicate / Empty / Partial", () => {
       createdAt: "2024-01-01T00:00:00.000Z"
     };
 
-    await documentRepo.createDocument(doc);
-    const db = await documentRepo.readAllDocuments();
+    await repos.createDocument(doc);
+    const db = await repos.readAllDocuments();
     expect(db).toHaveLength(1);
     expect(db[0]!.id).toBe("null-doc");
   });

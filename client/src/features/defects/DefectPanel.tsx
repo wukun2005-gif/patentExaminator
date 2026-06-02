@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useDefectsStore } from "../../store";
-import type { DefectRequest, DefectResponse } from "../../agent/contracts";
+import type { DefectRequest, DefectResponse } from "@shared/types/api";
 import type { FormalDefect } from "@shared/types/domain";
 import { InlineEdit } from "../../components/InlineEdit";
 import { ConfirmModal } from "../../components/ConfirmModal";

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import g1Led from "@shared/fixtures/g1-led.json";
-import type { ClaimChartResponse } from "@client/agent/contracts";
+import type { ClaimChartResponse } from "@shared/types/api";
 import { evaluateClaimChart } from "../runner";
 
 describe("Evaluation G1 — LED散热装置", () => {

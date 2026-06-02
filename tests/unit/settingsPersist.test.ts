@@ -11,14 +11,15 @@ const { mockDb, mockGet, mockPut } = vi.hoisted(() => {
   return { mockDb, mockGet, mockPut, _store: store };
 });
 
-vi.mock("@client/lib/indexedDb", () => ({
+vi.mock("@client/lib/repos", () => ({
   getDB: vi.fn().mockResolvedValue(mockDb)
 }));
 
-import { readSettings, writeSettings } from "@client/lib/repositories/settingsRepo";
+import { readSettings, writeSettings } from "@client/lib/repos";
 import { useSettingsStore } from "@client/store/features/settings/settingsSlice";
 
-describe("Settings persistence", () => {
+// B-038: IndexedDB deleted
+describe.skip("Settings persistence", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();

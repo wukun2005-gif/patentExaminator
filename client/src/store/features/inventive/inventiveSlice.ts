@@ -5,7 +5,7 @@ import {
   updateInventive,
   deleteInventive,
   deleteInventiveByCaseId
-} from "../../../lib/repositories/inventiveRepo.js";
+} from "../../../lib/repos.js";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("InventiveSlice");

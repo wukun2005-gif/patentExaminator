@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r33 · 2026-05-27</p>
+<p align="right">版本 v0.1.0-r39 · 2026-06-02</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -8,7 +8,8 @@
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|---------|
-| v0.1.0-r38 | 2026-06-02 | B-038: 前端 AgentClient 切换到 /api/agent/run — 13 个 AI agent 方法从调用 /api/ai/run 改为调用 /api/agent/run，移除客户端 prompt 构造和知识库增强逻辑（已迁移到后端 orchestrator），AgentClient 从 1727 行简化为 ~1575 行 | AgentClient.ts, agentClient.test.ts, security.test.ts |
+| v0.1.0-r39 | 2026-06-02 | B-038 Phase 2: 前端只保留 UI 组件 — 删除 AgentClient.ts（342行）、contracts.ts（393行）、dataClient.ts 依赖的 repositories/ 目录（16个文件720行）、migrateIndexedDb.ts（107行）、indexedDb.ts（278行）；contracts.ts 类型合并到 shared/types/api.ts；AgentClient 替换为 lib/agentApi.ts（agentRun/searchReferences/extractSearchTerms/searchWithTerms 函数）；16个 repository 合并为 lib/repos.ts；settingsRepo 内联到 settingsSlice；前端组件直接调用 fetch | AgentClient.ts, contracts.ts, repositories/, migrateIndexedDb.ts, indexedDb.ts, agentApi.ts, repos.ts, 40+ import 路径更新 |
+| v0.1.0-r38 | 2026-06-02 | B-038 Phase 1: AgentClient 切换到 /api/agent/run — 13 个 AI agent 方法从调用 /api/ai/run 改为调用 /api/agent/run，移除客户端 prompt 构造和知识库增强逻辑（已迁移到后端 orchestrator），AgentClient 从 1727 行简化为 ~1575 行 | AgentClient.ts, agentClient.test.ts, security.test.ts |
 | v0.1.0-r37 | 2026-06-01 | B-023: 文件导入流程死代码清理 — 删除 ImportPage.tsx/ImportedFileRow.tsx/DeleteFileDialog.tsx/case-gate.ts（已被 CaseSetupPage 替代），移除 Import Gate 测试 | ImportPage.tsx, ImportedFileRow.tsx, DeleteFileDialog.tsx, case-gate.ts, businessLogic.test.ts |
 | v0.1.0-r36 | 2026-06-01 | B-021: 客户端知识库死代码清理 — 删除 chunkers.ts/extractors.ts/cozeCompat.ts/evalSet.ts/faithfulness.ts（5 个死代码文件），清理 normalizers.ts 中未使用函数（cleanText/normalizeLegalReference/normalizeDate/normalizeWidth/normalizeTraditional/normalizeText/detectLanguage/hashChunkText），保留活跃函数 | chunkers.ts, extractors.ts, cozeCompat.ts, evalSet.ts, faithfulness.ts, normalizers.ts, index.ts |
 | v0.1.0-r35 | 2026-06-01 | B-033: 知识库 embedding 批处理优化 — batch_size 20→100、断点续传（text_hash + findChunksByHashes）、短 chunk 过滤（<50字）、长度排序；knowledgeDb.ts 增量升级 text_hash 列 + 索引 | knowledgeDb.ts, knowledge.ts |

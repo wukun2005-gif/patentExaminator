@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import type { OpinionAnalysisResponse, ArgumentAnalysisResponse } from "../../agent/contracts";
+import type { OpinionAnalysisResponse, ArgumentAnalysisResponse } from "@shared/types/api";
 import type { ArgumentMapping } from "@shared/types/domain";
 import { useOpinionStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";

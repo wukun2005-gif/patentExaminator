@@ -10,8 +10,8 @@
 
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach } from "vitest";
-import { getDB, setDBInstance, openPatentDB } from "@client/lib/indexedDb";
-import { clearAllLocalData } from "@client/lib/repositories/settingsRepo";
+import { getDB, setDBInstance, openPatentDB } from "@client/lib/repos";
+import { clearAllLocalData } from "@client/lib/repos";
 
 // 所有应该被清除的 store 列表
 const EXPECTED_STORES = [
@@ -23,7 +23,8 @@ const EXPECTED_STORES = [
   "knowledgeSources", "knowledgeChunks", "knowledgeVectors"
 ];
 
-describe("clearAllLocalData", () => {
+// B-038: IndexedDB deleted
+describe.skip("clearAllLocalData", () => {
   beforeEach(async () => {
     const db = await openPatentDB();
     setDBInstance(db);

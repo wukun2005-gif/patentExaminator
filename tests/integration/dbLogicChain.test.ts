@@ -13,7 +13,7 @@
 
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach } from "vitest";
-import { getDB, setDBInstance } from "@client/lib/indexedDb";
+import { getDB, setDBInstance } from "@client/lib/repos";
 
 import { useCaseStore } from "@client/store/features/case/caseSlice";
 import { useDocumentsStore } from "@client/store/features/documents/documentsSlice";
@@ -25,22 +25,22 @@ import { useDefectsStore } from "@client/store/features/defects/defectsSlice";
 import { useChatStore } from "@client/store/features/chat/chatSlice";
 import { useSettingsStore } from "@client/store/features/settings/settingsSlice";
 
-import * as caseRepo from "@client/lib/repositories/caseRepo";
-import * as documentRepo from "@client/lib/repositories/documentRepo";
-import * as claimRepo from "@client/lib/repositories/claimRepo";
-import * as noveltyRepo from "@client/lib/repositories/noveltyRepo";
-import * as inventiveRepo from "@client/lib/repositories/inventiveRepo";
-import * as defectRepo from "@client/lib/repositories/defectRepo";
-import * as chatRepo from "@client/lib/repositories/chatRepo";
-import * as feedbackRepo from "@client/lib/repositories/feedbackRepo";
-import * as settingsRepo from "@client/lib/repositories/settingsRepo";
+import * as caseRepo from "@client/lib/repos";
+import * as documentRepo from "@client/lib/repos";
+import * as claimRepo from "@client/lib/repos";
+import * as noveltyRepo from "@client/lib/repos";
+import * as inventiveRepo from "@client/lib/repos";
+import * as defectRepo from "@client/lib/repos";
+import * as chatRepo from "@client/lib/repos";
+import * as feedbackRepo from "@client/lib/repos";
+import * as settingsRepo from "@client/lib/repos";
 
 import type { PatentCase, SourceDocument, ClaimNode, ClaimFeature, NoveltyComparison, InventiveStepAnalysis, FormalDefect, ChatSession, ChatMessage } from "@shared/types/domain";
 import type { FeedbackItem } from "@shared/types/feedback";
 import type { AppSettings } from "@shared/types/agents";
 
 beforeEach(async () => {
-  const { openPatentDB } = await import("@client/lib/indexedDb");
+  const { openPatentDB } = await import("@client/lib/repos");
   const db = await openPatentDB();
   setDBInstance(db);
 

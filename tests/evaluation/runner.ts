@@ -3,7 +3,7 @@
  * Runs G1/G2/G3 through the 4 scoring dimensions per §9.5.
  */
 
-import type { ClaimChartResponse, NoveltyResponse } from "@client/agent/contracts";
+import type { ClaimChartResponse, NoveltyResponse } from "@shared/types/api";
 import {
   scoreFeatureCoverage,
   scoreDifferenceAccuracy,

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import {
   saveInterpretSummaries,
   deleteInterpretSummaries
-} from "../../../lib/repositories/interpretRepo.js";
+} from "../../../lib/repos.js";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("InterpretSlice");

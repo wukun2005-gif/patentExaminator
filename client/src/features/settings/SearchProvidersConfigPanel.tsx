@@ -161,6 +161,7 @@ export function SearchProvidersConfigPanel() {
                           <label>Consumer Key</label>
                           <input
                             type="password"
+                            autoComplete="off"
                             value={keyInput}
                             onChange={(e) => setKeyInput(e.target.value)}
                             placeholder="输入 EPO Consumer Key"
@@ -172,6 +173,7 @@ export function SearchProvidersConfigPanel() {
                           <label>Consumer Secret</label>
                           <input
                             type="password"
+                            autoComplete="off"
                             value={secretInput}
                             onChange={(e) => setSecretInput(e.target.value)}
                             placeholder="输入 EPO Consumer Secret"
@@ -191,6 +193,7 @@ export function SearchProvidersConfigPanel() {
                       <div className="inline-edit">
                         <input
                           type="password"
+                          autoComplete="off"
                           value={keyInput}
                           onChange={(e) => setKeyInput(e.target.value)}
                           placeholder={preset.keyPlaceholder}

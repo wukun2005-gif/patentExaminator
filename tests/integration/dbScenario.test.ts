@@ -13,7 +13,7 @@
 
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach } from "vitest";
-import { getDB, setDBInstance } from "@client/lib/indexedDb";
+import { getDB, setDBInstance } from "@client/lib/repos";
 
 import { useCaseStore } from "@client/store/features/case/caseSlice";
 import { useReferencesStore } from "@client/store/features/references/referencesSlice";
@@ -22,12 +22,12 @@ import { useDocumentsStore } from "@client/store/features/documents/documentsSli
 import { useDefectsStore } from "@client/store/features/defects/defectsSlice";
 import { useChatStore } from "@client/store/features/chat/chatSlice";
 
-import * as caseRepo from "@client/lib/repositories/caseRepo";
-import * as referenceRepo from "@client/lib/repositories/referenceRepo";
-import * as documentRepo from "@client/lib/repositories/documentRepo";
-import * as noveltyRepo from "@client/lib/repositories/noveltyRepo";
-import * as defectRepo from "@client/lib/repositories/defectRepo";
-import * as chatRepo from "@client/lib/repositories/chatRepo";
+import * as caseRepo from "@client/lib/repos";
+import * as referenceRepo from "@client/lib/repos";
+import * as documentRepo from "@client/lib/repos";
+import * as noveltyRepo from "@client/lib/repos";
+import * as defectRepo from "@client/lib/repos";
+import * as chatRepo from "@client/lib/repos";
 
 import type {
   PatentCase, ReferenceDocument, SourceDocument, NoveltyComparison,
@@ -35,7 +35,7 @@ import type {
 } from "@shared/types/domain";
 
 beforeEach(async () => {
-  const { openPatentDB } = await import("@client/lib/indexedDb");
+  const { openPatentDB } = await import("@client/lib/repos");
   const db = await openPatentDB();
   setDBInstance(db);
 

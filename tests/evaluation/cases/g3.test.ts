@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import g3Sensor from "@shared/fixtures/g3-sensor.json";
-import type { ClaimChartResponse } from "@client/agent/contracts";
+import type { ClaimChartResponse } from "@shared/types/api";
 import { evaluateClaimChart } from "../runner";
 
 describe("Evaluation G3 — 传感器装置", () => {

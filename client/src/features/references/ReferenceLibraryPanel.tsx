@@ -10,7 +10,7 @@ import { TimelineStatusBadge } from "../../components/TimelineStatusBadge";
 import { ReferenceEditForm } from "./ReferenceEditForm";
 import { ReferenceSearchPanel } from "./ReferenceSearchPanel";
 import { useReferencesStore, useCaseStore, useClaimsStore } from "../../store";
-import { createDocument, deleteDocument } from "../../lib/repositories/documentRepo";
+import { createDocument, deleteDocument } from "../../lib/repos";
 
 const MAX_REFERENCES = 10;
 

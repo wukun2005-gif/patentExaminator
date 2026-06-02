@@ -4,7 +4,7 @@ import type {
   SummaryResponse, NoveltyResponse, InventiveResponse, InterpretResponse,
   TranslateResponse, OpinionAnalysisResponse, ArgumentAnalysisResponse,
   DefectResponse, ReexamDraftResponse
-} from "./agent/contracts";
+} from "@shared/types/api";
 import { createLogger } from "./lib/logger";
 import { AppShell } from "./components/AppShell";
 import { ShellPlaceholder } from "./components/ShellPlaceholder";
@@ -36,14 +36,14 @@ import { useDefectsStore } from "./store";
 import { useDraftStore } from "./store";
 import { useSettingsStore } from "./store";
 import { useOpinionStore } from "./store";
-import { AgentClient } from "./agent/AgentClient";
+import { agentRun } from "./lib/agentApi";
 import type { ArgumentMapping, OfficeActionAnalysis } from "@shared/types/domain";
 import {
   readOpinionAnalysis,
   readArgumentMappings,
   saveOpinionAnalysis,
   saveArgumentMappings
-} from "./lib/repositories/opinionRepo";
+} from "./lib/repos";
 
 export function RootLayout() {
   return (
@@ -80,14 +80,13 @@ export function SummaryWrapper() {
     <SummaryPanel
       caseId={caseId ?? ""}
       runSummary={async () => {
-        const client = new AgentClient(settings.mode, "/api", settings);
-        return client.run<SummaryResponse>("summary", {
+        return agentRun<SummaryResponse>("summary", {
           caseId: caseId ?? "",
           caseBaseline: JSON.stringify(currentCase ?? {}),
           confirmedFeatures: JSON.stringify(claimFeatures.filter((f) => f.citationStatus === "confirmed")),
           reviewedNoveltyComparisons: JSON.stringify(comparisons.filter((c) => c.caseId === caseId)),
           inventiveAnalysis: JSON.stringify(analyses.filter((a) => a.caseId === caseId))
-        }, caseId ?? "");
+        }, settings, caseId ?? "");
       }}
     />
   );
@@ -167,8 +166,7 @@ export function NoveltyWrapper() {
         {...(applicantArguments ? { applicantArguments } : {} as Record<string, never>)}
         {...(amendedClaimText ? { amendedClaimText } : {} as Record<string, never>)}
         runNovelty={async (request, options) => {
-          const client = new AgentClient(settings.mode, "/api", settings);
-          return client.run<NoveltyResponse>("novelty", request, request.caseId, { signal: options?.signal ?? null });
+          return agentRun<NoveltyResponse>("novelty", request, settings, request.caseId, { signal: options?.signal ?? null });
         }}
       />
       {caseComparisons.length > 0 ? (
@@ -237,8 +235,7 @@ export function InventiveWrapper() {
       references={caseRefs}
       applicantArguments={applicantArguments || undefined}
       runInventive={async (request, options) => {
-        const client = new AgentClient(settings.mode, "/api", settings);
-        return client.run<InventiveResponse>("inventive", request, request.caseId, { signal: options?.signal ?? null });
+        return agentRun<InventiveResponse>("inventive", request, settings, request.caseId, { signal: options?.signal ?? null });
       }}
     />
   );
@@ -281,8 +278,7 @@ export function InterpretWrapper() {
     relatedDocuments: Parameters<typeof InterpretPanel>[0]["documents"],
     options?: { signal?: AbortSignal }
   ) => {
-    const client = new AgentClient(settings.mode, "/api", settings);
-    const response = await client.run<InterpretResponse>("interpret", {
+    const response = await agentRun<InterpretResponse>("interpret", {
       caseId: caseId ?? "",
       documentId: document.id,
       fileName: document.fileName,
@@ -292,13 +288,12 @@ export function InterpretWrapper() {
         fileName: doc.fileName,
         documentType: doc.documentType
       }))
-    }, caseId ?? "", options?.signal ? { signal: options.signal } : undefined);
+    }, settings, caseId ?? "", options?.signal ? { signal: options.signal } : undefined);
     return response.reply;
   }, [caseId, settings]);
 
   const runTranslate = useCallback(async (text: string) => {
-    const client = new AgentClient(settings.mode, "/api", settings);
-    const response = await client.run<TranslateResponse>("translate", { caseId: caseId ?? "", documentText: text }, caseId ?? "");
+    const response = await agentRun<TranslateResponse>("translate", { caseId: caseId ?? "", documentText: text }, settings, caseId ?? "");
     return response.translatedText;
   }, [caseId, settings]);
 
@@ -336,12 +331,11 @@ export function OpinionAnalysisWrapper() {
       officeActionText={officeActionDoc?.extractedText ?? ""}
       initialResult={initialResult}
       runAnalysis={async (options) => {
-        const client = new AgentClient(settings.mode, "/api", settings);
-        return client.run<OpinionAnalysisResponse>("opinion-analysis", {
+        return agentRun<OpinionAnalysisResponse>("opinion-analysis", {
           caseId: caseId ?? "",
           documentId: officeActionDoc?.id ?? "office-action",
           officeActionText: officeActionDoc?.extractedText ?? ""
-        }, caseId ?? "", { signal: options?.signal ?? null });
+        }, settings, caseId ?? "", { signal: options?.signal ?? null });
       }}
       onComplete={(result) => {
         const now = new Date().toISOString();
@@ -397,13 +391,12 @@ export function ArgumentMappingWrapper() {
       responseText={responseDoc?.extractedText ?? ""}
       initialResult={initialResult}
       runAnalysis={async (options) => {
-        const client = new AgentClient(settings.mode, "/api", settings);
-        return client.run<ArgumentAnalysisResponse>("argument-analysis", {
+        return agentRun<ArgumentAnalysisResponse>("argument-analysis", {
           caseId: caseId ?? "",
           rejectionGrounds,
           responseText: responseDoc?.extractedText ?? "",
           ...(amendedDoc?.extractedText ? { amendedClaimsText: amendedDoc.extractedText } : {})
-        }, caseId ?? "", { signal: options?.signal ?? null });
+        }, settings, caseId ?? "", { signal: options?.signal ?? null });
       }}
       onComplete={(result) => {
         const now = new Date().toISOString();
@@ -501,35 +494,32 @@ export function OpinionComparisonWrapper() {
       initialOpinionResult={initialOpinionResult}
       initialArgumentResult={initialArgumentResult}
       runOpinionAnalysis={async (options) => {
-        const client = new AgentClient(settings.mode, "/api", settings);
-        return client.run<OpinionAnalysisResponse>("opinion-analysis", {
+        return agentRun<OpinionAnalysisResponse>("opinion-analysis", {
           caseId: caseId ?? "",
           documentId: officeActionDoc?.id ?? "office-action",
           officeActionText: officeActionDoc?.extractedText ?? ""
-        }, caseId ?? "", { signal: options?.signal ?? null });
+        }, settings, caseId ?? "", { signal: options?.signal ?? null });
       }}
       runArgumentAnalysis={async (options) => {
-        const client = new AgentClient(settings.mode, "/api", settings);
-        return client.run<ArgumentAnalysisResponse>("argument-analysis", {
+        return agentRun<ArgumentAnalysisResponse>("argument-analysis", {
           caseId: caseId ?? "",
           rejectionGrounds: officeActionAnalysis?.rejectionGrounds ?? [],
           responseText: responseDoc?.extractedText ?? "",
           ...(amendedDoc?.extractedText ? { amendedClaimsText: amendedDoc.extractedText } : {})
-        }, caseId ?? "", { signal: options?.signal ?? null });
+        }, settings, caseId ?? "", { signal: options?.signal ?? null });
       }}
       runFullAnalysis={async (options) => {
-        const client = new AgentClient(settings.mode, "/api", settings);
-        const opinionResult = await client.run<OpinionAnalysisResponse>("opinion-analysis", {
+        const opinionResult = await agentRun<OpinionAnalysisResponse>("opinion-analysis", {
           caseId: caseId ?? "",
           documentId: officeActionDoc?.id ?? "office-action",
           officeActionText: officeActionDoc?.extractedText ?? ""
-        }, caseId ?? "", { signal: options?.signal ?? null });
-        const argResult = await client.run<ArgumentAnalysisResponse>("argument-analysis", {
+        }, settings, caseId ?? "", { signal: options?.signal ?? null });
+        const argResult = await agentRun<ArgumentAnalysisResponse>("argument-analysis", {
           caseId: caseId ?? "",
           rejectionGrounds: opinionResult.rejectionGrounds ?? [],
           responseText: responseDoc?.extractedText ?? "",
           ...(amendedDoc?.extractedText ? { amendedClaimsText: amendedDoc.extractedText } : {})
-        }, caseId ?? "", { signal: options?.signal ?? null });
+        }, settings, caseId ?? "", { signal: options?.signal ?? null });
         return { opinionResult, argumentResult: argResult };
       }}
       onOpinionComplete={(result) => {
@@ -642,8 +632,7 @@ export function DefectWrapper() {
       specificationText={specificationText}
       claimFeatures={features}
       runDefectCheck={async (request, options) => {
-        const client = new AgentClient(settings.mode, "/api", settings);
-        return client.run<DefectResponse>("defects", request, request.caseId, { signal: options?.signal ?? null });
+        return agentRun<DefectResponse>("defects", request, settings, request.caseId, { signal: options?.signal ?? null });
       }}
     />
   );
@@ -662,8 +651,7 @@ export function DraftWrapper() {
     <DraftMaterialPanel
       caseId={caseId ?? ""}
       runReexamDraft={async (options) => {
-        const client = new AgentClient(settings.mode, "/api", settings);
-        return client.run<ReexamDraftResponse>("reexam-draft", {
+        return agentRun<ReexamDraftResponse>("reexam-draft", {
           caseId: caseId ?? "",
           claimNumber,
           rejectionGrounds: officeActionAnalysis?.rejectionGrounds ?? [],
@@ -671,7 +659,7 @@ export function DraftWrapper() {
           noveltyResults: JSON.stringify(comparisons.filter((c) => c.caseId === caseId)),
           inventiveResults: JSON.stringify(analyses.filter((a) => a.caseId === caseId)),
           defectResults: JSON.stringify(defects.filter((d) => d.caseId === caseId))
-        }, caseId ?? "", { signal: options?.signal ?? null });
+        }, settings, caseId ?? "", { signal: options?.signal ?? null });
       }}
     />
   );

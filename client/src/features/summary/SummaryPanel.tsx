@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
-import type { SummaryResponse } from "../../agent/contracts";
+import type { SummaryResponse } from "@shared/types/api";
 import { useDraftStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
 import { ErrorBanner } from "../../lib/errorDisplay";

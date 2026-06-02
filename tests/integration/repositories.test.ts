@@ -6,14 +6,14 @@ import {
   readCaseById,
   updateCase,
   deleteCase
-} from "@client/lib/repositories/caseRepo";
+} from "@client/lib/repos";
 import {
   createDocument,
   readAllDocuments,
   readDocumentById,
   updateDocument,
   deleteDocument
-} from "@client/lib/repositories/documentRepo";
+} from "@client/lib/repos";
 import {
   createClaimNode,
   readClaimNodesByCaseId,
@@ -22,34 +22,34 @@ import {
   readClaimFeaturesByCaseId,
   updateClaimFeature,
   deleteClaimFeature
-} from "@client/lib/repositories/claimRepo";
+} from "@client/lib/repos";
 import {
   createNovelty,
   readNoveltyByCaseId,
   updateNovelty,
   deleteNovelty
-} from "@client/lib/repositories/noveltyRepo";
+} from "@client/lib/repos";
 import {
   createInventive,
   readInventiveByCaseId,
   updateInventive,
   deleteInventive
-} from "@client/lib/repositories/inventiveRepo";
+} from "@client/lib/repos";
 import {
   createFeedback,
   readFeedbackByCaseId,
   updateFeedback,
   deleteFeedback
-} from "@client/lib/repositories/feedbackRepo";
-import { writeOcrCache, readOcrCache, deleteOcrCache } from "@client/lib/repositories/ocrCacheRepo";
-import { readSettings, writeSettings } from "@client/lib/repositories/settingsRepo";
+} from "@client/lib/repos";
+import { writeOcrCache, readOcrCache, deleteOcrCache } from "@client/lib/repos";
+import { readSettings, writeSettings } from "@client/lib/repos";
 import type { PatentCase, SourceDocument, ClaimNode, ClaimFeature, NoveltyComparison, InventiveStepAnalysis } from "@shared/types/domain";
 import type { FeedbackItem } from "@shared/types/feedback";
 import type { AppSettings } from "@shared/types/agents";
 
 // Reset DB before each test by clearing all stores
 beforeEach(async () => {
-  const db = await (await import("@client/lib/indexedDb")).getDB();
+  const db = await (await import("@client/lib/repos")).getDB();
   const storeNames = Array.from(db.objectStoreNames);
   const tx = db.transaction(storeNames, "readwrite");
   await Promise.all([...storeNames.map((s) => tx.objectStore(s).clear()), tx.done]);
@@ -255,7 +255,7 @@ describe("ocrCacheRepo", () => {
     expect(text).toBe("OCR文本");
 
     // Test expiry: write with old timestamp
-    const db = await (await import("@client/lib/indexedDb")).getDB();
+    const db = await (await import("@client/lib/repos")).getDB();
     await db.put("ocrCache", {
       cacheKey: "key-old",
       text: "旧文本",
@@ -294,7 +294,7 @@ describe("settingsRepo", () => {
 
 describe("chatRepo", () => {
   it("session: create → getByCaseId → update → delete", async () => {
-    const { createSession, getSessionsByCaseId, updateSession, deleteSession } = await import("@client/lib/repositories/chatRepo");
+    const { createSession, getSessionsByCaseId, updateSession, deleteSession } = await import("@client/lib/repos");
     const session = { id: "s1", caseId: "c1", title: "Test", createdAt: new Date().toISOString() };
     await createSession(session);
     const sessions = await getSessionsByCaseId("c1");
@@ -311,7 +311,7 @@ describe("chatRepo", () => {
   });
 
   it("message: create → getBySessionId → deleteBySessionId", async () => {
-    const { createMessage, getMessagesBySessionId, deleteMessagesBySessionId } = await import("@client/lib/repositories/chatRepo");
+    const { createMessage, getMessagesBySessionId, deleteMessagesBySessionId } = await import("@client/lib/repos");
     const msg = { id: "m1", sessionId: "s1", role: "user" as const, content: "Hello", createdAt: new Date().toISOString() };
     await createMessage(msg);
     const messages = await getMessagesBySessionId("s1");
@@ -325,7 +325,7 @@ describe("chatRepo", () => {
 
 describe("defectRepo", () => {
   it("create → getByCaseId → update → delete → deleteByCaseId", async () => {
-    const { createDefect, getDefectsByCaseId, updateDefect, deleteDefect, deleteDefectsByCaseId } = await import("@client/lib/repositories/defectRepo");
+    const { createDefect, getDefectsByCaseId, updateDefect, deleteDefect, deleteDefectsByCaseId } = await import("@client/lib/repos");
     const defect = { id: "d1", caseId: "c1", category: "clarity" as const, description: "Test", severity: "error" as const, claimNumbers: [1] };
     await createDefect(defect);
     const defects = await getDefectsByCaseId("c1");
@@ -352,7 +352,7 @@ describe("defectRepo", () => {
 
 describe("draftRepo", () => {
   it("reexamDraft: save → read → delete → clearDraftData", async () => {
-    const { saveReexamDraft, readReexamDraft, deleteReexamDraft, clearDraftData } = await import("@client/lib/repositories/draftRepo");
+    const { saveReexamDraft, readReexamDraft, deleteReexamDraft, clearDraftData } = await import("@client/lib/repos");
     const draft = { examinerResponse: "test response", overallAssessment: "test assessment", responses: [] };
     await saveReexamDraft("c1", draft as unknown as import("@shared/types/domain").ReexamDraftResponse);
     const read = await readReexamDraft("c1");
@@ -371,7 +371,7 @@ describe("draftRepo", () => {
   });
 
   it("summary: save → read → delete", async () => {
-    const { saveSummary, readSummary, deleteSummary } = await import("@client/lib/repositories/draftRepo");
+    const { saveSummary, readSummary, deleteSummary } = await import("@client/lib/repos");
     const summary = { body: "test body", aiNotes: "test notes" };
     await saveSummary("c1", summary as unknown as import("@shared/types/domain").SummaryResponse);
     const read = await readSummary("c1");
@@ -386,7 +386,7 @@ describe("draftRepo", () => {
 
 describe("interpretRepo", () => {
   it("save → read → delete", async () => {
-    const { saveInterpretSummaries, readInterpretSummaries, deleteInterpretSummaries } = await import("@client/lib/repositories/interpretRepo");
+    const { saveInterpretSummaries, readInterpretSummaries, deleteInterpretSummaries } = await import("@client/lib/repos");
     const summaries = { "doc1": "summary1", "doc2": "summary2" };
     await saveInterpretSummaries("c1", summaries);
     const read = await readInterpretSummaries("c1");
@@ -400,7 +400,7 @@ describe("interpretRepo", () => {
 
 describe("opinionRepo", () => {
   it("opinionAnalysis: save → read → delete", async () => {
-    const { saveOpinionAnalysis, readOpinionAnalysis, deleteOpinionAnalysis } = await import("@client/lib/repositories/opinionRepo");
+    const { saveOpinionAnalysis, readOpinionAnalysis, deleteOpinionAnalysis } = await import("@client/lib/repos");
     const analysis = { id: "oa1", caseId: "c1", documentId: "d1", rejectionGrounds: [], citedReferences: [], createdAt: new Date().toISOString() };
     await saveOpinionAnalysis(analysis as unknown as import("@shared/types/domain").OfficeActionAnalysis);
     const read = await readOpinionAnalysis("c1");
@@ -413,7 +413,7 @@ describe("opinionRepo", () => {
   });
 
   it("argumentMappings: save → read → delete → clearOpinionData", async () => {
-    const { saveArgumentMappings, readArgumentMappings, deleteArgumentMappings, clearOpinionData } = await import("@client/lib/repositories/opinionRepo");
+    const { saveArgumentMappings, readArgumentMappings, deleteArgumentMappings, clearOpinionData } = await import("@client/lib/repos");
     const mappings = [
       { id: "am1", caseId: "c1", rejectionGroundCode: "RG-1", applicantArgument: "arg1", argumentSummary: "sum1", confidence: "high" as const },
       { id: "am2", caseId: "c1", rejectionGroundCode: "RG-2", applicantArgument: "arg2", argumentSummary: "sum2", confidence: "medium" as const }
@@ -436,7 +436,7 @@ describe("opinionRepo", () => {
 
 describe("referenceRepo", () => {
   it("readReferencesByCaseId filters by role=reference", async () => {
-    const { readReferencesByCaseId } = await import("@client/lib/repositories/referenceRepo");
+    const { readReferencesByCaseId } = await import("@client/lib/repos");
     // referenceRepo reads from documents store, filtering by role
     const refs = await readReferencesByCaseId("nonexistent");
     expect(Array.isArray(refs)).toBe(true);
@@ -445,7 +445,7 @@ describe("referenceRepo", () => {
 
 describe("runMarkerRepo", () => {
   it("save → getByCaseId → delete", async () => {
-    const { saveRunMarker, getRunMarkersByCaseId, deleteRunMarker } = await import("@client/lib/repositories/runMarkerRepo");
+    const { saveRunMarker, getRunMarkersByCaseId, deleteRunMarker } = await import("@client/lib/repos");
     await saveRunMarker("c1", "claim-chart");
     await saveRunMarker("c1", "novelty");
     const markers = await getRunMarkersByCaseId("c1");
@@ -461,7 +461,7 @@ describe("runMarkerRepo", () => {
 
 describe("searchSessionRepo", () => {
   it("create → getByCaseId → update → delete → getLatest", async () => {
-    const { createSearchSession, getSearchSessionsByCaseId, updateSearchSession, deleteSearchSession, getLatestSearchSession } = await import("@client/lib/repositories/searchSessionRepo");
+    const { createSearchSession, getSearchSessionsByCaseId, updateSearchSession, deleteSearchSession, getLatestSearchSession } = await import("@client/lib/repos");
     const session = { id: "ss1", caseId: "c1", query: "test", dataSources: ["tavily"], resultCount: 5, status: "completed" as const, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     await createSearchSession(session);
     const sessions = await getSearchSessionsByCaseId("c1");

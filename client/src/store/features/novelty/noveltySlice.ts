@@ -5,7 +5,7 @@ import {
   updateNovelty,
   deleteNovelty,
   deleteNoveltyByCaseId
-} from "../../../lib/repositories/noveltyRepo.js";
+} from "../../../lib/repos.js";
 
 import { createLogger } from "../../../lib/logger";
 

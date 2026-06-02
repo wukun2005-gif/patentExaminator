@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { ReferenceDocument, ClaimFeature } from "@shared/types/domain";
-import type { NoveltyRequest, NoveltyResponse } from "../../agent/contracts";
+import type { NoveltyRequest, NoveltyResponse } from "@shared/types/api";
 import { useNoveltyStore } from "../../store";
 import { ErrorBanner } from "../../lib/errorDisplay";
 

@@ -4,7 +4,7 @@ import {
   createDocument,
   updateDocument as updateDocumentInDB,
   deleteDocument
-} from "../../../lib/repositories/documentRepo";
+} from "../../../lib/repos";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("DocumentsSlice");

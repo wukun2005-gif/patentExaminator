@@ -5,7 +5,7 @@ const mockCreateDocument = vi.fn().mockResolvedValue(undefined);
 const mockUpdateDocument = vi.fn().mockResolvedValue(undefined);
 const mockDeleteDocument = vi.fn().mockResolvedValue(undefined);
 
-vi.mock("@client/lib/repositories/documentRepo", () => ({
+vi.mock("@client/lib/repos", () => ({
   createDocument: (...args: unknown[]) => mockCreateDocument(...args),
   updateDocument: (...args: unknown[]) => mockUpdateDocument(...args),
   deleteDocument: (...args: unknown[]) => mockDeleteDocument(...args),

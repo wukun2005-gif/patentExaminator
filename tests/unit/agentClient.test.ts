@@ -1,20 +1,38 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { AgentClient } from "@client/agent/AgentClient";
-import type { ClaimChartResponse } from "@client/agent/contracts";
+import { agentRun } from "@client/lib/agentApi";
+import type { ClaimChartResponse } from "@shared/types/api";
+import type { AppSettings } from "@shared/types/agents";
 
-describe("AgentClient (mock mode)", () => {
+const MOCK_SETTINGS: AppSettings = {
+  mode: "mock",
+  guidelineVersion: "2023",
+  providers: [],
+  agents: [],
+  searchProviders: [],
+  enableProviderFallback: true,
+};
+
+const REAL_SETTINGS: AppSettings = {
+  mode: "real",
+  guidelineVersion: "2023",
+  providers: [{ providerId: "gemini", apiKeyRef: "test-key", modelIds: ["gemini-2.5-flash-lite"], defaultModelId: "gemini-2.5-flash-lite", enabled: true }],
+  agents: [],
+  searchProviders: [],
+  enableProviderFallback: true,
+};
+
+describe("agentRun (mock mode)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   it("returns mock claim chart features", async () => {
-    const client = new AgentClient("mock");
-    const result = await client.run<ClaimChartResponse>("claim-chart", {
+    const result = await agentRun<ClaimChartResponse>("claim-chart", {
       caseId: "case-1",
       claimText: "一种LED散热装置，包括基板和设置在基板上的散热翅片",
       claimNumber: 1,
       specificationText: "本发明涉及LED散热技术领域"
-    }, "case-1");
+    }, MOCK_SETTINGS, "case-1");
 
     expect(result.features.length).toBeGreaterThan(0);
     expect(result.features[0]!.source).toBe("mock");
@@ -24,14 +42,13 @@ describe("AgentClient (mock mode)", () => {
   it("real mode attempts gateway call", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Connection refused"));
 
-    const client = new AgentClient("real", "http://localhost:3000/api");
     await expect(
-      client.run<ClaimChartResponse>("claim-chart", {
+      agentRun<ClaimChartResponse>("claim-chart", {
         caseId: "case-1",
         claimText: "test",
         claimNumber: 1,
         specificationText: "test"
-      }, "case-1")
+      }, REAL_SETTINGS, "case-1")
     ).rejects.toThrow();
   }, 15000);
 
@@ -63,13 +80,12 @@ describe("AgentClient (mock mode)", () => {
       )
     );
 
-    const client = new AgentClient("real", "http://localhost:3000/api");
-    const result = await client.run<ClaimChartResponse>("claim-chart", {
+    const result = await agentRun<ClaimChartResponse>("claim-chart", {
       caseId: "case-1",
       claimText: "一种装置，包括基板",
       claimNumber: 1,
       specificationText: "[0001] 基板说明"
-    }, "case-1");
+    }, REAL_SETTINGS, "case-1");
 
     expect(result.features[0]!.id).toBe("case-1-chart-1-A");
     expect(result.features[0]!.source).toBe("ai");
@@ -87,14 +103,13 @@ describe("AgentClient (mock mode)", () => {
       )
     );
 
-    const client = new AgentClient("real", "http://localhost:3000/api");
     await expect(
-      client.run<ClaimChartResponse>("claim-chart", {
+      agentRun<ClaimChartResponse>("claim-chart", {
         caseId: "case-1",
         claimText: "test",
         claimNumber: 1,
         specificationText: "test"
-      }, "case-1")
+      }, REAL_SETTINGS, "case-1")
     ).rejects.toThrow(/结构校验失败/);
   });
 });

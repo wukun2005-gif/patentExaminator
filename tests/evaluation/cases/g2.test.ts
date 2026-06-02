@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import g2Battery from "@shared/fixtures/g2-battery.json";
-import type { ClaimChartResponse } from "@client/agent/contracts";
+import type { ClaimChartResponse } from "@shared/types/api";
 import { evaluateClaimChart } from "../runner";
 
 describe("Evaluation G2 — 电池装置", () => {

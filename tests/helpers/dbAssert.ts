@@ -7,7 +7,7 @@
  */
 
 import type { IDBPDatabase, StoreNames } from "idb";
-import type { PatentExaminerDB } from "@client/lib/indexedDb";
+import type { PatentExaminerDB } from "@client/lib/repos";
 
 type StoreName = StoreNames<PatentExaminerDB>;
 

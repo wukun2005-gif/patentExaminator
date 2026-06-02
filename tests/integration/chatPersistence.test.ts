@@ -4,9 +4,9 @@
 
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { setDBInstance, openPatentDB } from "@client/lib/indexedDb";
+import { setDBInstance, openPatentDB } from "@client/lib/repos";
 import { useChatStore } from "@client/store/features/chat/chatSlice";
-import * as chatRepo from "@client/lib/repositories/chatRepo";
+import * as chatRepo from "@client/lib/repos";
 import type { ChatSession, ChatMessage } from "@shared/types/domain";
 
 const testCaseId = "test-case-persistence";

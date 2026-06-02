@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, afterEach } from "vitest";
 import { openDB, deleteDB } from "idb";
-import { setDBInstance } from "@client/lib/indexedDb";
+import { setDBInstance } from "@client/lib/repos";
 
 const DB_NAME = "patent-examiner-v1";
 
@@ -48,7 +48,7 @@ describe("Simplified Upgrade Sanity", () => {
     await db1.put("cases", { id: "c1", title: "Test", updatedAt: "2023-01-01T00:00:00.000Z" });
     db1.close();
 
-    const { openPatentDB } = await import("@client/lib/indexedDb");
+    const { openPatentDB } = await import("@client/lib/repos");
     const db2 = await openPatentDB();
     setDBInstance(db2);
 
@@ -70,11 +70,11 @@ describe("Simplified Upgrade Sanity", () => {
     await db1.put("cases", { id: "c1", title: "Test", updatedAt: "2023-01-01T00:00:00.000Z" });
     db1.close();
 
-    const { openPatentDB } = await import("@client/lib/indexedDb");
+    const { openPatentDB } = await import("@client/lib/repos");
     const db2 = await openPatentDB();
     setDBInstance(db2);
 
-    const { readAllCases } = await import("@client/lib/repositories/caseRepo");
+    const { readAllCases } = await import("@client/lib/repos");
     const cases = await readAllCases();
     expect(cases).toHaveLength(1);
     expect(cases[0]!.id).toBe("c1");

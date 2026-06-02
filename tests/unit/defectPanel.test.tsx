@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { DefectPanel } from "@client/features/defects/DefectPanel";
 import { useDefectsStore } from "@client/store";
 import type { FormalDefect } from "@shared/types/domain";
-import type { DefectRequest, DefectResponse } from "@client/agent/contracts";
+import type { DefectRequest, DefectResponse } from "@shared/types/api";
 
 function makeDefect(overrides: Partial<FormalDefect> = {}): FormalDefect {
   return {

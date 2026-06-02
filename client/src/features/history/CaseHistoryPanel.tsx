@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { PatentCase } from "@shared/types/domain";
-import { readAllCases, deleteCase } from "../../lib/repositories/caseRepo";
+import { readAllCases, deleteCase } from "../../lib/repos";
 import { loadCaseById } from "../../lib/caseLoader";
 import { useCaseStore } from "../../store";
 import { createLogger } from "../../lib/logger";

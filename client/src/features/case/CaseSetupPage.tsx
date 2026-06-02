@@ -2,24 +2,24 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import type { PatentCase, SourceDocument } from "@shared/types/domain";
-import type { ClassifyDocumentsResponse } from "../../agent/contracts";
+import type { ClassifyDocumentsResponse } from "@shared/types/api";
 import { extractPdfText } from "../../lib/pdfText";
 import { extractDocxText } from "../../lib/docxText";
 import { extractHtmlText } from "../../lib/htmlText";
 import { buildTextIndex } from "../../lib/textIndex";
 import { computeFileHash } from "../../lib/fileHash";
 import { extractCaseFields, extractCaseFieldsFallback, type ExtractedFields } from "../../lib/caseFieldExtractor";
-import { createDocument, readDocumentsByCaseId, updateDocument, deleteDocument } from "../../lib/repositories/documentRepo";
-import { createClaimNode } from "../../lib/repositories/claimRepo";
-import { readCaseById, createCase, updateCase } from "../../lib/repositories/caseRepo";
+import { createDocument, readDocumentsByCaseId, updateDocument, deleteDocument } from "../../lib/repos";
+import { createClaimNode } from "../../lib/repos";
+import { readCaseById, createCase, updateCase } from "../../lib/repos";
 import { useCaseStore, useDocumentsStore, useClaimsStore, useSettingsStore, useReferencesStore } from "../../store";
-import { AgentClient } from "../../agent/AgentClient";
+import { agentRun } from "../../lib/agentApi";
 import { createLogger } from "../../lib/logger";
 import { runOcr, type OcrProgress } from "../../lib/ocrWorker";
 
 const log = createLogger("CaseSetupPage");
 import { ErrorBanner } from "../../lib/errorDisplay";
-import type { DocumentClassification } from "../../agent/contracts";
+import type { DocumentClassification } from "@shared/types/api";
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".html"];
 
@@ -151,8 +151,7 @@ export function CaseSetupPage() {
     setExtractingFields(true);
     setExtractError(null);
     try {
-      const client = new AgentClient(settings.mode, "/api", settings);
-      const fields = await extractCaseFields(docInputs, caseId, client);
+      const fields = await extractCaseFields(docInputs, caseId, settings);
       if (!isMountedRef.current) return;
       setExtracted(fields);
       applyExtracted(fields, currentCase);
@@ -475,8 +474,6 @@ export function CaseSetupPage() {
     setClassifyError(null);
 
     try {
-      const client = new AgentClient(settings.mode, "/api", settings);
-
       const request = {
         caseId,
         documents: docs.map((doc, index) => ({
@@ -486,7 +483,7 @@ export function CaseSetupPage() {
         }))
       };
 
-      const result = await client.run<ClassifyDocumentsResponse>("classify-documents", request, request.caseId);
+      const result = await agentRun<ClassifyDocumentsResponse>("classify-documents", request, settings, request.caseId);
       if (!isMountedRef.current) return;
 
       // 根据分类结果更新文档角色

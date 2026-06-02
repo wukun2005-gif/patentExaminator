@@ -19,14 +19,14 @@
 
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { setDBInstance } from "@client/lib/indexedDb";
+import { setDBInstance } from "@client/lib/repos";
 import {
   assertAllStoreIndexes,
   formatIndexCheckErrors,
   EXPECTED_SCHEMA_V7,
 } from "../helpers/dbAssert";
-import * as chatRepo from "@client/lib/repositories/chatRepo";
-import * as caseRepo from "@client/lib/repositories/caseRepo";
+import * as chatRepo from "@client/lib/repos";
+import * as caseRepo from "@client/lib/repos";
 import type { ChatSession, ChatMessage, PatentCase } from "@shared/types/domain";
 
 const CURRENT_VERSION = 7;
@@ -77,7 +77,7 @@ function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 describe("IndexedDB Schema Verification (v7)", () => {
   describe("Store 完整性", () => {
     it("should have all expected stores in v7 schema", async () => {
-      const { openPatentDB } = await import("@client/lib/indexedDb");
+      const { openPatentDB } = await import("@client/lib/repos");
       const db = await openPatentDB();
       setDBInstance(db);
 
@@ -94,7 +94,7 @@ describe("IndexedDB Schema Verification (v7)", () => {
     });
 
     it("should have expected indexes on all stores in v7 schema", async () => {
-      const { openPatentDB } = await import("@client/lib/indexedDb");
+      const { openPatentDB } = await import("@client/lib/repos");
       const db = await openPatentDB();
       setDBInstance(db);
 
@@ -128,7 +128,7 @@ describe("IndexedDB Schema Verification (v7)", () => {
 
   describe("chatMessages schema (by-sessionId)", () => {
     it("chatMessages store should have by-sessionId index", async () => {
-      const { openPatentDB } = await import("@client/lib/indexedDb");
+      const { openPatentDB } = await import("@client/lib/repos");
       const db = await openPatentDB();
       setDBInstance(db);
 
@@ -149,7 +149,7 @@ describe("IndexedDB Schema Verification (v7)", () => {
     });
 
     it("should be able to query messages by sessionId via by-sessionId index", async () => {
-      const { openPatentDB } = await import("@client/lib/indexedDb");
+      const { openPatentDB } = await import("@client/lib/repos");
       const db = await openPatentDB();
       setDBInstance(db);
 
@@ -169,7 +169,7 @@ describe("IndexedDB Schema Verification (v7)", () => {
 
   describe("数据完整性", () => {
     beforeEach(async () => {
-      const { openPatentDB } = await import("@client/lib/indexedDb");
+      const { openPatentDB } = await import("@client/lib/repos");
       const db = await openPatentDB();
       setDBInstance(db);
     });

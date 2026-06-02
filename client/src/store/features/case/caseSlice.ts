@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { PatentCase, CaseWorkflowState } from "@shared/types/domain";
-import { updateCase } from "../../../lib/repositories/caseRepo";
+import { updateCase } from "../../../lib/repos";
 import { idbWriteGuard } from "../../../lib/idbWriteGuard";
 
 export interface CaseSlice {

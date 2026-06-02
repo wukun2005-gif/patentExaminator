@@ -7,8 +7,8 @@ import {
   updateClaimFeature,
   deleteClaimFeature,
   deleteClaimFeaturesByCaseId
-} from "../../../lib/repositories/claimRepo.js";
-import { saveRunMarker } from "../../../lib/repositories/runMarkerRepo.js";
+} from "../../../lib/repos.js";
+import { saveRunMarker } from "../../../lib/repos.js";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("ClaimsSlice");

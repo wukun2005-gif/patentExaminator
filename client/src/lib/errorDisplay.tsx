@@ -1,5 +1,5 @@
 import React from "react";
-import { AiGatewayError, type AiErrorType } from "../agent/contracts";
+import { AiGatewayError, type AiErrorType } from "@shared/types/api";
 
 export interface FormattedError {
   message: string;

@@ -1,16 +1,16 @@
 import type { ReferenceDocument, ChatMessage } from "@shared/types/domain";
-import { readCaseById } from "./repositories/caseRepo";
-import { readDocumentsByCaseId } from "./repositories/documentRepo";
-import { readReferencesByCaseId } from "./repositories/referenceRepo";
-import { readClaimNodesByCaseId, readClaimFeaturesByCaseId } from "./repositories/claimRepo";
-import { readNoveltyByCaseId } from "./repositories/noveltyRepo";
-import { readInventiveByCaseId } from "./repositories/inventiveRepo";
-import { getDefectsByCaseId } from "./repositories/defectRepo";
-import { getSessionsByCaseId, getMessagesBySessionId } from "./repositories/chatRepo";
-import { readInterpretSummaries } from "./repositories/interpretRepo";
-import { readOpinionAnalysis, readArgumentMappings } from "./repositories/opinionRepo";
-import { readReexamDraft, readSummary } from "./repositories/draftRepo";
-import { getRunMarkersByCaseId } from "./repositories/runMarkerRepo";
+import { readCaseById } from "./repos";
+import { readDocumentsByCaseId } from "./repos";
+import { readReferencesByCaseId } from "./repos";
+import { readClaimNodesByCaseId, readClaimFeaturesByCaseId } from "./repos";
+import { readNoveltyByCaseId } from "./repos";
+import { readInventiveByCaseId } from "./repos";
+import { getDefectsByCaseId } from "./repos";
+import { getSessionsByCaseId, getMessagesBySessionId } from "./repos";
+import { readInterpretSummaries } from "./repos";
+import { readOpinionAnalysis, readArgumentMappings } from "./repos";
+import { readReexamDraft, readSummary } from "./repos";
+import { getRunMarkersByCaseId } from "./repos";
 
 import { createLogger } from "./logger";
 const log = createLogger("caseLoader");

@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { createCase } from "../../lib/repositories/caseRepo";
+import { createCase } from "../../lib/repos";
 import { loadPresetCase } from "../../lib/presetLoader";
 import { useCaseStore } from "../../store";
 import type { PatentCase } from "@shared/types/domain";

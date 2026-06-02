@@ -7,7 +7,7 @@ import { ModeBanner } from "@client/components/ModeBanner";
 import { NewCasePage } from "@client/features/case/NewCasePage";
 
 // Mock IndexedDB for settings store
-vi.mock("@client/lib/indexedDb", () => ({
+vi.mock("@client/lib/repos", () => ({
   getDB: vi.fn().mockResolvedValue({
     get: vi.fn().mockResolvedValue(null),
     put: vi.fn().mockResolvedValue(undefined),
@@ -21,7 +21,7 @@ vi.mock("@client/lib/indexedDb", () => ({
 }));
 
 // Mock caseRepo
-vi.mock("@client/lib/repositories/caseRepo", () => ({
+vi.mock("@client/lib/repos", () => ({
   createCase: vi.fn().mockResolvedValue(undefined),
   updateCase: vi.fn().mockResolvedValue(undefined)
 }));
