@@ -25,10 +25,14 @@ dataRouter.get("/data/:store", (req, res) => {
       data: string;
     }>;
 
-    const records = rows.map((row) => ({
-      id: row.record_id,
-      ...JSON.parse(row.data),
-    }));
+    const records: Array<Record<string, unknown>> = [];
+    for (const row of rows) {
+      try {
+        records.push({ id: row.record_id, ...JSON.parse(row.data) });
+      } catch {
+        logger.warn(`Corrupted JSON in store=${store} record=${row.record_id}, skipping`);
+      }
+    }
 
     res.json({ ok: true, records });
   } catch (err) {
@@ -54,9 +58,15 @@ dataRouter.post("/data/:store/query", express.json(), (req, res) => {
       data: string;
     }>;
 
-    const records = rows
-      .map((row) => ({ id: row.record_id, ...JSON.parse(row.data) }))
-      .filter((record) => record[field] === value);
+    const records: Array<Record<string, unknown>> = [];
+    for (const row of rows) {
+      try {
+        const record = { id: row.record_id, ...JSON.parse(row.data) };
+        if (record[field] === value) records.push(record);
+      } catch {
+        logger.warn(`Corrupted JSON in store=${store} record=${row.record_id}, skipping`);
+      }
+    }
 
     res.json({ ok: true, records });
   } catch (err) {
@@ -79,7 +89,14 @@ dataRouter.get("/data/:store/:id", (req, res) => {
       return;
     }
 
-    const record = { id, ...JSON.parse(row.data) };
+    let record: Record<string, unknown>;
+    try {
+      record = { id, ...JSON.parse(row.data) };
+    } catch {
+      logger.warn(`Corrupted JSON in store=${store} record=${id}`);
+      res.status(500).json({ ok: false, error: "Corrupted data" });
+      return;
+    }
     res.json({ ok: true, record });
   } catch (err) {
     logger.error("Data get error: " + errMsg(err));
