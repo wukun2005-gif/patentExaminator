@@ -44,8 +44,12 @@ try {
 
 // ── 常量（优先级：环境变量 > .env > 硬编码兜底） ──
 const BASE = process.env.TEST_BASE || "http://localhost:3000/api";
+const MIMO_KEY = process.env.MiMo_KEY || envVars.MiMo_KEY || "";
+const MIMO_MODEL_ID = process.env.MIMO_MODEL_ID || envVars.MIMO_MODEL_ID || "MiMo-V2.5";
 const MODEL_ID = process.env.MODEL_ID || envVars.MODEL_ID || "deepseek/deepseek-v4-flash:free";
-const PROVIDER_PREFERENCE = (process.env.PROVIDER_PREFERENCE || "openrouter").split(",").map(s => s.trim()).filter(Boolean);
+const PROVIDER_PREFERENCE = MIMO_KEY
+  ? ["mimo", ...((process.env.PROVIDER_PREFERENCE || "openrouter").split(",").map(s => s.trim()).filter(Boolean))]
+  : (process.env.PROVIDER_PREFERENCE || "openrouter").split(",").map(s => s.trim()).filter(Boolean);
 const OPENROUTER_FALLBACK_MODELS = [
   "deepseek/deepseek-v4-flash:free",
   "z-ai/glm-4.5-air:free",
@@ -233,7 +237,8 @@ async function testAiChat() {
     const body = {
       agent: "chat",
       providerPreference: PROVIDER_PREFERENCE,
-      modelId: MODEL_ID,
+      modelId: MIMO_KEY ? MIMO_MODEL_ID : MODEL_ID,
+      ...(MIMO_KEY && { apiKey: MIMO_KEY }),
       prompt: "请用一句话回答：什么是专利？",
       sanitized: true,
       metadata: {
@@ -273,7 +278,8 @@ async function testAiInterpret() {
     const body = {
       agent: "interpret",
       providerPreference: PROVIDER_PREFERENCE,
-      modelId: MODEL_ID,
+      modelId: MIMO_KEY ? MIMO_MODEL_ID : MODEL_ID,
+      ...(MIMO_KEY && { apiKey: MIMO_KEY }),
       prompt:
         "请分析以下专利段落的技术领域：\n[0001] 本发明涉及一种散热装置，特别涉及一种基于相变材料的LED散热模组。",
       sanitized: true,
@@ -314,7 +320,8 @@ async function testAiClaimChart() {
     const body = {
       agent: "claim-chart",
       providerPreference: PROVIDER_PREFERENCE,
-      modelId: MODEL_ID,
+      modelId: MIMO_KEY ? MIMO_MODEL_ID : MODEL_ID,
+      ...(MIMO_KEY && { apiKey: MIMO_KEY }),
       prompt:
         '请将以下权利要求拆解为技术特征：\n权利要求1：一种散热装置，其特征在于，包括：基板；相变材料层，设置于所述基板上；散热翅片，设置于所述相变材料层上。',
       sanitized: true,
@@ -358,7 +365,8 @@ async function testAiClaimChart() {
 
 async function testModelFallbackInfo() {
   console.log("\n─── 模型配置 ───");
-  console.log(`首选模型: ${MODEL_ID}`);
+  console.log(`MiMo: ${MIMO_KEY ? `已配置 (key: ...${MIMO_KEY.slice(-4)}, model: ${MIMO_MODEL_ID})` : "未配置"}`);
+  console.log(`首选模型: ${MIMO_KEY ? MIMO_MODEL_ID : MODEL_ID}`);
   console.log(`Provider 优先级: ${PROVIDER_PREFERENCE.join(" → ")}`);
   console.log(`备选模型: ${FALLBACK_MODELS.join(" → ")}`);
   console.log("注意：首次调用使用首选模型，失败后按备选列表 fallback\n");
@@ -372,7 +380,8 @@ async function main() {
   console.log("  Patent Examiner AI Smoke Test");
   console.log("═══════════════════════════════════════════");
   console.log(`API Base: ${BASE}`);
-  console.log(`Model: ${MODEL_ID}`);
+  console.log(`MiMo: ${MIMO_KEY ? `enabled (model: ${MIMO_MODEL_ID})` : "disabled (no MiMo_KEY)"}`);
+  console.log(`Model: ${MIMO_KEY ? MIMO_MODEL_ID : MODEL_ID}`);
   console.log(`Provider 优先级: ${PROVIDER_PREFERENCE.join(" → ")}`);
   console.log(`备选模型: ${FALLBACK_MODELS.join(", ")}`);
   console.log("═══════════════════════════════════════════\n");

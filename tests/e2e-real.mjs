@@ -163,6 +163,8 @@ loadEnvFile();
 
 const BASE = process.env.TEST_BASE || "http://localhost:3000/api";
 const GEMINI_KEY = process.env.GEMINI_KEY;
+const MIMO_KEY = process.env.MiMo_KEY;
+const MIMO_MODEL_ID = process.env.MIMO_MODEL_ID || "MiMo-V2.5";
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const SERP_API_KEY = process.env.SerpAPI_KEY;
 const GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || "gemini-3.1-flash-lite-preview";
@@ -618,6 +620,52 @@ async function runRealAiAgentTest(label, agent, prompt, metadata, onResponse) {
     metadata,
   };
 
+  // ── MiMo Stage (first priority) ──
+  if (MIMO_KEY) {
+    console.log(`  [${label}] trying MiMo first (model=${MIMO_MODEL_ID}, key: ...${MIMO_KEY.slice(-4)})`);
+    try {
+      const mimoBody = {
+        ...body,
+        providerPreference: ["mimo"],
+        modelId: MIMO_MODEL_ID,
+        apiKey: MIMO_KEY,
+      };
+      const res = await postJSON("/ai/run", mimoBody);
+      if (isAuthError(res.status)) {
+        console.log(`  [${label}] MiMo auth failed (401/403), falling back to Gemini`);
+      } else {
+        const data = await res.json();
+
+        if (!data.ok && data.error && isRetryableErrorText(data.error.message)) {
+          console.log(`  [${label}] MiMo retryable: ${data.error.message}, falling back to Gemini`);
+        } else if (data.ok) {
+          log(`${label} ok (MiMo)`, true, `model=${MIMO_MODEL_ID}`);
+          if (Array.isArray(data.structureErrors) && data.structureErrors.length > 0) {
+            log(`${label} (MiMo) output quality`, false,
+              `structure validation failed: ${data.structureErrors.join("; ")}`);
+          }
+          if (data.tokenUsage) {
+            log(`${label} token usage`, typeof data.tokenUsage.input === "number",
+              `in=${data.tokenUsage.input}, out=${data.tokenUsage.output}`);
+          }
+          if (onResponse) onResponse(data);
+          if (data.outputJson) {
+            const text = typeof data.outputJson === "string" ? data.outputJson : JSON.stringify(data.outputJson);
+            log(`${label} output not empty`, text.length > 5, `length=${text.length}`);
+          }
+          return data;
+        } else {
+          console.log(`  [${label}] MiMo failed: ${data.error?.message || "unknown"}, falling back to Gemini`);
+        }
+      }
+    } catch (err) {
+      console.log(`  [${label}] MiMo error: ${err.message}, falling back to Gemini`);
+    }
+  } else {
+    console.log(`  [${label}] [skip] MiMo_KEY not set, falling back to Gemini`);
+  }
+
+  // ── Gemini Stage ──
   currentModelIndex = 0;
   for (let attempt = 0; attempt < GEMINI_FALLBACK_MODELS.length; attempt++) {
     body.modelId = attempt === 0 ? GEMINI_MODEL_ID : getFallbackModel();
@@ -2532,6 +2580,7 @@ async function main() {
     if (onlyReal) {
       // ========== Real Mode Tests ==========
       console.log("--- Key Validation ---");
+      console.log(`  MiMo_KEY: ${maskKey(MIMO_KEY)}`);
       console.log(`  GEMINI_KEY: ${maskKey(GEMINI_KEY)}`);
       console.log(`  TAVILY_API_KEY: ${maskKey(TAVILY_API_KEY)}`);
       console.log(`  SerpAPI_KEY: ${maskKey(SERP_API_KEY)}\n`);
@@ -2718,6 +2767,7 @@ async function main() {
       // Real mode tests (optional, auto-skip if no key)
       if (GEMINI_KEY) {
         console.log("\n--- Real Mode (GEMINI_KEY detected) ---");
+        console.log(`  MiMo_KEY: ${maskKey(MIMO_KEY)}`);
         console.log(`  GEMINI_KEY: ${maskKey(GEMINI_KEY)}`);
         console.log(`  TAVILY_API_KEY: ${maskKey(TAVILY_API_KEY)}`);
         console.log(`  SerpAPI_KEY: ${maskKey(SERP_API_KEY)}\n`);
