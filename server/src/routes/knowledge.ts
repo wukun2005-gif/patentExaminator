@@ -736,7 +736,7 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
       return {
         chunkId: s.chunkId,
         text: chunk.text,
-        metadata: JSON.parse(chunk.metadata) as Record<string, unknown>,
+        metadata: (() => { try { return JSON.parse(chunk.metadata) as Record<string, unknown>; } catch { return {}; } })(),
         score: s.score,
       };
     });
@@ -804,7 +804,7 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
       return {
         chunkId: s.chunkId,
         text: chunk.text,
-        metadata: JSON.parse(chunk.metadata),
+        metadata: (() => { try { return JSON.parse(chunk.metadata); } catch { return {}; } })(),
         score: s.score,
       };
     });

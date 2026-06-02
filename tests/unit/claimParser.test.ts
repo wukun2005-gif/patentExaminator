@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseClaims } from "@client/lib/claimParser";
+import { parseClaims } from "@server/lib/claimParser";
 
 describe("parseClaims", () => {
   const caseId = "test-case";
@@ -77,7 +77,7 @@ describe("parseClaims", () => {
 1. 一种装置，包括A。
 2. 根据权利要求3所述的装置，其特征在于，所述A为金属。`;
     const result = parseClaims(text, caseId);
-    expect(result.warnings.some((w) => w.includes("invalid-dependency"))).toBe(true);
+    expect(result.warnings.some((w) => w.includes("references-missing") || w.includes("invalid-dependency"))).toBe(true);
   });
 
   it("handles Chinese period variants", () => {

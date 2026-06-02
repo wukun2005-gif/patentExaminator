@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
 import g3Fixture from "@shared/fixtures/g3-sensor.json";
 import { claimChartSchema } from "@shared/schemas/claimChart.schema";
-
-const fixture = g3Fixture;
+import { loadFixture } from "@shared/fixtures/loadFixture";
 
 describe("G3 fixture with defectHints", () => {
   it("passes claimChartSchema validation", () => {

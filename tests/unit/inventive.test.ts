@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
 import inventiveFixture from "@shared/fixtures/inventive-g2.json";
 import { inventiveSchema } from "@shared/schemas/inventive.schema";
-
-const fixture = inventiveFixture;
+import { loadFixture } from "@shared/fixtures/loadFixture";
 
 describe("Inventive fixture (G2)", () => {
   it("passes inventiveSchema validation", () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildTextIndex } from "@client/lib/textIndex";
-import { matchCitation } from "@client/lib/citationMatch";
+import { buildTextIndex } from "@server/lib/textIndex";
+import { matchCitation } from "@server/lib/citationMatch";
 import type { Citation } from "@shared/types/domain";
 
 describe("buildTextIndex", () => {

@@ -180,9 +180,11 @@ export function findChunksByHashes(hashes: string[]): Map<string, { chunkId: str
     `).all(...batch) as Array<{ text_hash: string; chunk_id: string; vector: string }>;
 
     for (const row of rows) {
+      let vector: number[] = [];
+      try { vector = JSON.parse(row.vector) as number[]; } catch { /* malformed vector */ }
       result.set(row.text_hash, {
         chunkId: row.chunk_id,
-        vector: JSON.parse(row.vector) as number[],
+        vector,
       });
     }
   }
@@ -240,7 +242,7 @@ export function getAllVectors(): Array<{
     chunk_id: string; vector: string; model_id: string;
   }>).map(row => ({
     chunkId: row.chunk_id,
-    vector: JSON.parse(row.vector) as number[],
+    vector: (() => { try { return JSON.parse(row.vector) as number[]; } catch { return []; } })(),
     modelId: row.model_id,
   }));
 }

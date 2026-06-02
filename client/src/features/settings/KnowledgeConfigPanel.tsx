@@ -59,7 +59,6 @@ export function KnowledgeConfigPanel() {
   /** 更新 settings（用于 knowledgeProviders） */
   const updateSettings = (partial: Partial<typeof settings>) => {
     const newSettings = { ...settings, ...partial };
-    console.log("[KnowledgeConfig] updateSettings:", { knowledgeProviders: newSettings.knowledgeProviders?.map(k => ({ id: k.providerId, hasKey: !!k.apiKeyRef, enabled: k.enabled })) });
     setSettings(newSettings);
   };
 
@@ -471,8 +470,8 @@ export function KnowledgeConfigPanel() {
           <h4>最近引用的知识库内容</h4>
           <p className="knowledge-hint">以下是最近一次 Agent 调用时从知识库检索到的内容：</p>
           <div className="knowledge-test-results">
-            {lastKnowledgeCitations.map((c, i) => (
-              <div key={i} style={{ marginBottom: "0.5rem", borderBottom: "1px solid var(--border-color, #eee)", paddingBottom: "0.5rem" }}>
+            {lastKnowledgeCitations.map((c) => (
+              <div key={`${c.source}-${c.score}`} style={{ marginBottom: "0.5rem", borderBottom: "1px solid var(--border-color, #eee)", paddingBottom: "0.5rem" }}>
                 <strong>【{c.source} · {c.score.toFixed(2)}】</strong>
                 <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>{c.excerpt}...</p>
               </div>
@@ -516,7 +515,6 @@ function KnowledgeProviderCard({ preset, existing, onUpdate }: KnowledgeProvider
   };
 
   const handleSaveKey = () => {
-    console.log("[KnowledgeConfig] Saving key:", { providerId: preset.providerId, apiKeyRef: apiKey ? "***" : "(empty)", apiKeyLength: apiKey.length });
     onUpdate({
       providerType: preset.providerType,
       providerId: preset.providerId,

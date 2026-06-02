@@ -110,7 +110,7 @@ aiRouter.post("/ai/run", async (req, res) => {
         const chunk = chunkMap.get(s.chunkId)!;
         return {
           text: chunk.text,
-          metadata: JSON.parse(chunk.metadata) as Record<string, unknown>,
+          metadata: (() => { try { return JSON.parse(chunk.metadata) as Record<string, unknown>; } catch { return {}; } })(),
           score: s.score,
         };
       });
