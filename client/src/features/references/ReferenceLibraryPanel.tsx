@@ -76,7 +76,8 @@ export function ReferenceLibraryPanel() {
           text = await file.text();
           textStatus = text ? "extracted" : "empty";
         }
-      } catch {
+      } catch (e) {
+        console.warn("Failed to extract text from reference file:", e);
         textStatus = "empty";
       }
 

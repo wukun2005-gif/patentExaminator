@@ -189,7 +189,8 @@ function formatDate(iso: string): string {
       hour: "2-digit",
       minute: "2-digit"
     });
-  } catch {
+  } catch (e) {
+    log("Failed to format date:", e);
     return iso;
   }
 }

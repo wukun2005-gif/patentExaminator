@@ -90,7 +90,8 @@ export function readExpandedState(caseId: string): ExpandedStateMap {
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     return typeof parsed === "object" && parsed ? parsed as ExpandedStateMap : {};
-  } catch {
+  } catch (e) {
+    log("Failed to read expanded state:", e);
     return {};
   }
 }
@@ -98,8 +99,8 @@ export function readExpandedState(caseId: string): ExpandedStateMap {
 export function writeExpandedState(caseId: string, state: ExpandedStateMap) {
   try {
     localStorage.setItem(buildExpandedStateStorageKey(caseId), JSON.stringify(state));
-  } catch {
-    // Ignore localStorage write failures and fall back to in-memory state.
+  } catch (e) {
+    log("Failed to write expanded state:", e);
   }
 }
 

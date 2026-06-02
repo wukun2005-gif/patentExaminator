@@ -44,7 +44,8 @@ export async function loadPresetCase(): Promise<string> {
   try {
     const existing = await readCaseById(theCase.id);
     isFirstLoad = !existing;
-  } catch {
+  } catch (e) {
+    console.warn("Failed to read existing case:", e);
     isFirstLoad = true;
   }
 
@@ -89,7 +90,8 @@ export async function loadPresetCase(): Promise<string> {
     let existingSessions: ChatSession[];
     try {
       existingSessions = await getSessionsByCaseId(theCase.id);
-    } catch {
+    } catch (e) {
+      console.warn("Failed to read chat sessions:", e);
       existingSessions = [];
     }
     const allMessages: ChatMessage[] = [];
@@ -127,7 +129,8 @@ export async function loadPresetCase(): Promise<string> {
       existingRefs = allDocs.filter((d): d is ReferenceDocument => 
         d.role === "reference"
       ) as ReferenceDocument[];
-    } catch {
+    } catch (e) {
+      console.warn("Failed to read documents:", e);
       existingRefs = data.referenceDocs as unknown as ReferenceDocument[];
     }
     useReferencesStore.getState().setReferences(existingRefs);

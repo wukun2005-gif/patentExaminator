@@ -29,8 +29,8 @@ export function DocumentUploadPanel() {
       try {
         const docs = await readDocumentsByCaseId(caseId);
         if (isMountedRef.current) setDocuments(docs);
-      } catch {
-        /* IndexedDB unavailable (test env) */
+      } catch (e) {
+        console.warn("Failed to load documents:", e);
       }
     })();
   }, [caseId, setDocuments]);

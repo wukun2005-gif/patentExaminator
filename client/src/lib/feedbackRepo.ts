@@ -7,7 +7,8 @@ function readAll(): FeedbackEntry[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as FeedbackEntry[];
-  } catch {
+  } catch (e) {
+    console.warn("Failed to read feedback from localStorage:", e);
     return [];
   }
 }

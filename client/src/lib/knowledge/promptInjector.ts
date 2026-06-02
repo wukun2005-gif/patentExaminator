@@ -151,7 +151,8 @@ export async function proactiveInject(
 
     const contextPrefix = getAgentContext(agentType);
     return `## 参考法规（预加载）\n${contextPrefix}\n\n${formatRetrievedChunks(results, 2000).replace(/^[^\n]+\n[^\n]+\n/, "")}`;
-  } catch {
+  } catch (e) {
+    log("Knowledge preload failed:", e);
     return "";
   }
 }
