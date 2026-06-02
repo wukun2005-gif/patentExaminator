@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { KnowledgeConfig } from "@shared/types/knowledge";
 import { DEFAULT_KNOWLEDGE_CONFIG } from "@shared/types/knowledge";
-import type { KnowledgeProviderConnection, KnowledgeProviderType } from "@shared/types/agents";
+import type { KnowledgeProviderConnection } from "@shared/types/agents";
 import { PRESET_KNOWLEDGE_PROVIDERS } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
 import { AgentClient } from "../../agent/AgentClient";
@@ -55,7 +55,6 @@ export function KnowledgeConfigPanel() {
 
   // nf-9: 知识库独立 Provider 配置
   const knowledgeProviders = settings.knowledgeProviders ?? [];
-  const embeddingProvider = knowledgeProviders.find((p) => p.providerType === "embedding" && p.enabled);
 
   /** 更新 settings（用于 knowledgeProviders） */
   const updateSettings = (partial: Partial<typeof settings>) => {
@@ -154,9 +153,8 @@ export function KnowledgeConfigPanel() {
 
     const decoder = new TextDecoder();
     let buffer = "";
-    let lastProgress = "";
 
-    while (true) {
+    for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
 
