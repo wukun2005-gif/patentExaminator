@@ -27,7 +27,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
     addSearchTerm, updateSearchTerm, removeSearchTerm
   } = useReferencesStore();
   const { references } = useReferencesStore();
-  const { currentCase } = useCaseStore();
+  const { currentCase, updateWorkflowState } = useCaseStore();
   const { settings } = useSettingsStore();
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -69,8 +69,8 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
           setSearchSessionId(session.id);
           setSearchStep("done");
         }
-      } catch {
-        // ignore restore errors
+      } catch (e) {
+        console.warn("Failed to restore search session:", e);
       }
     })();
   }, [caseId, setSearchTerms, setProviderResults, setSearchSessionId, setSearchStep]);
@@ -203,6 +203,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
       }
       setCandidates(merged);
       setSearchStep("done");
+      updateWorkflowState("references-ready");
 
       // 持久化到 IndexedDB
       const sessionData = {
@@ -229,7 +230,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
       abortControllersRef.current.delete("searchWithTerms");
     }
   }, [searchTerms, caseId, claimText, features, settings, searchSessionId, references.length,
-      setIsSearching, setSearchStep, setCandidates, setProviderResults, setSearchSessionId]);
+      setIsSearching, setSearchStep, setCandidates, setProviderResults, setSearchSessionId, updateWorkflowState]);
 
   // 回到编辑模式
   const handleBackToEdit = useCallback(() => {

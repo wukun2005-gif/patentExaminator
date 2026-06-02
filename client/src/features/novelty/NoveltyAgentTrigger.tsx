@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { ReferenceDocument, ClaimFeature } from "@shared/types/domain";
 import type { NoveltyRequest, NoveltyResponse } from "@shared/types/api";
-import { useNoveltyStore } from "../../store";
+import { useNoveltyStore, useCaseStore } from "../../store";
 import { ErrorBanner } from "../../lib/errorDisplay";
 
 import { createLogger } from "../../lib/logger";
@@ -28,6 +28,7 @@ export function NoveltyAgentTrigger({
   runNovelty
 }: NoveltyAgentTriggerProps) {
   const { addComparison, setLoading, isLoading } = useNoveltyStore();
+  const { updateWorkflowState } = useCaseStore();
   const [selectedRefId, setSelectedRefId] = useState<string>("");
   const [error, setError] = useState<unknown>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
@@ -168,6 +169,7 @@ export function NoveltyAgentTrigger({
       };
 
       addComparison(comparison);
+      updateWorkflowState("novelty-ready");
     } catch (err) {
       if (controller.signal.aborted) return;
       if (!isMountedRef.current) return;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { InventiveStepAnalysis, ReferenceDocument } from "@shared/types/domain";
 import type { InventiveRequest, InventiveResponse } from "@shared/types/api";
-import { useInventiveStore } from "../../store";
+import { useInventiveStore, useCaseStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
 import { FeedbackButtons } from "../../components/FeedbackButtons";
 import { getFeedback, saveFeedback } from "../../lib/feedbackRepo";
@@ -37,6 +37,7 @@ export function InventiveStepPanel({
   runInventive
 }: InventiveStepPanelProps) {
   const { analyses, addAnalysis, updateAnalysis, isLoading, setLoading } = useInventiveStore();
+  const { updateWorkflowState } = useCaseStore();
   const analysis = analyses.find(
     (a) => a.caseId === caseId && a.id === `inventive-${caseId}-${claimNumber}`
   );
@@ -174,6 +175,7 @@ if (!isMountedRef.current || controller.signal.aborted) return;
       setSelectedDistinguishing(response.distinguishingFeatureCodes);
       setTechProblem(response.objectiveTechnicalProblem ?? "");
       setExaminerResponse(generatedResponse);
+      updateWorkflowState("inventive-ready");
     } finally {
       abortControllersRef.current.delete("inventive");
       if (isMountedRef.current) setLoading(false);

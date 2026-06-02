@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useDefectsStore } from "../../store";
+import { useDefectsStore, useCaseStore } from "../../store";
 import type { DefectRequest, DefectResponse } from "@shared/types/api";
 import type { FormalDefect } from "@shared/types/domain";
 import { InlineEdit } from "../../components/InlineEdit";
@@ -38,6 +38,7 @@ export function DefectPanel({
 }: DefectPanelProps) {
   const { defects, addDefect, updateDefect, removeDefect, isLoading, setLoading, ranCases, addRanCase } =
     useDefectsStore();
+  const { updateWorkflowState } = useCaseStore();
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
@@ -167,6 +168,7 @@ export function DefectPanel({
         log("[DefectPanel] restoring user-added defect:", userDefect.id);
         addDefect(userDefect);
       }
+      updateWorkflowState("defects-ready");
     } catch (err) {
       log("[DefectPanel] Error running defect check:", err);
       if (isMountedRef.current) {

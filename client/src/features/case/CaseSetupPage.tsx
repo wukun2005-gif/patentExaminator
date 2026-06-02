@@ -315,9 +315,9 @@ export function CaseSetupPage() {
       }
     }
 
-    // B-031: 文件上传完成后推进到 documents-uploaded
+    // B-031: 文件上传完成后推进到 documents-uploaded + text-extracted
     if (currentCase && currentCase.workflowState === "case-ready") {
-      const updatedCase = { ...currentCase, workflowState: "documents-uploaded" as PatentCase["workflowState"], updatedAt: new Date().toISOString() };
+      const updatedCase = { ...currentCase, workflowState: "text-extracted" as PatentCase["workflowState"], updatedAt: new Date().toISOString() };
       await updateCase(updatedCase);
       setCurrentCase(updatedCase);
     }
