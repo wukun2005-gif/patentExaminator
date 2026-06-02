@@ -80,7 +80,7 @@ agentRouter.post("/agent/run", express.json({ limit: "10mb" }), async (req, res)
       enableModelFallback,
       providerBaseUrls,
       maxTokens,
-      signal: req.signal,
+      signal: (req as unknown as { signal?: AbortSignal }).signal,
       knowledgeEnabled,
       apiKey,
     });

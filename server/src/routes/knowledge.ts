@@ -41,7 +41,7 @@ function errMsg(err: unknown): string {
 // ── Embedding（纯远程 API，cr-1: 移除本地模型） ──────────────
 
 // 远程 embedding 配置缓存
-const _remoteEmbedderConfig: { baseUrl: string; apiKey: string; modelId: string } | null = null;
+let _remoteEmbedderConfig: { baseUrl: string; apiKey: string; modelId: string } | null = null;
 let remoteEmbedder: { embed: (texts: string[]) => Promise<number[][]>; modelId: string } | null = null;
 
 /** 创建远程 embedding 函数 */
@@ -77,7 +77,7 @@ function createRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId
 
 /** 设置远程 embedding 配置 */
 export function setRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId: string } | null) {
-  remoteEmbedderConfig = config;
+  _remoteEmbedderConfig = config;
   remoteEmbedder = config ? createRemoteEmbedder(config) : null;
   logger.info(`Remote embedding ${config ? `configured: ${config.modelId}` : "disabled"}`);
 }
@@ -291,11 +291,12 @@ function addOverlap(
 ): Array<{ text: string; metadata: Record<string, unknown> }> {
   if (chunks.length <= 1 || overlapSize <= 0) return chunks;
 
-  const result = [chunks[0]];
+  const result = [chunks[0]!];
   for (let i = 1; i < chunks.length; i++) {
-    const prevText = chunks[i - 1].text;
-    const overlap = prevText.slice(-overlapSize);
-    result.push({ ...chunks[i], text: overlap + chunks[i].text });
+    const prev = chunks[i - 1]!;
+    const curr = chunks[i]!;
+    const overlap = prev.text.slice(-overlapSize);
+    result.push({ ...curr, text: overlap + curr.text });
   }
   return result;
 }

@@ -20,26 +20,26 @@ export interface AgentRunRequest {
   agent: string;
   caseId: string;
   request: Record<string, unknown>;
-  providerPreference?: string[];
-  modelId?: string;
-  modelFallbacks?: Record<string, string[]>;
-  enableModelFallback?: Record<string, boolean>;
-  providerBaseUrls?: Record<string, string>;
-  maxTokens?: number;
-  signal?: AbortSignal;
+  providerPreference?: string[] | undefined;
+  modelId?: string | undefined;
+  modelFallbacks?: Record<string, string[]> | undefined;
+  enableModelFallback?: Record<string, boolean> | undefined;
+  providerBaseUrls?: Record<string, string> | undefined;
+  maxTokens?: number | undefined;
+  signal?: AbortSignal | undefined;
   /** bg-75: 用户是否启用了知识库 */
-  knowledgeEnabled?: boolean;
+  knowledgeEnabled?: boolean | undefined;
   /** B-041: 请求体传入的 API key（测试/外部调用用），优先于 keyStore */
-  apiKey?: string;
+  apiKey?: string | undefined;
 }
 
 export interface AgentRunResponse {
   ok: boolean;
   output?: unknown;
-  tokenUsage?: { input: number; output: number; total: number };
-  attempts?: Array<{ providerId: string; modelId: string; errorCode?: string; duration: number }>;
-  error?: { type: string; message: string };
-  knowledgeCitations?: Array<{ source: string; score: number; excerpt: string }>;
+  tokenUsage?: { input: number; output: number; total: number } | undefined;
+  attempts?: Array<{ providerId: string; ok: boolean; errorCode?: string }> | undefined;
+  error?: { type: string; message: string } | undefined;
+  knowledgeCitations?: Array<{ source: string; score: number; excerpt: string }> | undefined;
 }
 
 // ── Prompt 构造器 ──────────────────────────────────────
@@ -284,7 +284,7 @@ const INTERPRET_TEMPLATES: Record<string, { title: string; instructions: string[
 
 function buildInterpretPrompt(request: Record<string, unknown>): string {
   const documentType = request.documentType as string ?? "application";
-  const template = INTERPRET_TEMPLATES[documentType] ?? INTERPRET_TEMPLATES.application;
+  const template = INTERPRET_TEMPLATES[documentType] ?? INTERPRET_TEMPLATES.application!;
   const caseId = request.caseId as string ?? "";
   const documentId = request.documentId as string ?? "unknown";
   const fileName = request.fileName as string ?? "未命名文件";
@@ -677,20 +677,20 @@ interface InternalGatewayRequest {
   agent: string;
   prompt: string;
   caseId: string;
-  providerPreference?: string[];
-  modelId?: string;
-  modelFallbacks?: Record<string, string[]>;
-  enableModelFallback?: Record<string, boolean>;
-  providerBaseUrls?: Record<string, string>;
-  maxTokens?: number;
-  signal?: AbortSignal;
-  apiKey?: string;
+  providerPreference?: string[] | undefined;
+  modelId?: string | undefined;
+  modelFallbacks?: Record<string, string[]> | undefined;
+  enableModelFallback?: Record<string, boolean> | undefined;
+  providerBaseUrls?: Record<string, string> | undefined;
+  maxTokens?: number | undefined;
+  signal?: AbortSignal | undefined;
+  apiKey?: string | undefined;
 }
 
 interface InternalGatewayResponse {
   output: unknown;
-  tokenUsage?: { input: number; output: number; total: number };
-  attempts?: Array<{ providerId: string; modelId: string; errorCode?: string; duration: number }>;
+  tokenUsage?: { input: number; output: number; total: number } | undefined;
+  attempts?: Array<{ providerId: string; ok: boolean; errorCode?: string }> | undefined;
 }
 
 async function callInternalGateway(req: InternalGatewayRequest): Promise<InternalGatewayResponse> {
@@ -707,12 +707,11 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
   const providerOrder = (req.providerPreference ?? []) as Array<"kimi" | "glm" | "minimax" | "mimo" | "deepseek" | "qwen" | "gemini">;
 
   const chatRequest: ChatRequest = {
-    agent: req.agent,
     modelId: req.modelId ?? "",
-    prompt: req.prompt,
+    messages: [{ role: "user", content: req.prompt }],
     apiKey: "",
-    maxTokens: req.maxTokens,
-    signal: req.signal,
+    ...(req.maxTokens !== undefined && { maxTokens: req.maxTokens }),
+    ...(req.signal !== undefined && { signal: req.signal }),
   };
 
   const result = await registry.runWithFallback(
@@ -726,8 +725,8 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
   );
 
   return {
-    output: result.output,
-    tokenUsage: result.tokenUsage,
+    output: result.response.text,
+    tokenUsage: result.response.tokenUsage,
     attempts: result.attempts,
   };
 }

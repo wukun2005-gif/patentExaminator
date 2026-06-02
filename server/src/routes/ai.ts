@@ -80,6 +80,7 @@ aiRouter.post("/ai/run", async (req, res) => {
       const { getAllChunks, getAllVectors } = await import("../lib/knowledgeDb.js");
 
       const emb = await getEmbedder();
+      if (!emb) { logger.warn("Knowledge enabled but no embedder configured"); return; }
       const queryVector = (await emb.embed([prompt]))[0]!;
       const allChunks = getAllChunks();
       const allVectors = getAllVectors();

@@ -112,20 +112,23 @@ export function getAllSources(): Array<{
   createdAt: string; updatedAt: string;
 }> {
   const db = getKnowledgeDb();
-  return db.prepare("SELECT * FROM kb_sources").all().map((row: Record<string, unknown>) => ({
-    id: row.id as string,
-    name: row.name as string,
-    type: row.type as string,
-    format: row.format as string,
-    mediaType: row.media_type as string,
-    size: row.size as number,
-    fileHash: row.file_hash as string | null,
-    sourceUrl: row.source_url as string | null,
-    chunkCount: row.chunk_count as number,
-    embedStatus: row.embed_status as string,
-    createdAt: row.created_at as string,
-    updatedAt: row.updated_at as string,
-  }));
+  return db.prepare("SELECT * FROM kb_sources").all().map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: r.id as string,
+      name: r.name as string,
+      type: r.type as string,
+      format: r.format as string,
+      mediaType: r.media_type as string,
+      size: r.size as number,
+      fileHash: r.file_hash as string | null,
+      sourceUrl: r.source_url as string | null,
+      chunkCount: r.chunk_count as number,
+      embedStatus: r.embed_status as string,
+      createdAt: r.created_at as string,
+      updatedAt: r.updated_at as string,
+    };
+  });
 }
 
 export function deleteSource(id: string): void {

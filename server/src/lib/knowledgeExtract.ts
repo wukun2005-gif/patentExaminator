@@ -40,13 +40,12 @@ async function extractPdf(buffer: Buffer): Promise<ExtractionResult> {
       data: new Uint8Array(buffer),
       disableFontFace: true,
       useSystemFonts: false,
-      isEvalSupported: false,
     }).promise;
     const texts: string[] = [];
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      const pageText = content.items.map((item: { str?: string }) => item.str ?? "").join(" ");
+      const pageText = content.items.map((item) => ("str" in item ? item.str : "")).join(" ");
       texts.push(pageText);
     }
     return { text: texts.join("\n\n"), mediaType: "text" };
@@ -72,7 +71,7 @@ async function extractExcel(buffer: Buffer): Promise<ExtractionResult> {
     const XLSX = await import("xlsx");
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0] ?? "";
-    const sheet = workbook.Sheets[sheetName];
+    const sheet = workbook.Sheets[sheetName]!;
     const data = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
     const text = data.map((row) =>
       (Array.isArray(row) ? row : [row]).map((c) => String(c ?? "")).join(" | ")

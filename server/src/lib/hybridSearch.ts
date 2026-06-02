@@ -11,7 +11,7 @@ const RRF_K = 60; // RRF 常数
 // ── BM25 索引 ─────────────────────────────────────────
 
 let miniSearch: MiniSearch | null = null;
-const _indexedSourceIds = new Set<string>();
+let _indexedSourceIds = new Set<string>();
 
 /** 构建或更新 BM25 索引 */
 function ensureBM25Index(): MiniSearch {
@@ -35,7 +35,7 @@ function ensureBM25Index(): MiniSearch {
   }));
 
   miniSearch.addAll(documents);
-  indexedSourceIds = new Set(chunks.map((c) => c.sourceId));
+  _indexedSourceIds = new Set(chunks.map((c) => c.sourceId));
   logger.info(`BM25 index built: ${chunks.length} documents`);
   return miniSearch;
 }
@@ -43,7 +43,7 @@ function ensureBM25Index(): MiniSearch {
 /** BM25 关键词检索 */
 function searchBM25(query: string, topK: number = 10): Array<{ id: string; score: number }> {
   const index = ensureBM25Index();
-  const results = index.search(query, { limit: topK });
+  const results = index.search(query).slice(0, topK);
   return results.map((r) => ({ id: String(r.id), score: r.score }));
 }
 
@@ -109,5 +109,5 @@ export function hybridSearch(
 /** 清除 BM25 索引（知识库更新后调用） */
 export function invalidateBM25Index(): void {
   miniSearch = null;
-  indexedSourceIds = new Set();
+  _indexedSourceIds.clear();
 }

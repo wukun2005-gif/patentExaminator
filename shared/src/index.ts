@@ -15,5 +15,5 @@ export * from "./schemas/export.schema.js";
 export * from "./schemas/opinionAnalysis.schema.js";
 export * from "./schemas/argumentMapping.schema.js";
 export * from "./schemas/reexamDraft.schema.js";
-export * from "./schemas/classifyDocuments.schema.js";
+export { classifyDocumentsOutputSchema, documentClassificationSchema, documentRoleSchema, type ClassifyDocumentsOutput, type DocumentRole } from "./schemas/classifyDocuments.schema.js";
 export * from "./schemas/defect.schema.js";

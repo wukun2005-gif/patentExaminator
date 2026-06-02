@@ -23,7 +23,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json({ limit: "10mb", charset: "utf-8" }));
+app.use(express.json({ limit: "10mb" }));
 
 // 确保所有响应使用 UTF-8 编码
 app.use((_req, res, next) => {
