@@ -1,6 +1,10 @@
 # 自动测试框架重构计划 — 测试用例覆盖情况
 
-## 一、整改前测试用例覆盖情况
+> **状态标记**：✅ 已完成（质量可接受） | 🔶 部分完成 | ❌ 未完成
+
+---
+
+## 一、整改前测试用例覆盖情况 ✅ 基准记录
 
 ### 1.1 E2E 测试脚本（Node 直接运行）
 
@@ -139,7 +143,7 @@
 
 ---
 
-## 二、整改后测试用例覆盖情况
+## 二、整改后测试用例覆盖情况 ✅ 已完成（FEAT-042 步骤 1-3）
 
 ### 2.1 步骤 1：提取 E2E 共享模块
 
@@ -265,7 +269,7 @@
 
 ---
 
-## 三、整改后总计
+## 三、整改后总计 ✅ 已完成
 
 ### 3.1 情况 A：不移入非 HTTP 测试（保守方案）
 
@@ -285,7 +289,7 @@
 
 ---
 
-## 四、覆盖情况对比总结
+## 四、覆盖情况对比总结 ✅ 已完成
 
 | 维度 | 整改前 | 整改后 | 变化 |
 |------|-------|-------|------|
@@ -299,7 +303,7 @@
 
 ---
 
-## 五、关键结论
+## 五、关键结论 ✅ 已完成
 
 1. **测试用例覆盖不会减少**：整改后测试用例总数保持不变或略有减少（减少的是应该属于单元测试的非 HTTP 测试）
 
@@ -321,7 +325,7 @@
 
 ---
 
-## 六、实施步骤
+## 六、实施步骤 ✅ 已完成（步骤 1-3 已实施，步骤 4-7 可选未做）
 
 ### 步骤 1：提取 E2E 共享模块（必须做，优先级最高）
 - 创建 `tests/e2e-shared/` 目录
@@ -357,7 +361,7 @@
 
 ---
 
-## 七、验证方法
+## 七、验证方法 ✅ 已完成
 
 1. **验证步骤 1（提取共享模块）**：
    - 检查所有 E2E 脚本是否都从共享模块导入
@@ -377,7 +381,7 @@
 
 ---
 
-## 八、预期效果
+## 八、预期效果 ✅ 已完成
 
 1. **消除代码重复**：所有共享逻辑集中在一个地方，易于维护
 2. **统一配置管理**：fallback 链条、API key 名称、可重试错误关键词等都集中管理
@@ -387,7 +391,7 @@
 
 ---
 
-## 九、后续整改：合并 Smoke 测试 + 修复 BUG-027 预存失败
+## 九、后续整改：合并 Smoke 测试 + 修复 BUG-027 预存失败 ✅ 已完成
 
 > 2026-06-03 新增
 
@@ -490,3 +494,174 @@ tests/
 3. 确认 `tests/developer-ai-smoke.mjs` 已删除
 4. `grep -r "developer-ai-smoke" .` — 无残留引用
 5. `node tests/e2e.mjs --only malformed` — 验证 unknown fixture 断言通过
+
+---
+
+## 十、合并 knowledge-base-e2e.mjs + 智能测试选择 + embedding/reranker 修复 ✅ 已完成
+
+> 2026-06-03 新增
+
+### 10.1 任务 A：合并 knowledge-base-e2e.mjs 到 e2e 模块 ✅ 已完成
+
+**验证**：`tests/knowledge-base-e2e.mjs` 已删除，22 个静态测试迁移到 `knowledge-code-structure.mjs`，5 个集成测试迁移到 `knowledge.mjs`
+
+**现状**：
+- `tests/knowledge-base-e2e.mjs`（574 行，27 个测试）是独立脚本，自启服务器 port 3099 + 临时 SQLite DB
+- `tests/e2e/knowledge.mjs`（121 行，11 个测试）已集成到 e2e.mjs，测试主服务器 port 3000
+- 两个文件有重复的 `uploadKnowledgeFile`、`assert`、`runTest`
+
+**合并策略**：
+
+| 步骤 | 操作 | 说明 |
+|------|------|------|
+| A.1 | 新建 `tests/e2e/knowledge-code-structure.mjs` | 移入 22 个静态测试（不需要服务器） |
+| A.2 | 扩展 `tests/e2e/knowledge.mjs` | 移入 5 个集成测试（复用 port 3000 主服务器） |
+| A.3 | 更新 `tests/e2e/index.mjs` | 新增 `knowledge-code-structure.mjs` 的 export |
+| A.4 | 更新 `tests/e2e.mjs` | 新增 import + `--- Knowledge Code Structure ---` section |
+| A.5 | 删除 `tests/knowledge-base-e2e.mjs` | |
+| A.6 | 更新 `docs/feat-042-implementation-review.md` | 标记合并完成 |
+
+**22 个静态测试详情**（→ `knowledge-code-structure.mjs`）：
+- T-RAG-001: 测试数据文件完整性（samples/knowledge-base/ 下的文件存在性）
+- T-RAG-002~008: 各格式文件有效性验证（PDF/TXT/MD/JSON/CSV/XLSX/PNG）
+- T-RAG-009~012: 代码结构验证（检查服务端/客户端源码包含 embedding/vector/retriever 逻辑）
+- T-RAG-013~022: 类型/schema/配置验证（TypeScript 类型定义、IndexedDB schema、Agent 集成、设置 UI 等）
+
+**5 个集成测试详情**（→ `knowledge.mjs`）：
+- T-RAG-023: testUploadAndSearchChain — 上传后搜索验证
+- T-RAG-024: testSearchResultMetadata — 搜索结果元数据验证
+- T-RAG-025: testMultiFileUploadAndSearch — 多文件上传后搜索
+- T-RAG-026: testKnowledgeProviderTestEndpoint — Provider 测试端点
+- T-RAG-027: testRerankerIntegration — Reranker 集成测试
+
+**消除的问题**：
+- 不再需要自启 port 3099 服务器（消除原计划问题 9 的脆弱性）
+- 不再有重复的 `uploadKnowledgeFile`/`assert`/`runTest`
+- 所有知识库测试统一走 e2e.mjs 入口
+
+### 10.2 任务 B：智能测试选择（`--auto` flag） ✅ 已完成
+
+**验证**：`FILE_TO_TEST_MAP` 已在 `config.mjs` 中定义，`--auto` 逻辑已在 `e2e.mjs` 中实现
+
+**需求**：根据 git diff 变更文件自动选择测试组，避免跑全家桶。
+
+**设计**：
+
+在 `e2e.mjs` 添加 `--auto` 参数：
+1. 运行 `git diff --name-only HEAD` 获取变更文件列表
+2. 通过声明式映射表将文件路径模式匹配到测试组名
+3. 只运行匹配到的测试组，跳过其余
+
+**映射表**（放在 `tests/e2e-shared/config.mjs`）：
+
+```js
+export const FILE_TO_TEST_MAP = [
+  // 知识库相关
+  { pattern: /^server\/src\/routes\/knowledge/, groups: ["knowledge", "knowledgeCodeStructure"] },
+  { pattern: /^server\/src\/lib\/knowledgeDb/, groups: ["knowledge", "knowledgeCodeStructure"] },
+  { pattern: /^client\/src\/lib\/knowledge/, groups: ["knowledge", "knowledgeCodeStructure"] },
+  { pattern: /^client\/src\/features\/settings\/Knowledge/, groups: ["knowledge"] },
+  { pattern: /^samples\/knowledge-base/, groups: ["knowledge"] },
+
+  // AI Agent 相关
+  { pattern: /^server\/src\/lib\/orchestrator/, groups: ["mock", "real", "schema", "pipeline"] },
+  { pattern: /^server\/src\/lib\/agents/, groups: ["mock", "real", "schema"] },
+  { pattern: /^server\/src\/routes\/ai/, groups: ["mock", "real", "schema"] },
+  { pattern: /^server\/src\/fixtures/, groups: ["mock", "schema"] },
+  { pattern: /^shared\/src\/schemas/, groups: ["schema"] },
+
+  // 搜索相关
+  { pattern: /^server\/src\/lib\/search/, groups: ["mock", "real"] },
+  { pattern: /^server\/src\/routes\/search/, groups: ["mock", "real"] },
+
+  // 前端 UI
+  { pattern: /^client\/src/, groups: ["health"] },
+
+  // 测试文件自身 — 不自动触发
+  { pattern: /^tests\//, groups: [] },
+  { pattern: /^(package|tsconfig|vitest)/, groups: [] },
+  { pattern: /^docs\//, groups: [] },
+];
+```
+
+**实现步骤**：
+
+| 步骤 | 操作 |
+|------|------|
+| B.1 | 在 `config.mjs` 添加 `FILE_TO_TEST_MAP` |
+| B.2 | 在 `e2e.mjs` 添加 `--auto` 解析逻辑：`git diff --name-only HEAD` → 匹配映射表 → 收集 groups |
+| B.3 | 支持多组选择：`--auto` 可能匹配到多个组，依次运行 |
+
+**使用方式**：
+```bash
+node tests/e2e.mjs --auto          # 根据 git diff 自动选择
+node tests/e2e.mjs --auto --check  # 带质量门禁
+```
+
+**示例**：
+- 只改了 `server/src/routes/knowledge.ts` → 只跑 `knowledge` + `knowledgeCodeStructure`
+- 只改了 `server/src/lib/agents/claim-chart.ts` → 只跑 `mock` + `real` + `schema`
+- 只改了 `docs/README.md` → 不跑任何测试
+
+### 10.3 任务 C：修复 embedding/reranker key 处理 ✅ 已完成
+
+**已完成**：
+- `config.mjs` 已有独立的 embedding/reranker 映射（当前指向同一个 siliconflow key，注释说明了将来扩展意图）
+- `CLAUDE.md` 已正确写明 embedding/reranker 的 key 和传递方式
+- `upload.mjs` 已支持 `options.embedding` 和 `options.reranker` 参数
+- `knowledge.mjs` 上传时传入 embedding/reranker config（通过 `getKnowledgeUploadOptions()` 构建）
+
+**发现的问题**：
+
+| # | 位置 | 问题 |
+|---|------|------|
+| 1 | `CLAUDE.md:57` | 只写了"reranker 集成测试"，漏掉 embedding |
+| 2 | `tests/e2e-shared/upload.mjs` | 上传时不传 embeddingConfig，服务端需要它做向量化 |
+| 3 | `tests/e2e/knowledge.mjs` | 不传 embedding/reranker config |
+| 4 | `knowledge-base-e2e.mjs:420` | 用 `process.env.SILICONFLOW_KEY`（全大写），.env 里是 `siliconflow_Key` |
+
+**设计原则**：embedding 和 reranker 当前用同一个 siliconflow key，但 UI 上已分别设置，测试代码必须保持独立 config 结构以便将来用不同 key。
+
+**修复步骤**：
+
+| 步骤 | 操作 |
+|------|------|
+| C.1 | 修复 `CLAUDE.md:57`：改为 `siliconflow_Key（可选，用于 embedding 和 reranker 集成测试）` |
+| C.2 | 修复 `upload.mjs`：添加可选参数 `{ embedding, reranker }`，有 embedding 时 append `embeddingConfig` 到 formData |
+| C.3 | 修复 `knowledge.mjs`：上传时传入 embedding config，搜索时传入 embedding + reranker config |
+| C.4 | 合并后的集成测试也需要传入 embedding/reranker config |
+
+**embedding/reranker config 结构**（与服务端一致）：
+```js
+// 当前用同一个 key，但结构独立
+const embeddingConfig = {
+  baseUrl: "https://api.siliconflow.cn/v1",
+  apiKey: SILICONFLOW_KEY,  // 将来可换成独立的 embedding key
+  modelId: "BAAI/bge-m3",
+};
+const rerankerConfig = {
+  baseUrl: "https://api.siliconflow.cn/v1",
+  apiKey: SILICONFLOW_KEY,  // 将来可换成独立的 reranker key
+  modelId: "BAAI/bge-reranker-v2-m3",
+};
+```
+
+### 10.4 修改文件清单
+
+| 文件 | 操作 | 状态 |
+|------|------|------|
+| `tests/e2e/knowledge-code-structure.mjs` | **新建**，22 个静态测试 | ✅ 已完成 |
+| `tests/e2e/knowledge.mjs` | **扩展**，新增 5 个集成测试 + embedding/reranker config | ✅ 已完成 |
+| `tests/e2e/index.mjs` | **更新**，新增 export | ✅ 已完成 |
+| `tests/e2e.mjs` | **更新**，新增 import + section + `--auto` 逻辑 | ✅ 已完成 |
+| `tests/e2e-shared/config.mjs` | **更新**，新增 `FILE_TO_TEST_MAP` | ✅ 已完成 |
+| `tests/e2e-shared/upload.mjs` | **更新**，添加 embedding/reranker 参数 | ✅ 已完成 |
+| `tests/knowledge-base-e2e.mjs` | **删除** | ✅ 已完成 |
+
+### 10.5 验证方法
+
+1. `node tests/e2e.mjs --only knowledgeCodeStructure` — 22 个静态测试全通过
+2. `node tests/e2e.mjs --only knowledge` — 知识库测试全通过（含新增的 5 个集成测试）
+3. `node tests/e2e.mjs --auto` — 根据 git diff 正确选择测试组
+4. 确认 `tests/knowledge-base-e2e.mjs` 已删除
+5. 确认 embedding config 在上传请求中正确传递（有 siliconflow_Key 时启用向量化）

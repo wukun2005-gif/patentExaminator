@@ -20,7 +20,10 @@ export const API_KEY_NAMES = {
   serp: "SerpAPI_KEY",
   epo: "EPO_CONSUMER_KEY",
   epoSecret: "EPO_CONSUMER_SECRET_KEY",
-  siliconflow: "siliconflow_Key",
+  // 知识库 Embedding 和 Reranker 可以用不同的 key
+  // 当前简化为同一个 siliconflow key，但保持独立映射以便将来扩展
+  embedding: "siliconflow_Key",
+  reranker: "siliconflow_Key",
 };
 
 /** 默认模型 ID */
@@ -126,3 +129,38 @@ export const KNOWLEDGE_TEST_PORT = 3099;
 
 /** 知识库测试服务器地址 */
 export const KNOWLEDGE_TEST_BASE = `http://localhost:${KNOWLEDGE_TEST_PORT}/api`;
+
+// ── 智能测试选择：文件路径 → 测试组映射 ─────────────────────────────
+
+/**
+ * 根据 git diff 变更文件自动选择测试组。
+ * 用于 `node tests/e2e.mjs --auto`。
+ */
+export const FILE_TO_TEST_MAP = [
+  // 知识库相关
+  { pattern: /^server\/src\/routes\/knowledge/, groups: ["knowledge", "knowledgeIntegration"] },
+  { pattern: /^server\/src\/lib\/knowledgeDb/, groups: ["knowledge", "knowledgeIntegration"] },
+  { pattern: /^client\/src\/lib\/knowledge/, groups: ["knowledge", "knowledgeIntegration"] },
+  { pattern: /^client\/src\/features\/settings\/Knowledge/, groups: ["knowledge"] },
+  { pattern: /^samples\/knowledge-base/, groups: ["knowledge"] },
+  { pattern: /^shared\/src\/types\/knowledge/, groups: ["knowledgeCodeStructure"] },
+
+  // AI Agent 相关
+  { pattern: /^server\/src\/lib\/orchestrator/, groups: ["mock", "real", "schema", "pipeline"] },
+  { pattern: /^server\/src\/lib\/agents/, groups: ["mock", "real", "schema"] },
+  { pattern: /^server\/src\/routes\/ai/, groups: ["mock", "real", "schema"] },
+  { pattern: /^shared\/src\/fixtures/, groups: ["mock", "schema"] },
+  { pattern: /^shared\/src\/schemas/, groups: ["schema"] },
+
+  // 搜索相关
+  { pattern: /^server\/src\/lib\/search/, groups: ["mock", "real"] },
+  { pattern: /^server\/src\/routes\/search/, groups: ["mock", "real"] },
+
+  // 前端 UI
+  { pattern: /^client\/src/, groups: ["health"] },
+
+  // 测试文件自身 — 不自动触发
+  { pattern: /^tests\//, groups: [] },
+  { pattern: /^(package|tsconfig|vitest)/, groups: [] },
+  { pattern: /^docs\//, groups: [] },
+];

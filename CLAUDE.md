@@ -26,8 +26,11 @@ SerpAPI_KEY=your_serp_key
 EPO_CONSUMER_KEY=your_epo_key
 EPO_CONSUMER_SECRET_KEY=your_epo_secret
 
-# 知识库 Embedding/Reranker（可选）
+# 知识库 Embedding（可选，用于向量化）
 siliconflow_Key=your_siliconflow_key
+# 知识库 Reranker（可选，用于重排序）
+# 如果将来 embedding 和 reranker 用不同的 key，在此添加：
+# reranker_Key=your_reranker_key
 ```
 
 ---
@@ -54,7 +57,7 @@ siliconflow_Key=your_siliconflow_key
 - **命令**：`node tests/knowledge-base-e2e.mjs`
 - **前提**：自启动服务器（port 3099），无需手动启动
 - **需要的 API Key**：
-  - `siliconflow_Key`（可选，用于 reranker 集成测试）
+  - `siliconflow_Key`（可选，用于 reranker/embedding 集成测试）
 
 ---
 

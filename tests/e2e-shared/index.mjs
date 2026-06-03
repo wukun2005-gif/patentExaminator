@@ -22,6 +22,7 @@ export {
   DEFAULT_TEST_BASE,
   KNOWLEDGE_TEST_PORT,
   KNOWLEDGE_TEST_BASE,
+  FILE_TO_TEST_MAP,
 } from "./config.mjs";
 
 // 环境变量模块

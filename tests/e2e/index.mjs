@@ -81,7 +81,35 @@ export {
   testKnowledgeSourcesList,
   testKnowledgeDelete,
   testKnowledgeClearAll,
+  testKnowledgeUploadAndSearchChain,
+  testKnowledgeSearchResultMetadata,
+  testKnowledgeMultiFileUploadAndSearch,
+  testKnowledgeProviderTestEndpoint,
+  testKnowledgeRerankerIntegration,
 } from "./knowledge.mjs";
+
+// 知识库代码结构测试
+export {
+  testSampleDataIntegrity,
+  testPdfValidity,
+  testTxtContent,
+  testMdStructure,
+  testJsonValidity,
+  testCsvContent,
+  testXlsxValidity,
+  testPngValidity,
+  testEmbedderCodeExists,
+  testRetrieverCodeExists,
+  testPromptInjectorCodeExists,
+  testTypeDefinitions,
+  testIndexedDbSchema,
+  testAgentIntegration,
+  testSettingsUI,
+  testKnowledgeRepo,
+  testNormalizerCodeExists,
+  testFileHashField,
+  testDocumentCategoryField,
+} from "./knowledge-code-structure.mjs";
 
 // 全链路流水线测试
 export {

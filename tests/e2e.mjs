@@ -32,6 +32,7 @@ import {
   delay,
   AI_RATE_LIMIT_DELAY,
   SEARCH_RATE_LIMIT_DELAY,
+  FILE_TO_TEST_MAP,
   resetResults,
   printSummary,
   allPassed,
@@ -98,6 +99,30 @@ import {
   testKnowledgeSourcesList,
   testKnowledgeDelete,
   testKnowledgeClearAll,
+  testKnowledgeUploadAndSearchChain,
+  testKnowledgeSearchResultMetadata,
+  testKnowledgeMultiFileUploadAndSearch,
+  testKnowledgeProviderTestEndpoint,
+  testKnowledgeRerankerIntegration,
+  testSampleDataIntegrity,
+  testPdfValidity,
+  testTxtContent,
+  testMdStructure,
+  testJsonValidity,
+  testCsvContent,
+  testXlsxValidity,
+  testPngValidity,
+  testEmbedderCodeExists,
+  testRetrieverCodeExists,
+  testPromptInjectorCodeExists,
+  testTypeDefinitions,
+  testIndexedDbSchema,
+  testAgentIntegration,
+  testSettingsUI,
+  testKnowledgeRepo,
+  testNormalizerCodeExists,
+  testFileHashField,
+  testDocumentCategoryField,
   testFullPipelineMock_G1,
   testFullPipelineMock_G2,
   testFullPipelineMock_Reexam_G1,
@@ -197,12 +222,60 @@ function runDbScenarioTests() {
 
 // ── 主函数 ──────────────────────────────────────────────────────────
 
+/**
+ * 根据 git diff 变更文件自动选择测试组
+ */
+function getAutoTestGroups() {
+  try {
+    const diff = execSync("git diff --name-only HEAD", {
+      cwd: process.cwd(),
+      encoding: "utf-8",
+      timeout: 10000,
+    }).trim();
+
+    if (!diff) {
+      console.log("  No changed files detected, running all tests\n");
+      return null;
+    }
+
+    const files = diff.split("\n");
+    const groups = new Set();
+
+    for (const file of files) {
+      for (const { pattern, groups: fileGroups } of FILE_TO_TEST_MAP) {
+        if (pattern.test(file)) {
+          fileGroups.forEach((g) => groups.add(g));
+        }
+      }
+    }
+
+    if (groups.size === 0) {
+      console.log("  Changed files don't match any test groups, running all tests\n");
+      return null;
+    }
+
+    console.log(`  Changed files: ${files.length}`);
+    console.log(`  Matched groups: ${[...groups].join(", ")}\n`);
+    return [...groups];
+  } catch {
+    console.log("  Failed to get git diff, running all tests\n");
+    return null;
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const onlyReal = args.includes("--real");
   const doCheck = args.includes("--check");
+  const doAuto = args.includes("--auto");
   const onlyIdx = args.indexOf("--only");
   const onlyPattern = onlyIdx !== -1 ? (args[onlyIdx + 1] || "").toLowerCase() : "";
+
+  // --auto 模式：根据 git diff 自动选择测试组
+  let autoGroups = null;
+  if (doAuto && !onlyPattern) {
+    autoGroups = getAutoTestGroups();
+  }
 
   console.log("\n=== Patent Examiner E2E Functional Tests ===\n");
 
@@ -220,6 +293,8 @@ async function main() {
   if (onlyReal) {
     console.log("Mode: Real (requires GEMINI_KEY + search keys)\n");
     if (doCheck) console.log("Quality gate: passed\n");
+  } else if (doAuto && autoGroups) {
+    console.log(`Mode: Auto (${autoGroups.join(", ")})\n`);
   } else if (onlyPattern) {
     console.log(`Mode: Filtered by "${onlyPattern}"\n`);
   } else {
@@ -227,13 +302,37 @@ async function main() {
     console.log("提示：根据 git diff 选择测试组，详见文件顶部注释\n");
   }
 
-  // --only filter
+  // --only / --auto filter
+  // group 参数用于 --auto 模式，标识该测试属于哪个组
   function maybe(fn, ...fnArgs) {
-    if (!onlyPattern) return fn(...fnArgs);
-    const name = fn.name.toLowerCase();
-    if (name.includes(onlyPattern)) return fn(...fnArgs);
-    console.log(`  ⏭ skipped ${fn.name}`);
-    return undefined;
+    // --only 模式：按函数名过滤
+    if (onlyPattern) {
+      const name = fn.name.toLowerCase();
+      if (name.includes(onlyPattern)) return fn(...fnArgs);
+      console.log(`  ⏭ skipped ${fn.name}`);
+      return undefined;
+    }
+    // --auto 模式：检查函数是否属于匹配的测试组
+    if (doAuto && autoGroups) {
+      const name = fn.name.toLowerCase();
+      const isInGroup = autoGroups.some((g) => {
+        // 简单的名称匹配：检查函数名是否包含组名关键词
+        if (g === "knowledge") return name.includes("knowledge") && !name.includes("integrity") && !name.includes("pdf") && !name.includes("txt") && !name.includes("md") && !name.includes("json") && !name.includes("csv") && !name.includes("xlsx") && !name.includes("png") && !name.includes("embedder") && !name.includes("retriever") && !name.includes("promptinjector") && !name.includes("typedefinitions") && !name.includes("indexeddb") && !name.includes("agentintegration") && !name.includes("settingsui") && !name.includes("knowledgerepo") && !name.includes("normalizer") && !name.includes("filehash") && !name.includes("documentcategory");
+        if (g === "knowledgeIntegration") return name.includes("uploadandsearch") || name.includes("searchresultmetadata") || name.includes("multifile") || name.includes("providertest") || name.includes("reranker");
+        if (g === "knowledgeCodeStructure") return name.includes("integrity") || name.includes("pdfvalidity") || name.includes("txtcontent") || name.includes("mdstructure") || name.includes("jsonvalidity") || name.includes("csvcontent") || name.includes("xlsxvalidity") || name.includes("pngvalidity") || name.includes("embedder") || name.includes("retriever") || name.includes("promptinjector") || name.includes("typedefinitions") || name.includes("indexeddb") || name.includes("agentintegration") || name.includes("settingsui") || name.includes("knowledgerepo") || name.includes("normalizer") || name.includes("filehash") || name.includes("documentcategory");
+        if (g === "mock") return name.includes("mock") || name.includes("reexam") || name.includes("pipeline");
+        if (g === "real") return name.includes("real");
+        if (g === "schema") return name.includes("schema") || name.includes("malformed") || name.includes("invalid") || name.includes("missing") || name.includes("empty") || name.includes("fixture") || name.includes("structure");
+        if (g === "pipeline") return name.includes("pipeline");
+        if (g === "health") return name.includes("health");
+        return false;
+      });
+      if (isInGroup) return fn(...fnArgs);
+      console.log(`  ⏭ skipped ${fn.name}`);
+      return undefined;
+    }
+    // 默认模式：运行所有测试
+    return fn(...fnArgs);
   }
 
   try {
@@ -360,6 +459,36 @@ async function main() {
       await maybe(testKnowledgeSourcesList);
       await maybe(testKnowledgeDelete);
       await maybe(testKnowledgeClearAll);
+
+      // Knowledge Integration Tests
+      console.log("\n--- Knowledge Integration ---");
+      await maybe(testKnowledgeUploadAndSearchChain);
+      await maybe(testKnowledgeSearchResultMetadata);
+      await maybe(testKnowledgeMultiFileUploadAndSearch);
+      await maybe(testKnowledgeProviderTestEndpoint);
+      await maybe(testKnowledgeRerankerIntegration);
+
+      // Knowledge Code Structure (不需要服务器)
+      console.log("\n--- Knowledge Code Structure ---");
+      await maybe(testSampleDataIntegrity);
+      await maybe(testPdfValidity);
+      await maybe(testTxtContent);
+      await maybe(testMdStructure);
+      await maybe(testJsonValidity);
+      await maybe(testCsvContent);
+      await maybe(testXlsxValidity);
+      await maybe(testPngValidity);
+      await maybe(testEmbedderCodeExists);
+      await maybe(testRetrieverCodeExists);
+      await maybe(testPromptInjectorCodeExists);
+      await maybe(testTypeDefinitions);
+      await maybe(testIndexedDbSchema);
+      await maybe(testAgentIntegration);
+      await maybe(testSettingsUI);
+      await maybe(testKnowledgeRepo);
+      await maybe(testNormalizerCodeExists);
+      await maybe(testFileHashField);
+      await maybe(testDocumentCategoryField);
 
       // Schema
       console.log("\n--- Schema Validation ---");

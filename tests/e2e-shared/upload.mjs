@@ -15,11 +15,14 @@ import { getTestBase } from "./env.mjs";
  * 上传文件到知识库
  *
  * @param {string} filePath - 文件路径
- * @param {string} [baseUrl] - 可选的服务器地址
+ * @param {object} [options] - 可选配置
+ * @param {string} [options.baseUrl] - 服务器地址
+ * @param {object} [options.embedding] - Embedding 配置 { baseUrl, apiKey, modelId }
+ * @param {object} [options.reranker] - Reranker 配置 { baseUrl, apiKey, modelId }
  * @returns {Promise<{ok: boolean, data: object|null, error: string|null}>}
  */
-export async function uploadKnowledgeFile(filePath, baseUrl) {
-  const base = baseUrl || getTestBase();
+export async function uploadKnowledgeFile(filePath, options = {}) {
+  const base = options.baseUrl || getTestBase();
   const fileName = path.basename(filePath);
 
   // 读取文件
@@ -27,6 +30,14 @@ export async function uploadKnowledgeFile(filePath, baseUrl) {
   const blob = new Blob([buffer]);
   const formData = new FormData();
   formData.append("file", blob, fileName);
+
+  // 传递 embedding/reranker 配置（与服务端 knowledge.ts 接口一致）
+  if (options.embedding) {
+    formData.append("embeddingConfig", JSON.stringify(options.embedding));
+  }
+  if (options.reranker) {
+    formData.append("rerankerConfig", JSON.stringify(options.reranker));
+  }
 
   // 发送请求
   const res = await fetch(`${base}/knowledge/upload`, {
