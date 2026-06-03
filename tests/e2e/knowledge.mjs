@@ -14,6 +14,7 @@ import {
   log,
   uploadKnowledgeFile,
   assert,
+  getTestBase,
 } from "../e2e-shared/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -102,7 +103,7 @@ export async function testKnowledgeDelete() {
   }
 
   const sourceToDelete = sourcesData.sources[0];
-  const res = await fetch(`${process.env.TEST_BASE || "http://localhost:3000/api"}/knowledge/sources/${encodeURIComponent(sourceToDelete.name)}`, {
+  const res = await fetch(`${getTestBase()}/knowledge/sources/${encodeURIComponent(sourceToDelete.name)}`, {
     method: "DELETE",
   });
   const data = await res.json();
@@ -111,7 +112,7 @@ export async function testKnowledgeDelete() {
 }
 
 export async function testKnowledgeClearAll() {
-  const res = await fetch(`${process.env.TEST_BASE || "http://localhost:3000/api"}/knowledge/clear`, {
+  const res = await fetch(`${getTestBase()}/knowledge/clear`, {
     method: "DELETE",
   });
   const data = await res.json();

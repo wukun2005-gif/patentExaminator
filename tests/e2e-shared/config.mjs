@@ -20,6 +20,7 @@ export const API_KEY_NAMES = {
   serp: "SerpAPI_KEY",
   epo: "EPO_CONSUMER_KEY",
   epoSecret: "EPO_CONSUMER_SECRET_KEY",
+  siliconflow: "siliconflow_Key",
 };
 
 /** 默认模型 ID */

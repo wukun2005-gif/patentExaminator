@@ -27,7 +27,6 @@
     "test:e2e:check": "node tests/e2e.mjs --check",
     "test:e2e:real": "node tests/e2e.mjs --real",
     "test:e2e:db": "node tests/e2e.mjs --only db",
-    "test:e2e:legacy": "node tests/e2e-real.mjs",
     "test:db": "vitest run --config vitest.integration.config.ts tests/integration/dbLogicChain.test.ts",
     "test:db:scenario": "vitest run --config vitest.integration.config.ts tests/integration/dbScenario.test.ts",
     "test:db:all": "vitest run --config vitest.integration.config.ts tests/integration/dbLogicChain.test.ts tests/integration/dbScenario.test.ts",

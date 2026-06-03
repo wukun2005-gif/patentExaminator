@@ -89,6 +89,10 @@ export function getEnv(key, defaultValue = "") {
  */
 export function getApiKey(provider) {
   const envKey = API_KEY_NAMES[provider];
+  if (!envKey) {
+    console.warn(`[env.mjs] Unknown provider: ${provider}. Add it to API_KEY_NAMES in config.mjs.`);
+    return "";
+  }
   return process.env[envKey] || "";
 }
 
