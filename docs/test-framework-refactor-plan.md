@@ -668,7 +668,7 @@ const rerankerConfig = {
 
 ---
 
-## 十一、测试数据路径集中管理 ❌ 未完成
+## 十一、测试数据路径集中管理 ✅ 已完成
 
 > 2026-06-03 新增
 
@@ -711,9 +711,9 @@ export const SAMPLES_KNOWLEDGE_DIR = path.join(ROOT, "samples", "knowledge-base"
 
 | 文件 | 操作 | 状态 |
 |------|------|------|
-| `tests/e2e-shared/config.mjs` | **新增** `SAMPLES_CASE_DIR` + `SAMPLES_KNOWLEDGE_DIR` | ❌ 未完成 |
-| `tests/e2e/knowledge.mjs` | **更新**，删除本地 `SAMPLES_DIR`，改用 `SAMPLES_KNOWLEDGE_DIR` | ❌ 未完成 |
-| `tests/e2e/knowledge-code-structure.mjs` | **更新**，删除本地 `SAMPLES_DIR`，改用 `SAMPLES_KNOWLEDGE_DIR` | ❌ 未完成 |
+| `tests/e2e-shared/config.mjs` | **新增** `SAMPLES_CASE_DIR` + `SAMPLES_KNOWLEDGE_DIR` | ✅ 已完成 |
+| `tests/e2e/knowledge.mjs` | **更新**，删除本地 `SAMPLES_DIR`，改用 `SAMPLES_KNOWLEDGE_DIR` | ✅ 已完成 |
+| `tests/e2e/knowledge-code-structure.mjs` | **更新**，删除本地 `SAMPLES_DIR`，改用 `SAMPLES_KNOWLEDGE_DIR` | ✅ 已完成 |
 
 ### 11.4 验证方法
 
@@ -723,7 +723,7 @@ export const SAMPLES_KNOWLEDGE_DIR = path.join(ROOT, "samples", "knowledge-base"
 
 ---
 
-## 十二、自动测试框架全面 Gap 分析 ❌ 未完成
+## 十二、自动测试框架全面 Gap 分析 ✅ 已完成（P0 + P1 全部修复）
 
 > 2026-06-03 新增 — 10 个维度综合审查
 
