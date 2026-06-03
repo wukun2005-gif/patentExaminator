@@ -38,6 +38,7 @@ const FIXTURE_MAP: Record<string, Record<string, string>> = {
   },
   summary: {
     "g1-led": "summary-g1.json",
+    "g2-battery": "summary-g2.json",
   },
   translate: {
     "g1-led": "translate-g1.json",

@@ -150,26 +150,32 @@ export async function testTypeDefinitions() {
   log("T-RAG-013: 类型定义完整性", true);
 }
 
-// ── T-RAG-014: IndexedDB schema 验证 ───────────────────────────────
+// ── T-RAG-014: 数据持久化验证 ──────────────────────────────────────
 
 export async function testIndexedDbSchema() {
-  const dbPath = path.join(CLIENT_SRC, "lib", "indexedDb.ts");
-  assert(fileExists(dbPath), "indexedDb.ts not found");
-  const code = readFile(dbPath);
-  assert(code.includes("knowledgeSources"), "Missing knowledgeSources store");
-  assert(code.includes("knowledgeChunks"), "Missing knowledgeChunks store");
-  assert(code.includes("knowledgeVectors"), "Missing knowledgeVectors store");
-  log("T-RAG-014: IndexedDB schema", true);
+  // B-038 迁移后，IndexedDB 已移至服务端 SQLite
+  // 验证 repos.ts 包含 knowledge 相关的 CRUD 操作
+  const reposPath = path.join(CLIENT_SRC, "lib", "repos.ts");
+  assert(fileExists(reposPath), "repos.ts not found");
+  const reposCode = readFile(reposPath);
+  assert(reposCode.includes("knowledge") || reposCode.includes("Knowledge"), "repos.ts should handle knowledge data");
+
+  // 验证 knowledgeRepo.ts 存在
+  const knowledgeRepoPath = path.join(CLIENT_SRC, "lib", "knowledge", "knowledgeRepo.ts");
+  assert(fileExists(knowledgeRepoPath), "knowledgeRepo.ts not found");
+
+  log("T-RAG-014: 数据持久化验证", true);
 }
 
 // ── T-RAG-015: Agent 集成验证 ──────────────────────────────────────
 
 export async function testAgentIntegration() {
-  const agentPath = path.join(CLIENT_SRC, "agent", "AgentClient.ts");
-  assert(fileExists(agentPath), "AgentClient.ts not found");
-  const code = readFile(agentPath);
-  assert(code.includes("enhancePromptWithKnowledge"), "Missing enhancePromptWithKnowledge method");
-  assert(code.includes("injectKnowledge"), "Missing injectKnowledge import");
+  // B-038 迁移后，AgentClient.ts 已删除，AI 调用通过服务端 orchestrator
+  // 验证 promptInjector.ts 包含 injectKnowledge 函数
+  const injectorPath = path.join(CLIENT_SRC, "lib", "knowledge", "promptInjector.ts");
+  assert(fileExists(injectorPath), "promptInjector.ts not found");
+  const code = readFile(injectorPath);
+  assert(code.includes("injectKnowledge"), "Missing injectKnowledge function");
   log("T-RAG-015: Agent 集成", true);
 }
 

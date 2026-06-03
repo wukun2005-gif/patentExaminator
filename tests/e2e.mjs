@@ -33,10 +33,12 @@ import {
   delay,
   AI_RATE_LIMIT_DELAY,
   SEARCH_RATE_LIMIT_DELAY,
+  REAL_MODE_TEST_TIMEOUT,
   FILE_TO_TEST_MAP,
   resetResults,
   printSummary,
   allPassed,
+  log,
 } from "./e2e-shared/index.mjs";
 
 // 导入所有测试函数
@@ -278,6 +280,7 @@ async function main() {
     autoGroups = getAutoTestGroups();
   }
 
+  const startTime = Date.now();
   console.log("\n=== Patent Examiner E2E Functional Tests ===\n");
 
   // 重置测试结果
@@ -289,6 +292,22 @@ async function main() {
     if (gateFailed) {
       process.exit(1);
     }
+  }
+
+  // ── Server Health Check ──
+  const BASE = getTestBase();
+  try {
+    const healthRes = await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(5000) });
+    if (!healthRes.ok) {
+      console.error(`ERROR: Server at ${BASE} returned ${healthRes.status}`);
+      console.error("  Please start the server first: npm run dev:server\n");
+      process.exit(1);
+    }
+    console.log(`Server: ${BASE} ✓\n`);
+  } catch {
+    console.error(`ERROR: Cannot connect to server at ${BASE}`);
+    console.error("  Please start the server first: npm run dev:server\n");
+    process.exit(1);
   }
 
   if (onlyReal) {
@@ -308,6 +327,21 @@ async function main() {
   let currentGroup = "";
   function setGroup(group) {
     currentGroup = group;
+  }
+
+  // 带超时的测试执行器（用于 real mode）
+  async function withTimeout(fn, timeoutMs = REAL_MODE_TEST_TIMEOUT) {
+    try {
+      return await Promise.race([
+        fn(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Test timeout (${timeoutMs / 1000}s)`)), timeoutMs)
+        ),
+      ]);
+    } catch (err) {
+      log(fn.name, false, err.message);
+      return null;
+    }
   }
 
   function maybe(fn, ...fnArgs) {
@@ -346,45 +380,45 @@ async function main() {
 
       setGroup("real");
       console.log("--- Provider Connectivity ---");
-      await maybe(testRealProviderConnectivity);
+      await withTimeout(() => maybe(testRealProviderConnectivity));
       await delay(2000);
 
       console.log("\n--- Gemini Model List ---");
-      await maybe(testRealGeminiModelList);
+      await withTimeout(() => maybe(testRealGeminiModelList));
       await delay(2000);
 
       console.log("\n--- Real Agent Tests ---");
-      await maybe(testRealClaimChart_G1);
+      await withTimeout(() => maybe(testRealClaimChart_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealNovelty_G1);
+      await withTimeout(() => maybe(testRealNovelty_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealInventive_G2);
+      await withTimeout(() => maybe(testRealInventive_G2));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealDefects_G1);
+      await withTimeout(() => maybe(testRealDefects_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealChat_G1);
+      await withTimeout(() => maybe(testRealChat_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealInterpret_G1);
+      await withTimeout(() => maybe(testRealInterpret_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealExtractCaseFields_G1);
+      await withTimeout(() => maybe(testRealExtractCaseFields_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealOpinionAnalysis_G1);
+      await withTimeout(() => maybe(testRealOpinionAnalysis_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealArgumentAnalysis_G1);
+      await withTimeout(() => maybe(testRealArgumentAnalysis_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealReexamDraft_G1);
+      await withTimeout(() => maybe(testRealReexamDraft_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealSummary_G1);
+      await withTimeout(() => maybe(testRealSummary_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealTranslate_G1);
+      await withTimeout(() => maybe(testRealTranslate_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealClassifyDocuments_G1);
+      await withTimeout(() => maybe(testRealClassifyDocuments_G1));
       await delay(AI_RATE_LIMIT_DELAY);
-      await maybe(testRealTokenUsageReturned);
+      await withTimeout(() => maybe(testRealTokenUsageReturned));
       await delay(2000);
 
       console.log("\n--- EPO Search ---");
-      await maybe(testRealEpoSearchCandidates);
+      await withTimeout(() => maybe(testRealEpoSearchCandidates));
 
     } else {
       // ========== Mock Mode Tests (Default) ==========
@@ -538,40 +572,40 @@ async function main() {
         console.log(`  TAVILY_API_KEY: ${maskKey(TAVILY_API_KEY)}`);
         console.log(`  SerpAPI_KEY: ${maskKey(SERP_API_KEY)}\n`);
 
-        await maybe(testRealProviderConnectivity);
+        await withTimeout(() => maybe(testRealProviderConnectivity));
         await delay(2000);
 
-        await maybe(testRealGeminiModelList);
+        await withTimeout(() => maybe(testRealGeminiModelList));
         await delay(2000);
 
-        await maybe(testRealClaimChart_G1);
+        await withTimeout(() => maybe(testRealClaimChart_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealNovelty_G1);
+        await withTimeout(() => maybe(testRealNovelty_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealInventive_G2);
+        await withTimeout(() => maybe(testRealInventive_G2));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealDefects_G1);
+        await withTimeout(() => maybe(testRealDefects_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealChat_G1);
+        await withTimeout(() => maybe(testRealChat_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealInterpret_G1);
+        await withTimeout(() => maybe(testRealInterpret_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealExtractCaseFields_G1);
+        await withTimeout(() => maybe(testRealExtractCaseFields_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealOpinionAnalysis_G1);
+        await withTimeout(() => maybe(testRealOpinionAnalysis_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealArgumentAnalysis_G1);
+        await withTimeout(() => maybe(testRealArgumentAnalysis_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealReexamDraft_G1);
+        await withTimeout(() => maybe(testRealReexamDraft_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealSummary_G1);
+        await withTimeout(() => maybe(testRealSummary_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealTranslate_G1);
+        await withTimeout(() => maybe(testRealTranslate_G1));
         await delay(AI_RATE_LIMIT_DELAY);
-        await maybe(testRealClassifyDocuments_G1);
+        await withTimeout(() => maybe(testRealClassifyDocuments_G1));
         await delay(AI_RATE_LIMIT_DELAY);
 
-        await maybe(testRealEpoSearchCandidates);
+        await withTimeout(() => maybe(testRealEpoSearchCandidates));
       } else {
         console.log("\n--- Real Mode (skipped, no GEMINI_KEY) ---");
         console.log("  Set GEMINI_KEY to run real AI tests, or use --real flag\n");
@@ -579,10 +613,12 @@ async function main() {
     }
   } catch (err) {
     console.error("\nFATAL:", err.message);
+    // FATAL 错误必须以非零退出码退出
+    process.exit(1);
   }
 
   // ── Summary ──
-  const duration = 0;
+  const duration = Date.now() - startTime;
   printSummary(duration);
 
   process.exit(allPassed() ? 0 : 1);
