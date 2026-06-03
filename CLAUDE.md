@@ -26,7 +26,7 @@ SerpAPI_KEY=your_serp_key
 EPO_CONSUMER_KEY=your_epo_key
 EPO_CONSUMER_SECRET_KEY=your_epo_secret
 
-# 知识库 Reranker（可选）
+# 知识库 Embedding/Reranker（可选）
 siliconflow_Key=your_siliconflow_key
 ```
 
@@ -41,6 +41,7 @@ siliconflow_Key=your_siliconflow_key
 - **需要的 API Key**：
   - LLM API（fallback 顺序）：`MiMo_KEY` → `GEMINI_KEY` → `Openrouter_KEY`
   - 搜索 API：`TAVILY_API_KEY`、`SerpAPI_KEY`、`EPO_CONSUMER_KEY` + `EPO_CONSUMER_SECRET_KEY`
+  - Embedding/Reranker API：`siliconflow_Key`
 - **缺少 key 时**：对应测试自动 skip，不报错
 
 ### 单元/集成测试
@@ -65,7 +66,8 @@ siliconflow_Key=your_siliconflow_key
 |------|-----------|------|
 | LLM API key | `apiKey` | `{ "apiKey": "sk-xxx" }` |
 | 搜索 API key | `searchApiKey` | `{ "searchApiKey": "epo_key:epo_secret" }` |
-| 知识库 Reranker | `reranker.apiKey` | `{ "reranker": { "apiKey": "sk-xxx" } }` |
+| 知识库 Embedding | `embedding.apiKey` | `{ "embedding": { "apiKey": "sk-xxx", "baseUrl": "...", "modelId": "..." } }` |
+| 知识库 Reranker | `reranker.apiKey` | `{ "reranker": { "apiKey": "sk-xxx", "baseUrl": "...", "modelId": "..." } }` |
 
 测试脚本通过 `tests/e2e-shared/env.mjs` 的 `loadEnvFile()` 加载 `.env`，通过 `getApiKey("gemini")` 等函数获取 key。
 
