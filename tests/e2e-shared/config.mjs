@@ -139,12 +139,6 @@ export const RETRY_DELAY_INCREMENT = 3000;
 /** 默认测试服务器地址 */
 export const DEFAULT_TEST_BASE = "http://localhost:3000/api";
 
-/** 知识库测试服务器端口 */
-export const KNOWLEDGE_TEST_PORT = 3099;
-
-/** 知识库测试服务器地址 */
-export const KNOWLEDGE_TEST_BASE = `http://localhost:${KNOWLEDGE_TEST_PORT}/api`;
-
 // ── 智能测试选择：文件路径 → 测试组映射 ─────────────────────────────
 
 /**
