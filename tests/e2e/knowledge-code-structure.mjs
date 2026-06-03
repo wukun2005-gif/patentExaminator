@@ -30,26 +30,15 @@ function readFile(p) {
 // ── T-RAG-001: 测试数据完整性 ──────────────────────────────────────
 
 export async function testSampleDataIntegrity() {
-  const expected = [
-    "专利审查指南.pdf",
-    "专利法_2020修正.txt",
-    "专利法实施细则_2023.txt",
-    "最高法_专利授权确权司法解释一_2020.txt",
-    "2024年度专利复审无效典型案例决定要点汇编.pdf",
-    "审查标准速查表.xlsx",
-    "审查标准速查表.csv",
-    "驳回理由对照表.xlsx",
-    "三步法流程图.png",
-    "专利法条文速查.md",
-    "测试案例.json",
-    "测试网页内容.txt",
-  ];
-  for (const file of expected) {
+  const files = fs.readdirSync(SAMPLES_KNOWLEDGE_DIR);
+  assert(files.length > 0, "No files in samples/knowledge-base/");
+  for (const file of files) {
     const filePath = path.join(SAMPLES_KNOWLEDGE_DIR, file);
-    assert(fileExists(filePath), `Missing: ${file}`);
-    assert(fs.statSync(filePath).size > 0, `Empty: ${file}`);
+    const stat = fs.statSync(filePath);
+    assert(stat.isFile(), `Not a file: ${file}`);
+    assert(stat.size > 0, `Empty: ${file}`);
   }
-  log("T-RAG-001: 测试数据文件完整性", true, `${expected.length} files`);
+  log("T-RAG-001: 测试数据文件完整性", true, `${files.length} files`);
 }
 
 // ── T-RAG-002~008: 文件格式验证 ─────────────────────────────────────

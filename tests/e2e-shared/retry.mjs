@@ -27,9 +27,9 @@ export function delay(ms) {
 }
 
 /**
- * 计算指数退避延迟
+ * 计算线性退避延迟（base + attempt * increment）
  */
-export function getExponentialBackoff(attempt, baseMs = RETRY_BASE_DELAY) {
+export function getLinearBackoff(attempt, baseMs = RETRY_BASE_DELAY) {
   return baseMs + attempt * RETRY_DELAY_INCREMENT;
 }
 
@@ -189,7 +189,7 @@ export async function withRetry(fn, options = {}) {
       lastError = err instanceof Error ? err : new Error(String(err));
 
       if (attempt < maxRetries && shouldRetry(lastError)) {
-        const waitMs = backoff ? getExponentialBackoff(attempt, delayMs) : delayMs;
+        const waitMs = backoff ? getLinearBackoff(attempt, delayMs) : delayMs;
         console.log(`  [Retry] Attempt ${attempt + 1}/${maxRetries + 1} failed: ${lastError.message}, waiting ${waitMs}ms...`);
         await delay(waitMs);
         continue;

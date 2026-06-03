@@ -32,7 +32,6 @@ import {
   maskKey,
   delay,
   AI_RATE_LIMIT_DELAY,
-  SEARCH_RATE_LIMIT_DELAY,
   REAL_MODE_TEST_TIMEOUT,
   FILE_TO_TEST_MAP,
   resetResults,
@@ -344,9 +343,10 @@ async function main() {
     }
   }
 
-  // 运行所有 real mode 测试（消除重复代码）
+  // 运行所有 real mode 测试（数据驱动）
   async function runRealModeTests() {
     setGroup("real");
+
     console.log("\n--- Provider Connectivity ---");
     await withTimeout(() => maybe(testRealProviderConnectivity));
     await delay(2000);
@@ -356,34 +356,18 @@ async function main() {
     await delay(2000);
 
     console.log("\n--- Real Agent Tests ---");
-    await withTimeout(() => maybe(testRealClaimChart_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealNovelty_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealInventive_G2));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealDefects_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealChat_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealInterpret_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealExtractCaseFields_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealOpinionAnalysis_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealArgumentAnalysis_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealReexamDraft_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealSummary_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealTranslate_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealClassifyDocuments_G1));
-    await delay(AI_RATE_LIMIT_DELAY);
-    await withTimeout(() => maybe(testRealTokenUsageReturned));
-    await delay(2000);
+    const realAgentTests = [
+      testRealClaimChart_G1, testRealNovelty_G1, testRealInventive_G2,
+      testRealDefects_G1, testRealChat_G1, testRealInterpret_G1,
+      testRealExtractCaseFields_G1, testRealOpinionAnalysis_G1,
+      testRealArgumentAnalysis_G1, testRealReexamDraft_G1,
+      testRealSummary_G1, testRealTranslate_G1, testRealClassifyDocuments_G1,
+      testRealTokenUsageReturned,
+    ];
+    for (const fn of realAgentTests) {
+      await withTimeout(() => maybe(fn));
+      await delay(AI_RATE_LIMIT_DELAY);
+    }
 
     console.log("\n--- EPO Search ---");
     await withTimeout(() => maybe(testRealEpoSearchCandidates));
@@ -483,7 +467,7 @@ async function main() {
       setGroup("knowledge");
       console.log("\n--- Knowledge Base ---");
       const BASE = getTestBase();
-      await fetch(`${BASE}/knowledge/clear`, { method: "DELETE" }).catch(() => {});
+      await fetch(`${BASE}/knowledge/clear`, { method: "DELETE" }).catch((err) => console.warn(`  [warn] knowledge/clear failed: ${err.message}`));
       await maybe(testKnowledgeUploadTxt);
       await maybe(testKnowledgeUploadLargeFile);
       await maybe(testKnowledgeUploadMd);

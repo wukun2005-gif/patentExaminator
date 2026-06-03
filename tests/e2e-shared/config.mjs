@@ -24,6 +24,9 @@ export const SAMPLES_CASE_DIR = path.join(ROOT, "samples", "led-heatsink-mini");
 /** 知识库测试数据目录 */
 export const SAMPLES_KNOWLEDGE_DIR = path.join(ROOT, "samples", "knowledge-base");
 
+/** SiliconFlow API 基础 URL */
+export const SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1";
+
 // ── API Key 配置 ─────────────────────────────────────────────────────
 
 /** API key 环境变量名称映射 */

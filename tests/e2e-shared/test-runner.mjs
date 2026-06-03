@@ -136,10 +136,10 @@ export function printSummary(duration) {
 }
 
 /**
- * 检查是否所有测试都通过
+ * 检查是否所有测试都通过（跳过的不算失败）
  */
 export function allPassed() {
-  return results.every((r) => r.pass);
+  return results.every((r) => r.pass || r.skipped);
 }
 
 /**

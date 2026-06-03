@@ -16,6 +16,7 @@ import {
   getTestBase,
   getApiKey,
   SAMPLES_KNOWLEDGE_DIR,
+  SILICONFLOW_BASE_URL,
 } from "../e2e-shared/index.mjs";
 
 // 构建 embedding/reranker 配置（当前用同一个 key，但结构独立以便将来扩展）
@@ -25,14 +26,14 @@ function getKnowledgeUploadOptions() {
   const options = {};
   if (embeddingKey) {
     options.embedding = {
-      baseUrl: "https://api.siliconflow.cn/v1",
+      baseUrl: SILICONFLOW_BASE_URL,
       apiKey: embeddingKey,
       modelId: "BAAI/bge-m3",
     };
   }
   if (rerankerKey) {
     options.reranker = {
-      baseUrl: "https://api.siliconflow.cn/v1",
+      baseUrl: SILICONFLOW_BASE_URL,
       apiKey: rerankerKey,
       modelId: "BAAI/bge-reranker-v2-m3",
     };
@@ -42,39 +43,30 @@ function getKnowledgeUploadOptions() {
 
 // ── 知识库测试 ──────────────────────────────────────────────────────
 
-export async function testKnowledgeUploadTxt() {
-  const filePath = path.join(SAMPLES_KNOWLEDGE_DIR, "专利法_2020修正.txt");
-  const result = await uploadKnowledgeFile(filePath, getKnowledgeUploadOptions());
-  log("Knowledge Upload TXT", result.ok, result.ok ? `file=${path.basename(filePath)}` : result.error);
-}
+// 数据驱动的上传测试
+const UPLOAD_TEST_FILES = [
+  { name: "TXT", file: "专利法_2020修正.txt" },
+  { name: "Large File", file: "专利审查指南.pdf", optional: true },
+  { name: "MD", file: "专利法条文速查.md" },
+  { name: "JSON", file: "测试案例.json" },
+  { name: "CSV", file: "审查标准速查表.csv" },
+];
 
-export async function testKnowledgeUploadLargeFile() {
-  const filePath = path.join(SAMPLES_KNOWLEDGE_DIR, "专利审查指南.pdf");
-  if (!fs.existsSync(filePath)) {
-    log("Knowledge Upload Large File", true, "skipped (file not found)");
+async function runUploadTest(label, fileName, optional = false) {
+  const filePath = path.join(SAMPLES_KNOWLEDGE_DIR, fileName);
+  if (optional && !fs.existsSync(filePath)) {
+    log(`Knowledge Upload ${label}`, true, "skipped (file not found)");
     return;
   }
   const result = await uploadKnowledgeFile(filePath, getKnowledgeUploadOptions());
-  log("Knowledge Upload Large File", result.ok, result.ok ? `file=${path.basename(filePath)}` : result.error);
+  log(`Knowledge Upload ${label}`, result.ok, result.ok ? `file=${fileName}` : result.error);
 }
 
-export async function testKnowledgeUploadMd() {
-  const filePath = path.join(SAMPLES_KNOWLEDGE_DIR, "专利法条文速查.md");
-  const result = await uploadKnowledgeFile(filePath, getKnowledgeUploadOptions());
-  log("Knowledge Upload MD", result.ok, result.ok ? `file=${path.basename(filePath)}` : result.error);
-}
-
-export async function testKnowledgeUploadJson() {
-  const filePath = path.join(SAMPLES_KNOWLEDGE_DIR, "测试案例.json");
-  const result = await uploadKnowledgeFile(filePath, getKnowledgeUploadOptions());
-  log("Knowledge Upload JSON", result.ok, result.ok ? `file=${path.basename(filePath)}` : result.error);
-}
-
-export async function testKnowledgeUploadCsv() {
-  const filePath = path.join(SAMPLES_KNOWLEDGE_DIR, "审查标准速查表.csv");
-  const result = await uploadKnowledgeFile(filePath, getKnowledgeUploadOptions());
-  log("Knowledge Upload CSV", result.ok, result.ok ? `file=${path.basename(filePath)}` : result.error);
-}
+export async function testKnowledgeUploadTxt() { await runUploadTest("TXT", "专利法_2020修正.txt"); }
+export async function testKnowledgeUploadLargeFile() { await runUploadTest("Large File", "专利审查指南.pdf", true); }
+export async function testKnowledgeUploadMd() { await runUploadTest("MD", "专利法条文速查.md"); }
+export async function testKnowledgeUploadJson() { await runUploadTest("JSON", "测试案例.json"); }
+export async function testKnowledgeUploadCsv() { await runUploadTest("CSV", "审查标准速查表.csv"); }
 
 export async function testKnowledgeDuplicateDetection() {
   const filePath = path.join(SAMPLES_KNOWLEDGE_DIR, "专利法_2020修正.txt");
@@ -229,7 +221,7 @@ export async function testKnowledgeProviderTestEndpoint() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       providerType: "embedding",
-      baseUrl: "https://api.siliconflow.cn/v1",
+      baseUrl: SILICONFLOW_BASE_URL,
       apiKey: "invalid-key",
       modelId: "BAAI/bge-m3",
     }),
@@ -273,7 +265,7 @@ export async function testKnowledgeRerankerIntegration() {
       query: "新颖性判断标准",
       topK: 3,
       reranker: {
-        baseUrl: "https://api.siliconflow.cn/v1",
+        baseUrl: SILICONFLOW_BASE_URL,
         apiKey: rerankerKey,
         modelId: "BAAI/bge-reranker-v2-m3",
       },

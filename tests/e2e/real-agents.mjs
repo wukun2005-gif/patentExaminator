@@ -25,6 +25,7 @@ import {
   validateSummaryOutput,
   validateTranslateOutput,
   validateExtractCaseFieldsOutput,
+  validateInterpretOutput,
   validateClassifyDocumentsOutput,
   validateSearchReferencesOutput,
   GEMINI_FALLBACK_MODELS,
@@ -36,7 +37,6 @@ import {
   SAMPLE_REF_D2,
   SAMPLE_OA_G1,
   SAMPLE_RESPONSE_G1,
-  SAMPLE_FEATURES_G1,
 } from "../e2e-shared/index.mjs";
 
 // ── Real AI 测试辅助函数 ────────────────────────────────────────────

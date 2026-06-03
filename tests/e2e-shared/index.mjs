@@ -23,6 +23,7 @@ export {
   FILE_TO_TEST_MAP,
   SAMPLES_CASE_DIR,
   SAMPLES_KNOWLEDGE_DIR,
+  SILICONFLOW_BASE_URL,
 } from "./config.mjs";
 
 // 环境变量模块
@@ -50,7 +51,7 @@ export {
 // 重试逻辑模块
 export {
   delay,
-  getExponentialBackoff,
+  getLinearBackoff,
   isRetryableError,
   isAuthError,
   isQuotaError,
