@@ -31,6 +31,12 @@ import {
   GEMINI_FALLBACK_MODELS,
   AI_RATE_LIMIT_DELAY,
   SEARCH_RATE_LIMIT_DELAY,
+  RETRY_BASE_DELAY,
+  RETRY_DELAY_INCREMENT,
+  GEMINI_FALLBACK_BASE_DELAY,
+  GEMINI_FALLBACK_DELAY_INCREMENT,
+  OPENROUTER_FALLBACK_BASE_DELAY,
+  OPENROUTER_FALLBACK_DELAY_INCREMENT,
   SAMPLE_CLAIM_G1,
   SAMPLE_SPEC_G1,
   SAMPLE_REF_D1,
@@ -123,7 +129,7 @@ async function runRealAiAgentTest(label, agent, prompt, metadata, onResponse) {
       const data = await res.json();
 
       if (!data.ok && data.error && isRetryableError(data.error.message)) {
-        const waitMs = 5000 + attempt * 3000;
+        const waitMs = RETRY_BASE_DELAY + attempt * RETRY_DELAY_INCREMENT;
         console.log(`  [Retryable] ${data.error.message}, switching model (wait ${waitMs}ms)...`);
         await delay(waitMs);
         continue;
@@ -152,7 +158,7 @@ async function runRealAiAgentTest(label, agent, prompt, metadata, onResponse) {
       return data;
     } catch (err) {
       if (attempt < GEMINI_FALLBACK_MODELS.length - 1) {
-        const waitMs = 15000 + attempt * 5000;
+        const waitMs = GEMINI_FALLBACK_BASE_DELAY + attempt * GEMINI_FALLBACK_DELAY_INCREMENT;
         console.log(`  [${labelWithAttempt}] error: ${err.message}, retrying in ${waitMs}ms...`);
         await delay(waitMs);
         continue;
@@ -171,7 +177,7 @@ async function runRealAiAgentTest(label, agent, prompt, metadata, onResponse) {
 
       try {
         if (openrouterAttempt > 0) {
-          const waitMs = 10000 + openrouterAttempt * 5000;
+          const waitMs = OPENROUTER_FALLBACK_BASE_DELAY + openrouterAttempt * OPENROUTER_FALLBACK_DELAY_INCREMENT;
           await delay(waitMs);
         }
 

@@ -168,161 +168,61 @@ export async function testMockInterpret_G1() {
     `length=${response?.length || 0}`);
 }
 
-// ── Mock: Reexamination Agents ───────────────────────────────────────
+// ── Mock: Reexamination Agents（表驱动）────────────────────────────
 
-export async function testMockOpinionAnalysis_G1() {
-  const res = await postJSON("/ai/run", buildMockRequest({
-    agent: "opinion-analysis",
-    caseId: "g1-led",
-    moduleScope: "opinion-analysis",
-  }));
+// 通用 mock agent 测试辅助函数
+async function runMockAgentTest(label, agent, moduleScope, validator, extraChecks) {
+  const res = await postJSON("/ai/run", buildMockRequest({ agent, caseId: "g1-led", moduleScope }));
   const data = await res.json();
-  log("Mock OpinionAnalysis G1 ok", data.ok === true, `ok=${data.ok}`);
-  log("Mock OpinionAnalysis G1 has outputJson", data.outputJson != null);
-  log("Mock OpinionAnalysis G1 no structureErrors",
+  log(`Mock ${label} ok`, data.ok === true, `ok=${data.ok}`);
+  log(`Mock ${label} has outputJson`, data.outputJson != null);
+  log(`Mock ${label} no structureErrors`,
     !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
     `structureErrors=${JSON.stringify(data.structureErrors)}`);
 
-  const result = validateOpinionAnalysisOutput(data.outputJson);
-  log("Mock OpinionAnalysis G1 schema valid", result.valid, result.errors.join("; "));
+  if (validator && data.outputJson) {
+    const result = validator(data.outputJson);
+    log(`Mock ${label} schema valid`, result.valid, result.errors.join("; "));
+  }
 
-  const grounds = data.outputJson?.rejectionGrounds;
-  log("Mock OpinionAnalysis G1 has rejectionGrounds",
-    Array.isArray(grounds) && grounds.length >= 1, `count=${grounds?.length}`);
+  if (extraChecks && data.outputJson) {
+    extraChecks(data.outputJson, label);
+  }
 }
 
-export async function testMockArgumentAnalysis_G1() {
-  const res = await postJSON("/ai/run", buildMockRequest({
-    agent: "argument-analysis",
-    caseId: "g1-led",
-    moduleScope: "argument-mapping",
-  }));
-  const data = await res.json();
-  log("Mock ArgumentAnalysis G1 ok", data.ok === true, `ok=${data.ok}`);
-  log("Mock ArgumentAnalysis G1 has outputJson", data.outputJson != null);
-  log("Mock ArgumentAnalysis G1 no structureErrors",
-    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
-    `structureErrors=${JSON.stringify(data.structureErrors)}`);
+// 复审 agent 测试定义
+const REEXAM_TESTS = [
+  { label: "OpinionAnalysis", agent: "opinion-analysis", moduleScope: "opinion-analysis", validator: validateOpinionAnalysisOutput,
+    extra: (o, l) => { const g = o.rejectionGrounds; log(`Mock ${l} has rejectionGrounds`, Array.isArray(g) && g.length >= 1, `count=${g?.length}`); }},
+  { label: "ArgumentAnalysis", agent: "argument-analysis", moduleScope: "argument-mapping", validator: validateArgumentMappingOutput,
+    extra: (o, l) => { const m = o.mappings; log(`Mock ${l} has mappings`, Array.isArray(m) && m.length >= 1, `count=${m?.length}`); }},
+  { label: "ReexamDraft", agent: "reexam-draft", moduleScope: "draft", validator: validateReexamDraftOutput,
+    extra: (o, l) => { const i = o.responseItems; log(`Mock ${l} has responseItems`, Array.isArray(i) && i.length >= 1, `count=${i?.length}`); }},
+  { label: "Summary", agent: "summary", moduleScope: "summary", validator: validateSummaryOutput,
+    extra: (o, l) => { log(`Mock ${l} body non-empty`, typeof o.body === "string" && o.body.length > 0); log(`Mock ${l} has aiNotes`, typeof o.aiNotes === "string"); }},
+  { label: "Translate", agent: "translate", moduleScope: "translate", validator: validateTranslateOutput,
+    extra: (o, l) => { log(`Mock ${l} translatedText non-empty`, typeof o.translatedText === "string" && o.translatedText.length > 0); }},
+  { label: "ExtractCaseFields", agent: "extract-case-fields", moduleScope: "case", validator: validateExtractCaseFieldsOutput,
+    extra: (o, l) => { log(`Mock ${l} has claims`, Array.isArray(o.claims) && o.claims.length > 0, `count=${o.claims?.length}`); log(`Mock ${l} has title`, typeof o.title === "string" && o.title.length > 0); }},
+  { label: "ClassifyDocuments", agent: "classify-documents", moduleScope: "classify-documents", validator: validateClassifyDocumentsOutput,
+    extra: (o, l) => { const r = (o.classifications || []).map(c => c.role); log(`Mock ${l} has application`, r.includes("application")); log(`Mock ${l} has reference`, r.includes("reference")); log(`Mock ${l} has office-action`, r.includes("office-action")); }},
+];
 
-  const result = validateArgumentMappingOutput(data.outputJson);
-  log("Mock ArgumentAnalysis G1 schema valid", result.valid, result.errors.join("; "));
-
-  const mappings = data.outputJson?.mappings;
-  log("Mock ArgumentAnalysis G1 has mappings",
-    Array.isArray(mappings) && mappings.length >= 1, `count=${mappings?.length}`);
+// 生成导出函数
+for (const t of REEXAM_TESTS) {
+  const fn = async () => runMockAgentTest(`${t.label} G1`, t.agent, t.moduleScope, t.validator, t.extra);
+  Object.defineProperty(fn, "name", { value: `testMock${t.label}_G1` });
+  // 动态导出需要通过全局对象
+  globalThis[`testMock${t.label}_G1`] = fn;
 }
 
-export async function testMockReexamDraft_G1() {
-  const res = await postJSON("/ai/run", buildMockRequest({
-    agent: "reexam-draft",
-    caseId: "g1-led",
-    moduleScope: "draft",
-  }));
-  const data = await res.json();
-  log("Mock ReexamDraft G1 ok", data.ok === true, `ok=${data.ok}`);
-  log("Mock ReexamDraft G1 has outputJson", data.outputJson != null);
-  log("Mock ReexamDraft G1 no structureErrors",
-    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
-    `structureErrors=${JSON.stringify(data.structureErrors)}`);
-
-  const result = validateReexamDraftOutput(data.outputJson);
-  log("Mock ReexamDraft G1 schema valid", result.valid, result.errors.join("; "));
-
-  const items = data.outputJson?.responseItems;
-  log("Mock ReexamDraft G1 has responseItems",
-    Array.isArray(items) && items.length >= 1, `count=${items?.length}`);
-}
-
-export async function testMockSummary_G1() {
-  const res = await postJSON("/ai/run", buildMockRequest({
-    agent: "summary",
-    caseId: "g1-led",
-    moduleScope: "summary",
-  }));
-  const data = await res.json();
-  log("Mock Summary G1 ok", data.ok === true, `ok=${data.ok}`);
-  log("Mock Summary G1 has outputJson", data.outputJson != null);
-  log("Mock Summary G1 no structureErrors",
-    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
-    `structureErrors=${JSON.stringify(data.structureErrors)}`);
-
-  const result = validateSummaryOutput(data.outputJson);
-  log("Mock Summary G1 schema valid", result.valid, result.errors.join("; "));
-
-  const body = data.outputJson?.body;
-  log("Mock Summary G1 body non-empty", typeof body === "string" && body.length > 0);
-
-  const aiNotes = data.outputJson?.aiNotes;
-  log("Mock Summary G1 has aiNotes", typeof aiNotes === "string");
-}
-
-export async function testMockTranslate_G1() {
-  const res = await postJSON("/ai/run", buildMockRequest({
-    agent: "translate",
-    caseId: "g1-led",
-    moduleScope: "translate",
-  }));
-  const data = await res.json();
-  log("Mock Translate G1 ok", data.ok === true, `ok=${data.ok}`);
-  log("Mock Translate G1 has outputJson", data.outputJson != null);
-  log("Mock Translate G1 no structureErrors",
-    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
-    `structureErrors=${JSON.stringify(data.structureErrors)}`);
-
-  const result = validateTranslateOutput(data.outputJson);
-  log("Mock Translate G1 schema valid", result.valid, result.errors.join("; "));
-
-  const translatedText = data.outputJson?.translatedText;
-  log("Mock Translate G1 translatedText non-empty", typeof translatedText === "string" && translatedText.length > 0);
-}
-
-export async function testMockExtractCaseFields_G1() {
-  const res = await postJSON("/ai/run", buildMockRequest({
-    agent: "extract-case-fields",
-    caseId: "g1-led",
-    moduleScope: "case",
-  }));
-  const data = await res.json();
-  log("Mock ExtractCaseFields G1 ok", data.ok === true, `ok=${data.ok}`);
-  log("Mock ExtractCaseFields G1 has outputJson", data.outputJson != null);
-  log("Mock ExtractCaseFields G1 no structureErrors",
-    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
-    `structureErrors=${JSON.stringify(data.structureErrors)}`);
-
-  const result = validateExtractCaseFieldsOutput(data.outputJson);
-  log("Mock ExtractCaseFields G1 schema valid", result.valid, result.errors.join("; "));
-
-  const claims = data.outputJson?.claims;
-  log("Mock ExtractCaseFields G1 has claims", Array.isArray(claims) && claims.length > 0,
-    `claims=${JSON.stringify(claims)}`);
-
-  const title = data.outputJson?.title;
-  log("Mock ExtractCaseFields G1 has title", typeof title === "string" && title.length > 0,
-    `title=${title}`);
-}
-
-export async function testMockClassifyDocuments_G1() {
-  const res = await postJSON("/ai/run", buildMockRequest({
-    agent: "classify-documents",
-    caseId: "g1-led",
-    moduleScope: "classify-documents",
-  }));
-  const data = await res.json();
-  log("Mock ClassifyDocuments G1 ok", data.ok === true, `ok=${data.ok}`);
-  log("Mock ClassifyDocuments G1 has outputJson", data.outputJson != null);
-  log("Mock ClassifyDocuments G1 no structureErrors",
-    !Array.isArray(data.structureErrors) || data.structureErrors.length === 0,
-    `structureErrors=${JSON.stringify(data.structureErrors)}`);
-
-  const result = validateClassifyDocumentsOutput(data.outputJson);
-  log("Mock ClassifyDocuments G1 schema valid", result.valid, result.errors.join("; "));
-
-  const classifications = data.outputJson?.classifications || [];
-  const roles = classifications.map(c => c.role);
-  log("Mock ClassifyDocuments G1 has application", roles.includes("application"), `roles=${roles.join(",")}`);
-  log("Mock ClassifyDocuments G1 has reference", roles.includes("reference"), `roles=${roles.join(",")}`);
-  log("Mock ClassifyDocuments G1 has office-action", roles.includes("office-action"), `roles=${roles.join(",")}`);
-}
+export const testMockOpinionAnalysis_G1 = globalThis.testMockOpinionAnalysis_G1;
+export const testMockArgumentAnalysis_G1 = globalThis.testMockArgumentAnalysis_G1;
+export const testMockReexamDraft_G1 = globalThis.testMockReexamDraft_G1;
+export const testMockSummary_G1 = globalThis.testMockSummary_G1;
+export const testMockTranslate_G1 = globalThis.testMockTranslate_G1;
+export const testMockExtractCaseFields_G1 = globalThis.testMockExtractCaseFields_G1;
+export const testMockClassifyDocuments_G1 = globalThis.testMockClassifyDocuments_G1;
 
 // ── Mock: Two-Step Search ────────────────────────────────────────────
 

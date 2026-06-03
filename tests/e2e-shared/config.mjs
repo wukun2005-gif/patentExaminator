@@ -137,6 +137,18 @@ export const RETRY_BASE_DELAY = 5000;
 /** 重试延迟增量（毫秒） */
 export const RETRY_DELAY_INCREMENT = 3000;
 
+/** Gemini fallback 基础延迟（毫秒） */
+export const GEMINI_FALLBACK_BASE_DELAY = 15000;
+
+/** Gemini fallback 延迟增量（毫秒） */
+export const GEMINI_FALLBACK_DELAY_INCREMENT = 5000;
+
+/** OpenRouter fallback 基础延迟（毫秒） */
+export const OPENROUTER_FALLBACK_BASE_DELAY = 10000;
+
+/** OpenRouter fallback 延迟增量（毫秒） */
+export const OPENROUTER_FALLBACK_DELAY_INCREMENT = 5000;
+
 // ── 测试服务器配置 ──────────────────────────────────────────────────
 
 /** 默认测试服务器地址 */

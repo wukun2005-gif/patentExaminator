@@ -8,6 +8,7 @@
 import fs from "fs";
 import path from "path";
 import { getTestBase } from "./env.mjs";
+import { parseSSEResponse } from "./http.mjs";
 
 // ── 文件上传工具 ────────────────────────────────────────────────────
 
@@ -46,26 +47,7 @@ export async function uploadKnowledgeFile(filePath, options = {}) {
   });
 
   // 解析 SSE 响应
-  const text = await res.text();
-  const lines = text.split("\n").filter((l) => l.startsWith("data: "));
-
-  // 从后向前查找 done 或 error 事件
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try {
-      const data = JSON.parse(lines[i].slice(6));
-      if (data.step === "done" || data.step === "error") {
-        return {
-          ok: data.step === "done",
-          data,
-          error: data.step === "error" ? data.error : null,
-        };
-      }
-    } catch {
-      // 跳过解析失败的行
-    }
-  }
-
-  return { ok: false, data: null, error: "No done event found" };
+  return parseSSEResponse(res);
 }
 
 /**
