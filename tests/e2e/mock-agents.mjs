@@ -327,8 +327,6 @@ export async function testMockClassifyDocuments_G1() {
 // ── Mock: Two-Step Search ────────────────────────────────────────────
 
 export async function testMockExtractSearchTerms_G1() {
-  const GEMINI_KEY = getApiKey("gemini");
-  if (!GEMINI_KEY) { log("MockExtractSearchTerms_G1: returns queries", true, "skipped (no GEMINI_KEY)"); return; }
   const res = await postJSON("/extract-search-terms", {
     caseId: "g1-led",
     claimText: "一种LED灯具散热装置，包括：散热基板(A)，铝合金材质，表面有散热翅片；导热界面层(B)，石墨烯复合导热膜，厚度0.1-0.5mm；风冷模块(C)，含离心风扇和导风罩。",
@@ -337,7 +335,7 @@ export async function testMockExtractSearchTerms_G1() {
       { featureCode: "B", description: "导热界面层" },
       { featureCode: "C", description: "风冷模块" }
     ],
-    llmApiKey: GEMINI_KEY,
+    mock: true,
   });
   const data = await res.json();
   const ok = data.ok && Array.isArray(data.queries) && data.queries.length >= 1 && data.featureCount === 3;

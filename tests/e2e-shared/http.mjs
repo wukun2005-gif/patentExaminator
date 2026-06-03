@@ -7,21 +7,25 @@
 
 import { getTestBase } from "./env.mjs";
 
-/** 默认请求超时（30 秒） */
-const DEFAULT_TIMEOUT_MS = 30_000;
+/** 默认请求超时（60 秒，AI 调用可能较慢） */
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 // ── HTTP 请求工具 ────────────────────────────────────────────────────
 
 /**
  * 发送 JSON POST 请求
+ * @param {string} pathname - API 路径
+ * @param {object} body - 请求体
+ * @param {string} [baseUrl] - 服务器地址
+ * @param {number} [timeoutMs] - 超时毫秒数
  */
-export async function postJSON(pathname, body, baseUrl) {
+export async function postJSON(pathname, body, baseUrl, timeoutMs) {
   const base = baseUrl || getTestBase();
   return fetch(`${base}${pathname}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs || DEFAULT_TIMEOUT_MS),
   });
 }
 
