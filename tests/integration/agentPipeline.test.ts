@@ -641,7 +641,7 @@ describe("References Full Chain (Store → DB)", () => {
     const updated = { ...ref, extractedText: "更新后的摘要" };
     await repos.updateDocument(updated);
 
-    const fetched = await repos.readDocumentById("ref-crud-2");
+    const fetched = await repos.getById<SourceDocument>("documents", "ref-crud-2");
     expect(fetched!.extractedText).toBe("更新后的摘要");
   });
 
@@ -661,7 +661,7 @@ describe("References Full Chain (Store → DB)", () => {
     await repos.createDocument(ref);
     await repos.deleteDocument("ref-crud-3");
 
-    const fetched = await repos.readDocumentById("ref-crud-3");
+    const fetched = await repos.getById<SourceDocument>("documents", "ref-crud-3");
     expect(fetched == null).toBe(true); // null or undefined
   });
 
@@ -699,7 +699,7 @@ describe("References Full Chain (Store → DB)", () => {
     await repos.createDocument(ref);
     await repos.deleteDocument("ref-cascade");
 
-    const fetched = await repos.readDocumentById("ref-cascade");
+    const fetched = await repos.getById<SourceDocument>("documents", "ref-cascade");
     expect(fetched == null).toBe(true);
   });
 });

@@ -223,5 +223,5 @@ export function printSeparator() {
  */
 export function printSkipped(name, reason) {
   console.log(`[SKIP] ${name} - ${reason}`);
-  results.push({ test: name, pass: true, detail: `skipped: ${reason}` });
+  results.push({ test: name, pass: true, detail: `skipped: ${reason}`, skipped: true });
 }

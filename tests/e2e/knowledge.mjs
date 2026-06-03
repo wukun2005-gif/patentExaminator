@@ -59,15 +59,6 @@ function getKnowledgeUploadOptions() {
 
 // ── 知识库测试 ──────────────────────────────────────────────────────
 
-// 数据驱动的上传测试
-const UPLOAD_TEST_FILES = [
-  { name: "TXT", file: "专利法_2020修正.txt" },
-  { name: "Large File", file: "专利审查指南.pdf", optional: true },
-  { name: "MD", file: "专利法条文速查.md" },
-  { name: "JSON", file: "测试案例.json" },
-  { name: "CSV", file: "审查标准速查表.csv" },
-];
-
 async function runUploadTest(label, fileName, optional = false) {
   const filePath = path.join(SAMPLES_KNOWLEDGE_DIR, fileName);
   if (optional && !fs.existsSync(filePath)) {
