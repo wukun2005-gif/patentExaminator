@@ -1,6 +1,8 @@
 import { Router } from "express";
-import { setApiKey, getApiKey as _getApiKey, removeApiKey as _removeApiKey } from "../security/keyStore.js";
+import { setApiKey } from "../security/keyStore.js";
 import { registry } from "../providers/registry.js";
+import { settingsProviderInputSchema } from "../../../shared/src/schemas/api-input.schema.js";
+import { validateExternalUrl, BlockedUrlError } from "../lib/urlValidation.js";
 
 export const settingsRouter = Router();
 
@@ -13,12 +15,12 @@ settingsRouter.put("/settings/providers/:providerId", (req, res) => {
     res.status(400).json({ error: "providerId is required" });
     return;
   }
-  const { apiKey } = req.body as { apiKey?: string };
-
-  if (!apiKey || typeof apiKey !== "string") {
-    res.status(400).json({ error: "apiKey is required" });
+  const parsed = settingsProviderInputSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues.map(i => i.message).join("; ") });
     return;
   }
+  const { apiKey } = parsed.data;
 
   setApiKey(providerId, apiKey);
   res.json({ ok: true, providerId });
@@ -42,6 +44,19 @@ settingsRouter.get("/providers/:providerId/models", async (req, res) => {
     res.status(400).json({ error: "providerId is required" });
     return;
   }
+
+  if (baseUrl) {
+    try {
+      validateExternalUrl(baseUrl);
+    } catch (err) {
+      if (err instanceof BlockedUrlError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  }
+
   const adapter = registry.get(providerId);
   if (!adapter) {
     res.status(404).json({ error: `Unknown provider: ${providerId}` });

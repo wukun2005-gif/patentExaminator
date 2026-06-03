@@ -55,14 +55,14 @@ export function getSyncDb(): Database.Database {
 }
 
 /** 获取最后同步时间 */
-export function getLastSyncTime(): string | null {
+function getLastSyncTime(): string | null {
   const db = getSyncDb();
   const row = db.prepare("SELECT value FROM sync_meta WHERE key = 'last_sync'").get() as { value: string } | undefined;
   return row?.value ?? null;
 }
 
 /** 更新最后同步时间 */
-export function updateLastSyncTime(): void {
+function updateLastSyncTime(): void {
   const db = getSyncDb();
   const now = new Date().toISOString();
   db.prepare("INSERT OR REPLACE INTO sync_meta (key, value) VALUES ('last_sync', ?)").run(now);
@@ -144,7 +144,7 @@ export function closeSyncDb(): void {
  * 重置数据库连接（仅测试用）
  * B-042: 测试数据库隔离机制 — 允许测试注入自定义数据库路径
  */
-export function resetSyncDbForTesting(customPath?: string): void {
+function _resetSyncDbForTesting(customPath?: string): void {
   if (db) {
     db.close();
     db = null;

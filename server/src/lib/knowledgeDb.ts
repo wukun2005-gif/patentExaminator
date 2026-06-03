@@ -13,7 +13,7 @@ const DB_PATH = process.env.KNOWLEDGE_DB_PATH ?? path.join(DATA_DIR, "knowledge.
 
 let db: Database.Database | null = null;
 
-export function getKnowledgeDb(): Database.Database {
+function getKnowledgeDb(): Database.Database {
   if (db) return db;
 
   if (!fs.existsSync(DATA_DIR)) {
@@ -184,7 +184,7 @@ export function findChunksByHashes(hashes: string[]): Map<string, { chunkId: str
 
     for (const row of rows) {
       let vector: number[] = [];
-      try { vector = JSON.parse(row.vector) as number[]; } catch { /* malformed vector */ }
+      try { vector = JSON.parse(row.vector) as number[]; } catch { logger.warn(`Malformed vector for chunk=${row.chunk_id}, hash=${row.text_hash}`); }
       result.set(row.text_hash, {
         chunkId: row.chunk_id,
         vector,
@@ -245,7 +245,7 @@ export function getAllVectors(): Array<{
     chunk_id: string; vector: string; model_id: string;
   }>).map(row => ({
     chunkId: row.chunk_id,
-    vector: (() => { try { return JSON.parse(row.vector) as number[]; } catch { return []; } })(),
+    vector: (() => { try { return JSON.parse(row.vector) as number[]; } catch { logger.warn(`Malformed vector for chunk=${row.chunk_id}`); return []; } })(),
     modelId: row.model_id,
   }));
 }
@@ -271,7 +271,7 @@ export function findDuplicateByHash(fileHash: string): { id: string; name: strin
 }
 
 /** 关闭并重置数据库连接（用于测试清理） */
-export function closeKnowledgeDb(): void {
+function _closeKnowledgeDb(): void {
   if (db) {
     db.close();
     db = null;

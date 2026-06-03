@@ -3,11 +3,14 @@ import { useParams } from "react-router-dom";
 import type { ReferenceDocument, SourceDocument } from "@shared/types/domain";
 import type { SearchReferencesCandidate, SearchReferencesResponse } from "@shared/types/api";
 import { classifyReferenceDate } from "../../lib/dateRules";
+import { createLogger } from "../../lib/logger";
+
+const log = createLogger("ReferenceSearchPanel");
 import { TimelineStatusBadge } from "../../components/TimelineStatusBadge";
 import { useReferencesStore, useCaseStore, useSettingsStore } from "../../store";
 import { createDocument } from "../../lib/repos";
 import { getLatestSearchSession, createSearchSession, updateSearchSession } from "../../lib/repos";
-import { searchReferences as _searchReferences, extractSearchTerms, searchWithTerms } from "../../lib/repos";
+import { extractSearchTerms, searchWithTerms } from "../../lib/repos";
 import { ErrorBanner } from "../../lib/errorDisplay";
 
 interface ReferenceSearchPanelProps {
@@ -70,7 +73,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
           setSearchStep("done");
         }
       } catch (e) {
-        console.warn("Failed to restore search session:", e);
+        log("Failed to restore search session:", e);
       }
     })();
   }, [caseId, setSearchTerms, setProviderResults, setSearchSessionId, setSearchStep]);

@@ -16,7 +16,6 @@ import type {
 } from "@shared/types/api";
 import { AiGatewayError } from "@shared/types/api";
 import type { ProviderId, AppSettings } from "@shared/types/agents";
-import type { FeedbackItem } from "@shared/types/feedback";
 import { waitForServerReady, clearServerReadyCache } from "./serverReady";
 import { createLogger } from "./logger";
 
@@ -114,18 +113,9 @@ export async function createDocument(item: SourceDocument): Promise<void> {
   await create("documents", item);
 }
 
-export async function readAllDocuments(): Promise<SourceDocument[]> {
-  return getAll<SourceDocument>("documents");
-}
-
 export async function readDocumentsByCaseId(caseId: string): Promise<SourceDocument[]> {
   const docs = await getAll<SourceDocument>("documents");
   return docs.filter((d) => d.caseId === caseId);
-}
-
-export async function readDocumentById(id: string): Promise<SourceDocument | undefined> {
-  const result = await getById<SourceDocument>("documents", id);
-  return result ?? undefined;
 }
 
 export async function updateDocument(item: SourceDocument): Promise<void> {
@@ -165,14 +155,6 @@ export async function readClaimFeaturesByCaseId(caseId: string): Promise<ClaimFe
   return query<ClaimFeature>("claimCharts", "caseId", caseId);
 }
 
-export async function readClaimFeaturesByClaimNumber(
-  caseId: string,
-  claimNumber: number
-): Promise<ClaimFeature[]> {
-  const all = await query<ClaimFeature>("claimCharts", "claimNumber", claimNumber);
-  return all.filter((f) => f.claimNumber === claimNumber && f.id.startsWith(caseId));
-}
-
 export async function updateClaimFeature(item: ClaimFeature): Promise<void> {
   await update("claimCharts", item.id, item);
 }
@@ -194,17 +176,8 @@ export async function createNovelty(item: NoveltyComparison): Promise<void> {
   await create("novelty", item as NoveltyComparison & { id: string });
 }
 
-export async function readAllNovelty(): Promise<NoveltyComparison[]> {
-  return getAll<NoveltyComparison>("novelty");
-}
-
 export async function readNoveltyByCaseId(caseId: string): Promise<NoveltyComparison[]> {
   return query<NoveltyComparison>("novelty", "caseId", caseId);
-}
-
-export async function readNoveltyById(id: string): Promise<NoveltyComparison | undefined> {
-  const result = await getById<NoveltyComparison>("novelty", id);
-  return result ?? undefined;
 }
 
 export async function updateNovelty(item: NoveltyComparison): Promise<void> {
@@ -228,17 +201,8 @@ export async function createInventive(item: InventiveStepAnalysis): Promise<void
   await create("inventive", item as InventiveStepAnalysis & { id: string });
 }
 
-export async function readAllInventive(): Promise<InventiveStepAnalysis[]> {
-  return getAll<InventiveStepAnalysis>("inventive");
-}
-
 export async function readInventiveByCaseId(caseId: string): Promise<InventiveStepAnalysis[]> {
   return query<InventiveStepAnalysis>("inventive", "caseId", caseId);
-}
-
-export async function readInventiveById(id: string): Promise<InventiveStepAnalysis | undefined> {
-  const result = await getById<InventiveStepAnalysis>("inventive", id);
-  return result ?? undefined;
 }
 
 export async function updateInventive(item: InventiveStepAnalysis): Promise<void> {
@@ -294,7 +258,7 @@ export async function readReexamDraft(caseId: string): Promise<ReexamDraftRespon
   return rest as unknown as ReexamDraftResponse;
 }
 
-export async function deleteReexamDraft(caseId: string): Promise<void> {
+async function deleteReexamDraft(caseId: string): Promise<void> {
   await remove("reexamDrafts", caseId);
 }
 
@@ -309,7 +273,7 @@ export async function readSummary(caseId: string): Promise<SummaryResponse | und
   return rest as unknown as SummaryResponse;
 }
 
-export async function deleteSummary(caseId: string): Promise<void> {
+async function deleteSummary(caseId: string): Promise<void> {
   await remove("summaries", caseId);
 }
 
@@ -367,7 +331,7 @@ export async function readOpinionAnalysis(caseId: string): Promise<OfficeActionA
   return analyses[0] ?? null;
 }
 
-export async function deleteOpinionAnalysis(caseId: string): Promise<void> {
+async function deleteOpinionAnalysis(caseId: string): Promise<void> {
   const analyses = await query<OfficeActionAnalysis>("opinionAnalyses", "caseId", caseId);
   for (const analysis of analyses) {
     await remove("opinionAnalyses", analysis.id);
@@ -394,28 +358,6 @@ export async function deleteArgumentMappings(caseId: string): Promise<void> {
 export async function clearOpinionData(caseId: string): Promise<void> {
   await deleteOpinionAnalysis(caseId);
   await deleteArgumentMappings(caseId);
-}
-
-// ── feedbackRepo ─────────────────────────────────────
-
-export async function createFeedback(item: FeedbackItem): Promise<void> {
-  await create("feedback", item as FeedbackItem & { id: string });
-}
-
-export async function readAllFeedback(): Promise<FeedbackItem[]> {
-  return getAll<FeedbackItem>("feedback");
-}
-
-export async function readFeedbackByCaseId(caseId: string): Promise<FeedbackItem[]> {
-  return query<FeedbackItem>("feedback", "caseId", caseId);
-}
-
-export async function updateFeedback(item: FeedbackItem): Promise<void> {
-  await update("feedback", item.id, item);
-}
-
-export async function deleteFeedback(id: string): Promise<void> {
-  await remove("feedback", id);
 }
 
 // ── interpretRepo ────────────────────────────────────
@@ -460,17 +402,13 @@ export async function getRunMarkersByCaseId(caseId: string): Promise<string[]> {
   return markers.map((m) => m.module as string);
 }
 
-export async function deleteRunMarker(caseId: string, module: string): Promise<void> {
-  await remove("runMarkers", `${caseId}::${module}`);
-}
-
 // ── searchSessionRepo ────────────────────────────────
 
 export async function createSearchSession(session: SearchSession): Promise<void> {
   await create("searchSessions", session as SearchSession & { id: string });
 }
 
-export async function getSearchSessionsByCaseId(caseId: string): Promise<SearchSession[]> {
+async function getSearchSessionsByCaseId(caseId: string): Promise<SearchSession[]> {
   return query<SearchSession>("searchSessions", "caseId", caseId);
 }
 
@@ -478,77 +416,9 @@ export async function updateSearchSession(session: SearchSession): Promise<void>
   await update("searchSessions", session.id, { ...session, updatedAt: new Date().toISOString() });
 }
 
-export async function deleteSearchSession(id: string): Promise<void> {
-  await remove("searchSessions", id);
-}
-
 export async function getLatestSearchSession(caseId: string): Promise<SearchSession | undefined> {
   const sessions = await getSearchSessionsByCaseId(caseId);
   return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-}
-
-// ── ocrCacheRepo ─────────────────────────────────────
-
-const OCR_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
-export async function writeOcrCache(cacheKey: string, text: string): Promise<void> {
-  await create("ocrCache", { id: cacheKey, cacheKey, text, createdAt: Date.now() });
-}
-
-export async function readOcrCache(cacheKey: string): Promise<string | null> {
-  const entry = await getById<{ cacheKey: string; text: string; createdAt: number }>("ocrCache", cacheKey);
-  if (!entry) return null;
-  if (Date.now() - entry.createdAt > OCR_CACHE_TTL_MS) {
-    await remove("ocrCache", cacheKey);
-    return null;
-  }
-  return entry.text;
-}
-
-export async function deleteOcrCache(cacheKey: string): Promise<void> {
-  await remove("ocrCache", cacheKey);
-}
-
-export async function clearExpiredOcrCache(): Promise<number> {
-  const all = await getAll<{ cacheKey: string; createdAt: number }>("ocrCache");
-  let cleared = 0;
-  const now = Date.now();
-  for (const entry of all) {
-    if (now - entry.createdAt > OCR_CACHE_TTL_MS) {
-      await remove("ocrCache", entry.cacheKey);
-      cleared++;
-    }
-  }
-  return cleared;
-}
-
-// ── settings helpers (clearAllLocalData) ──────────────
-
-const ALL_STORES = [
-  "cases", "documents", "textIndex", "claimNodes", "claimCharts",
-  "novelty", "inventive", "defects", "ocrCache",
-  "chatMessages", "chatSessions", "feedback", "settings",
-  "interpretSummaries", "opinionAnalyses", "argumentMappings",
-  "reexamDrafts", "summaries", "runMarkers", "searchSessions",
-  "knowledgeSources", "knowledgeChunks", "knowledgeVectors"
-] as const;
-
-export async function clearAllLocalData(): Promise<void> {
-  await Promise.all(ALL_STORES.map((store) => clearStore(store)));
-}
-
-// ── IndexedDB stubs (B-038: IndexedDB 已删除，以下为测试兼容 stub) ──
-
-export async function openPatentDB(): Promise<unknown> {
-  throw new Error("IndexedDB deleted in B-038 — tests need rewriting for server-side storage");
-}
-
-export function setDBInstance(_db: unknown): void {
-  // no-op stub
-}
-
-export function getDB(): unknown {
-  return null;
 }
 
 // ── Agent API (merged from agentApi.ts) ───────────────

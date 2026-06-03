@@ -1,5 +1,7 @@
 import type { FeedbackEntry } from "@shared/types/domain";
+import { createLogger } from "./logger";
 
+const log = createLogger("feedbackRepo");
 const STORAGE_KEY = "patent-examiner-feedback";
 
 function readAll(): FeedbackEntry[] {
@@ -8,7 +10,7 @@ function readAll(): FeedbackEntry[] {
     if (!raw) return [];
     return JSON.parse(raw) as FeedbackEntry[];
   } catch (e) {
-    console.warn("[feedbackRepo] JSON.parse failed:", e);
+    log("[feedbackRepo] JSON.parse failed:", e);
     return [];
   }
 }

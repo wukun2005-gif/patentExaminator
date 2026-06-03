@@ -18,7 +18,7 @@ vi.stubGlobal("fetch", mockFetch);
 import {
   getAll, query, getById, create, update, remove, clearStore,
   createCase, readAllCases, readCaseById, updateCase, deleteCase,
-  createDocument, readAllDocuments, readDocumentsByCaseId, readDocumentById,
+  createDocument, readDocumentsByCaseId,
   updateDocument, deleteDocument
 } from "@client/lib/repos";
 import type { PatentCase, SourceDocument } from "@shared/types/domain";
@@ -251,15 +251,6 @@ describe("repos.ts — Domain Functions", () => {
       expect(mockFetch).toHaveBeenCalledWith(`${API_BASE}/documents`, expect.objectContaining({ method: "POST" }));
     });
 
-    it("readAllDocuments returns all documents", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, records: [mockDoc] })
-      });
-      const result = await readAllDocuments();
-      expect(result).toEqual([mockDoc]);
-    });
-
     it("readDocumentsByCaseId filters by caseId", async () => {
       const otherDoc = { ...mockDoc, id: "doc-2", caseId: "case-2" };
       mockFetch.mockResolvedValueOnce({
@@ -269,15 +260,6 @@ describe("repos.ts — Domain Functions", () => {
       const result = await readDocumentsByCaseId("case-1");
       expect(result).toEqual([mockDoc]);
       expect(mockFetch).toHaveBeenCalledWith(`${API_BASE}/documents`);
-    });
-
-    it("readDocumentById returns a document", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ ok: true, record: mockDoc })
-      });
-      const result = await readDocumentById("doc-1");
-      expect(result).toEqual(mockDoc);
     });
 
     it("updateDocument calls PUT", async () => {

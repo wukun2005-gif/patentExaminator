@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import type { ReferenceDocument, SourceDocument } from "@shared/types/domain";
 import { classifyReferenceDate } from "../../lib/dateRules";
+import { createLogger } from "../../lib/logger";
+
+const log = createLogger("ReferenceLibraryPanel");
 import { extractPdfText } from "../../lib/pdfText";
 import { extractDocxText } from "../../lib/docxText";
 import { extractHtmlText } from "../../lib/htmlText";
@@ -77,7 +80,7 @@ export function ReferenceLibraryPanel() {
           textStatus = text ? "extracted" : "empty";
         }
       } catch (e) {
-        console.warn("[ReferenceLibraryPanel] text extraction failed:", e);
+        log("[ReferenceLibraryPanel] text extraction failed:", e);
         textStatus = "empty";
       }
 

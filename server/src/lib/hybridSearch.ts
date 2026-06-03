@@ -3,7 +3,7 @@
  * 从 client/src/lib/knowledge/hybridSearch.ts + bm25Search.ts 迁移
  */
 import MiniSearch from "minisearch";
-import { getAllChunks, getAllVectors as _getAllVectors } from "./knowledgeDb.js";
+import { getAllChunks } from "./knowledgeDb.js";
 import { logger } from "./logger.js";
 
 const RRF_K = 60; // RRF 常数

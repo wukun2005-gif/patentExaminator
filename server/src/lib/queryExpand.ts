@@ -19,7 +19,7 @@ const CROSS_LANG_MAP: Record<string, string[]> = {
 };
 
 /** 跨语言查询扩展 */
-export function expandCrossLanguage(query: string): string {
+function expandCrossLanguage(query: string): string {
   const expanded: string[] = [query];
   for (const [zh, enList] of Object.entries(CROSS_LANG_MAP)) {
     if (query.includes(zh)) {
@@ -43,7 +43,7 @@ const LEGAL_SYNONYMS: Record<string, string[]> = {
 };
 
 /** 法律同义词查询扩展 */
-export function expandQuery(query: string): string {
+function expandQuery(query: string): string {
   const expanded: string[] = [query];
   for (const [term, synonyms] of Object.entries(LEGAL_SYNONYMS)) {
     if (query.includes(term)) {
@@ -144,7 +144,7 @@ const ARTICLE_GRAPH: ArticleNode[] = [
 ];
 
 /** 获取法条图谱的扩展查询词 */
-export function expandQueryWithGraph(query: string): string {
+function expandQueryWithGraph(query: string): string {
   const expanded = new Set<string>([query]);
 
   for (const node of ARTICLE_GRAPH) {

@@ -19,7 +19,10 @@ import { createDefect } from "./repos";
 import { createSession, createMessage, getSessionsByCaseId, getMessagesBySessionId } from "./repos";
 import { useCaseStore, useDocumentsStore, useReferencesStore, useClaimsStore, useNoveltyStore, useInventiveStore, useDefectsStore, useChatStore } from "../store";
 
+import { createLogger } from "./logger";
 import presetData from "@shared/fixtures/preset-demo.json";
+
+const log = createLogger("presetLoader");
 
 export async function loadPresetCase(): Promise<string> {
   const data = presetData as unknown as {
@@ -45,7 +48,7 @@ export async function loadPresetCase(): Promise<string> {
     const existing = await readCaseById(theCase.id);
     isFirstLoad = !existing;
   } catch (e) {
-    console.warn("[presetLoader] readCaseById failed, assuming first load:", e);
+    log("[presetLoader] readCaseById failed, assuming first load:", e);
     isFirstLoad = true;
   }
 
@@ -91,7 +94,7 @@ export async function loadPresetCase(): Promise<string> {
     try {
       existingSessions = await getSessionsByCaseId(theCase.id);
     } catch (e) {
-      console.warn("[presetLoader] getSessionsByCaseId failed:", e);
+      log("[presetLoader] getSessionsByCaseId failed:", e);
       existingSessions = [];
     }
     const allMessages: ChatMessage[] = [];
@@ -99,7 +102,7 @@ export async function loadPresetCase(): Promise<string> {
       try {
         const msgs = await getMessagesBySessionId(s.id);
         allMessages.push(...msgs);
-      } catch (e) { console.warn("[presetLoader] getMessagesBySessionId failed:", e); }
+      } catch (e) { log("[presetLoader] getMessagesBySessionId failed:", e); }
     }
     // Use load* methods since data was already written to IndexedDB above
     useChatStore.getState().loadSessions(existingSessions);
@@ -130,7 +133,7 @@ export async function loadPresetCase(): Promise<string> {
         d.role === "reference"
       ) as ReferenceDocument[];
     } catch (e) {
-      console.warn("[presetLoader] readDocumentsByCaseId failed:", e);
+      log("[presetLoader] readDocumentsByCaseId failed:", e);
       existingRefs = data.referenceDocs as unknown as ReferenceDocument[];
     }
     useReferencesStore.getState().setReferences(existingRefs);

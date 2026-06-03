@@ -23,9 +23,13 @@ import {
 } from "../lib/knowledgeDb.js";
 import { extractText, extractFromUrl } from "../lib/knowledgeExtract.js";
 import { logger } from "../lib/logger.js";
-import { localRerank as _localRerank, crossEncoderRerank } from "../lib/reranker.js";
+import { crossEncoderRerank } from "../lib/reranker.js";
 import { invalidateBM25Index } from "../lib/hybridSearch.js";
 import { expandQueryFull } from "../lib/queryExpand.js";
+import { validateExternalUrl, BlockedUrlError } from "../lib/urlValidation.js";
+import { knowledgeSearchInputSchema, knowledgeProviderTestInputSchema, knowledgeImportUrlInputSchema } from "../../../shared/src/schemas/api-input.schema.js";
+
+const FETCH_TIMEOUT_MS = 30_000;
 
 export const knowledgeRouter = Router();
 
@@ -60,6 +64,7 @@ function createRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId
           model: config.modelId,
           input: texts.map((t) => t.length > 500 ? t.slice(0, 500) : t),
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -76,7 +81,7 @@ function createRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId
 }
 
 /** 设置远程 embedding 配置 */
-export function setRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId: string } | null) {
+function setRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId: string } | null) {
   _remoteEmbedderConfig = config;
   remoteEmbedder = config ? createRemoteEmbedder(config) : null;
   logger.info(`Remote embedding ${config ? `configured: ${config.modelId}` : "disabled"}`);
@@ -327,8 +332,12 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
     const embeddingConfigStr = req.body?.embeddingConfig;
     if (embeddingConfigStr) {
       try {
-        const embeddingConfig = JSON.parse(embeddingConfigStr) as { baseUrl: string; apiKey: string; modelId: string };
-        setRemoteEmbedder(embeddingConfig);
+        const raw = JSON.parse(embeddingConfigStr) as Record<string, unknown>;
+        if (typeof raw.baseUrl === "string" && typeof raw.apiKey === "string" && typeof raw.modelId === "string") {
+          setRemoteEmbedder({ baseUrl: raw.baseUrl, apiKey: raw.apiKey, modelId: raw.modelId });
+        } else {
+          logger.warn("embeddingConfig missing required fields (baseUrl, apiKey, modelId)");
+        }
       } catch (e) {
         logger.warn(`Failed to parse embeddingConfig: ${e}`);
       }
@@ -518,10 +527,21 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
 /** POST /api/knowledge/import-url — 从 URL 导入 */
 knowledgeRouter.post("/knowledge/import-url", express.json(), async (req, res) => {
   try {
-    const { url } = req.body as { url: string };
-    if (!url) {
-      res.status(400).json({ ok: false, error: "Missing url" });
+    const parsed = knowledgeImportUrlInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ ok: false, error: parsed.error.issues.map(i => i.message).join("; ") });
       return;
+    }
+    const { url } = parsed.data;
+
+    try {
+      validateExternalUrl(url);
+    } catch (err) {
+      if (err instanceof BlockedUrlError) {
+        res.status(400).json({ ok: false, error: err.message });
+        return;
+      }
+      throw err;
     }
 
     const sourceId = `ks-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -662,16 +682,12 @@ knowledgeRouter.get("/knowledge/stats", (_req, res) => {
 /** POST /api/knowledge/search — 检索（支持 Re-ranker + 远程 Embedding） */
 knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
   try {
-    const { query, topK = 5, reranker, embedding } = req.body as {
-      query: string;
-      topK?: number;
-      reranker?: { baseUrl: string; apiKey: string; modelId: string };
-      embedding?: { baseUrl: string; apiKey: string; modelId: string };
-    };
-    if (!query) {
-      res.status(400).json({ ok: false, error: "Missing query" });
+    const parsed = knowledgeSearchInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ ok: false, error: parsed.error.issues.map(i => i.message).join("; ") });
       return;
     }
+    const { query, topK, reranker, embedding } = parsed.data;
 
     // bg-71: 服务端查询扩展（跨语言 + 法律同义词 + 法条图谱）
     const expandedQuery = expandQueryFull(query);
@@ -766,6 +782,7 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
             documents,
             top_n: topK,
           }),
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
 
         if (rerankRes.ok) {
@@ -832,17 +849,12 @@ knowledgeRouter.delete("/knowledge/clear", (_req, res) => {
 /** POST /api/knowledge/providers/test — 测试知识库 Provider 连接 */
 knowledgeRouter.post("/knowledge/providers/test", express.json(), async (req, res) => {
   try {
-    const { providerType, baseUrl, apiKey, modelId } = req.body as {
-      providerType: string;
-      baseUrl: string;
-      apiKey: string;
-      modelId: string;
-    };
-
-    if (!baseUrl || !apiKey) {
-      res.status(400).json({ ok: false, error: "Missing baseUrl or apiKey" });
+    const parsed = knowledgeProviderTestInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ ok: false, error: parsed.error.issues.map(i => i.message).join("; ") });
       return;
     }
+    const { providerType, baseUrl, apiKey, modelId } = parsed.data;
 
     if (providerType === "embedding") {
       // 测试 Embedding API（baseUrl 可能已包含 /v1）
@@ -857,6 +869,7 @@ knowledgeRouter.post("/knowledge/providers/test", express.json(), async (req, re
           model: modelId,
           input: ["test"],
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -881,6 +894,7 @@ knowledgeRouter.post("/knowledge/providers/test", express.json(), async (req, re
           documents: ["test document"],
           top_n: 1,
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!response.ok) {
