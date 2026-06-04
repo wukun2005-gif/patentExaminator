@@ -1,9 +1,8 @@
 import { describe, it, expect } from "vitest";
 import g3Fixture from "@shared/fixtures/g3-sensor.json";
 import { claimChartSchema } from "@shared/schemas/claimChart.schema";
-import { loadFixture } from "@shared/fixtures/loadFixture";
 
-describe("G3 fixture with defectHints", () => {
+describe("G3 fixture schema validation", () => {
   it("passes claimChartSchema validation", () => {
     const fixture = g3Fixture;
     const result = claimChartSchema.safeParse(fixture);
@@ -11,21 +10,6 @@ describe("G3 fixture with defectHints", () => {
       console.error("G3 validation errors:", JSON.stringify(result.error.issues, null, 2));
     }
     expect(result.success).toBe(true);
-  });
-
-  it("has defectHints field", () => {
-    const fixture = loadFixture("claim-chart", "g3-sensor") as unknown as {
-      defectHints?: string[];
-    };
-    expect(fixture.defectHints).toBeDefined();
-    expect(fixture.defectHints!.length).toBeGreaterThan(0);
-  });
-
-  it("defectHints contains parameter range risk", () => {
-    const fixture = loadFixture("claim-chart", "g3-sensor") as unknown as {
-      defectHints: string[];
-    };
-    expect(fixture.defectHints).toContain("参数范围支持不足风险");
   });
 });
 

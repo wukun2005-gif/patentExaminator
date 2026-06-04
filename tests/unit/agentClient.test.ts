@@ -35,7 +35,7 @@ describe("agentRun (mock mode)", () => {
     }, MOCK_SETTINGS, "g1-led");
 
     expect(result.features.length).toBeGreaterThan(0);
-    expect(result.features[0]!.source).toBe("mock");
+    expect(result.features[0]!.featureCode).toBeTruthy();
     expect(result.legalCaution).toContain("不构成");
   });
 

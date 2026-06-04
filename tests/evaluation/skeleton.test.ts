@@ -14,27 +14,26 @@ import e1NoRef from "@shared/fixtures/e1-no-reference.json";
 import e2OcrBranch from "@shared/fixtures/e2-ocr-branch.json";
 import e3MultiIndep from "@shared/fixtures/e3-multi-independent.json";
 
-// Schema for G1/G2/G3 agent response fixtures
+// Schema for G1/G2/G3 agent response fixtures (aligned with claimChart.schema.ts)
 const claimFeatureSchema = z.object({
-  id: z.string(),
-  caseId: z.string(),
-  claimNumber: z.number(),
   featureCode: z.string(),
   description: z.string(),
   specificationCitations: z.array(z.object({
-    documentId: z.string(),
     label: z.string(),
     paragraph: z.string().optional(),
     quote: z.string().optional(),
     confidence: z.enum(["high", "medium", "low"])
   })),
   citationStatus: z.enum(["confirmed", "needs-review", "not-found"]),
-  source: z.enum(["ai", "user", "mock"])
+  userNotes: z.string().optional()
 });
 
 const claimChartResponseSchema = z.object({
   claimNumber: z.number(),
-  features: z.array(claimFeatureSchema)
+  features: z.array(claimFeatureSchema),
+  warnings: z.array(z.object({ type: z.string(), message: z.string() })).default([]),
+  pendingSearchQuestions: z.array(z.string()).default([]),
+  legalCaution: z.string().default("")
 });
 
 // Schema for A1-A3/E1-E3 evaluation case fixtures
