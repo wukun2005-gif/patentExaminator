@@ -71,6 +71,12 @@ export const settingsProviderInputSchema = z.object({
   apiKey: z.string().min(1, "apiKey is required"),
 });
 
+// ── GET /api/providers/:id/models (query params) ─────────────
+export const settingsModelsQuerySchema = z.object({
+  apiKey: z.string().min(1, "apiKey is required").max(2048, "apiKey too long"),
+  baseUrl: z.string().url("Invalid baseUrl format").max(2048, "baseUrl too long").optional(),
+});
+
 // ── POST /api/documents/extract-html ─────────────────────────
 export const documentsExtractHtmlInputSchema = z.object({
   html: z.string().min(1, "html is required"),
