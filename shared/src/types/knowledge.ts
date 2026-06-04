@@ -20,7 +20,7 @@ export type KnowledgeFileFormat =
   | "jpeg"
   | "png";
 
-export type KnowledgeMediaType = "text" | "table" | "image";
+type KnowledgeMediaType = "text" | "table" | "image";
 
 /** 知识库来源元数据 */
 export interface KnowledgeSource {
@@ -57,7 +57,7 @@ export interface KnowledgeSource {
 
 // ── 切片 ────────────────────────────────────────────────
 
-export type ChunkStrategy =
+type ChunkStrategy =
   | "section"      // 按章节编号切片（审查指南）
   | "article"      // 按条文切片（法律、实施细则、司法解释）
   | "case-point"   // 按案件要点切片（典型案例）
