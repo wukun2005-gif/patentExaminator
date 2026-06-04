@@ -17,3 +17,5 @@ export * from "./schemas/argumentMapping.schema.js";
 export * from "./schemas/reexamDraft.schema.js";
 export { classifyDocumentsOutputSchema, documentClassificationSchema, documentRoleSchema, type ClassifyDocumentsOutput, type DocumentRole } from "./schemas/classifyDocuments.schema.js";
 export * from "./schemas/defect.schema.js";
+export * from "./schemas/searchReferences.schema.js";
+export * from "./schemas/extractCaseFields.schema.js";
