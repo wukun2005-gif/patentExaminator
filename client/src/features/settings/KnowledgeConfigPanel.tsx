@@ -62,8 +62,9 @@ export function KnowledgeConfigPanel() {
   // nf-9: 知识库独立 Provider 配置
   const knowledgeProviders = settings.knowledgeProviders ?? [];
 
-  /** 更新 settings（用于 knowledgeProviders） */
+  /** 更新 settings（用于 knowledgeProviders），loadFromDb 完成前不写入 */
   const updateSettings = (partial: Partial<typeof settings>) => {
+    if (!isInitialized) return;
     const newSettings = { ...settings, ...partial };
     setSettings(newSettings);
   };
