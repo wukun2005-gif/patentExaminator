@@ -7,7 +7,7 @@ import { z } from "zod";
 export const agentRunInputSchema = z.object({
   agent: z.enum([
     "interpret", "claim-chart", "novelty", "inventive", "summary", "chat",
-    "defects", "search-references", "extract-case-fields", "opinion-analysis",
+    "defects", "extract-case-fields", "opinion-analysis",
     "argument-analysis", "reexam-draft", "translate", "classify-documents"
   ]),
   caseId: z.string().min(1, "caseId is required"),
