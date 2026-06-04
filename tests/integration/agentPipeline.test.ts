@@ -150,11 +150,16 @@ describe("Agent Pipeline: ClaimChart (Mock)", () => {
     expect(resp.features.length).toBeGreaterThanOrEqual(2);
     expect(resp.features[0]!.featureCode).toBe("A");
     expect(resp.features[0]!.citationStatus).toBe("confirmed");
-    expect(resp.features[0]!.source).toBe("mock");
+    // source 字段仅在真实模式 orchestrator 后处理中添加，mock 模式下为 undefined
     expect(resp.legalCaution).toBeTruthy();
     expect(resp.pendingSearchQuestions).toBeDefined();
 
-    await Promise.all(resp.features.map((f) => repos.createClaimFeature(f)));
+    // Mock fixture 不含 id/source 字段（真实模式由 orchestrator 后处理添加），手动补全
+    const featuresWithId = resp.features.map((f, i) => ({
+      ...f,
+      id: `${CASE_ID}-chart-1-${f.featureCode ?? i}`,
+    }));
+    await Promise.all(featuresWithId.map((f) => repos.createClaimFeature(f)));
 
     const persisted = await repos.readClaimFeaturesByCaseId(CASE_ID);
     expect(persisted).toHaveLength(resp.features.length);
