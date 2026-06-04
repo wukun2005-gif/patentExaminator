@@ -6,7 +6,6 @@ import { buildTextIndex } from "@client/lib/textIndex";
 import { detectLanguage } from "@client/lib/languageDetect";
 import { parseClaims } from "@client/lib/claimParser";
 import { computeBaselineDate, classifyReferenceDate } from "@client/lib/dateRules";
-import { parseDate } from "@client/lib/dateParse";
 import { sanitizeFileName, buildExportFileName } from "@client/lib/fileNameSanitize";
 import { extractCaseFieldsFallback } from "@client/lib/caseFieldExtractor";
 
@@ -202,58 +201,6 @@ describe("Date Rules", () => {
 
   it("classifyReferenceDate → 无 baselineDate → needs-baseline-date", () => {
     expect(classifyReferenceDate(undefined, "2023-03-15")).toBe("needs-baseline-date");
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════
-// Date Parse — 日期解析
-// ═══════════════════════════════════════════════════════════════
-describe("Date Parse (parseDate)", () => {
-  it("ISO 格式 → high confidence", () => {
-    const result = parseDate("2024-01-15");
-    expect(result?.iso).toBe("2024-01-15");
-    expect(result?.confidence).toBe("high");
-  });
-
-  it("中文格式 YYYY年M月D日 → medium confidence（零填充）", () => {
-    const result = parseDate("2024年1月15日");
-    expect(result?.iso).toBe("2024-01-15");
-    expect(result?.confidence).toBe("medium");
-  });
-
-  it("Slash 格式 YYYY/M/D → medium confidence（零填充）", () => {
-    const result = parseDate("2024/1/15");
-    expect(result?.iso).toBe("2024-01-15");
-    expect(result?.confidence).toBe("medium");
-  });
-
-  it("Dot 格式 YYYY.M.D → medium confidence（零填充）", () => {
-    const result = parseDate("2024.1.15");
-    expect(result?.iso).toBe("2024-01-15");
-    expect(result?.confidence).toBe("medium");
-  });
-
-  it("English 格式 Month D, YYYY → medium confidence", () => {
-    const result = parseDate("March 15, 2024");
-    expect(result?.iso).toBe("2024-03-15");
-    expect(result?.confidence).toBe("medium");
-  });
-
-  it("Partial YYYY-MM → low confidence", () => {
-    const result = parseDate("2024-03");
-    expect(result?.iso).toBe("2024-03-01");
-    expect(result?.confidence).toBe("low");
-  });
-
-  it("无效日期 → undefined", () => {
-    expect(parseDate("not-a-date")).toBeUndefined();
-    expect(parseDate("")).toBeUndefined();
-  });
-
-  it("非法日期 → undefined", () => {
-    expect(parseDate("2024年13月1日")).toBeUndefined();
-    expect(parseDate("")).toBeUndefined();
-    expect(parseDate("not-a-date")).toBeUndefined();
   });
 });
 

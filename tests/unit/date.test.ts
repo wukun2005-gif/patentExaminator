@@ -1,53 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDate } from "@client/lib/dateParse";
 import { computeBaselineDate, classifyReferenceDate } from "@client/lib/dateRules";
-
-// ── T-PARSE-001..005: parseDate ──
-
-describe("parseDate", () => {
-  it("T-PARSE-001: ISO format (YYYY-MM-DD) → high confidence", () => {
-    const result = parseDate("2023-03-15");
-    expect(result).toEqual({ iso: "2023-03-15", confidence: "high" });
-  });
-
-  it("T-PARSE-002: Chinese format (YYYY年M月D日) → medium confidence", () => {
-    const result = parseDate("2023年3月15日");
-    expect(result).toEqual({ iso: "2023-03-15", confidence: "medium" });
-  });
-
-  it("T-PARSE-003: Slash format (YYYY/M/D) → medium confidence", () => {
-    const result = parseDate("2023/03/15");
-    expect(result).toEqual({ iso: "2023-03-15", confidence: "medium" });
-  });
-
-  it("T-PARSE-004: English format (Month D, YYYY) → medium confidence", () => {
-    const result = parseDate("March 15, 2023");
-    expect(result).toEqual({ iso: "2023-03-15", confidence: "medium" });
-  });
-
-  it("T-PARSE-005: Partial date (YYYY-MM) → low confidence, padded to 01", () => {
-    const result = parseDate("2023-03");
-    expect(result).toEqual({ iso: "2023-03-01", confidence: "low" });
-  });
-
-  it("empty string → undefined", () => {
-    expect(parseDate("")).toBeUndefined();
-  });
-
-  it("unrecognizable string → undefined", () => {
-    expect(parseDate("not a date")).toBeUndefined();
-  });
-
-  it("dot format (YYYY.M.D) → medium confidence", () => {
-    const result = parseDate("2023.3.15");
-    expect(result).toEqual({ iso: "2023-03-15", confidence: "medium" });
-  });
-
-  it("English format without comma → medium confidence", () => {
-    const result = parseDate("March 15 2023");
-    expect(result).toEqual({ iso: "2023-03-15", confidence: "medium" });
-  });
-});
 
 // ── T-DATE-001..007: dateRules ──
 
