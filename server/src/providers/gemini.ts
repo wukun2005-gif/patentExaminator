@@ -16,7 +16,7 @@ const DEFAULT_MODELS = [
 // 排除：图片、音频、视频、嵌入、TTS等非文本模型
 const NON_TEXT_PATTERNS = [
   /\bimagen\b/i, /\bnano\s*banana\b/i,
-  /\baudio\b/i, /\bspeech\b/i, /\btts\b/i,
+  /\baudio\b/i, /\bspeech\b/i, /\basr\b/i, /\btts\b/i,
   /\bembedding\b/i, /\bembed\b/i,
   /\bveo\b/i, /\bvideo\b/i, /\blyria\b/i, /\bmusic\b/i,
   /\bclip\b/i, /\bupscale\b/i, /\brecontext\b/i,

@@ -894,9 +894,21 @@ knowledgeRouter.post("/knowledge/providers/test", express.json(), async (req, re
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
+      const body = await response.text();
       if (!response.ok) {
-        const errorText = await response.text();
-        res.json({ ok: false, error: `HTTP ${response.status}: ${errorText}` });
+        res.json({ ok: false, error: `HTTP ${response.status}: ${body}` });
+        return;
+      }
+
+      // 验证响应是合法 JSON 且包含 embedding 数据
+      try {
+        const data = JSON.parse(body);
+        if (!data.data?.[0]?.embedding) {
+          res.json({ ok: false, error: `响应格式异常: 缺少 embedding 数据` });
+          return;
+        }
+      } catch {
+        res.json({ ok: false, error: `响应不是合法 JSON: ${body.slice(0, 200)}` });
         return;
       }
 
@@ -919,9 +931,21 @@ knowledgeRouter.post("/knowledge/providers/test", express.json(), async (req, re
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
+      const body = await response.text();
       if (!response.ok) {
-        const errorText = await response.text();
-        res.json({ ok: false, error: `HTTP ${response.status}: ${errorText}` });
+        res.json({ ok: false, error: `HTTP ${response.status}: ${body}` });
+        return;
+      }
+
+      // 验证响应是合法 JSON 且包含 rerank 结果
+      try {
+        const data = JSON.parse(body);
+        if (!data.results?.length) {
+          res.json({ ok: false, error: `响应格式异常: 缺少 rerank 结果` });
+          return;
+        }
+      } catch {
+        res.json({ ok: false, error: `响应不是合法 JSON: ${body.slice(0, 200)}` });
         return;
       }
 
