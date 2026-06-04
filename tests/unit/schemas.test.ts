@@ -4,8 +4,15 @@ import {
   noveltySchema,
   inventiveSchema,
   summarySchema,
-  reexamDraftSchema
+  reexamDraftSchema,
+  defectSchema,
+  opinionAnalysisSchema,
+  argumentMappingSchema,
+  classifyDocumentsOutputSchema,
+  extractCaseFieldsSchema,
+  searchReferencesFilterSchema,
 } from "@shared/index";
+import { agentRunInputSchema } from "@shared/schemas/api-input.schema.js";
 
 describe("claimChartSchema", () => {
   it("should parse valid claim chart", () => {
@@ -368,3 +375,249 @@ describe("reexamDraftSchema", () => {
   });
 });
 
+// ── defectSchema ────────────────────────────────────────────
+
+describe("defectSchema", () => {
+  it("should parse valid defect output", () => {
+    const result = defectSchema.safeParse({
+      defects: [
+        { category: "clarity", description: "权利要求1不清楚", severity: "warning" }
+      ],
+      warnings: ["注意事项"],
+      legalCaution: "以上为候选事实整理，不构成法律结论。"
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should default warnings to empty array", () => {
+    const result = defectSchema.safeParse({
+      defects: [],
+      legalCaution: "法律提示"
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.warnings).toEqual([]);
+    }
+  });
+
+  it("should reject invalid severity", () => {
+    const result = defectSchema.safeParse({
+      defects: [{ category: "clarity", description: "test", severity: "critical" }],
+      warnings: [],
+      legalCaution: "test"
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ── opinionAnalysisSchema ────────────────────────────────────
+
+describe("opinionAnalysisSchema", () => {
+  it("should parse valid opinion analysis", () => {
+    const result = opinionAnalysisSchema.safeParse({
+      documentId: "doc-1",
+      rejectionGrounds: [
+        {
+          code: "RG-1",
+          category: "novelty",
+          claimNumbers: [1, 2],
+          summary: "缺乏新颖性",
+          legalBasis: "专利法第22条第2款"
+        }
+      ],
+      citedReferences: [
+        {
+          publicationNumber: "CN123456A",
+          rejectionGroundCodes: ["RG-1"],
+          featureMapping: "D1公开了特征A"
+        }
+      ],
+      legalCaution: "以上为候选事实整理，不构成法律结论。"
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should reject invalid category", () => {
+    const result = opinionAnalysisSchema.safeParse({
+      documentId: "doc-1",
+      rejectionGrounds: [
+        { code: "RG-1", category: "invalid", claimNumbers: [], summary: "test", legalBasis: "test" }
+      ],
+      citedReferences: [],
+      legalCaution: "test"
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ── argumentMappingSchema ────────────────────────────────────
+
+describe("argumentMappingSchema", () => {
+  it("should parse valid argument mapping", () => {
+    const result = argumentMappingSchema.safeParse({
+      mappings: [
+        {
+          rejectionGroundCode: "RG-1",
+          applicantArgument: "申请人认为...",
+          argumentSummary: "摘要",
+          confidence: "high"
+        }
+      ],
+      legalCaution: "法律提示"
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should parse string amendedClaims via transform", () => {
+    const result = argumentMappingSchema.safeParse({
+      mappings: [
+        {
+          rejectionGroundCode: "RG-1",
+          applicantArgument: "申请人认为...",
+          argumentSummary: "摘要",
+          confidence: "medium",
+          amendedClaims: ["修改了权利要求1"]
+        }
+      ],
+      legalCaution: "法律提示"
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const claim = result.data.mappings[0]?.amendedClaims?.[0];
+      expect(claim).toHaveProperty("changeDescription", "修改了权利要求1");
+    }
+  });
+});
+
+// ── classifyDocumentsOutputSchema ────────────────────────────
+
+describe("classifyDocumentsOutputSchema", () => {
+  it("should parse valid classification", () => {
+    const result = classifyDocumentsOutputSchema.safeParse({
+      classifications: [
+        { fileIndex: 0, fileName: "申请书.pdf", role: "application", confidence: "high", reason: "包含权利要求书" }
+      ]
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should reject empty classifications", () => {
+    const result = classifyDocumentsOutputSchema.safeParse({
+      classifications: []
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should reject invalid role", () => {
+    const result = classifyDocumentsOutputSchema.safeParse({
+      classifications: [
+        { fileIndex: 0, fileName: "test.pdf", role: "invalid-role", confidence: "high", reason: "test" }
+      ]
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ── extractCaseFieldsSchema ──────────────────────────────────
+
+describe("extractCaseFieldsSchema", () => {
+  it("should parse valid case fields", () => {
+    const result = extractCaseFieldsSchema.safeParse({
+      title: "一种装置",
+      applicationNumber: "202410001234.5",
+      applicant: "张三",
+      applicationDate: "2024-01-01",
+      priorityDate: null,
+      claims: [
+        { claimNumber: 1, type: "independent", dependsOn: [], rawText: "一种装置，包括A和B" }
+      ]
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should accept null fields", () => {
+    const result = extractCaseFieldsSchema.safeParse({
+      title: null,
+      applicationNumber: null,
+      applicant: null,
+      applicationDate: null,
+      priorityDate: null,
+      claims: []
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+// ── searchReferencesFilterSchema ─────────────────────────────
+
+describe("searchReferencesFilterSchema", () => {
+  it("should parse valid search references", () => {
+    const result = searchReferencesFilterSchema.safeParse({
+      candidates: [
+        {
+          title: "对比文件1",
+          publicationNumber: "CN123456A",
+          summary: "公开了特征A",
+          relevanceScore: 85,
+          recommendationReason: "技术领域相同"
+        }
+      ],
+      searchQuery: "装置 A B"
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.legalCaution).toContain("真实搜索");
+    }
+  });
+
+  it("should default legalCaution", () => {
+    const result = searchReferencesFilterSchema.safeParse({
+      candidates: [],
+      searchQuery: "test"
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.legalCaution).toBeTruthy();
+    }
+  });
+
+  it("should reject candidates exceeding max 10", () => {
+    const candidates = Array.from({ length: 11 }, (_, i) => ({
+      title: `ref-${i}`,
+      publicationNumber: `CN${i}`,
+      summary: "test",
+      relevanceScore: 50,
+      recommendationReason: "test"
+    }));
+    const result = searchReferencesFilterSchema.safeParse({ candidates, searchQuery: "test" });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ── agentRunInputSchema ──────────────────────────────────────
+
+describe("agentRunInputSchema", () => {
+  it("should parse valid agent run input", () => {
+    const result = agentRunInputSchema.safeParse({
+      agent: "novelty",
+      caseId: "case-1",
+      request: { features: [] }
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should reject missing agent", () => {
+    const result = agentRunInputSchema.safeParse({
+      caseId: "case-1"
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should reject empty agent string", () => {
+    const result = agentRunInputSchema.safeParse({
+      agent: "",
+      caseId: "case-1"
+    });
+    expect(result.success).toBe(false);
+  });
+});
