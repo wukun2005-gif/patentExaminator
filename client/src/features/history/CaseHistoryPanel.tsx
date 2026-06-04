@@ -190,7 +190,7 @@ function formatDate(iso: string): string {
       minute: "2-digit"
     });
   } catch (e) {
-    log("Failed to format date:", e);
+    log("Date format error:", e);
     return iso;
   }
 }

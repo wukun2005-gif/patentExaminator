@@ -13,7 +13,12 @@ const AGENT_OPTIONS = [
   { id: "summary", name: "专利简述", desc: "生成专利申请简述" },
   { id: "draft", name: "审查素材", desc: "生成审查意见素材草稿" },
   { id: "chat", name: "通用对话", desc: "AI 问答" },
-  { id: "search-references", name: "文献检索", desc: "AI 辅助检索对比文件" }
+  { id: "search-references", name: "文献检索", desc: "AI 辅助检索对比文件" },
+  { id: "opinion-analysis", name: "审查意见分析", desc: "分析审查意见通知书" },
+  { id: "argument-analysis", name: "意见陈述分析", desc: "分析申请人意见陈述书" },
+  { id: "reexam-draft", name: "复审决定草稿", desc: "生成复审决定草稿" },
+  { id: "classify-documents", name: "文档分类", desc: "自动分类专利文档类型" },
+  { id: "translate", name: "文档翻译", desc: "AI 辅助翻译专利文献" }
 ] as const;
 
 const PROVIDER_NAMES: Record<ProviderId, string> = {
