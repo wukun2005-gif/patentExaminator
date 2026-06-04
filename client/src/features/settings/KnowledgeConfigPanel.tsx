@@ -31,18 +31,18 @@ interface SourceInfo {
 }
 
 export function KnowledgeConfigPanel() {
-  const { settings, updateKnowledgeConfig, setSettings } = useSettingsStore();
+  const { settings, updateKnowledgeConfig, setSettings, isInitialized } = useSettingsStore();
   const [sources, setSources] = useState<SourceInfo[]>([]);
   const [config, setConfig] = useState<KnowledgeConfig>(settings.knowledge ?? DEFAULT_KNOWLEDGE_CONFIG);
-  const [configLoaded, setConfigLoaded] = useState(false);
+  const configInitializedRef = useRef(false);
 
-  // settings 加载完成后同步 config
+  // settings 从服务端加载完成后，同步一次 config（仅当 settings.knowledge 存在且尚未同步过）
   useEffect(() => {
-    if (settings.knowledge && !configLoaded) {
+    if (settings.knowledge && !configInitializedRef.current) {
       setConfig(settings.knowledge);
-      setConfigLoaded(true);
+      configInitializedRef.current = true;
     }
-  }, [settings.knowledge, configLoaded]);
+  }, [settings.knowledge]);
   const [stats, setStats] = useState({ sourceCount: 0, chunkCount: 0, embeddedCount: 0 });
   const [importing, setImporting] = useState(false);
   const [urlInput, setUrlInput] = useState("");
@@ -84,12 +84,11 @@ export function KnowledgeConfigPanel() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // 配置变更时持久化（仅在用户主动修改后）
+  // 配置变更时持久化（仅在 loadFromDb 完成后才写入，防止默认值覆盖服务端数据）
   useEffect(() => {
-    if (configLoaded) {
-      updateKnowledgeConfig(config);
-    }
-  }, [config, configLoaded, updateKnowledgeConfig]);
+    if (!isInitialized) return;
+    updateKnowledgeConfig(config);
+  }, [config, isInitialized, updateKnowledgeConfig]);
 
   // ── 文件上传（server 端处理） ─────────────────────
 
@@ -513,6 +512,14 @@ function KnowledgeProviderCard({ preset, existing, onUpdate }: KnowledgeProvider
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
+
+  // settings 从服务端加载后，同步 existing 到本地状态
+  useEffect(() => {
+    if (existing) {
+      setApiKey(existing.apiKeyRef ?? "");
+      setModelId(existing.modelId ?? preset.defaultModelId);
+    }
+  }, [existing?.apiKeyRef, existing?.modelId, preset.defaultModelId]);
 
   const isEnabled = existing?.enabled ?? false;
   const hasKey = !!existing?.apiKeyRef;
