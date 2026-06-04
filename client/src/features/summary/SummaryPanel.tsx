@@ -5,8 +5,8 @@ import { InlineEdit } from "../../components/InlineEdit";
 import { ErrorBanner } from "../../lib/errorDisplay";
 
 function renderParagraphs(text: string): ReactNode {
-  return text.split('\n\n').filter(Boolean).map((p, i) => (
-    <p key={`p-${i}-${p.slice(0, 10)}`}>{p}</p>
+  return text.split('\n\n').filter(Boolean).map((p) => (
+    <p key={`p-${p.slice(0, 20)}`}>{p}</p>
   ));
 }
 

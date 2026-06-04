@@ -111,7 +111,7 @@ export function ChatPanel() {
       log("useEffect cleanup, cancelled:", cancelled);
       cancelled = true; 
     };
-  }, [caseId]);
+  }, [caseId, loadMessages, loadSessions]);
 
   // Abort in-flight request on unmount
   useEffect(() => {

@@ -69,10 +69,10 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
 
-  // Restore persisted draft when caseId changes
+  // Restore persisted draft when caseId or persistedDraft changes
   useEffect(() => {
     setReexamDraftLocal(persistedDraft);
-  }, [caseId]);
+  }, [caseId, persistedDraft]);
 
   const features = claimFeatures.filter((f) => f.caseId === caseId);
   const noveltyComparisons = comparisons.filter((c) => c.caseId === caseId);
@@ -232,7 +232,7 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
                     <strong>原文依据：</strong>
                     {item.supportingEvidence?.map((evidence, evIdx) => (
                       <blockquote
-                        key={`${item.rejectionGroundCode}-${evidence.label}-${evIdx}`}
+                        key={`${item.rejectionGroundCode}-${evidence.label}`}
                         className={`citation-quote citation-quote--${evidence.confidence}`}
                         data-testid={`citation-${evidence.confidence}`}
                       >
@@ -358,8 +358,8 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
                   <>
                     <h4>技术启示</h4>
                     <ul>
-                      {inventiveAnalysis.motivationEvidence.map((e, i) => (
-                        <li key={`${e.label}-${i}`}>{e.label}{e.quote ? `：「${e.quote}」` : ""}（置信度：{e.confidence}）</li>
+                      {inventiveAnalysis.motivationEvidence.map((e) => (
+                        <li key={e.label}>{e.label}{e.quote ? `：「${e.quote}」` : ""}（置信度：{e.confidence}）</li>
                       ))}
                     </ul>
                   </>
@@ -388,7 +388,7 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
               <div>
                 <h4>待检索问题（{pendingQuestions.length} 条）</h4>
                 <ul>
-                  {pendingQuestions.map((q, i) => <li key={`pq-${i}-${q.slice(0, 20)}`}>{q}</li>)}
+                  {pendingQuestions.map((q) => <li key={`pq-${q.slice(0, 20)}`}>{q}</li>)}
                 </ul>
               </div>
             )}
@@ -439,8 +439,8 @@ export function DraftMaterialPanel({ caseId, runReexamDraft }: DraftMaterialPane
           <h3>待确认事项</h3>
           <div className="section-content">
             <ul>
-              {pendingQuestions.map((q, i) => <li key={`q-${i}`}>{q}</li>)}
-              {inventiveAnalysis?.cautions.map((c, i) => <li key={`c-${i}`}>{c}</li>)}
+              {pendingQuestions.map((q) => <li key={`q-${q.slice(0, 20)}`}>{q}</li>)}
+              {inventiveAnalysis?.cautions.map((c) => <li key={`c-${c.slice(0, 20)}`}>{c}</li>)}
               {unresolvedDefects.map((d) => <li key={d.id}>[{SEVERITY_LABELS[d.severity]}] {d.description}</li>)}
               {pendingQuestions.length === 0 && !inventiveAnalysis?.cautions.length && unresolvedDefects.length === 0 && (
                 <li className="placeholder-hint">暂无待确认事项。</li>

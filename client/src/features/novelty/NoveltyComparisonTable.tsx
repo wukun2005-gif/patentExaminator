@@ -230,7 +230,7 @@ export function NoveltyComparisonTable({ comparisonId }: NoveltyComparisonTableP
           </p>
           <ul className="pending-search-list">
             {comparison.pendingSearchQuestions.map((q, i) => (
-              <li key={`${q}-${i}`} className="pending-search-item" data-testid={`pending-question-item-${i}`}>
+              <li key={q} className="pending-search-item" data-testid={`pending-question-item-${i}`}>
                 <div className="pending-search-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div className="pending-search-question" style={{ flex: 1 }}>
                     <strong>问题 {i + 1}：</strong>{q}

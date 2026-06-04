@@ -23,8 +23,8 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
         </span>
       </div>
       <div className="chat-bubble__content">
-        {displayContent.split("\n").map((line, i) => (
-          <p key={`line-${i}-${line.slice(0, 10)}`}>{line || " "}</p>
+        {displayContent.split("\n").map((line) => (
+          <p key={`line-${line.slice(0, 20)}`}>{line || " "}</p>
         ))}
       </div>
       {isAssistant && actionTarget && onAction && (

@@ -148,9 +148,6 @@ export function InterpretPanel({
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const isMountedRef = useRef(true);
 
-  // Stable reference for documents dependency — prevents unnecessary re-renders
-  const documentIds = useMemo(() => documents.map((d) => d.id).join(","), [documents]);
-
   const groupedDocuments = useMemo(
     () =>
       ROLE_ORDER.map((role) => ({
@@ -158,7 +155,7 @@ export function InterpretPanel({
         title: ROLE_SECTION_LABELS[role],
         documents: documents.filter((doc) => doc.role === role)
       })).filter((group) => group.documents.length > 0),
-    [documentIds] // Use stable string instead of array reference
+    [documents]
   );
 
   useEffect(() => {
@@ -219,14 +216,15 @@ export function InterpretPanel({
   // Cleanup: cancel all in-flight requests on unmount
   useEffect(() => {
     isMountedRef.current = true;
+    const controllers = abortControllersRef.current;
     return () => {
       isMountedRef.current = false;
       // Abort all in-flight requests
-      abortControllersRef.current.forEach((controller, docId) => {
+      controllers.forEach((controller, docId) => {
         controller.abort();
         log(`Aborted request for document ${docId} on unmount`);
       });
-      abortControllersRef.current.clear();
+      controllers.clear();
     };
   }, []);
 

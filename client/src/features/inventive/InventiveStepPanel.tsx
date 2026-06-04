@@ -450,7 +450,7 @@ if (!isMountedRef.current || controller.signal.aborted) return;
                   <h4>技术启示证据（可编辑）</h4>
                   <div className="evidence-list">
                     {analysis.motivationEvidence.map((ev, i) => (
-                      <div key={`${ev.label}-${i}`} className="evidence-item" data-testid={`evidence-${i}`}>
+                      <div key={ev.label} className="evidence-item" data-testid={`evidence-${i}`}>
                         <div className="evidence-item__fields">
                           <InlineEdit
                             value={ev.label}
