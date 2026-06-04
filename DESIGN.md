@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r41 · 2026-06-02</p>
+<p align="right">版本 v0.1.0-r42 · 2026-06-04</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -8,6 +8,7 @@
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|---------|
+| v0.1.0-r42 | 2026-06-04 | §9 测试架构全面更新：E2E 框架重构为统一入口+模块化子文件结构（e2e-shared/ 共享模块 + e2e/ 测试模块）、智能测试选择（--auto）、质量门禁（--check）、API Key 传递方式说明；删除 3 个临时设计文档（test-framework-refactor-plan.md、e2e-failure-report-2026-06-02.md、feat-042-implementation-review.md） | DESIGN.md §9 |
 | v0.1.0-r41 | 2026-06-02 | B-042: 测试数据库隔离机制 — 三层隔离架构（内存/临时文件/快照），syncDb.ts 添加 resetSyncDbForTesting() 支持测试注入；新建 tests/helpers/testDb.ts（数据库创建+CRUD 辅助）、tests/globalSetup.ts（全局清理）；重写 5 个被 skip 的集成测试（repositories/dbScenario/dbLogicChain/dbEdgeChain/chatPersistence），91 个测试用例全部通过；vitest.integration.config.ts 配置 globalSetup | syncDb.ts, tests/helpers/testDb.ts(新建), tests/globalSetup.ts(新建), vitest.integration.config.ts, 5 个集成测试文件 |
 | v0.1.0-r40 | 2026-06-02 | B-038 Phase 3: 删除 dataClient.ts + agentApi.ts — dataClient 7 个 fetch 工具函数内联到 repos.ts，agentApi 全部导出函数合并到 repos.ts；7 个消费方 import 路径更新 | dataClient.ts(删除), agentApi.ts(删除), repos.ts, 7 个消费方文件 |
 | v0.1.0-r39 | 2026-06-02 | B-038 Phase 2: 前端只保留 UI 组件 — 删除 AgentClient.ts（342行）、contracts.ts（393行）、dataClient.ts 依赖的 repositories/ 目录（16个文件720行）、migrateIndexedDb.ts（107行）、indexedDb.ts（278行）；contracts.ts 类型合并到 shared/types/api.ts；AgentClient 替换为 lib/agentApi.ts（agentRun/searchReferences/extractSearchTerms/searchWithTerms 函数）；16个 repository 合并为 lib/repos.ts；settingsRepo 内联到 settingsSlice；前端组件直接调用 fetch | AgentClient.ts, contracts.ts, repositories/, migrateIndexedDb.ts, indexedDb.ts, agentApi.ts, repos.ts, 40+ import 路径更新 |
@@ -1132,17 +1133,17 @@ resolveFixture(req) → fixture key
 | 层 | 工具 | 目的 |
 |----|------|------|
 | Unit | Vitest + @testing-library/react | 纯函数、组件渲染、slice reducer |
-| Integration | Vitest + msw | 跨模块行为（pipeline、gateway、repository） |
-| E2E | Playwright (Chromium) | 浏览器端真实用户路径 |
+| Integration | Vitest | 跨模块行为（pipeline、gateway、repository） |
+| E2E | 自定义 Node.js CLI (`tests/e2e.mjs`) | HTTP 端到端测试（Mock + Real 模式） |
 | Evaluation | Vitest | 9 条评测集自动评分 |
 
 ### 9.2 关键测试策略
 
-1. **MSW 拦截：** 真实模式 E2E/集成测试不真联网，用 msw 拦截 `/api/ai/run` 和外部 Provider URL。
-2. **Mock 零外发验证：** Mock 模式任何 `fetch` 调用均触发 `MockModeBrokenError`。
-3. **Schema 兼容：** Mock fixture 和真实 Provider 返回使用相同 JSON schema，通过 `safeParse` 统一校验。
-4. **Evaluation Set：** 9 条测试用例（G1/G2/G3 + A1/A2/A3 + E1/E2/E3），自动评分覆盖率/Citation准确率/区别特征准确率/时间轴分数。
-5. **测试数据库隔离（B-042）：** 集成测试使用 `tests/helpers/testDb.ts` 创建隔离的 SQLite 数据库（内存/临时文件/快照三种模式），通过 `syncDb.ts` 的 `resetSyncDbForTesting()` 注入测试路径，确保测试永远不访问 `data/patent-examiner.db`。全局 teardown（`tests/globalSetup.ts`）确保崩溃时也能清理临时文件。
+1. **Mock 零外发验证：** Mock 模式下服务端返回预置 fixture，不调用外部 API。
+2. **Schema 兼容：** Mock fixture 和真实 Provider 返回使用相同 JSON schema，通过 `safeParse` 统一校验。
+3. **Evaluation Set：** 9 条测试用例（G1/G2/G3 + A1/A2/A3 + E1/E2/E3），自动评分覆盖率/Citation准确率/区别特征准确率/时间轴分数。
+4. **测试数据库隔离（B-042）：** 集成测试使用 `tests/helpers/testDb.ts` 创建隔离的 SQLite 数据库（内存/临时文件/快照三种模式），通过 `syncDb.ts` 的 `resetSyncDbForTesting()` 注入测试路径，确保测试永远不访问 `data/patent-examiner.db`。全局 teardown（`tests/globalSetup.ts`）确保崩溃时也能清理临时文件。
+5. **API Key 严格隔离（ADR-007 + B-041）：** APP 用户 Key 只在设置页配置存入 server；开发者测试 Key 只来自 `.env`，通过请求体字段传递，两类 Key 互不读取。
 
 ### 9.3 评分公式
 
@@ -1153,16 +1154,61 @@ resolveFixture(req) → fixture key
 | Difference Candidate Correctness | `1 - |D_exp △ D_act| / max(|D_exp ∪ D_act|, 1)` | ≥ 0.9 |
 | Timeline Check | 完全一致 = 1，否则 = 0 | = 1.0 |
 
-### 9.4 CI / Pre-commit 质量门禁
+### 9.4 E2E 测试架构（FEAT-042 重构）
 
-**脚本链：** `npm run verify:precommit` = `verify` + `test:ai-smoke`
+采用 **统一入口 + 模块化子文件** 结构：
+
+```text
+tests/
+├── e2e.mjs                    ← 统一入口（所有 E2E 测试从这里运行）
+├── e2e/                       ← 拆分后的测试模块
+│   ├── index.mjs              ← 模块索引
+│   ├── health.mjs             ← 健康检查
+│   ├── mock-agents.mjs        ← Mock 模式 AI agent 测试
+│   ├── real-agents.mjs        ← Real 模式 AI agent 测试
+│   ├── schema-validation.mjs  ← Schema 验证
+│   ├── knowledge.mjs          ← 知识库集成测试
+│   ├── knowledge-code-structure.mjs ← 知识库代码结构测试
+│   └── pipeline.mjs           ← 全链路测试
+├── e2e-shared/                ← 共享工具模块
+│   ├── config.mjs             ← API key 映射、fallback 模型、超时、FILE_TO_TEST_MAP
+│   ├── env.mjs                ← .env 加载、getApiKey/getTestBase
+│   ├── http.mjs               ← postJSON/getJSON/getJSONWithParams
+│   ├── retry.mjs              ← isRetryableError/FallbackModelManager/delay
+│   ├── schema-validators.mjs  ← 所有 validate*Output 函数
+│   ├── upload.mjs             ← uploadKnowledgeFile
+│   ├── sample-data.mjs        ← SAMPLE_* 测试数据常量
+│   ├── test-runner.mjs        ← log/assert/runTest
+│   └── index.mjs              ← 统一导出
+├── unit/                      ← 单元测试（Vitest）
+├── integration/               ← 集成测试（Vitest）
+└── evaluation/                ← 评估测试（Vitest）
+```
+
+**运行方式：**
+
+```bash
+node tests/e2e.mjs                    # Mock 模式全量
+node tests/e2e.mjs --real             # Real 模式（需要 API key）
+node tests/e2e.mjs --check            # 带 typecheck + lint 门禁
+node tests/e2e.mjs --only mock        # 按组名过滤
+node tests/e2e.mjs --auto             # 根据 git diff 自动选择测试组
+npm test                              # 单元测试
+npm run test:integration              # 集成测试
+npm run test:evaluation               # 评估测试
+```
+
+**API Key 传递方式：** 从项目根目录 `.env` 加载（`tests/e2e-shared/env.mjs`），通过请求体字段传递给服务端（`apiKey` / `searchApiKey` / `embedding.apiKey` / `reranker.apiKey`），不通过 header 或 keyStore。
+
+**智能测试选择（`--auto`）：** 运行 `git diff --name-only HEAD` 获取变更文件，通过 `FILE_TO_TEST_MAP`（`config.mjs`）声明式映射到测试组，只运行匹配组。
+
+**质量门禁（`--check`）：** `typecheck` → `lint`，任一失败则终止。
+
+### 9.5 CI / Pre-commit 质量门禁
 
 ```
 npm run verify
-  = typecheck → lint → test(unit) → test:integration → test:e2e → test:evaluation
-
-npm run verify:precommit
-  = verify → test:ai-smoke（Token Plan 真实 API smoke）
+  = typecheck → lint → test(unit) → test:integration → test:db:all → test:e2e → test:evaluation
 ```
 
 **各步骤预期耗时（参考 MBP M2 Pro）：**
@@ -1173,14 +1219,11 @@ npm run verify:precommit
 | lint | ~10s | eslint 全量 |
 | test (unit) | ~15s | 纯函数 + 组件 + schema |
 | test:integration | ~30s | pipeline + gateway + keystore |
-| test:e2e | ~60s | Playwright Chromium，Mock 模式 |
-| test:evaluation | ~10s | 9 条评测集 Mock 路径 |
-| test:ai-smoke | ~30s | 2 次真实 API 调用 + 限速延迟 |
+| test:db:all | ~20s | DB logic chain + scenario |
+| test:e2e | ~60s | Mock 模式 |
+| test:evaluation | ~10s | 9 条评测集 |
 
-**失败处理：**
-- 任一步骤失败 → 整个 verify 链终止，不得 commit。
-- `test:ai-smoke` 失败（缺 Key 或 API 不可用）→ 阻断 `verify:precommit`；开发者需配置 `TOKEN_PLAN_API_KEY` 或检查网络。
-- `test:ai-smoke` 不使用 APP 用户 Key，通过环境变量或 `.env` 读取后在请求体 `apiKey` 字段中传递给服务端。
+**失败处理：** 任一步骤失败 → 整个 verify 链终止，不得 commit。
 
 > 完整 14 条提交前自检清单参见附录 A。
 

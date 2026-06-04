@@ -12,6 +12,7 @@
     "shared"
   ],
   "scripts": {
+    "predev": "node -e \"const{execSync}=require('child_process');try{const p=execSync('lsof -ti :3000',{encoding:'utf8'}).trim();if(p){console.log('[predev] Killing stale process on port 3000:',p);process.kill(Number(p),'SIGKILL')}}catch{}\"",
     "dev": "concurrently -n client,server -c blue,green \"npm run dev -w client\" \"npm run dev -w server\"",
     "dev:client": "npm run dev -w client",
     "dev:server": "npm run dev -w server",

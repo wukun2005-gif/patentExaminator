@@ -5,6 +5,7 @@
 import { Router } from "express";
 import express from "express";
 import multer from "multer";
+import { createRequire } from "module";
 import { logger } from "../lib/logger.js";
 import {
   documentsExtractHtmlInputSchema,
@@ -31,11 +32,18 @@ documentsRouter.post("/documents/extract-pdf", upload.single("file"), async (req
     const file = req.file;
     logger.info(`PDF extraction request: ${file.originalname} (${file.size} bytes)`);
 
-    // 动态导入 pdfjs-dist
-    const pdfjsLib = await import("pdfjs-dist");
+    // 动态导入 pdfjs-dist（Node.js 必须用 legacy build）
+    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const require = createRequire(import.meta.url);
+    const pdfWorkerPath = require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerPath;
 
     const buffer = file.buffer;
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const pdf = await pdfjsLib.getDocument({
+      data: new Uint8Array(buffer),
+      disableFontFace: true,
+      useSystemFonts: false,
+    }).promise;
 
     const pageTexts: string[] = [];
     const pages: Array<{ pageNumber: number; startOffset: number; endOffset: number }> = [];

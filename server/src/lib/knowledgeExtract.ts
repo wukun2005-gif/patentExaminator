@@ -1,6 +1,7 @@
 /**
  * 服务端知识库处理 — 提取、切片、向量化、存储
  */
+import { createRequire } from "module";
 import { logger } from "./logger.js";
 
 // ── 提取 ──────────────────────────────────────────────
@@ -33,8 +34,9 @@ export async function extractText(fileBuffer: Buffer, fileName: string): Promise
 async function extractPdf(buffer: Buffer): Promise<ExtractionResult> {
   try {
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    // 静默 pdfjs 警告（字体数据等），只做文本提取不需要渲染
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+    const require = createRequire(import.meta.url);
+    const pdfWorkerPath = require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerPath;
     const pdf = await pdfjsLib.getDocument({
       data: new Uint8Array(buffer),
       disableFontFace: true,
