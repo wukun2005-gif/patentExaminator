@@ -6,7 +6,7 @@ import { AppShell } from "@client/components/AppShell";
 import { ModeBanner } from "@client/components/ModeBanner";
 import { NewCasePage } from "@client/features/case/NewCasePage";
 
-// Mock IndexedDB for settings store
+// Mock repos (IndexedDB + caseRepo in a single mock — Vitest takes the last vi.mock per module)
 vi.mock("@client/lib/repos", () => ({
   getDB: vi.fn().mockResolvedValue({
     get: vi.fn().mockResolvedValue(null),
@@ -17,11 +17,7 @@ vi.mock("@client/lib/repos", () => ({
     })
   }),
   openPatentDB: vi.fn(),
-  setDBInstance: vi.fn()
-}));
-
-// Mock caseRepo
-vi.mock("@client/lib/repos", () => ({
+  setDBInstance: vi.fn(),
   createCase: vi.fn().mockResolvedValue(undefined),
   updateCase: vi.fn().mockResolvedValue(undefined)
 }));
