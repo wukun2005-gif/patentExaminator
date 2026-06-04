@@ -11,7 +11,6 @@ import {
   deleteSource,
   addChunks,
   addVectors,
-  getUnembeddedChunks as _getUnembeddedChunks,
   markChunkEmbedded,
   getAllVectors,
   getAllChunks,
