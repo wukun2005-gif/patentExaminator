@@ -631,7 +631,7 @@ async function enhanceWithKnowledge(
       const chunk = chunkMap.get(result.chunkId);
       if (!chunk) continue;
       let metadata: Record<string, unknown> = {};
-      try { metadata = JSON.parse(chunk.metadata) as Record<string, unknown>; } catch { /* malformed metadata */ }
+      try { metadata = JSON.parse(chunk.metadata) as Record<string, unknown>; } catch { logger.warn("Malformed chunk metadata", { chunkId: chunk.chunk_id }); }
       const source = typeof metadata.fileName === "string" ? metadata.fileName : "unknown";
       parts.push(`> 【来源：${source} · 相似度: ${result.score.toFixed(2)}】`);
       for (const line of chunk.text.split("\n").slice(0, 10)) {
