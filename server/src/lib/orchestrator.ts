@@ -280,7 +280,6 @@ function buildInventivePrompt(request: InventiveRequest): string {
     `  "motivationEvidence": [{ "referenceId": "ID", "label": "标签", "quote": "引文", "confidence": "high|medium|low" }],`,
     `  "candidateAssessment": "possibly-inventive|possibly-lacks-inventiveness|insufficient-evidence|not-analyzed",`,
     `  "cautions": ["注意事项"],`,
-    `  "examinerResponse": "审查员回应草稿",`,
     `  "legalCaution": "法律风险提示"`,
     `}`,
     ``,
