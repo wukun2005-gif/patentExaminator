@@ -10,13 +10,13 @@ export type CaseWorkflowState =
   | "ocr-running"
   | "ocr-failed"
   | "ocr-review"
-  | "text-confirmed"
+  | "text-confirmed"       // BUG-084: reserved — no code path writes this state yet
   | "opinion-analyzed"
   | "argument-mapped"
   | "references-ready"
-  | "timeline-checked"
+  | "timeline-checked"     // BUG-084: reserved — no code path writes this state yet
   | "claim-chart-ready"
-  | "claim-chart-reviewed"
+  | "claim-chart-reviewed" // BUG-084: reserved — no code path writes this state yet
   | "novelty-ready"
   | "inventive-ready"
   | "defects-ready"
