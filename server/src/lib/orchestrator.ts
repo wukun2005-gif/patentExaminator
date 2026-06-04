@@ -227,9 +227,10 @@ function buildDefectPrompt(request: Record<string, unknown>): string {
 
 function buildChatPrompt(request: Record<string, unknown>): string {
   const caseId = request.caseId as string ?? "";
-  const moduleScope = request.moduleScope as string ?? "";
-  const contextSummary = request.contextSummary as string ?? "";
-  const history = request.history as Array<{ role: string; content: string }> ?? [];
+  const moduleScope = sanitizeText(request.moduleScope as string ?? "");
+  const contextSummary = sanitizeText(request.contextSummary as string ?? "");
+  const history = (request.history as Array<{ role: string; content: string }> ?? [])
+    .map(m => ({ role: m.role, content: sanitizeText(m.content) }));
   const userMessage = sanitizeText(request.userMessage as string ?? "");
 
   return [
@@ -341,8 +342,8 @@ function buildOpinionAnalysisPrompt(request: Record<string, unknown>): string {
 function buildArgumentAnalysisPrompt(request: Record<string, unknown>): string {
   const caseId = request.caseId as string ?? "";
   const rejectionGrounds = request.rejectionGrounds as Array<{ code: string; category: string; summary: string }> ?? [];
-  const responseText = request.responseText as string ?? "";
-  const amendedClaimsText = request.amendedClaimsText as string | undefined;
+  const responseText = sanitizeText(request.responseText as string ?? "");
+  const amendedClaimsText = request.amendedClaimsText != null ? sanitizeText(request.amendedClaimsText as string) : undefined;
 
   const parts = [
     `你是一位资深专利审查员，擅长分析意见陈述书中的答辩理由。`,
@@ -407,10 +408,10 @@ function buildReexamDraftPrompt(request: Record<string, unknown>): string {
 }
 
 function buildSummaryPrompt(request: Record<string, unknown>): string {
-  const caseBaseline = request.caseBaseline as string ?? "";
-  const confirmedFeatures = request.confirmedFeatures as string ?? "";
-  const reviewedNoveltyComparisons = request.reviewedNoveltyComparisons as string ?? "";
-  const inventiveAnalysis = request.inventiveAnalysis as string ?? "";
+  const caseBaseline = sanitizeText(request.caseBaseline as string ?? "");
+  const confirmedFeatures = sanitizeText(request.confirmedFeatures as string ?? "");
+  const reviewedNoveltyComparisons = sanitizeText(request.reviewedNoveltyComparisons as string ?? "");
+  const inventiveAnalysis = sanitizeText(request.inventiveAnalysis as string ?? "");
 
   return [
     `你是一位资深专利审查员，负责撰写审查意见简述。`,
