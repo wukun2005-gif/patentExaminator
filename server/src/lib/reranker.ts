@@ -52,7 +52,9 @@ export function localRerank(
   query: string,
   config: RerankConfig = DEFAULT_CONFIG
 ): RerankOutput[] {
+  logger.info(`[Rerank] localRerank 开始: ${results.length} 候选, query="${query.slice(0, 40)}..."`);
   if (results.length <= 1) {
+    logger.info(`[Rerank] 候选数 ≤ 1，跳过重排`);
     return results.map((r) => ({ chunkId: r.chunkId, score: r.score }));
   }
 
@@ -95,7 +97,9 @@ export function localRerank(
     return { chunkId, score: finalScore };
   });
 
-  return scored.sort((a, b) => b.score - a.score);
+  const sorted = scored.sort((a, b) => b.score - a.score);
+  logger.info(`[Rerank] localRerank 完成: ${sorted.length} 结果, top score=${sorted[0]?.score?.toFixed(4) ?? "N/A"}`);
+  return sorted;
 }
 
 /** 提取文本中的关键词（去停用词） */
@@ -175,9 +179,10 @@ export async function crossEncoderRerank(
   results: CrossEncoderInput[],
   query: string
 ): Promise<CrossEncoderOutput[]> {
+  logger.info(`[Rerank] crossEncoderRerank 开始: ${results.length} 候选`);
   const model = await getCrossEncoder();
   if (!model) {
-    logger.info("Cross-encoder not available, falling back to local rerank");
+    logger.info("[Rerank] Cross-encoder 不可用，降级到 localRerank");
     return localRerank(results, query);
   }
 
@@ -196,7 +201,9 @@ export async function crossEncoderRerank(
       scored.push({ chunkId: result.chunkId, score: relevanceScore });
     }
 
-    return scored.sort((a, b) => b.score - a.score);
+    const sorted = scored.sort((a, b) => b.score - a.score);
+    logger.info(`[Rerank] crossEncoderRerank 完成: ${sorted.length} 结果, top score=${sorted[0]?.score?.toFixed(4) ?? "N/A"}`);
+    return sorted;
   } catch (err) {
     logger.warn(`Cross-encoder inference failed, falling back to local rerank: ${err}`);
     return localRerank(results, query);

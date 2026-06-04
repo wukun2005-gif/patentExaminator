@@ -573,6 +573,11 @@ export async function agentRun<T>(
     settings
   );
 
+  // 知识库 embedding/reranker 配置
+  const knowledgeProviders = (settings as unknown as Record<string, unknown>).knowledgeProviders as Array<{ providerType: string; providerId: string; enabled: boolean; apiKeyRef: string; baseUrl: string; modelId: string }> | undefined;
+  const embProvider = knowledgeProviders?.find((p) => p.providerType === "embedding" && p.enabled && p.apiKeyRef);
+  const rerankerProvider = knowledgeProviders?.find((p) => p.providerType === "reranker" && p.enabled && p.apiKeyRef);
+
   const body = {
     agent,
     caseId: id,
@@ -582,6 +587,8 @@ export async function agentRun<T>(
     ...(resolved.maxTokens != null ? { maxTokens: resolved.maxTokens } : {}),
     ...buildProviderOptions(settings),
     knowledgeEnabled: settings.knowledge?.enabled ?? false,
+    ...(embProvider ? { knowledgeEmbedding: { baseUrl: embProvider.baseUrl, apiKey: embProvider.apiKeyRef, modelId: embProvider.modelId } } : {}),
+    ...(rerankerProvider ? { knowledgeReranker: { baseUrl: rerankerProvider.baseUrl, apiKey: rerankerProvider.apiKeyRef, modelId: rerankerProvider.modelId } } : {}),
     ...(settings.mode === "mock" ? { mock: true } : {}),
   };
 

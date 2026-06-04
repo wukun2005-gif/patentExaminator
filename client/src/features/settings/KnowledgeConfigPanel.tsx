@@ -35,6 +35,9 @@ export function KnowledgeConfigPanel() {
   const [sources, setSources] = useState<SourceInfo[]>([]);
   const [config, setConfig] = useState<KnowledgeConfig>(settings.knowledge ?? DEFAULT_KNOWLEDGE_CONFIG);
   const configInitializedRef = useRef(false);
+  const [previewSourceId, setPreviewSourceId] = useState<string | null>(null);
+  const [previewChunks, setPreviewChunks] = useState<Array<{ id: string; index: number; text: string; metadata: Record<string, unknown> }>>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // settings 从服务端加载完成后，同步一次 config（仅当 settings.knowledge 存在且尚未同步过）
   useEffect(() => {
@@ -247,10 +250,23 @@ export function KnowledgeConfigPanel() {
     if (!testQuery.trim()) return;
     setSearching(true);
     try {
+      // bg-41: 传递 embedding 和 reranker 配置
+      const embeddingProvider = knowledgeProviders.find(
+        (p) => p.providerType === "embedding" && p.enabled && p.apiKeyRef
+      );
+      const rerankerProvider = knowledgeProviders.find(
+        (p) => p.providerType === "reranker" && p.enabled && p.apiKeyRef
+      );
+
       const res = await fetch(`${API}/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: testQuery, topK: config.topK }),
+        body: JSON.stringify({
+          query: testQuery,
+          topK: config.topK,
+          ...(embeddingProvider ? { embedding: { baseUrl: embeddingProvider.baseUrl, apiKey: embeddingProvider.apiKeyRef, modelId: embeddingProvider.modelId } } : {}),
+          ...(rerankerProvider ? { reranker: { baseUrl: rerankerProvider.baseUrl, apiKey: rerankerProvider.apiKeyRef, modelId: rerankerProvider.modelId } } : {}),
+        }),
       });
       const data = await res.json() as { ok: boolean; results?: Array<{ text: string; score: number; metadata: Record<string, unknown> }>; error?: string };
       if (!isMountedRef.current) return;
@@ -281,6 +297,30 @@ export function KnowledgeConfigPanel() {
     if (!window.confirm("确定要清空全部知识库数据吗？此操作不可恢复。")) return;
     await fetch(`${API}/clear`, { method: "DELETE" });
     if (isMountedRef.current) await refresh();
+  };
+
+  const handleTogglePreview = async (sourceId: string) => {
+    if (previewSourceId === sourceId) {
+      setPreviewSourceId(null);
+      setPreviewChunks([]);
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewSourceId(sourceId);
+    try {
+      const res = await fetch(`${API}/sources/${sourceId}/chunks?limit=20`);
+      const data = await res.json() as { ok: boolean; chunks?: Array<{ id: string; index: number; text: string; metadata: Record<string, unknown> }>; error?: string };
+      if (!isMountedRef.current) return;
+      if (data.ok && data.chunks) {
+        setPreviewChunks(data.chunks);
+      } else {
+        setPreviewChunks([]);
+      }
+    } catch {
+      if (isMountedRef.current) setPreviewChunks([]);
+    } finally {
+      if (isMountedRef.current) setPreviewLoading(false);
+    }
   };
 
   return (
@@ -418,14 +458,38 @@ export function KnowledgeConfigPanel() {
           <h4>已导入文件</h4>
           <div className="knowledge-source-list">
             {sources.map((s) => (
-              <div key={s.id} className="knowledge-source-item">
-                <span className="knowledge-source-name">{s.name}</span>
-                <span className="knowledge-source-meta">
-                  {s.mediaType} · {s.chunkCount} 条
-                </span>
-                <button type="button" onClick={() => handleDelete(s.id)} className="btn-delete" disabled={!config.enabled}>
-                  删除
-                </button>
+              <div key={s.id}>
+                <div className="knowledge-source-item">
+                  <span className="knowledge-source-name">{s.name}</span>
+                  <span className="knowledge-source-meta">
+                    {s.mediaType} · {s.chunkCount} 条
+                  </span>
+                  <button type="button" onClick={() => handleTogglePreview(s.id)} className="btn-preview" disabled={!config.enabled}>
+                    {previewSourceId === s.id ? "收起" : "预览"}
+                  </button>
+                  <button type="button" onClick={() => handleDelete(s.id)} className="btn-delete" disabled={!config.enabled}>
+                    删除
+                  </button>
+                </div>
+                {previewSourceId === s.id && (
+                  <div className="knowledge-chunk-preview">
+                    {previewLoading ? (
+                      <span className="knowledge-hint">加载中...</span>
+                    ) : previewChunks.length > 0 ? (
+                      <>
+                        <div className="chunk-preview-header">前 {previewChunks.length} 条知识片段：</div>
+                        {previewChunks.map((c) => (
+                          <div key={c.id} className="chunk-preview-item">
+                            <span className="chunk-index">#{c.index + 1}</span>
+                            <span className="chunk-text">{c.text.slice(0, 300)}{c.text.length > 300 ? "..." : ""}</span>
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <span className="knowledge-hint">无 chunk 数据</span>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

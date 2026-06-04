@@ -19,6 +19,7 @@ import {
   findDuplicateByHash,
   computeTextHash,
   findChunksByHashes,
+  getChunksBySourceId,
 } from "../lib/knowledgeDb.js";
 import { extractText, extractFromUrl } from "../lib/knowledgeExtract.js";
 import { logger } from "../lib/logger.js";
@@ -48,7 +49,7 @@ let _remoteEmbedderConfig: { baseUrl: string; apiKey: string; modelId: string } 
 let remoteEmbedder: { embed: (texts: string[]) => Promise<number[][]>; modelId: string } | null = null;
 
 /** 创建远程 embedding 函数 */
-function createRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId: string }) {
+export function createRemoteEmbedder(config: { baseUrl: string; apiKey: string; modelId: string }) {
   return {
     modelId: config.modelId,
     embed: async (texts: string[]): Promise<number[][]> => {
@@ -368,6 +369,7 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
     // Step 2/5: 预处理（清洗 + 规范化）
     sendEvent({ step: "preprocessing", stepNum: 2, totalSteps: TOTAL_STEPS, message: "文本清洗与规范化..." });
     const cleanedText = preprocessText(extraction.text, fileName);
+    logger.info(`[${fileName}] 预处理: ${extraction.text.length} → ${cleanedText.length} 字符`);
     sendEvent({ step: "preprocessing", stepNum: 2, totalSteps: TOTAL_STEPS, done: true });
 
     // Step 3/5: 切片
@@ -388,6 +390,11 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
     for (const chunk of filteredChunks) {
       chunk.metadata.documentCategory = docCategory;
       chunk.metadata.articleRefs = extractArticleRefs(chunk.text);
+    }
+    const noiseCount = rawChunks.length - filteredChunks.length;
+    logger.info(`[${fileName}] 文档分类: ${docCategory} | 切片: ${rawChunks.length} → ${filteredChunks.length} 条（去噪/去重 ${noiseCount}）`);
+    if (filteredChunks[0]) {
+      logger.info(`[${fileName}] 首条 chunk 预览: ${filteredChunks[0].text.slice(0, 100)}...`);
     }
     sendEvent({ step: "chunking", stepNum: 3, totalSteps: TOTAL_STEPS, done: true, total: filteredChunks.length });
 
@@ -414,6 +421,7 @@ knowledgeRouter.post("/knowledge/upload", upload.single("file"), async (req, res
       metadata: rc.metadata,
     }));
     addChunks(chunks);
+    sendEvent({ step: "storing", stepNum: 4, totalSteps: TOTAL_STEPS, done: true });
 
     // Step 5/5: 向量化（全局队列 + 断点续传 + 批处理优化）
     // cr-1: 仅在配置了远程 embedding API 时进行向量化
@@ -552,6 +560,7 @@ knowledgeRouter.post("/knowledge/import-url", express.json(), async (req, res) =
     const sourceId = `ks-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const extraction = await extractFromUrl(url);
     const cleanedText = preprocessText(extraction.text, url);
+    logger.info(`[URL:${url}] 预处理: ${extraction.text.length} → ${cleanedText.length} 字符`);
     const rawChunks = simpleChunk(cleanedText, url);
     const docCategory = classifyDocument(url, cleanedText);
     const filteredChunks = rawChunks.filter((rc) => !isNoise(rc.text));
@@ -559,6 +568,7 @@ knowledgeRouter.post("/knowledge/import-url", express.json(), async (req, res) =
       chunk.metadata.documentCategory = docCategory;
       chunk.metadata.articleRefs = extractArticleRefs(chunk.text);
     }
+    logger.info(`[URL:${url}] 文档分类: ${docCategory} | 切片: ${rawChunks.length} → ${filteredChunks.length} 条`);
 
     addSource({
       id: sourceId,
@@ -667,6 +677,25 @@ knowledgeRouter.get("/knowledge/sources", (_req, res) => {
   }
 });
 
+/** GET /api/knowledge/sources/:id/chunks — 获取来源的 chunk 预览 */
+knowledgeRouter.get("/knowledge/sources/:id/chunks", (req, res) => {
+  try {
+    const idParsed = recordIdSchema.safeParse(req.params.id);
+    if (!idParsed.success) {
+      res.status(400).json({ ok: false, error: idParsed.error.issues.map(i => i.message).join("; ") });
+      return;
+    }
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const chunks = getChunksBySourceId(idParsed.data, limit).map((c) => ({
+      ...c,
+      metadata: JSON.parse(c.metadata) as Record<string, unknown>,
+    }));
+    res.json({ ok: true, chunks });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: errMsg(err) });
+  }
+});
+
 /** DELETE /api/knowledge/sources/:id — 删除来源 */
 knowledgeRouter.delete("/knowledge/sources/:id", (req, res) => {
   try {
@@ -724,9 +753,11 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
 
     if (emb) {
       try {
+        logger.info(`[Search] [Step 1] Embedding query: "${expandedQuery.slice(0, 50)}..." model=${emb.modelId}`);
         const qVec = (await emb.embed([expandedQuery]))[0];
         if (!qVec) throw new Error("Failed to embed query");
         const queryVector = qVec;
+        logger.info(`[Search] [Step 1] Embedding 完成: vector dim=${queryVector.length}`);
         for (const [chunkId, vec] of vectorMap) {
           const chunk = chunkMap.get(chunkId);
           if (!chunk) continue;
@@ -743,13 +774,14 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
           }
         }
         scores.sort((a, b) => b.score - a.score);
+        logger.info(`[Search] [Step 1] Vector search: ${scores.length} 结果 (threshold=0.3), top=${scores[0]?.score?.toFixed(4) ?? "N/A"}`);
       } catch (embedErr) {
         // bg-70: Embedding 失败时降级到纯 BM25，不返回 500
-        logger.warn(`Embedding failed, falling back to pure BM25: ${embedErr}`);
+        logger.warn(`[Search] Embedding failed, falling back to pure BM25: ${embedErr}`);
         scores = []; // 传空 scores 给 hybridSearch，让 BM25 独立返回结果
       }
     } else {
-      logger.info("No embedding provider configured, using pure BM25 search");
+      logger.info("[Search] 未配置 embedding，纯 BM25 搜索");
     }
 
     // bg-41: 混合检索 — 向量相似度 + BM25，RRF 融合
@@ -761,6 +793,7 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
     const validHybridScores = hybridScores.filter((s) => chunkMap.has(s.chunkId));
     let rerankedScores = validHybridScores;
     const topCandidates = validHybridScores.slice(0, topK * 3);
+    logger.info(`[Search] [Step 3] Rerank 候选: ${topCandidates.length} 条 (来自 ${validHybridScores.length} 有效结果)`);
     // 构建 localRerank 需要的格式
     const candidatesForRerank = topCandidates.map((s) => {
       const chunk = chunkMap.get(s.chunkId);
@@ -832,12 +865,13 @@ knowledgeRouter.post("/knowledge/search", express.json(), async (req, res) => {
         logger.info(`Cross-encoder re-ranker applied as fallback: ${rerankedScores.length} results`);
       }
     } else {
-      // cr-2: 没有远程 Re-ranker 时，使用 Cross-Encoder 本地重排序（模型不可用时降级为启发式）
-      const crossResults = await crossEncoderRerank(candidatesForRerank, query);
-      rerankedScores = crossResults.map((r) => ({ chunkId: r.chunkId, score: r.score }));
-      logger.info(`Cross-encoder re-ranker applied: ${rerankedScores.length} results`);
+      // cr-2: 没有远程 Re-ranker 时，直接使用 localRerank（避免 cross-encoder 10 秒加载延迟）
+      const { localRerank } = await import("../lib/reranker.js");
+      rerankedScores = localRerank(candidatesForRerank, query);
+      logger.info(`[Search] Local rerank applied: ${rerankedScores.length} results`);
     }
 
+    logger.info(`[Search] [Step 4] Rerank 完成: ${rerankedScores.length} 结果, top=${rerankedScores[0]?.score?.toFixed(4) ?? "N/A"}`);
     const topResults = rerankedScores.slice(0, topK).map((s) => {
       const chunk = chunkMap.get(s.chunkId);
       if (!chunk) return null;

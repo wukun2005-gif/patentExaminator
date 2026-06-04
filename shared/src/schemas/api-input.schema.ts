@@ -19,6 +19,16 @@ export const agentRunInputSchema = z.object({
   providerBaseUrls: z.record(z.string()).optional(),
   maxTokens: z.number().int().positive().optional(),
   knowledgeEnabled: z.boolean().optional(),
+  knowledgeEmbedding: z.object({
+    baseUrl: z.string(),
+    apiKey: z.string(),
+    modelId: z.string(),
+  }).optional(),
+  knowledgeReranker: z.object({
+    baseUrl: z.string(),
+    apiKey: z.string(),
+    modelId: z.string(),
+  }).optional(),
   apiKey: z.string().optional(),
   mock: z.boolean().optional(),
   mockKey: z.string().optional(),

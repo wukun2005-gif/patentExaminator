@@ -8,6 +8,32 @@ import { logger } from "./logger.js";
 
 const RRF_K = 60; // RRF 常数
 
+// ── 中文分词 ─────────────────────────────────────────
+
+/** 中文分词：bigram + 单字 + 英文单词 */
+function tokenizeChinese(text: string): string[] {
+  const tokens: string[] = [];
+  // 去标点，保留中英文和数字
+  const cleaned = text.replace(/[^一-鿿\w]/g, " ");
+  const segments = cleaned.split(/\s+/).filter(Boolean);
+
+  for (const seg of segments) {
+    // 英文/数字段：直接作为 token
+    if (/^[\w\d]+$/.test(seg)) {
+      tokens.push(seg.toLowerCase());
+      continue;
+    }
+    // 中文段：bigram 分词 + 单字
+    for (let i = 0; i < seg.length; i++) {
+      tokens.push(seg[i]!); // 单字
+      if (i + 1 < seg.length) {
+        tokens.push(seg.slice(i, i + 2)); // bigram
+      }
+    }
+  }
+  return [...new Set(tokens)];
+}
+
 // ── BM25 索引 ─────────────────────────────────────────
 
 let miniSearch: MiniSearch | null = null;
@@ -21,8 +47,10 @@ function ensureBM25Index(): MiniSearch {
   miniSearch = new MiniSearch({
     fields: ["text"],
     storeFields: ["sourceId"],
+    tokenize: (text) => tokenizeChinese(text),
     searchOptions: {
       boost: { text: 1 },
+      combineWith: "OR",
       fuzzy: 0.2,
       prefix: true,
     },
@@ -44,6 +72,12 @@ function ensureBM25Index(): MiniSearch {
 function searchBM25(query: string, topK: number = 10): Array<{ id: string; score: number }> {
   const index = ensureBM25Index();
   const results = index.search(query).slice(0, topK);
+  if (results.length > 0) {
+    const top = results[0];
+    logger.info(`[BM25] query="${query.slice(0, 40)}..." → ${results.length} hits, top score=${top?.score?.toFixed(4) ?? "N/A"}`);
+  } else {
+    logger.info(`[BM25] query="${query.slice(0, 40)}..." → 0 hits`);
+  }
   return results.map((r) => ({ id: String(r.id), score: r.score }));
 }
 
@@ -94,13 +128,21 @@ export function hybridSearch(
 
   // 如果 BM25 没有结果，直接返回向量检索结果
   if (bm25Ranking.length === 0) {
+    logger.info(`[Hybrid] BM25 无结果，仅返回 vector 结果: ${vectorRanking.length} 条`);
     return vectorScores.slice(0, topK);
   }
 
   // RRF 融合
   const fused = reciprocalRankFusion([vectorRanking, bm25Ranking]);
 
-  logger.info(`Hybrid search: ${vectorRanking.length} vector + ${bm25Ranking.length} BM25 → ${fused.length} fused`);
+  logger.info(`[Hybrid] RRF 融合: ${vectorRanking.length} vector + ${bm25Ranking.length} BM25 → ${fused.length} fused, topK=${topK}`);
+  if (fused.length > 0) {
+    const top3 = fused.slice(0, 3);
+    for (let i = 0; i < top3.length; i++) {
+      const item = top3[i];
+      if (item) logger.info(`[Hybrid]   #${i + 1}: ${item.id} (score=${item.score.toFixed(4)})`);
+    }
+  }
 
   return fused.slice(0, topK).map((r) => ({
     chunkId: r.id,

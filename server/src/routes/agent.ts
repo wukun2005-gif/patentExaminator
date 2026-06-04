@@ -31,6 +31,8 @@ agentRouter.post("/agent/run", express.json({ limit: "10mb" }), async (req, res)
       providerBaseUrls,
       maxTokens,
       knowledgeEnabled,
+      knowledgeEmbedding,
+      knowledgeReranker,
       apiKey,
       mock,
       mockKey,
@@ -56,7 +58,7 @@ agentRouter.post("/agent/run", express.json({ limit: "10mb" }), async (req, res)
       }
     }
 
-    logger.info(`Agent run request: agent=${agent}, caseId=${caseId}`);
+    logger.info(`Agent run request: agent=${agent}, caseId=${caseId}, knowledgeEnabled=${knowledgeEnabled}`);
 
     const result = await runAgent({
       agent,
@@ -70,11 +72,15 @@ agentRouter.post("/agent/run", express.json({ limit: "10mb" }), async (req, res)
       maxTokens,
       signal: (req as unknown as { signal?: AbortSignal }).signal,
       knowledgeEnabled,
+      knowledgeEmbedding,
+      knowledgeReranker,
       apiKey,
     });
 
     if (!result.ok) {
-      const status = result.error?.type === "unsupported" ? 501 : 500;
+      const status = result.error?.type === "unsupported" ? 501
+        : result.error?.type === "auth" ? 401
+        : 500;
       res.status(status).json(result);
       return;
     }

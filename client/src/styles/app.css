@@ -3509,6 +3509,40 @@
   background: var(--pex-color-primary-hover);
 }
 
+.chat-bubble__citations {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--pex-color-border-light);
+  font-size: 0.8rem;
+}
+
+.chat-bubble__citations-header {
+  font-weight: 600;
+  color: var(--text-secondary, #666);
+  margin-bottom: 4px;
+}
+
+.chat-bubble__citation-item {
+  display: flex;
+  gap: 0.5rem;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border-color, #eee);
+}
+
+.chat-bubble__citation-source {
+  color: var(--pex-color-primary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chat-bubble__citation-excerpt {
+  color: var(--text-secondary, #666);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+}
+
 /* Input area */
 .chat-panel__input {
   position: relative;

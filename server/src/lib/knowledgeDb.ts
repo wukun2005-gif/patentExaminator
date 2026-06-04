@@ -220,6 +220,15 @@ export function getAllChunks(): Array<{
   }>;
 }
 
+export function getChunksBySourceId(sourceId: string, limit = 20): Array<{
+  id: string; index: number; text: string; metadata: string;
+}> {
+  const db = getKnowledgeDb();
+  return db.prepare("SELECT id, idx as `index`, text, metadata FROM kb_chunks WHERE source_id = ? ORDER BY idx LIMIT ?").all(sourceId, limit) as Array<{
+    id: string; index: number; text: string; metadata: string;
+  }>;
+}
+
 // ── Vectors ─────────────────────────────────────────
 
 export function addVectors(vectors: Array<{

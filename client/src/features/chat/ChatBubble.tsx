@@ -10,9 +10,10 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
   const isAssistant = message.role === "assistant";
 
   // Detect action in content (simple pattern: action://target)
-  const actionMatch = message.content.match(/\[action:(\S+?)\]/);
+  const content = message.content ?? "";
+  const actionMatch = content.match(/\[action:(\S+?)\]/);
   const actionTarget = actionMatch?.[1];
-  const displayContent = message.content.replace(/\[action:\S+?\]/g, "").trim();
+  const displayContent = content.replace(/\[action:\S+?\]/g, "").trim();
 
   return (
     <div className={`chat-bubble chat-bubble--${message.role}`} data-testid={`chat-bubble-${message.id}`}>
@@ -37,6 +38,17 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
           >
             应用修改
           </button>
+        </div>
+      )}
+      {isAssistant && message.knowledgeCitations && message.knowledgeCitations.length > 0 && (
+        <div className="chat-bubble__citations">
+          <div className="chat-bubble__citations-header">知识库引用：</div>
+          {message.knowledgeCitations.map((c, i) => (
+            <div key={`${c.source}-${i}`} className="chat-bubble__citation-item">
+              <span className="chat-bubble__citation-source">【{c.source} · {c.score.toFixed(2)}】</span>
+              <span className="chat-bubble__citation-excerpt">{c.excerpt}...</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

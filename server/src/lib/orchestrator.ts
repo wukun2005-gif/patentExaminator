@@ -10,6 +10,7 @@
 import { logger } from "./logger.js";
 import type { ChatRequest } from "../providers/ProviderAdapter.js";
 import { sanitizeText } from "../security/sanitize.js";
+import { extractJsonFromText } from "./jsonExtractor.js";
 
 function truncate(text: string, maxLen: number): string {
   return text.length > maxLen ? text.slice(0, maxLen) : text;
@@ -30,6 +31,10 @@ export interface AgentRunRequest {
   signal?: AbortSignal | undefined;
   /** bg-75: 用户是否启用了知识库 */
   knowledgeEnabled?: boolean | undefined;
+  /** 知识库 embedding 配置 */
+  knowledgeEmbedding?: { baseUrl: string; apiKey: string; modelId: string } | undefined;
+  /** 知识库 reranker 配置 */
+  knowledgeReranker?: { baseUrl: string; apiKey: string; modelId: string } | undefined;
   /** B-041: 请求体传入的 API key（测试/外部调用用），优先于 keyStore */
   apiKey?: string | undefined;
 }
@@ -210,7 +215,7 @@ function buildNoveltyPrompt(request: NoveltyRequest): string {
     `案件 ID: ${caseId}`,
     `权利要求号: ${claimNumber}`,
     `技术特征:`,
-    ...features.map((f) => `  ${f.featureCode}: ${sanitizeText(f.description)}`),
+    ...features.map((f) => `  ${f.featureCode}: ${sanitizeText(f.description ?? "")}`),
     ``,
     `对比文件 ID: ${referenceId}`,
     `对比文件内容:`,
@@ -254,10 +259,10 @@ function buildInventivePrompt(request: InventiveRequest): string {
     `案件 ID: ${caseId}`,
     `权利要求号: ${claimNumber}`,
     `技术特征:`,
-    ...features.map((f) => `  ${f.featureCode}: ${sanitizeText(f.description)}`),
+    ...features.map((f) => `  ${f.featureCode}: ${sanitizeText(f.description ?? "")}`),
     ``,
     `可用对比文件:`,
-    ...availableReferences.map((r) => `  ${r.label} (${r.referenceId}): ${truncate(sanitizeText(r.excerpt), 500)}`),
+    ...availableReferences.map((r) => `  ${r.label} (${r.referenceId}): ${truncate(sanitizeText(r.excerpt ?? ""), 500)}`),
     ``,
     `用户指定最接近现有技术: ${closestPriorArtId ?? "由 AI 推荐"}`
   ];
@@ -308,7 +313,7 @@ function buildDefectPrompt(request: DefectRequest): string {
     truncate(specificationText, 8000),
     ``,
     `技术特征:`,
-    ...claimFeatures.map((f) => `  ${f.featureCode}: ${sanitizeText(f.description)}`),
+    ...claimFeatures.map((f) => `  ${f.featureCode}: ${sanitizeText(f.description ?? "")}`),
     ``,
     `请检测形式缺陷，严格按以下 JSON 格式输出：`,
     `{`,
@@ -324,7 +329,7 @@ function buildChatPrompt(request: ChatRequestData): string {
   const moduleScope = sanitizeText(request.moduleScope ?? "");
   const contextSummary = sanitizeText(request.contextSummary ?? "");
   const history = (request.history ?? [])
-    .map(m => ({ role: m.role, content: sanitizeText(m.content) }));
+    .map(m => ({ role: m.role, content: sanitizeText(m.content ?? "") }));
   const userMessage = sanitizeText(request.userMessage ?? "");
 
   return [
@@ -594,56 +599,147 @@ async function enhanceWithKnowledge(
   prompt: string,
   query: string,
   agentType: string,
-  knowledgeEnabled: boolean = false
+  knowledgeEnabled: boolean = false,
+  embeddingConfig?: { baseUrl: string; apiKey: string; modelId: string },
+  rerankerConfig?: { baseUrl: string; apiKey: string; modelId: string }
 ): Promise<{ prompt: string; citations: Array<{ source: string; score: number; excerpt: string }> }> {
   try {
-    // bg-75: 检查用户是否启用了知识库
     if (!knowledgeEnabled) {
+      logger.info("[RAG] knowledgeEnabled=false, 跳过知识库增强");
       return { prompt, citations: [] };
     }
+    logger.info(`[RAG] === 知识库增强开始 === agent=${agentType}, query="${query}"`);
 
-    // 使用服务端混合检索（直接调用内部函数，避免 HTTP 往返）
     const { hybridSearch } = await import("./hybridSearch.js");
-    const { getAllChunks } = await import("./knowledgeDb.js");
+    const { getAllChunks, getAllVectors } = await import("./knowledgeDb.js");
+    const { expandQueryFull } = await import("./queryExpand.js");
 
     const allChunks = getAllChunks();
+    const allVectors = getAllVectors();
+    logger.info(`[RAG] 加载 ${allChunks.length} chunks, ${allVectors.length} vectors`);
 
     if (allChunks.length === 0) {
+      logger.info("[RAG] 知识库为空，跳过");
       return { prompt, citations: [] };
     }
 
     const chunkMap = new Map(allChunks.map((c) => [c.id, c]));
+    const vectorMap = new Map(allVectors.map((v) => [v.chunkId, v]));
 
-    // 纯 BM25 检索（orchestrator 内部不配置 embedding）
-    const scores: Array<{ chunkId: string; score: number }> = [];
-    const hybridScores = hybridSearch(query, scores, 15);
-    const topResults = hybridScores.slice(0, 5);
+    // Step 1: Query Expansion
+    const expandedQuery = expandQueryFull(query);
+    logger.info(`[RAG] [Step 1] Query expansion: "${query}" → "${expandedQuery}"`);
 
+    // Step 2: Embedding Search
+    let vectorScores: Array<{ chunkId: string; score: number }> = [];
+    if (embeddingConfig) {
+      try {
+        const { createRemoteEmbedder } = await import("../routes/knowledge.js");
+        const emb = createRemoteEmbedder(embeddingConfig);
+        logger.info(`[RAG] [Step 2] Embedding query: model=${emb.modelId}, vectorMap=${vectorMap.size} vectors`);
+        const qVec = (await emb.embed([expandedQuery]))[0];
+        if (qVec) {
+          for (const [chunkId, vec] of vectorMap) {
+            let dot = 0, normA = 0, normB = 0;
+            for (let i = 0; i < qVec.length; i++) {
+              dot += (qVec[i] ?? 0) * (vec.vector[i] ?? 0);
+              normA += (qVec[i] ?? 0) * (qVec[i] ?? 0);
+              normB += (vec.vector[i] ?? 0) * (vec.vector[i] ?? 0);
+            }
+            const score = dot / (Math.sqrt(normA) * Math.sqrt(normB));
+            if (score >= 0.3) vectorScores.push({ chunkId, score });
+          }
+          vectorScores.sort((a, b) => b.score - a.score);
+          logger.info(`[RAG] [Step 2] Vector search: ${vectorScores.length} 结果 (threshold=0.3), top=${vectorScores[0]?.score?.toFixed(4) ?? "N/A"}`);
+        }
+      } catch (embErr) {
+        logger.warn(`[RAG] [Step 2] Embedding 失败，降级到纯 BM25: ${embErr}`);
+      }
+    } else {
+      logger.info("[RAG] [Step 2] 未配置 embedding，跳过向量搜索");
+    }
+
+    // Step 3: BM25 + Hybrid RRF
+    logger.info(`[RAG] [Step 3] BM25 + RRF 融合搜索 (topK=15)...`);
+    const hybridScores = hybridSearch(expandedQuery, vectorScores, 15);
+    logger.info(`[RAG] [Step 3] 搜索完成: ${hybridScores.length} 候选结果`);
+
+    // Step 4: Reranking
+    const topCandidates = hybridScores.slice(0, 10);
+    let rerankedScores = topCandidates;
+
+    if (rerankerConfig) {
+      try {
+        const rerankUrl = rerankerConfig.baseUrl.endsWith("/v1")
+          ? `${rerankerConfig.baseUrl}/rerank`
+          : `${rerankerConfig.baseUrl}/v1/rerank`;
+        const documents = topCandidates.map((s) => chunkMap.get(s.chunkId)?.text ?? "");
+        logger.info(`[RAG] [Step 4] 远程 Rerank: ${topCandidates.length} 候选, model=${rerankerConfig.modelId}`);
+        const rerankRes = await fetch(rerankUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${rerankerConfig.apiKey}` },
+          body: JSON.stringify({ model: rerankerConfig.modelId, query: expandedQuery, documents, top_n: 5 }),
+          signal: AbortSignal.timeout(30000),
+        });
+        if (rerankRes.ok) {
+          const rerankData = await rerankRes.json() as { results: Array<{ index: number; relevance_score: number }> };
+          rerankedScores = rerankData.results
+            .filter((r) => r.index >= 0 && r.index < topCandidates.length)
+            .map((r) => ({ chunkId: topCandidates[r.index]?.chunkId ?? "", score: r.relevance_score }))
+            .filter((r) => r.chunkId !== "");
+          logger.info(`[RAG] [Step 4] Rerank 完成: ${rerankedScores.length} 结果, top=${rerankedScores[0]?.score?.toFixed(4) ?? "N/A"}`);
+        } else {
+          logger.warn(`[RAG] [Step 4] Rerank 失败 (${rerankRes.status})，使用原始排序`);
+        }
+      } catch (rerankErr) {
+        logger.warn(`[RAG] [Step 4] Rerank 错误，使用原始排序: ${rerankErr}`);
+      }
+    } else {
+      const { localRerank } = await import("./reranker.js");
+      const candidatesForRerank = topCandidates.map((s) => {
+        const chunk = chunkMap.get(s.chunkId);
+        if (!chunk) return null;
+        return { chunkId: s.chunkId, text: chunk.text, metadata: (() => { try { return JSON.parse(chunk.metadata) as Record<string, unknown>; } catch { return {}; } })(), score: s.score };
+      }).filter((c): c is NonNullable<typeof c> => c !== null);
+      logger.info(`[RAG] [Step 4] Local Rerank: ${candidatesForRerank.length} 候选`);
+      const reranked = localRerank(candidatesForRerank, expandedQuery);
+      rerankedScores = reranked;
+      logger.info(`[RAG] [Step 4] Rerank 完成: ${reranked.length} 结果, top=${reranked[0]?.score?.toFixed(4) ?? "N/A"}`);
+    }
+
+    // Step 5: Build citations
+    const topResults = rerankedScores.slice(0, 5);
     if (topResults.length === 0) {
+      logger.info("[RAG] 无结果，跳过增强");
       return { prompt, citations: [] };
     }
 
     const contextPrefix = getAgentContext(agentType);
     const parts = [prompt, "", contextPrefix, ""];
-
     const citations: Array<{ source: string; score: number; excerpt: string }> = [];
-    for (const result of topResults) {
+
+    logger.info(`[RAG] [Step 5] 构建 ${topResults.length} 条 citations...`);
+    for (let i = 0; i < topResults.length; i++) {
+      const result = topResults[i];
+      if (!result) continue;
       const chunk = chunkMap.get(result.chunkId);
       if (!chunk) continue;
       let metadata: Record<string, unknown> = {};
-      try { metadata = JSON.parse(chunk.metadata) as Record<string, unknown>; } catch { logger.warn("Malformed chunk metadata", { chunkId: chunk.id }); }
+      try { metadata = JSON.parse(chunk.metadata) as Record<string, unknown>; } catch { /* ignore */ }
       const source = typeof metadata.fileName === "string" ? metadata.fileName : "unknown";
+      const category = typeof metadata.documentCategory === "string" ? metadata.documentCategory : "未知";
+      const articleRefs = Array.isArray(metadata.articleRefs) ? (metadata.articleRefs as string[]).join(", ") : "无";
+      logger.info(`[RAG]   #${i + 1}: source="${source}" category="${category}" score=${result.score.toFixed(4)} refs=[${articleRefs}]`);
       parts.push(`> 【来源：${source} · 相似度: ${result.score.toFixed(2)}】`);
-      for (const line of chunk.text.split("\n").slice(0, 10)) {
-        parts.push(`> ${line}`);
-      }
+      for (const line of chunk.text.split("\n").slice(0, 10)) parts.push(`> ${line}`);
       parts.push("");
       citations.push({ source, score: result.score, excerpt: chunk.text.slice(0, 100) });
     }
 
+    logger.info(`[RAG] === 检索完成 === ${citations.length} 条引用注入 prompt`);
     return { prompt: parts.join("\n"), citations };
   } catch (err) {
-    logger.warn(`Knowledge enhancement failed: ${err}`);
+    logger.warn(`[RAG] Knowledge enhancement failed: ${err}`);
     return { prompt, citations: [] };
   }
 }
@@ -714,9 +810,24 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
 
     // 2. 知识库增强
     const query = extractQuery(req.agent, req.request);
-    const { prompt: enhancedPrompt, citations } = await enhanceWithKnowledge(prompt, query, req.agent, req.knowledgeEnabled);
+    logger.info(`[Orchestrator] agent=${req.agent}, 提取检索 query="${query.slice(0, 80)}${query.length > 80 ? "..." : ""}", knowledgeEnabled=${req.knowledgeEnabled}`);
+    const { prompt: enhancedPrompt, citations } = await enhanceWithKnowledge(prompt, query, req.agent, req.knowledgeEnabled, req.knowledgeEmbedding, req.knowledgeReranker);
+
+    // 2.5 检查 API key 可用性
+    const { getApiKey } = await import("../security/keyStore.js");
+    const hasAnyKey = req.providerPreference?.some((p) => req.apiKey || getApiKey(p));
+    if (!hasAnyKey) {
+      return {
+        ok: false,
+        error: {
+          type: "auth",
+          message: "未配置任何 AI Provider 的 API Key。请在设置页面中配置 API Key 后重试。",
+        },
+      };
+    }
 
     // 3. 调用内部 AI Gateway
+    logger.info(`[Orchestrator] 发送 AI 请求: prompt 长度=${enhancedPrompt.length} 字符, ${citations.length} 条知识引用已注入`);
     const aiResponse = await callInternalGateway({
       agent: req.agent,
       prompt: enhancedPrompt,
@@ -731,8 +842,20 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       apiKey: req.apiKey,
     });
 
+    // 解析 AI 返回的 JSON
+    let output: unknown = aiResponse.output;
+    if (typeof output === "string") {
+      const extracted = extractJsonFromText(output);
+      if (extracted) {
+        output = extracted.parsed;
+      } else if (req.agent === "chat") {
+        // chat agent 返回纯文本，包装为 ChatResponse 格式
+        output = { reply: output };
+      }
+    }
+
     // B-038: claim-chart 后处理 — 为每个 feature 生成稳定 id 和 source
-    const output = aiResponse.output;
+    // (output is now parsed object or original string)
     if (req.agent === "claim-chart" && output && typeof output === "object") {
       const data = output as Record<string, unknown>;
       const chartReq = req.request as ClaimChartRequest;
