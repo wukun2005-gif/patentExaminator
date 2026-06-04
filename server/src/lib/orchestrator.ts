@@ -806,6 +806,9 @@ function extractQuery(agent: string, request: Record<string, unknown>): string {
       const r = request as ExtractCaseFieldsRequest;
       return (r.documents ?? []).map((d) => d.fileName).join(" ");
     }
+    case "translate":
+      // 翻译 agent 不需要知识库增强 — 源文本就是输入，无需检索相关内容
+      return "";
     default:
       return "";
   }
