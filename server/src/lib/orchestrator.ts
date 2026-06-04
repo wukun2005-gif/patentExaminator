@@ -43,12 +43,107 @@ export interface AgentRunResponse {
   knowledgeCitations?: Array<{ source: string; score: number; excerpt: string }> | undefined;
 }
 
+// ── Per-agent 请求类型 ──────────────────────────────────
+
+interface ClaimChartRequest {
+  claimNumber?: number;
+  claimText?: string;
+  specificationText?: string;
+  claims?: Array<{ rawText: string }>;
+}
+
+interface NoveltyRequest {
+  features?: Array<{ featureCode: string; description: string }>;
+  referenceText?: string;
+  referenceId?: string;
+  claimNumber?: number;
+  caseId?: string;
+}
+
+interface InventiveRequest {
+  features?: Array<{ featureCode: string; description: string }>;
+  availableReferences?: Array<{ label: string; referenceId: string; excerpt: string }>;
+  caseId?: string;
+  claimNumber?: number;
+  closestPriorArtId?: string | null;
+  applicantArguments?: string;
+  amendedClaimText?: string;
+}
+
+interface DefectRequest {
+  claimText?: string;
+  specificationText?: string;
+  claimFeatures?: Array<{ featureCode: string; description: string }>;
+  caseId?: string;
+}
+
+interface ChatRequestData {
+  caseId?: string;
+  moduleScope?: string;
+  contextSummary?: string;
+  history?: Array<{ role: string; content: string }>;
+  userMessage?: string;
+}
+
+interface InterpretRequest {
+  documentType?: string;
+  caseId?: string;
+  documentId?: string;
+  fileName?: string;
+  documentText?: string;
+  relatedDocuments?: Array<{ fileName: string; documentType: string }>;
+}
+
+interface OpinionAnalysisRequest {
+  caseId?: string;
+  documentId?: string;
+  officeActionText?: string;
+}
+
+interface ArgumentAnalysisRequest {
+  caseId?: string;
+  rejectionGrounds?: Array<{ code: string; category: string; summary: string }>;
+  responseText?: string;
+  amendedClaimsText?: string;
+}
+
+interface ReexamDraftRequest {
+  caseId?: string;
+  claimNumber?: number;
+  rejectionGrounds?: Array<{ code: string; category: string; summary: string }>;
+  argumentMappings?: Array<{ rejectionGroundCode: string; argumentSummary: string; confidence: string }>;
+  noveltyResults?: string;
+  inventiveResults?: string;
+  defectResults?: string;
+}
+
+interface SummaryRequest {
+  caseBaseline?: string;
+  confirmedFeatures?: string;
+  reviewedNoveltyComparisons?: string;
+  inventiveAnalysis?: string;
+}
+
+interface TranslateRequest {
+  documentText?: string;
+  targetLang?: string;
+}
+
+interface ExtractCaseFieldsRequest {
+  caseId?: string;
+  documents?: Array<{ fileName: string; text: string }>;
+}
+
+interface ClassifyDocumentsRequest {
+  documents?: Array<{ fileIndex: number; fileName: string; textSample: string }>;
+}
+
 // ── Prompt 构造器 ──────────────────────────────────────
 
-function buildClaimChartPrompt(request: Record<string, unknown>): string {
-  const claimNumber = request.claimNumber as number ?? 1;
-  const claimText = sanitizeText(request.claimText as string ?? "");
-  const specificationText = sanitizeText(request.specificationText as string ?? "");
+function buildClaimChartPrompt(request: ClaimChartRequest): string {
+  const claimNumber = request.claimNumber ?? 1;
+  const claimText = sanitizeText(request.claimText ?? "");
+  const specificationText = sanitizeText(request.specificationText ?? "");
   const specExcerpt = specificationText.length > 8000 ? specificationText.slice(0, 8000) : specificationText;
 
   return [
@@ -94,12 +189,12 @@ function buildClaimChartPrompt(request: Record<string, unknown>): string {
   ].join("\n");
 }
 
-function buildNoveltyPrompt(request: Record<string, unknown>): string {
-  const features = request.features as Array<{ featureCode: string; description: string }> ?? [];
-  const referenceText = sanitizeText(request.referenceText as string ?? "");
-  const referenceId = request.referenceId as string ?? "";
-  const claimNumber = request.claimNumber as number ?? 1;
-  const caseId = request.caseId as string ?? "";
+function buildNoveltyPrompt(request: NoveltyRequest): string {
+  const features = request.features ?? [];
+  const referenceText = sanitizeText(request.referenceText ?? "");
+  const referenceId = request.referenceId ?? "";
+  const claimNumber = request.claimNumber ?? 1;
+  const caseId = request.caseId ?? "";
   const specExcerpt = truncate(referenceText, 8000);
 
   const parts = [
@@ -137,14 +232,14 @@ function buildNoveltyPrompt(request: Record<string, unknown>): string {
   return parts.join("\n");
 }
 
-function buildInventivePrompt(request: Record<string, unknown>): string {
-  const features = request.features as Array<{ featureCode: string; description: string }> ?? [];
-  const availableReferences = request.availableReferences as Array<{ label: string; referenceId: string; excerpt: string }> ?? [];
-  const caseId = request.caseId as string ?? "";
-  const claimNumber = request.claimNumber as number ?? 1;
-  const closestPriorArtId = request.closestPriorArtId as string | null ?? null;
-  const applicantArguments = request.applicantArguments ? sanitizeText(request.applicantArguments as string) : undefined;
-  const amendedClaimText = request.amendedClaimText ? sanitizeText(request.amendedClaimText as string) : undefined;
+function buildInventivePrompt(request: InventiveRequest): string {
+  const features = request.features ?? [];
+  const availableReferences = request.availableReferences ?? [];
+  const caseId = request.caseId ?? "";
+  const claimNumber = request.claimNumber ?? 1;
+  const closestPriorArtId = request.closestPriorArtId ?? null;
+  const applicantArguments = request.applicantArguments ? sanitizeText(request.applicantArguments) : undefined;
+  const amendedClaimText = request.amendedClaimText ? sanitizeText(request.amendedClaimText) : undefined;
 
   const parts = [
     `你是一名专利复审辅助系统，负责在复审阶段进行创造性三步法分析。`,
@@ -183,7 +278,7 @@ function buildInventivePrompt(request: Record<string, unknown>): string {
     `  "distinguishingFeatureCodes": ["区别特征"],`,
     `  "objectiveTechnicalProblem": "客观技术问题",`,
     `  "motivationEvidence": [{ "referenceId": "ID", "label": "标签", "quote": "引文", "confidence": "high|medium|low" }],`,
-    `  "candidateAssessment": "possibly-inventive|possibly-lacks-inventiveness|insufficient-evidence",`,
+    `  "candidateAssessment": "possibly-inventive|possibly-lacks-inventiveness|insufficient-evidence|not-analyzed",`,
     `  "cautions": ["注意事项"],`,
     `  "examinerResponse": "审查员回应草稿",`,
     `  "legalCaution": "法律风险提示"`,
@@ -192,16 +287,16 @@ function buildInventivePrompt(request: Record<string, unknown>): string {
     `注意：`,
     `- closestPriorArtId 必须填写`,
     `- sharedFeatureCodes 和 distinguishingFeatureCodes 并集必须等于所有 features`,
-    `- candidateAssessment 只能是 possibly-inventive、possibly-lacks-inventiveness 或 insufficient-evidence`
+    `- candidateAssessment 只能是 possibly-inventive、possibly-lacks-inventiveness、insufficient-evidence 或 not-analyzed（信息不足无法判断时使用）`
   );
   return parts.join("\n");
 }
 
-function buildDefectPrompt(request: Record<string, unknown>): string {
-  const claimText = sanitizeText(request.claimText as string ?? "");
-  const specificationText = sanitizeText(request.specificationText as string ?? "");
-  const claimFeatures = request.claimFeatures as Array<{ featureCode: string; description: string }> ?? [];
-  const caseId = request.caseId as string ?? "";
+function buildDefectPrompt(request: DefectRequest): string {
+  const claimText = sanitizeText(request.claimText ?? "");
+  const specificationText = sanitizeText(request.specificationText ?? "");
+  const claimFeatures = request.claimFeatures ?? [];
+  const caseId = request.caseId ?? "";
 
   return [
     `你是一位资深专利审查员，擅长识别专利申请文件中的形式缺陷。`,
@@ -225,13 +320,13 @@ function buildDefectPrompt(request: Record<string, unknown>): string {
   ].join("\n");
 }
 
-function buildChatPrompt(request: Record<string, unknown>): string {
-  const caseId = request.caseId as string ?? "";
-  const moduleScope = sanitizeText(request.moduleScope as string ?? "");
-  const contextSummary = sanitizeText(request.contextSummary as string ?? "");
-  const history = (request.history as Array<{ role: string; content: string }> ?? [])
+function buildChatPrompt(request: ChatRequestData): string {
+  const caseId = request.caseId ?? "";
+  const moduleScope = sanitizeText(request.moduleScope ?? "");
+  const contextSummary = sanitizeText(request.contextSummary ?? "");
+  const history = (request.history ?? [])
     .map(m => ({ role: m.role, content: sanitizeText(m.content) }));
-  const userMessage = sanitizeText(request.userMessage as string ?? "");
+  const userMessage = sanitizeText(request.userMessage ?? "");
 
   return [
     `案件 ID: ${caseId}`,
@@ -284,16 +379,16 @@ const INTERPRET_TEMPLATES: Record<string, { title: string; instructions: string[
   }
 };
 
-function buildInterpretPrompt(request: Record<string, unknown>): string {
-  const documentType = request.documentType as string ?? "application";
+function buildInterpretPrompt(request: InterpretRequest): string {
+  const documentType = request.documentType ?? "application";
   const fallback = INTERPRET_TEMPLATES["application"];
   if (!fallback) throw new Error("Missing INTERPRET_TEMPLATES.application");
   const template = INTERPRET_TEMPLATES[documentType] ?? fallback;
-  const caseId = request.caseId as string ?? "";
-  const documentId = request.documentId as string ?? "unknown";
-  const fileName = request.fileName as string ?? "未命名文件";
-  const documentText = sanitizeText(request.documentText as string ?? "");
-  const relatedDocuments = request.relatedDocuments as Array<{ fileName: string; documentType: string }> ?? [];
+  const caseId = request.caseId ?? "";
+  const documentId = request.documentId ?? "unknown";
+  const fileName = request.fileName ?? "未命名文件";
+  const documentText = sanitizeText(request.documentText ?? "");
+  const relatedDocuments = request.relatedDocuments ?? [];
   const relatedStr = relatedDocuments.length
     ? relatedDocuments.map((doc) => `- ${doc.fileName}（${doc.documentType}）`).join("\n")
     : "无";
@@ -318,10 +413,10 @@ function buildInterpretPrompt(request: Record<string, unknown>): string {
   ].join("\n");
 }
 
-function buildOpinionAnalysisPrompt(request: Record<string, unknown>): string {
-  const caseId = request.caseId as string ?? "";
-  const documentId = request.documentId as string ?? "";
-  const officeActionText = sanitizeText(request.officeActionText as string ?? "");
+function buildOpinionAnalysisPrompt(request: OpinionAnalysisRequest): string {
+  const caseId = request.caseId ?? "";
+  const documentId = request.documentId ?? "";
+  const officeActionText = sanitizeText(request.officeActionText ?? "");
 
   return [
     `你是一位资深专利审查员，擅长分析审查意见通知书。`,
@@ -341,11 +436,11 @@ function buildOpinionAnalysisPrompt(request: Record<string, unknown>): string {
   ].join("\n");
 }
 
-function buildArgumentAnalysisPrompt(request: Record<string, unknown>): string {
-  const caseId = request.caseId as string ?? "";
-  const rejectionGrounds = request.rejectionGrounds as Array<{ code: string; category: string; summary: string }> ?? [];
-  const responseText = sanitizeText(request.responseText as string ?? "");
-  const amendedClaimsText = request.amendedClaimsText != null ? sanitizeText(request.amendedClaimsText as string) : undefined;
+function buildArgumentAnalysisPrompt(request: ArgumentAnalysisRequest): string {
+  const caseId = request.caseId ?? "";
+  const rejectionGrounds = request.rejectionGrounds ?? [];
+  const responseText = sanitizeText(request.responseText ?? "");
+  const amendedClaimsText = request.amendedClaimsText != null ? sanitizeText(request.amendedClaimsText) : undefined;
 
   const parts = [
     `你是一位资深专利审查员，擅长分析意见陈述书中的答辩理由。`,
@@ -372,14 +467,14 @@ function buildArgumentAnalysisPrompt(request: Record<string, unknown>): string {
   return parts.join("\n");
 }
 
-function buildReexamDraftPrompt(request: Record<string, unknown>): string {
-  const caseId = request.caseId as string ?? "";
-  const claimNumber = request.claimNumber as number ?? 1;
-  const rejectionGrounds = request.rejectionGrounds as Array<{ code: string; category: string; summary: string }> ?? [];
-  const argumentMappings = request.argumentMappings as Array<{ rejectionGroundCode: string; argumentSummary: string; confidence: string }> ?? [];
-  const noveltyResults = request.noveltyResults as string | undefined;
-  const inventiveResults = request.inventiveResults as string | undefined;
-  const defectResults = request.defectResults as string | undefined;
+function buildReexamDraftPrompt(request: ReexamDraftRequest): string {
+  const caseId = request.caseId ?? "";
+  const claimNumber = request.claimNumber ?? 1;
+  const rejectionGrounds = request.rejectionGrounds ?? [];
+  const argumentMappings = request.argumentMappings ?? [];
+  const noveltyResults = request.noveltyResults;
+  const inventiveResults = request.inventiveResults;
+  const defectResults = request.defectResults;
 
   const parts = [
     `你是一位资深专利审查员，负责起草复审意见草稿。`,
@@ -409,11 +504,11 @@ function buildReexamDraftPrompt(request: Record<string, unknown>): string {
   return parts.join("\n");
 }
 
-function buildSummaryPrompt(request: Record<string, unknown>): string {
-  const caseBaseline = sanitizeText(request.caseBaseline as string ?? "");
-  const confirmedFeatures = sanitizeText(request.confirmedFeatures as string ?? "");
-  const reviewedNoveltyComparisons = sanitizeText(request.reviewedNoveltyComparisons as string ?? "");
-  const inventiveAnalysis = sanitizeText(request.inventiveAnalysis as string ?? "");
+function buildSummaryPrompt(request: SummaryRequest): string {
+  const caseBaseline = sanitizeText(request.caseBaseline ?? "");
+  const confirmedFeatures = sanitizeText(request.confirmedFeatures ?? "");
+  const reviewedNoveltyComparisons = sanitizeText(request.reviewedNoveltyComparisons ?? "");
+  const inventiveAnalysis = sanitizeText(request.inventiveAnalysis ?? "");
 
   return [
     `你是一位资深专利审查员，负责撰写审查意见简述。`,
@@ -437,9 +532,9 @@ function buildSummaryPrompt(request: Record<string, unknown>): string {
   ].join("\n");
 }
 
-function buildTranslatePrompt(request: Record<string, unknown>): string {
-  const documentText = sanitizeText(request.documentText as string ?? "");
-  const targetLang = request.targetLang as string ?? "中文";
+function buildTranslatePrompt(request: TranslateRequest): string {
+  const documentText = sanitizeText(request.documentText ?? "");
+  const targetLang = request.targetLang ?? "中文";
 
   return [
     `你是一名专利文献翻译专家，负责将外文专利文档忠实翻译为${targetLang}。`,
@@ -460,9 +555,9 @@ function buildTranslatePrompt(request: Record<string, unknown>): string {
   ].join("\n");
 }
 
-function buildExtractCaseFieldsPrompt(request: Record<string, unknown>): string {
-  const caseId = request.caseId as string ?? "";
-  const documents = request.documents as Array<{ fileName: string; text: string }> ?? [];
+function buildExtractCaseFieldsPrompt(request: ExtractCaseFieldsRequest): string {
+  const caseId = request.caseId ?? "";
+  const documents = request.documents ?? [];
   const docSections = documents.map((doc, i) => `=== 文件 ${i + 1}: ${doc.fileName} ===\n${doc.text}`);
 
   return [
@@ -478,8 +573,8 @@ function buildExtractCaseFieldsPrompt(request: Record<string, unknown>): string 
   ].join("\n");
 }
 
-function buildClassifyDocumentsPrompt(request: Record<string, unknown>): string {
-  const documents = request.documents as Array<{ fileIndex: number; fileName: string; textSample: string }> ?? [];
+function buildClassifyDocumentsPrompt(request: ClassifyDocumentsRequest): string {
+  const documents = request.documents ?? [];
   const docSections = documents.map((doc) => `=== 文件 ${doc.fileIndex}: ${doc.fileName} ===\n${doc.textSample}`);
 
   return [
@@ -538,7 +633,7 @@ async function enhanceWithKnowledge(
       if (!chunk) continue;
       let metadata: Record<string, unknown> = {};
       try { metadata = JSON.parse(chunk.metadata) as Record<string, unknown>; } catch { /* malformed metadata */ }
-      const source = (metadata.fileName as string) ?? "unknown";
+      const source = typeof metadata.fileName === "string" ? metadata.fileName : "unknown";
       parts.push(`> 【来源：${source} · 相似度: ${result.score.toFixed(2)}】`);
       for (const line of chunk.text.split("\n").slice(0, 10)) {
         parts.push(`> ${line}`);
@@ -641,7 +736,8 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
     const output = aiResponse.output;
     if (req.agent === "claim-chart" && output && typeof output === "object") {
       const data = output as Record<string, unknown>;
-      const claimNumber = (req.request.claimNumber as number) ?? 1;
+      const chartReq = req.request as ClaimChartRequest;
+      const claimNumber = chartReq.claimNumber ?? 1;
       if (Array.isArray(data.features)) {
         data.features = data.features.map((f: Record<string, unknown>) => ({
           ...f,
@@ -667,30 +763,50 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
 
 function extractQuery(agent: string, request: Record<string, unknown>): string {
   switch (agent) {
-    case "claim-chart":
-      return (request.claims as Array<{ rawText: string }> ?? []).map((c) => c.rawText).join(" ") ?? "";
+    case "claim-chart": {
+      const r = request as ClaimChartRequest;
+      return (r.claims ?? []).map((c) => c.rawText).join(" ");
+    }
     case "novelty":
-    case "inventive":
-      return (request.features as Array<{ description: string }> ?? []).map((f) => f.description).join(" ") ?? "";
-    case "defects":
-      return (request.claimText as string ?? "").slice(0, 200);
-    case "interpret":
-      return (request.fileName as string ?? "") + " " + (request.documentText as string ?? "").slice(0, 200);
-    case "opinion-analysis":
-      return (request.officeActionText as string ?? "").slice(0, 200);
-    case "argument-analysis":
-      return (request.responseText as string ?? "").slice(0, 200);
-    case "reexam-draft":
-      return request.rejectionGrounds
-        ? (request.rejectionGrounds as Array<{ summary: string }>).map((g) => g.summary).join(" ")
+    case "inventive": {
+      const r = request as NoveltyRequest;
+      return (r.features ?? []).map((f) => f.description).join(" ");
+    }
+    case "defects": {
+      const r = request as DefectRequest;
+      return (r.claimText ?? "").slice(0, 200);
+    }
+    case "interpret": {
+      const r = request as InterpretRequest;
+      return (r.fileName ?? "") + " " + (r.documentText ?? "").slice(0, 200);
+    }
+    case "opinion-analysis": {
+      const r = request as OpinionAnalysisRequest;
+      return (r.officeActionText ?? "").slice(0, 200);
+    }
+    case "argument-analysis": {
+      const r = request as ArgumentAnalysisRequest;
+      return (r.responseText ?? "").slice(0, 200);
+    }
+    case "reexam-draft": {
+      const r = request as ReexamDraftRequest;
+      return r.rejectionGrounds
+        ? r.rejectionGrounds.map((g) => g.summary).join(" ")
         : "";
-    case "summary":
-      return (request.confirmedFeatures as string ?? "").slice(0, 200);
-    case "chat":
-      return (request.userMessage as string ?? "");
+    }
+    case "summary": {
+      const r = request as SummaryRequest;
+      return (r.confirmedFeatures ?? "").slice(0, 200);
+    }
+    case "chat": {
+      const r = request as ChatRequestData;
+      return r.userMessage ?? "";
+    }
     case "extract-case-fields":
-    case "classify-documents":
-      return (request.documents as Array<{ fileName: string }> ?? []).map((d) => d.fileName).join(" ");
+    case "classify-documents": {
+      const r = request as ExtractCaseFieldsRequest;
+      return (r.documents ?? []).map((d) => d.fileName).join(" ");
+    }
     default:
       return "";
   }
@@ -727,7 +843,7 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
     if (key) providerApiKeys[pid] = key;
   }
 
-  const providerOrder = (req.providerPreference ?? []) as Array<"kimi" | "glm" | "minimax" | "mimo" | "deepseek" | "qwen" | "gemini">;
+  const providerOrder = req.providerPreference ?? [];
 
   const chatRequest: ChatRequest = {
     modelId: req.modelId ?? "",
@@ -741,9 +857,9 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
     providerOrder,
     chatRequest,
     undefined,
-    req.modelFallbacks as Record<string, string[]>,
-    req.enableModelFallback as Record<string, boolean>,
-    req.providerBaseUrls as Record<string, string>,
+    req.modelFallbacks,
+    req.enableModelFallback,
+    req.providerBaseUrls,
     providerApiKeys
   );
 
