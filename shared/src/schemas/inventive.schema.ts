@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const inventiveSchema = z.object({
   claimNumber: z.number().int().positive(),
-  closestPriorArtId: z.string().optional(),
+  closestPriorArtId: z.string().min(1),
   sharedFeatureCodes: z.array(z.string()),
   distinguishingFeatureCodes: z.array(z.string()),
   objectiveTechnicalProblem: z.string().optional(),

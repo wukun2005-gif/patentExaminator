@@ -148,6 +148,7 @@ describe("inventiveSchema", () => {
   it("should parse valid inventive step analysis", () => {
     const result = inventiveSchema.safeParse({
       claimNumber: 1,
+      closestPriorArtId: "ref-1",
       sharedFeatureCodes: ["A", "B"],
       distinguishingFeatureCodes: ["C"]
     });
@@ -161,6 +162,7 @@ describe("inventiveSchema", () => {
   it("should reject invalid candidateAssessment", () => {
     const result = inventiveSchema.safeParse({
       claimNumber: 1,
+      closestPriorArtId: "ref-1",
       sharedFeatureCodes: [],
       distinguishingFeatureCodes: [],
       candidateAssessment: "invalid"
