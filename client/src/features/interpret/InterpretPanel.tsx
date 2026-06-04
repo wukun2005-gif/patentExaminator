@@ -4,11 +4,9 @@ import { LEGACY_INTERPRET_KEY, useInterpretStore } from "../../store";
 import type { DocumentFigure, SourceDocument } from "@shared/types/domain";
 import { FigureExtractPanel } from "./FigureExtractPanel";
 import { renderMarkdown } from "../../lib/markdown";
-import { AiGatewayError, type AiErrorType } from "@shared/types/api";
+import { AiGatewayError, type AiErrorType, type InterpretDocumentType } from "@shared/types/api";
 import { formatAiErrorMessage } from "../../lib/errorDisplay";
 import { createLogger } from "../../lib/logger";
-
-export type InterpretDocumentType = "application" | "office-action" | "office-action-response";
 
 export const DOCUMENT_TYPE_LABELS: Record<InterpretDocumentType, string> = {
   application: "专利申请文件",

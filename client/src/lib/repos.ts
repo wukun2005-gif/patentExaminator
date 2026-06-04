@@ -8,6 +8,7 @@ import type {
   ChatSession, ChatMessage, SearchSession,
   OfficeActionAnalysis, ArgumentMapping
 } from "@shared/types/domain";
+import type { AiErrorType } from "@shared/types/api";
 import type {
   ReexamDraftResponse, SummaryResponse,
   SearchReferencesRequest, SearchReferencesResponse,
@@ -479,8 +480,6 @@ function buildProviderOptions(settings: AppSettings) {
 }
 
 // ── 错误分类 ────────────────────────────────────────
-
-type AiErrorType = "quota" | "auth" | "timeout" | "network" | "structure" | "abort" | "other";
 
 function classifyGatewayError(
   status: number,
