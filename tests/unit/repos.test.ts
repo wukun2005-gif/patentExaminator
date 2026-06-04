@@ -16,7 +16,7 @@ const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
 import {
-  getAll, query, getById, create, update, remove, clearStore,
+  getAll, query, getById, create, update, remove,
   createCase, readAllCases, readCaseById, updateCase, deleteCase,
   createDocument, readDocumentsByCaseId,
   updateDocument, deleteDocument, readReferencesByCaseId,
@@ -176,21 +176,6 @@ describe("repos.ts — Core CRUD", () => {
     });
   });
 
-  // ── clearStore ─────────────────────────────────────────────────────
-
-  describe("clearStore", () => {
-    it("clears a store via DELETE", async () => {
-      await clearStore("cases");
-      expect(mockFetch).toHaveBeenCalledWith(`${API_BASE}/cases`, {
-        method: "DELETE"
-      });
-    });
-
-    it("throws on non-ok response", async () => {
-      mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
-      await expect(clearStore("cases")).rejects.toThrow("Failed to clear cases: 500");
-    });
-  });
 });
 
 describe("repos.ts — Domain Functions", () => {

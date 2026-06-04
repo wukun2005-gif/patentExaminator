@@ -122,7 +122,7 @@ beforeEach(async () => {
     "opinionAnalyses", "argumentMappings", "reexamDrafts", "summaries",
     "interpretSummaries", "feedback", "settings", "ocrCache", "textIndex"
   ];
-  await Promise.all(stores.map((store) => repos.clearStore(store)));
+  await Promise.all(stores.map((store) => fetch(`/api/data/${store}`, { method: "DELETE" })));
 });
 
 function runMockAgent<T>(agent: string, request: object, caseId?: string): Promise<T> {

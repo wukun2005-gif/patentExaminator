@@ -77,13 +77,6 @@ export async function remove(store: string, id: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to delete ${store}/${id}: ${res.status}`);
 }
 
-export async function clearStore(store: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/${store}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) throw new Error(`Failed to clear ${store}: ${res.status}`);
-}
-
 // ── caseRepo ─────────────────────────────────────────
 
 export async function createCase(item: PatentCase): Promise<void> {
