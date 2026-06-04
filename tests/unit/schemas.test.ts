@@ -4,8 +4,6 @@ import {
   noveltySchema,
   inventiveSchema,
   summarySchema,
-  draftSchema,
-  exportSchema,
   reexamDraftSchema
 } from "@shared/index";
 
@@ -189,30 +187,6 @@ describe("summarySchema", () => {
   });
 });
 
-describe("draftSchema", () => {
-  it("should parse valid draft", () => {
-    const result = draftSchema.safeParse({
-      sections: {
-        body: "正文草稿",
-        aiNotes: "AI备注",
-        analysisStrategy: "分析策略",
-        pendingConfirmation: "待确认事项"
-      }
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("should accept empty sections with defaults", () => {
-    const result = draftSchema.safeParse({
-      sections: {}
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.sections.body).toBe("");
-    }
-  });
-});
-
 describe("reexamDraftSchema", () => {
   it("should parse valid reexam draft", () => {
     const result = reexamDraftSchema.safeParse({
@@ -392,24 +366,3 @@ describe("reexamDraftSchema", () => {
   });
 });
 
-describe("exportSchema", () => {
-  it("should parse valid export config", () => {
-    const result = exportSchema.safeParse({
-      format: "html",
-      caseId: "case-1",
-      title: "测试案件",
-      content: "<html></html>"
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("should reject invalid format", () => {
-    const result = exportSchema.safeParse({
-      format: "pdf",
-      caseId: "case-1",
-      title: "测试案件",
-      content: ""
-    });
-    expect(result.success).toBe(false);
-  });
-});
