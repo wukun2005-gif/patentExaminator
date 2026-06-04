@@ -620,4 +620,12 @@ describe("agentRunInputSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("should reject invalid agent value", () => {
+    const result = agentRunInputSchema.safeParse({
+      agent: "nonexistent-agent",
+      caseId: "case-1"
+    });
+    expect(result.success).toBe(false);
+  });
 });

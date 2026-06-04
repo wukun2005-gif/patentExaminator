@@ -5,7 +5,11 @@ import { z } from "zod";
 
 // ── POST /api/agent/run ──────────────────────────────────────
 export const agentRunInputSchema = z.object({
-  agent: z.string().min(1, "agent is required"),
+  agent: z.enum([
+    "interpret", "claim-chart", "novelty", "inventive", "summary", "chat",
+    "defects", "search-references", "extract-case-fields", "opinion-analysis",
+    "argument-analysis", "reexam-draft", "translate", "classify-documents"
+  ]),
   caseId: z.string().min(1, "caseId is required"),
   request: z.record(z.unknown()).default({}),
   providerPreference: z.array(z.string()).optional(),
