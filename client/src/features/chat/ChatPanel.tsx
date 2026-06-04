@@ -35,7 +35,6 @@ const MODULE_SCOPE_MAP: Record<string, ModuleScope> = {
   novelty: "novelty",
   inventive: "inventive",
   defects: "defects",
-  draft: "draft",
   export: "summary"
 };
 

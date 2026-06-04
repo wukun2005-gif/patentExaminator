@@ -33,7 +33,7 @@ export interface AgentRunOptions {
 // ── Agent Run 请求/响应（/api/agent/run） ──────────
 
 export interface AiRunRequest {
-  agent: "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "draft" | "chat" | "defects" | "search-references" | "extract-case-fields" | "opinion-analysis" | "argument-analysis" | "reexam-draft" | "translate" | "classify-documents";
+  agent: "interpret" | "claim-chart" | "novelty" | "inventive" | "summary" | "chat" | "defects" | "search-references" | "extract-case-fields" | "opinion-analysis" | "argument-analysis" | "reexam-draft" | "translate" | "classify-documents";
   providerPreference: ProviderId[];
   modelId: string;
   maxTokens?: number;

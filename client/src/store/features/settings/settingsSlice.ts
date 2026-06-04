@@ -32,7 +32,6 @@ const REPO_DEFAULT_SETTINGS: AppSettings = {
     { agent: "novelty", providerOrder: [], modelId: "", maxTokens: 4096 },
     { agent: "inventive", providerOrder: [], modelId: "", maxTokens: 4096 },
     { agent: "summary", providerOrder: [], modelId: "", maxTokens: 4096 },
-    { agent: "draft", providerOrder: [], modelId: "", maxTokens: 4096 },
     { agent: "chat", providerOrder: [], modelId: "", maxTokens: 4096 },
     { agent: "extract-case-fields", providerOrder: [], modelId: "", maxTokens: 8192 }
   ],

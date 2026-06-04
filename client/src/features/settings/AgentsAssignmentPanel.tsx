@@ -11,7 +11,6 @@ const AGENT_OPTIONS = [
   { id: "extract-case-fields", name: "案件信息提取", desc: "从专利文档自动提取基本信息" },
   { id: "interpret", name: "文档解读", desc: "AI 交互式理解专利文档" },
   { id: "summary", name: "专利简述", desc: "生成专利申请简述" },
-  { id: "draft", name: "审查素材", desc: "生成审查意见素材草稿" },
   { id: "chat", name: "通用对话", desc: "AI 问答" },
   { id: "search-references", name: "文献检索", desc: "AI 辅助检索对比文件" },
   { id: "opinion-analysis", name: "审查意见分析", desc: "分析审查意见通知书" },
