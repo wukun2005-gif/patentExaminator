@@ -1,0 +1,72 @@
+/**
+ * Zod schemas for API endpoint input validation (BUG-042)
+ */
+import { z } from "zod";
+
+// ── POST /api/agent/run ──────────────────────────────────────
+export const agentRunInputSchema = z.object({
+  agent: z.string().min(1, "agent is required"),
+  caseId: z.string().min(1, "caseId is required"),
+  request: z.record(z.unknown()).default({}),
+  providerPreference: z.array(z.string()).optional(),
+  modelId: z.string().optional(),
+  modelFallbacks: z.record(z.array(z.string())).optional(),
+  enableModelFallback: z.record(z.boolean()).optional(),
+  providerBaseUrls: z.record(z.string()).optional(),
+  maxTokens: z.number().int().positive().optional(),
+  knowledgeEnabled: z.boolean().optional(),
+  apiKey: z.string().optional(),
+  mock: z.boolean().optional(),
+  mockKey: z.string().optional(),
+});
+
+// ── POST /api/knowledge/import-url ───────────────────────────
+export const knowledgeImportUrlInputSchema = z.object({
+  url: z.string().url("Invalid URL format"),
+});
+
+// ── POST /api/knowledge/search ───────────────────────────────
+const providerConfigSchema = z.object({
+  baseUrl: z.string().url(),
+  apiKey: z.string().min(1),
+  modelId: z.string().min(1),
+});
+
+export const knowledgeSearchInputSchema = z.object({
+  query: z.string().min(1, "query is required"),
+  topK: z.number().int().positive().max(100).default(5),
+  reranker: providerConfigSchema.optional(),
+  embedding: providerConfigSchema.optional(),
+});
+
+// ── POST /api/knowledge/providers/test ───────────────────────
+export const knowledgeProviderTestInputSchema = z.object({
+  providerType: z.enum(["embedding", "reranker"]),
+  baseUrl: z.string().url(),
+  apiKey: z.string().min(1),
+  modelId: z.string().min(1),
+});
+
+// ── POST /api/sync/upload ────────────────────────────────────
+export const syncUploadInputSchema = z.object({
+  stores: z.record(z.array(z.object({
+    id: z.string(),
+    data: z.unknown().transform(v => v ?? null),
+  }))),
+});
+
+// ── POST /api/data/:store/query ──────────────────────────────
+export const dataQueryInputSchema = z.object({
+  field: z.string().min(1, "field is required"),
+  value: z.unknown(),
+});
+
+// ── POST /api/data/:store ────────────────────────────────────
+export const dataCreateInputSchema = z.object({
+  id: z.string().min(1, "id is required"),
+}).passthrough();
+
+// ── PUT /api/settings/providers/:id ──────────────────────────
+export const settingsProviderInputSchema = z.object({
+  apiKey: z.string().min(1, "apiKey is required"),
+});
