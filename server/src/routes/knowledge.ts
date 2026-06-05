@@ -587,7 +587,7 @@ knowledgeRouter.get("/knowledge/sources/:id/chunks", (req, res) => {
     }
     const chunks = getChunksBySourceId(idParsed.data, limitParsed.data).map((c) => ({
       ...c,
-      metadata: JSON.parse(c.metadata) as Record<string, unknown>,
+      metadata: (() => { try { return JSON.parse(c.metadata) as Record<string, unknown>; } catch { return {}; } })(),
     }));
     res.json({ ok: true, chunks });
   } catch (err) {

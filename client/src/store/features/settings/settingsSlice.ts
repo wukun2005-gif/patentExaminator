@@ -48,6 +48,8 @@ async function readSettings(): Promise<AppSettings> {
     if (stored) {
       const result: AppSettings = {
         ...stored,
+        providers: stored.providers ?? REPO_DEFAULT_SETTINGS.providers,
+        agents: stored.agents ?? REPO_DEFAULT_SETTINGS.agents,
         searchProviders: stored.searchProviders ?? REPO_DEFAULT_SETTINGS.searchProviders,
         enableProviderFallback: stored.enableProviderFallback ?? true,
         knowledgeProviders: stored.knowledgeProviders ?? [],

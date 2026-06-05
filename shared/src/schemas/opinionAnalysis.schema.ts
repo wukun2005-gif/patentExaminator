@@ -19,7 +19,7 @@ export const opinionAnalysisSchema = z.object({
   documentId: z.string(),
   rejectionGrounds: z.array(rejectionGroundSchema),
   citedReferences: z.array(rejectionCitedReferenceSchema),
-  legalCaution: z.string(),
+  legalCaution: z.string().default("以上为候选事实整理，不构成法律结论。"),
 });
 
 export type OpinionAnalysisOutput = z.infer<typeof opinionAnalysisSchema>;

@@ -29,7 +29,7 @@ export const argumentMappingEntrySchema = z.object({
 export const argumentMappingSchema = z.object({
   mappings: z.array(argumentMappingEntrySchema),
   unmappedGrounds: z.array(z.string()).optional(),
-  legalCaution: z.string(),
+  legalCaution: z.string().default("以上为候选事实整理，不构成法律结论。"),
 });
 
 export type ArgumentMappingOutput = z.infer<typeof argumentMappingSchema>;

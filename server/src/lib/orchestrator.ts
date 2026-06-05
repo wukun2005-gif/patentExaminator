@@ -466,7 +466,7 @@ function buildOpinionAnalysisPrompt(request: OpinionAnalysisRequest): PromptPart
 }
 
 function buildArgumentAnalysisPrompt(request: ArgumentAnalysisRequest): PromptParts {
-  const caseId = request.caseId ?? "";
+  const caseId = sanitizeText(request.caseId ?? "");
   const rejectionGrounds = request.rejectionGrounds ?? [];
   const responseText = sanitizeText(request.responseText ?? "");
   const amendedClaimsText = request.amendedClaimsText != null ? sanitizeText(request.amendedClaimsText) : undefined;

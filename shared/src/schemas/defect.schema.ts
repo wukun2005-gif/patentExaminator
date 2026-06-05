@@ -12,7 +12,7 @@ export const defectItemSchema = z.object({
 export const defectSchema = z.object({
   defects: z.array(defectItemSchema),
   warnings: z.array(z.string()).default([]),
-  legalCaution: z.string(),
+  legalCaution: z.string().default("以上为候选事实整理，不构成法律结论。"),
 });
 
 export type DefectOutput = z.infer<typeof defectSchema>;

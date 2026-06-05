@@ -33,7 +33,7 @@ export const reexamDraftSchema = z.object({
   responseItems: z.array(reexamResponseItemSchema),
   overallAssessment: z.string(),
   defectReviewSummary: z.string().optional(),
-  legalCaution: z.string(),
+  legalCaution: z.string().default("以上为候选事实整理，不构成法律结论。"),
 });
 
 export type ReexamDraftOutput = z.infer<typeof reexamDraftSchema>;

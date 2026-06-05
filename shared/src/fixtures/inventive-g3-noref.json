@@ -1,6 +1,6 @@
 {
   "claimNumber": 1,
-  "closestPriorArtId": null,
+  "closestPriorArtId": "无",
   "sharedFeatureCodes": [],
   "distinguishingFeatureCodes": ["A", "B", "C"],
   "objectiveTechnicalProblem": "无对比文件，无法确定客观技术问题",

@@ -1,5 +1,4 @@
 {
-  "ok": true,
   "candidates": [
     {
       "title": "一种LED灯具散热结构",
@@ -29,16 +28,6 @@
       "sourceUrl": "https://patents.google.com/patent/CN201610987654B"
     }
   ],
-  "searchSummary": {
-    "featureCount": 3,
-    "queryCount": 5,
-    "dataSource": "Tavily",
-    "queries": [
-      "LED散热模组 相变材料",
-      "散热翅片 铝合金基板",
-      "LED heatsink graphene TIM",
-      "离心风扇 导风罩 LED",
-      "thermal management LED array"
-    ]
-  }
+  "searchQuery": "LED散热模组 相变材料; 散热翅片 铝合金基板; LED heatsink graphene TIM; 离心风扇 导风罩 LED; thermal management LED array",
+  "legalCaution": "以上为 AI 辅助检索结果，所有文献均来自真实搜索，需审查员逐篇确认。"
 }

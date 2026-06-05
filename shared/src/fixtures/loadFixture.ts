@@ -33,9 +33,6 @@ const FIXTURE_MAP: Record<string, Record<string, string>> = {
   "reexam-draft": {
     "g1-led": "reexam-draft-g1.json",
   },
-  draft: {
-    "g1-led": "reexam-draft-g1.json",
-  },
   summary: {
     "g1-led": "summary-g1.json",
     "g2-battery": "summary-g2.json",
