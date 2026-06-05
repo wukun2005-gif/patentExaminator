@@ -3,6 +3,14 @@ import { agentRun } from "@client/lib/repos";
 import type { ClaimChartResponse } from "@shared/types/api";
 import type { AppSettings } from "@shared/types/agents";
 
+vi.mock("@client/lib/serverReady", () => ({
+  waitForServerReady: vi.fn().mockResolvedValue(undefined),
+  clearServerReadyCache: vi.fn()
+}));
+
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
 const MOCK_SETTINGS: AppSettings = {
   mode: "mock",
   guidelineVersion: "2023",
@@ -27,6 +35,33 @@ describe("agentRun (mock mode)", () => {
   });
 
   it("returns mock claim chart features", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          output: {
+            claimNumber: 1,
+            features: [
+              {
+                id: "g1-led-chart-1-A",
+                featureCode: "A",
+                description: "基板",
+                source: "mock",
+                specificationCitations: [{ label: "[0001]", confidence: "high" }],
+                citationStatus: "confirmed"
+              }
+            ],
+            warnings: [],
+            pendingSearchQuestions: [],
+            legalCaution: "本分析仅为候选事实整理，不构成法律结论。"
+          },
+          tokenUsage: { input: 0, output: 0, total: 0 },
+          attempts: [{ providerId: "mock", modelId: "mock", duration: 0 }]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
     const result = await agentRun<ClaimChartResponse>("claim-chart", {
       caseId: "g1-led",
       claimText: "一种LED散热装置，包括基板和设置在基板上的散热翅片",
