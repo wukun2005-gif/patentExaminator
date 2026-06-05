@@ -497,4 +497,85 @@ describe("持久化 — Client 完整链路", () => {
       expect(s.enableProviderFallback).toBe(true);
     });
   });
+
+  // ══════════════════════════════════════════════════════════════
+  // 16. agents 配置持久化
+  // ══════════════════════════════════════════════════════════════
+
+  describe("16. agents 配置持久化", () => {
+    it("setSettings agents → POST body 含 agents → loadFromDb → 恢复", async () => {
+      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ ok: true }) });
+      useSettingsStore.setState({ isInitialized: true });
+      const agents = [
+        { agent: "interpret" as const, providerOrder: ["mimo" as const], modelId: "MiMo-V2.5-Pro", maxTokens: 8192 },
+        { agent: "novelty" as const, providerOrder: ["gemini" as const], modelId: "gemini-2.5-flash", maxTokens: 4096 },
+      ];
+      useSettingsStore.getState().setSettings({ ...useSettingsStore.getState().settings, agents });
+      await new Promise(r => setTimeout(r, 50));
+
+      const written = getLastPostBody("/api/data/settings");
+      console.log("[agents] POST body agents:", JSON.stringify(written?.agents));
+      expect(written?.agents).toEqual(agents);
+
+      mockDbGet("settings", "app", { ...useSettingsStore.getState().settings, agents });
+      useSettingsStore.setState({ isInitialized: false });
+      await useSettingsStore.getState().loadFromDb();
+      const s = useSettingsStore.getState().settings;
+      console.log("[agents] 读回 agents:", JSON.stringify(s.agents));
+      expect(s.agents).toEqual(agents);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // 17. sanitizeRules 配置持久化
+  // ══════════════════════════════════════════════════════════════
+
+  describe("17. sanitizeRules 配置持久化", () => {
+    it("setSettings sanitizeRules → POST body 含 rules → loadFromDb → 恢复", async () => {
+      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ ok: true }) });
+      useSettingsStore.setState({ isInitialized: true });
+      const rules = [
+        { pattern: "\\btest\\b", replace: "TEST", note: "测试替换" },
+        { pattern: "\\d{4}", replace: "YYYY", note: "年份脱敏" },
+      ];
+      useSettingsStore.getState().setSettings({ ...useSettingsStore.getState().settings, sanitizeRules: rules });
+      await new Promise(r => setTimeout(r, 50));
+
+      const written = getLastPostBody("/api/data/settings");
+      console.log("[sanitizeRules] POST body:", JSON.stringify(written?.sanitizeRules));
+      expect(written?.sanitizeRules).toEqual(rules);
+
+      mockDbGet("settings", "app", { ...useSettingsStore.getState().settings, sanitizeRules: rules });
+      useSettingsStore.setState({ isInitialized: false });
+      await useSettingsStore.getState().loadFromDb();
+      const s = useSettingsStore.getState().settings;
+      console.log("[sanitizeRules] 读回:", JSON.stringify(s.sanitizeRules));
+      expect(s.sanitizeRules).toEqual(rules);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // 18. ocrQualityThresholds 配置持久化
+  // ══════════════════════════════════════════════════════════════
+
+  describe("18. ocrQualityThresholds 配置持久化", () => {
+    it("setSettings ocrQualityThresholds → POST body 含阈值 → loadFromDb → 恢复", async () => {
+      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ ok: true }) });
+      useSettingsStore.setState({ isInitialized: true });
+      const thresholds = { good: 0.8, poor: 0.5 };
+      useSettingsStore.getState().setSettings({ ...useSettingsStore.getState().settings, ocrQualityThresholds: thresholds });
+      await new Promise(r => setTimeout(r, 50));
+
+      const written = getLastPostBody("/api/data/settings");
+      console.log("[ocrThresholds] POST body:", JSON.stringify(written?.ocrQualityThresholds));
+      expect(written?.ocrQualityThresholds).toEqual(thresholds);
+
+      mockDbGet("settings", "app", { ...useSettingsStore.getState().settings, ocrQualityThresholds: thresholds });
+      useSettingsStore.setState({ isInitialized: false });
+      await useSettingsStore.getState().loadFromDb();
+      const s = useSettingsStore.getState().settings;
+      console.log("[ocrThresholds] 读回:", JSON.stringify(s.ocrQualityThresholds));
+      expect(s.ocrQualityThresholds).toEqual(thresholds);
+    });
+  });
 });
