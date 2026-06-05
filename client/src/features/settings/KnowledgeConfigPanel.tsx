@@ -584,6 +584,8 @@ function KnowledgeProviderCard({ preset, existing, onUpdate }: KnowledgeProvider
       setApiKey(existing.apiKeyRef ?? "");
       setModelId(existing.modelId ?? preset.defaultModelId);
     }
+    // existing 本身不稳定（每次 store 更新产生新引用），用具体字段做依赖避免无限循环
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing?.apiKeyRef, existing?.modelId, preset.defaultModelId]);
 
   const isEnabled = existing?.enabled ?? false;

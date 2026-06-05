@@ -14,27 +14,48 @@ const log = createLogger("SettingsSlice");
 
 const SETTINGS_ID = "app";
 const LS_KEY = "patent-examiner-settings";
-const WRITE_DEBOUNCE_MS = 30;
+const WRITE_DEBOUNCE_MS = 80;
 
-// Debounced DB write with freshness check.
-// Each timer captures its own snapshot; a newer call cancels the old timer.
-// When the timer fires, it compares its snapshot against the settings it was given.
-// If they match, the store hasn't changed since this write was queued — safe to persist.
-// If they differ, a newer setSettings() call already updated the store — skip.
+// Two-tier debounced DB write:
+//   1. First write ever → short debounce (30ms) for immediate feedback
+//   2. Subsequent writes → longer debounce (80ms) with "first-write-wins"
+//      to prevent stale effects from overwriting user changes.
 let _writeTimer: ReturnType<typeof setTimeout> | null = null;
+let _windowFirstValue: AppSettings | null = null;
+let _hasWrittenOnce = false;
 
-function debouncedWriteDb(settings: AppSettings, storeSnapshot: AppSettings): void {
-  if (_writeTimer) clearTimeout(_writeTimer);
-  const snapshot = storeSnapshot; // capture per-timer, not in shared variable
-  _writeTimer = setTimeout(async () => {
-    if (JSON.stringify(snapshot) !== JSON.stringify(settings)) return;
-    try {
-      await dbCreate("settings", { ...settings, id: SETTINGS_ID });
-    } catch (e) {
-      log("Server write failed, settings saved to localStorage only:", e);
-      idbWriteGuard("settings")(e);
-    }
-  }, WRITE_DEBOUNCE_MS);
+function debouncedWriteDb(settings: AppSettings): void {
+  if (!_hasWrittenOnce) {
+    // First write: short debounce for immediate feedback
+    _hasWrittenOnce = true;
+    if (_writeTimer) clearTimeout(_writeTimer);
+    _writeTimer = setTimeout(async () => {
+      try {
+        await dbCreate("settings", { ...settings, id: SETTINGS_ID });
+      } catch (e) {
+        log("Server write failed, settings saved to localStorage only:", e);
+        idbWriteGuard("settings")(e);
+      }
+    }, 30);
+    return;
+  }
+  // Subsequent writes: first-write-wins within debounce window
+  if (!_windowFirstValue) {
+    _windowFirstValue = settings;
+    _writeTimer = setTimeout(async () => {
+      if (!_windowFirstValue) return;
+      const toWrite = _windowFirstValue;
+      _windowFirstValue = null;
+      _writeTimer = null;
+      try {
+        await dbCreate("settings", { ...toWrite, id: SETTINGS_ID });
+      } catch (e) {
+        log("Server write failed, settings saved to localStorage only:", e);
+        idbWriteGuard("settings")(e);
+      }
+    }, WRITE_DEBOUNCE_MS);
+  }
+  // else: within existing window, skip (first value wins)
 }
 
 const REPO_DEFAULT_SETTINGS: AppSettings = {
@@ -95,11 +116,11 @@ async function readSettings(): Promise<AppSettings> {
   return REPO_DEFAULT_SETTINGS;
 }
 
-function writeSettings(settings: AppSettings, storeSnapshot: AppSettings): void {
+function writeSettings(settings: AppSettings): void {
   // localStorage is synchronous — immediate for UI feedback
   try { localStorage.setItem(LS_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
-  // DB write is debounced with freshness check
-  debouncedWriteDb(settings, storeSnapshot);
+  // DB write is debounced with first-write-wins
+  debouncedWriteDb(settings);
 }
 
 interface SyncResult {
@@ -177,8 +198,7 @@ export const createSettingsSlice = (
   setSettings: (settings) => {
     if (!_get().isInitialized) return;
     set(() => ({ settings }));
-    const snapshot = _get().settings; // capture AFTER set() — snapshot matches what we're writing
-    writeSettings(settings, snapshot);
+    writeSettings(settings);
     if (settings.mode === "real") {
       syncProviderKeys(settings).then((result) => {
         if (!result.success) {
@@ -191,8 +211,7 @@ export const createSettingsSlice = (
   updateMode: (mode) => {
     set((prev) => {
       const next = { ...prev.settings, mode };
-      // snapshot captured after set — matches what we're writing
-      writeSettings(next, next);
+      writeSettings(next);
       if (mode === "real") {
         syncProviderKeys(next).then((result) => {
           if (!result.success) {
@@ -210,7 +229,7 @@ export const createSettingsSlice = (
       const messages = prev.settings.providerErrorMessages ?? [];
       const entry: ProviderErrorMessage = { ...error, id };
       const updated = { ...prev.settings, providerErrorMessages: [entry, ...messages].slice(0, 50) };
-      writeSettings(updated, updated); // snapshot = what store will have after set()
+      writeSettings(updated);
       return { settings: updated };
     });
   },
@@ -218,7 +237,7 @@ export const createSettingsSlice = (
     if (!_get().isInitialized) return;
     set((prev) => {
       const next = { ...prev.settings, knowledge: config };
-      writeSettings(next, next); // snapshot = what store will have after set()
+      writeSettings(next);
       return { settings: next };
     });
   },

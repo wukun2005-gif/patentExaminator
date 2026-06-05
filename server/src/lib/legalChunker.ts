@@ -41,7 +41,7 @@ function parseDocumentStructure(lines: string[]): DocumentStructure {
   const articles: Array<{ title: string; startLine: number; endLine: number }> = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!.trim();
+    const line = (lines[i] ?? "").trim();
 
     // 章标题：第X章
     if (/^第[一二三四五六七八九十百千零\d]+章/.test(line)) {
@@ -60,15 +60,17 @@ function parseDocumentStructure(lines: string[]): DocumentStructure {
   // 计算每条的结束行
   for (let i = 0; i < articles.length; i++) {
     const nextArticle = articles[i + 1];
-    const nextChapter = chapters.find((ch) => ch.startLine > articles[i]!.startLine);
-    const nextSection = sections.find((s) => s.startLine > articles[i]!.startLine);
+    const currentArticle = articles[i];
+    if (!currentArticle) continue;
+    const nextChapter = chapters.find((ch) => ch.startLine > currentArticle.startLine);
+    const nextSection = sections.find((s) => s.startLine > currentArticle.startLine);
 
     let endLine = lines.length - 1;
     if (nextArticle) endLine = Math.min(endLine, nextArticle.startLine - 1);
     if (nextChapter) endLine = Math.min(endLine, nextChapter.startLine - 1);
     if (nextSection) endLine = Math.min(endLine, nextSection.startLine - 1);
 
-    articles[i]!.endLine = endLine;
+    currentArticle.endLine = endLine;
   }
 
   return { chapters, sections, articles };

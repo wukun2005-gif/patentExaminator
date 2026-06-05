@@ -43,8 +43,8 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
       {isAssistant && message.knowledgeCitations && message.knowledgeCitations.length > 0 && (
         <div className="chat-bubble__citations">
           <div className="chat-bubble__citations-header">知识库引用：</div>
-          {message.knowledgeCitations.map((c, i) => (
-            <div key={`${c.source}-${i}`} className="chat-bubble__citation-item">
+          {message.knowledgeCitations.map((c) => (
+            <div key={`${c.source}-${c.excerpt.slice(0, 30)}`} className="chat-bubble__citation-item">
               <span className="chat-bubble__citation-source">【{c.source} · {c.score.toFixed(2)}】</span>
               <span className="chat-bubble__citation-excerpt">{c.excerpt}...</span>
             </div>
