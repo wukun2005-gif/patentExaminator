@@ -14,6 +14,28 @@ const log = createLogger("SettingsSlice");
 
 const SETTINGS_ID = "app";
 const LS_KEY = "patent-examiner-settings";
+const WRITE_DEBOUNCE_MS = 30;
+
+// Debounced DB write with freshness check.
+// Each timer captures its own snapshot; a newer call cancels the old timer.
+// When the timer fires, it compares its snapshot against the settings it was given.
+// If they match, the store hasn't changed since this write was queued — safe to persist.
+// If they differ, a newer setSettings() call already updated the store — skip.
+let _writeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function debouncedWriteDb(settings: AppSettings, storeSnapshot: AppSettings): void {
+  if (_writeTimer) clearTimeout(_writeTimer);
+  const snapshot = storeSnapshot; // capture per-timer, not in shared variable
+  _writeTimer = setTimeout(async () => {
+    if (JSON.stringify(snapshot) !== JSON.stringify(settings)) return;
+    try {
+      await dbCreate("settings", { ...settings, id: SETTINGS_ID });
+    } catch (e) {
+      log("Server write failed, settings saved to localStorage only:", e);
+      idbWriteGuard("settings")(e);
+    }
+  }, WRITE_DEBOUNCE_MS);
+}
 
 const REPO_DEFAULT_SETTINGS: AppSettings = {
   mode: "mock",
@@ -73,14 +95,11 @@ async function readSettings(): Promise<AppSettings> {
   return REPO_DEFAULT_SETTINGS;
 }
 
-async function writeSettings(settings: AppSettings): Promise<void> {
+function writeSettings(settings: AppSettings, storeSnapshot: AppSettings): void {
+  // localStorage is synchronous — immediate for UI feedback
   try { localStorage.setItem(LS_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
-  try {
-    await dbCreate("settings", { ...settings, id: SETTINGS_ID });
-  } catch (e) {
-    log("Server write failed, settings saved to localStorage only:", e);
-    throw e;
-  }
+  // DB write is debounced with freshness check
+  debouncedWriteDb(settings, storeSnapshot);
 }
 
 interface SyncResult {
@@ -158,7 +177,8 @@ export const createSettingsSlice = (
   setSettings: (settings) => {
     if (!_get().isInitialized) return;
     set(() => ({ settings }));
-    writeSettings(settings).catch(idbWriteGuard("settings"));
+    const snapshot = _get().settings; // capture AFTER set() — snapshot matches what we're writing
+    writeSettings(settings, snapshot);
     if (settings.mode === "real") {
       syncProviderKeys(settings).then((result) => {
         if (!result.success) {
@@ -171,7 +191,8 @@ export const createSettingsSlice = (
   updateMode: (mode) => {
     set((prev) => {
       const next = { ...prev.settings, mode };
-      writeSettings(next).catch(idbWriteGuard("settings"));
+      // snapshot captured after set — matches what we're writing
+      writeSettings(next, next);
       if (mode === "real") {
         syncProviderKeys(next).then((result) => {
           if (!result.success) {
@@ -189,7 +210,7 @@ export const createSettingsSlice = (
       const messages = prev.settings.providerErrorMessages ?? [];
       const entry: ProviderErrorMessage = { ...error, id };
       const updated = { ...prev.settings, providerErrorMessages: [entry, ...messages].slice(0, 50) };
-      writeSettings(updated).catch(idbWriteGuard("settings"));
+      writeSettings(updated, updated); // snapshot = what store will have after set()
       return { settings: updated };
     });
   },
@@ -197,7 +218,7 @@ export const createSettingsSlice = (
     if (!_get().isInitialized) return;
     set((prev) => {
       const next = { ...prev.settings, knowledge: config };
-      writeSettings(next).catch(idbWriteGuard("settings"));
+      writeSettings(next, next); // snapshot = what store will have after set()
       return { settings: next };
     });
   },
