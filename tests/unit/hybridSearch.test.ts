@@ -141,18 +141,18 @@ describe("jieba 分词", () => {
       { id: "c2", sourceId: "s1", text: "新颖性单独对比原则", metadata: "{}" }
     ]);
 
-    const result = hybridSearch("创造性三步法", [], 10);
-    // 无论 jieba 是否就绪，bigram 降级也应匹配部分关键词
-    // 如果完全无结果，说明分词有问题
-    if (result.length > 0) {
-      // c1 应该排在 c2 前面（更相关）
-      const c1Idx = result.findIndex(r => r.chunkId === "c1");
-      const c2Idx = result.findIndex(r => r.chunkId === "c2");
-      if (c1Idx >= 0 && c2Idx >= 0) {
-        expect(c1Idx).toBeLessThan(c2Idx);
-      }
-    }
-    // 至少验证搜索不会崩溃
-    expect(Array.isArray(result)).toBe(true);
+    // 提供 vector scores 确保结果非空，然后验证 BM25 的排序增强效果
+    const result = hybridSearch("创造性三步法", [
+      { chunkId: "c1", score: 0.5 },
+      { chunkId: "c2", score: 0.3 }
+    ], 10);
+    // 必须返回结果
+    expect(result.length).toBeGreaterThan(0);
+    // c1 包含"创造性三步法"，BM25 应给它更高分，使其排在 c2 前面
+    const c1Idx = result.findIndex(r => r.chunkId === "c1");
+    const c2Idx = result.findIndex(r => r.chunkId === "c2");
+    expect(c1Idx).toBeGreaterThanOrEqual(0);
+    expect(c2Idx).toBeGreaterThanOrEqual(0);
+    expect(c1Idx).toBeLessThan(c2Idx);
   });
 });

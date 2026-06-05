@@ -28,6 +28,7 @@ import {
   validateInterpretOutput,
   validateClassifyDocumentsOutput,
   validateSearchReferencesOutput,
+  validateDefectsOutput,
   GEMINI_FALLBACK_MODELS,
   AI_RATE_LIMIT_DELAY,
   SEARCH_RATE_LIMIT_DELAY,
@@ -308,7 +309,13 @@ export async function testRealDefects_G1() {
     "Real Defects G1",
     "defects",
     prompt,
-    { caseId: "g1-led", moduleScope: "defects", tokenEstimate: 500 }
+    { caseId: "g1-led", moduleScope: "defects", tokenEstimate: 500 },
+    (data) => {
+      if (data.outputJson) {
+        const validation = validateDefectsOutput(data.outputJson);
+        log("Real Defects G1 schema valid", validation.valid, validation.errors.join("; "));
+      }
+    }
   );
 }
 

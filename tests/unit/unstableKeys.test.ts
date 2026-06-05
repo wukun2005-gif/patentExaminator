@@ -14,11 +14,14 @@ describe("React key stability", () => {
     });
 
     it("preserves existing keys when list shrinks", () => {
+      // Identity-based key matching: each term gets a stable UUID keyed by value
+      const keyMap = new Map<string, string>();
       const prev = ["k1", "k2", "k3"];
+      for (const term of prev) keyMap.set(term, term); // simulate stable keys
       const next = ["k1", "k3"]; // k2 deleted
-      const result = next.map((_, i) => prev[i] ?? crypto.randomUUID());
-      expect(result[0]).toBe("k1");
-      expect(result[1]).toBe("k2"); // k2's key shifts to index 1
+      const result = next.map(term => keyMap.get(term) ?? crypto.randomUUID());
+      expect(result[0]).toBe("k1"); // k1 keeps its own key
+      expect(result[1]).toBe("k3"); // k3 keeps its own key, NOT "k2"
     });
 
     it("generates new keys for new items at end", () => {

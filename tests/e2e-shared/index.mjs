@@ -62,6 +62,7 @@ export {
   validateInterpretOutput,
   validateTranslateOutput,
   validateClassifyDocumentsOutput,
+  validateDefectsOutput,
 } from "./schema-validators.mjs";
 
 // 文件上传模块

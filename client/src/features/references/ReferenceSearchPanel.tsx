@@ -35,11 +35,12 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Stable keys for search terms (survives deletions from middle)
-  const termKeysRef = useRef<string[]>([]);
-  if (termKeysRef.current.length !== searchTerms.length) {
-    const prev = termKeysRef.current;
-    termKeysRef.current = searchTerms.map((_, i) => prev[i] ?? crypto.randomUUID());
+  // Stable keys for search terms (identity-based, survives deletions from middle)
+  const termKeysRef = useRef<Map<string, string>>(new Map());
+  for (const term of searchTerms) {
+    if (!termKeysRef.current.has(term)) {
+      termKeysRef.current.set(term, crypto.randomUUID());
+    }
   }
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const isMountedRef = useRef(true);
@@ -324,7 +325,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
             AI 生成了 {searchTerms.length} 条检索词，您可以编辑后确认检索：
           </p>
           {searchTerms.map((term, idx) => (
-            <div key={termKeysRef.current[idx]} className="search-term-row">
+            <div key={termKeysRef.current.get(term) ?? idx} className="search-term-row">
               <span className="query-index" style={{ minWidth: 20, textAlign: "right", color: "var(--pex-color-text-muted)", fontSize: "var(--pex-font-size-caption)" }}>
                 {idx + 1}.
               </span>
@@ -400,7 +401,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
             </p>
             <div className="query-details" data-testid="query-details" style={{ borderTop: "none", marginTop: 4 }}>
               {searchTerms.map((query, idx) => (
-                <div key={termKeysRef.current[idx] ?? idx} className="query-item">
+                <div key={termKeysRef.current.get(query) ?? idx} className="query-item">
                   <span className="query-index">{idx + 1}.</span>
                   <span className="query-text">{query}</span>
                 </div>
