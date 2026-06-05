@@ -10,9 +10,6 @@ import { logger } from "./logger.js";
 
 const RRF_K = 60; // RRF 常数
 
-// 模块加载时初始化 jieba（异步，不阻塞模块导出）
-ensureJieba().catch((err) => { logger.warn("[hybridSearch] jieba init failed, falling back to bigram:", err); });
-
 // ── jieba 分词 ─────────────────────────────────────────
 
 // 法律术语自定义词典
@@ -41,9 +38,12 @@ async function ensureJieba(): Promise<void> {
     jiebaReady = true;
     logger.info(`[Jieba] 初始化完成，自定义词典 ${LEGAL_DICTIONARY.length} 词`);
   } catch (err) {
-    logger.warn(`[Jieba] 初始化失败，降级到 bigram: ${err}`);
+    logger.warn("[Jieba] 初始化失败，降级到 bigram:", err);
   }
 }
+
+// 模块加载时初始化 jieba（异步，不阻塞模块导出）
+ensureJieba().catch((err) => { logger.warn("[hybridSearch] jieba init failed, falling back to bigram:", err); });
 
 /** jieba 中文分词 */
 function tokenizeWithJieba(text: string): string[] {
