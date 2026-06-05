@@ -1,17 +1,6 @@
 import type { ISODateString, TimelineStatus } from "@shared/types/domain";
 
 /**
- * Compute the baseline date for timeline comparison.
- * Rule (ADR-009): baselineDate = priorityDate ?? applicationDate
- */
-export function computeBaselineDate(params: {
-  applicationDate?: ISODateString;
-  priorityDate?: ISODateString;
-}): ISODateString | undefined {
-  return params.priorityDate ?? params.applicationDate ?? undefined;
-}
-
-/**
  * Classify a reference document's timeline status relative to the baseline date.
  *
  * Rules:

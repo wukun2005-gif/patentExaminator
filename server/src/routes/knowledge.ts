@@ -28,7 +28,7 @@ import { invalidateBM25Index } from "../lib/hybridSearch.js";
 import { expandQueryFull } from "../lib/queryExpand.js";
 import { chunkByDocumentType } from "../lib/legalChunker.js";
 import { validateExternalUrl, BlockedUrlError } from "../lib/urlValidation.js";
-import { knowledgeSearchInputSchema, knowledgeProviderTestInputSchema, knowledgeImportUrlInputSchema, embeddingConfigSchema, recordIdSchema } from "../../../shared/src/schemas/api-input.schema.js";
+import { knowledgeSearchInputSchema, knowledgeProviderTestInputSchema, knowledgeImportUrlInputSchema, embeddingConfigSchema, recordIdSchema, chunksLimitSchema } from "../../../shared/src/schemas/api-input.schema.js";
 
 const FETCH_TIMEOUT_MS = 30_000;
 
@@ -580,8 +580,12 @@ knowledgeRouter.get("/knowledge/sources/:id/chunks", (req, res) => {
       res.status(400).json({ ok: false, error: idParsed.error.issues.map(i => i.message).join("; ") });
       return;
     }
-    const limit = Math.min(Number(req.query.limit) || 20, 100);
-    const chunks = getChunksBySourceId(idParsed.data, limit).map((c) => ({
+    const limitParsed = chunksLimitSchema.safeParse(req.query.limit);
+    if (!limitParsed.success) {
+      res.status(400).json({ ok: false, error: limitParsed.error.issues.map(i => i.message).join("; ") });
+      return;
+    }
+    const chunks = getChunksBySourceId(idParsed.data, limitParsed.data).map((c) => ({
       ...c,
       metadata: JSON.parse(c.metadata) as Record<string, unknown>,
     }));

@@ -11,7 +11,7 @@ import { logger } from "./logger.js";
 const RRF_K = 60; // RRF 常数
 
 // 模块加载时初始化 jieba（异步，不阻塞模块导出）
-ensureJieba().catch(() => { /* ignore — will fallback to bigram */ });
+ensureJieba().catch((err) => { logger.warn("[hybridSearch] jieba init failed, falling back to bigram:", err); });
 
 // ── jieba 分词 ─────────────────────────────────────────
 
@@ -290,15 +290,4 @@ function textSimilarity(text1: string, text2: string): number {
 export function invalidateBM25Index(): void {
   miniSearch = null;
   _indexedSourceIds.clear();
-}
-
-/** 获取 jieba 初始化状态（测试用） */
-export function isJiebaReady(): boolean {
-  return jiebaReady;
-}
-
-/** 重置 jieba 状态（测试用） */
-export function resetJiebaForTesting(): void {
-  jiebaModule = null;
-  jiebaReady = false;
 }

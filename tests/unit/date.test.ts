@@ -1,23 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { computeBaselineDate, classifyReferenceDate } from "@client/lib/dateRules";
+import { classifyReferenceDate } from "@client/lib/dateRules";
 
 // ── T-DATE-001..007: dateRules ──
-
-describe("computeBaselineDate", () => {
-  it("returns applicationDate when no priorityDate", () => {
-    expect(computeBaselineDate({ applicationDate: "2023-03-15" })).toBe("2023-03-15");
-  });
-
-  it("returns priorityDate when both provided (priorityDate takes precedence)", () => {
-    expect(
-      computeBaselineDate({ applicationDate: "2023-07-20", priorityDate: "2021-07-20" })
-    ).toBe("2021-07-20");
-  });
-
-  it("returns undefined when neither provided", () => {
-    expect(computeBaselineDate({})).toBeUndefined();
-  });
-});
 
 describe("classifyReferenceDate", () => {
   it("T-DATE-001: pub < baseline → available", () => {
@@ -36,11 +20,7 @@ describe("classifyReferenceDate", () => {
 
   it("T-DATE-004: baseline from priorityDate, pub > priority → unavailable-later", () => {
     // baseline = priorityDate = 2021-07-20, pub = 2022-05-01
-    const baseline = computeBaselineDate({
-      applicationDate: "2023-07-20",
-      priorityDate: "2021-07-20"
-    });
-    expect(classifyReferenceDate(baseline, "2022-05-01", "high")).toBe("unavailable-later");
+    expect(classifyReferenceDate("2021-07-20", "2022-05-01", "high")).toBe("unavailable-later");
   });
 
   it("T-DATE-005: pubDate missing → needs-publication-date", () => {

@@ -1,18 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { classifyReferenceDate, computeBaselineDate } from "@client/lib/dateRules";
+import { classifyReferenceDate } from "@client/lib/dateRules";
 import type { ReferenceDocument } from "@shared/types/domain";
 
 describe("recomputeAllReferenceTimeline", () => {
   // Simulate the recompute logic that runs when applicationDate/priorityDate changes
+  // ADR-009: baselineDate = priorityDate ?? applicationDate
   function recomputeTimeline(
     refs: ReferenceDocument[],
     applicationDate?: string,
     priorityDate?: string
   ): ReferenceDocument[] {
-    const baseline = computeBaselineDate({
-      ...(applicationDate ? { applicationDate } : {}),
-      ...(priorityDate ? { priorityDate } : {})
-    });
+    const baseline = priorityDate ?? applicationDate ?? undefined;
     return refs.map((ref) => ({
       ...ref,
       timelineStatus: classifyReferenceDate(baseline, ref.publicationDate, ref.publicationDateConfidence)

@@ -145,14 +145,14 @@ interface ClassifyDocumentsRequest {
 
 // ── Prompt 构造器 ──────────────────────────────────────
 
-function buildClaimChartPrompt(request: ClaimChartRequest): string {
+function buildClaimChartPrompt(request: ClaimChartRequest): PromptParts {
   const claimNumber = request.claimNumber ?? 1;
   const claimText = sanitizeText(request.claimText ?? "");
   const specificationText = sanitizeText(request.specificationText ?? "");
   const specExcerpt = specificationText.length > 8000 ? specificationText.slice(0, 8000) : specificationText;
 
-  return [
-    `你是一位资深专利审查员助理，任务是对权利要求 ${claimNumber} 进行技术特征拆解（Claim Chart）。`,
+  const system = [
+    `你是一位资深专利审查员助理，任务是对权利要求进行技术特征拆解（Claim Chart）。`,
     ``,
     `约束：`,
     `- 只能基于给定的权利要求文本与说明书片段；不得编造段落号或引用。`,
@@ -160,15 +160,9 @@ function buildClaimChartPrompt(request: ClaimChartRequest): string {
     `- 不得输出新颖性/创造性等法律结论。`,
     `- 严格按下方 JSON 格式输出，不要输出 markdown 代码块或任何解释性文字。`,
     ``,
-    `权利要求 ${claimNumber} 文本：`,
-    claimText,
-    ``,
-    `说明书片段（含段落号，如有）：`,
-    specExcerpt || "（未提供说明书片段）",
-    ``,
     `请严格输出以下 JSON 格式（字段名必须完全一致，使用双引号）：`,
     `{`,
-    `  "claimNumber": ${claimNumber},`,
+    `  "claimNumber": <claimNumber>,`,
     `  "features": [`,
     `    {`,
     `      "featureCode": "A",`,
@@ -192,17 +186,27 @@ function buildClaimChartPrompt(request: ClaimChartRequest): string {
     `- specificationCitations 中 confidence 只能是 high / medium / low`,
     `- warnings 可为空数组 []；pendingSearchQuestions 最多 5 条`
   ].join("\n");
+
+  const user = [
+    `权利要求 ${claimNumber} 文本：`,
+    claimText,
+    ``,
+    `说明书片段（含段落号，如有）：`,
+    specExcerpt || "（未提供说明书片段）",
+  ].join("\n");
+
+  return { system, user };
 }
 
-function buildNoveltyPrompt(request: NoveltyRequest): string {
+function buildNoveltyPrompt(request: NoveltyRequest): PromptParts {
   const features = request.features ?? [];
   const referenceText = sanitizeText(request.referenceText ?? "");
-  const referenceId = request.referenceId ?? "";
+  const referenceId = sanitizeText(request.referenceId ?? "");
   const claimNumber = request.claimNumber ?? 1;
-  const caseId = request.caseId ?? "";
+  const caseId = sanitizeText(request.caseId ?? "");
   const specExcerpt = truncate(referenceText, 8000);
 
-  const parts = [
+  const system = [
     `你是一名专利复审辅助系统，负责在复审阶段逐特征重新评估新颖性对照。`,
     ``,
     `## 公开状态四档语义`,
@@ -211,42 +215,45 @@ function buildNoveltyPrompt(request: NoveltyRequest): string {
     `- not-found：在对比文件中未找到该技术特征的公开内容`,
     `- not-applicable：该特征不适用于本次对照`,
     ``,
-    `## 输入数据`,
-    `案件 ID: ${caseId}`,
-    `权利要求号: ${claimNumber}`,
-    `技术特征:`,
-    ...features.map((f) => `  ${f.featureCode}: ${sanitizeText(f.description ?? "")}`),
-    ``,
-    `对比文件 ID: ${referenceId}`,
-    `对比文件内容:`,
-    specExcerpt,
-    ``,
     `## 输出要求`,
     `严格按以下 JSON 格式输出：`,
     `{`,
-    `  "referenceId": "${referenceId}",`,
-    `  "claimNumber": ${claimNumber},`,
+    `  "referenceId": "<referenceId>",`,
+    `  "claimNumber": <claimNumber>,`,
     `  "rows": [`,
     `    { "featureCode": "A", "disclosureStatus": "clearly-disclosed|possibly-disclosed|not-found|not-applicable", "citations": [{ "label": "[0005]", "paragraph": "0005", "quote": "引用原文", "confidence": "high|medium|low" }], "mismatchNotes": "差异说明" }`,
     `  ],`,
     `  "differenceFeatureCodes": ["B", "C"],`,
     `  "pendingSearchQuestions": ["待检索问题"],`,
     `  "legalCaution": "以上为候选事实整理，不构成新颖性法律结论。"`,
-    `}`
-  ];
-  return parts.join("\n");
+    `}`,
+  ].join("\n");
+
+  const user = [
+    `## 输入数据`,
+    `案件 ID: ${caseId}`,
+    `权利要求号: ${claimNumber}`,
+    `技术特征:`,
+    ...features.map((f) => `  ${sanitizeText(f.featureCode)}: ${sanitizeText(f.description ?? "")}`),
+    ``,
+    `对比文件 ID: ${referenceId}`,
+    `对比文件内容:`,
+    specExcerpt,
+  ].join("\n");
+
+  return { system, user };
 }
 
-function buildInventivePrompt(request: InventiveRequest): string {
+function buildInventivePrompt(request: InventiveRequest): PromptParts {
   const features = request.features ?? [];
   const availableReferences = request.availableReferences ?? [];
-  const caseId = request.caseId ?? "";
+  const caseId = sanitizeText(request.caseId ?? "");
   const claimNumber = request.claimNumber ?? 1;
-  const closestPriorArtId = request.closestPriorArtId ?? null;
+  const closestPriorArtId = request.closestPriorArtId ? sanitizeText(request.closestPriorArtId) : null;
   const applicantArguments = request.applicantArguments ? sanitizeText(request.applicantArguments) : undefined;
   const amendedClaimText = request.amendedClaimText ? sanitizeText(request.amendedClaimText) : undefined;
 
-  const parts = [
+  const system = [
     `你是一名专利复审辅助系统，负责在复审阶段进行创造性三步法分析。`,
     ``,
     `## 复审上下文`,
@@ -255,29 +262,10 @@ function buildInventivePrompt(request: InventiveRequest): string {
     `- 申请人的答辩理由（如提供）`,
     `- 申请人修改后的权利要求（如提供）`,
     ``,
-    `## 输入数据`,
-    `案件 ID: ${caseId}`,
-    `权利要求号: ${claimNumber}`,
-    `技术特征:`,
-    ...features.map((f) => `  ${f.featureCode}: ${sanitizeText(f.description ?? "")}`),
-    ``,
-    `可用对比文件:`,
-    ...availableReferences.map((r) => `  ${r.label} (${r.referenceId}): ${truncate(sanitizeText(r.excerpt ?? ""), 500)}`),
-    ``,
-    `用户指定最接近现有技术: ${closestPriorArtId ?? "由 AI 推荐"}`
-  ];
-  if (applicantArguments) {
-    parts.push(``, `申请人答辩理由:`, applicantArguments);
-  }
-  if (amendedClaimText) {
-    parts.push(``, `修改后权利要求:`, truncate(amendedClaimText, 4000));
-  }
-  parts.push(
-    ``,
     `## 输出要求`,
     `严格按以下 JSON 格式输出：`,
     `{`,
-    `  "claimNumber": ${claimNumber},`,
+    `  "claimNumber": <claimNumber>,`,
     `  "closestPriorArtId": "最接近现有技术的 referenceId",`,
     `  "sharedFeatureCodes": ["共有特征"],`,
     `  "distinguishingFeatureCodes": ["区别特征"],`,
@@ -291,19 +279,48 @@ function buildInventivePrompt(request: InventiveRequest): string {
     `注意：`,
     `- closestPriorArtId 必须填写`,
     `- sharedFeatureCodes 和 distinguishingFeatureCodes 并集必须等于所有 features`,
-    `- candidateAssessment 只能是 possibly-inventive、possibly-lacks-inventiveness、insufficient-evidence 或 not-analyzed（信息不足无法判断时使用）`
-  );
-  return parts.join("\n");
+    `- candidateAssessment 只能是 possibly-inventive、possibly-lacks-inventiveness、insufficient-evidence 或 not-analyzed（信息不足无法判断时使用）`,
+  ].join("\n");
+
+  const userParts = [
+    `## 输入数据`,
+    `案件 ID: ${caseId}`,
+    `权利要求号: ${claimNumber}`,
+    `技术特征:`,
+    ...features.map((f) => `  ${sanitizeText(f.featureCode)}: ${sanitizeText(f.description ?? "")}`),
+    ``,
+    `可用对比文件:`,
+    ...availableReferences.map((r) => `  ${sanitizeText(r.label)} (${sanitizeText(r.referenceId)}): ${truncate(sanitizeText(r.excerpt ?? ""), 500)}`),
+    ``,
+    `用户指定最接近现有技术: ${closestPriorArtId ?? "由 AI 推荐"}`,
+  ];
+  if (applicantArguments) {
+    userParts.push(``, `申请人答辩理由:`, applicantArguments);
+  }
+  if (amendedClaimText) {
+    userParts.push(``, `修改后权利要求:`, truncate(amendedClaimText, 4000));
+  }
+  return { system, user: userParts.join("\n") };
 }
 
-function buildDefectPrompt(request: DefectRequest): string {
+function buildDefectPrompt(request: DefectRequest): PromptParts {
   const claimText = sanitizeText(request.claimText ?? "");
   const specificationText = sanitizeText(request.specificationText ?? "");
   const claimFeatures = request.claimFeatures ?? [];
-  const caseId = request.caseId ?? "";
+  const caseId = sanitizeText(request.caseId ?? "");
 
-  return [
+  const system = [
     `你是一位资深专利审查员，擅长识别专利申请文件中的形式缺陷。`,
+    ``,
+    `请检测形式缺陷，严格按以下 JSON 格式输出：`,
+    `{`,
+    `  "defects": [{ "category": "类别", "description": "描述", "location": "位置(可选)", "severity": "error|warning|info", "previouslyRaised": false, "overcomeStatus": "overcome|not-overcome|partially-overcome(可选)" }],`,
+    `  "warnings": [],`,
+    `  "legalCaution": "AI 辅助检测，需审查员确认"`,
+    `}`,
+  ].join("\n");
+
+  const user = [
     `案件 ID: ${caseId}`,
     ``,
     `权利要求文本:`,
@@ -313,26 +330,23 @@ function buildDefectPrompt(request: DefectRequest): string {
     truncate(specificationText, 8000),
     ``,
     `技术特征:`,
-    ...claimFeatures.map((f) => `  ${f.featureCode}: ${sanitizeText(f.description ?? "")}`),
-    ``,
-    `请检测形式缺陷，严格按以下 JSON 格式输出：`,
-    `{`,
-    `  "defects": [{ "category": "类别", "description": "描述", "location": "位置(可选)", "severity": "error|warning|info", "previouslyRaised": false, "overcomeStatus": "overcome|not-overcome|partially-overcome(可选)" }],`,
-    `  "warnings": [],`,
-    `  "legalCaution": "AI 辅助检测，需审查员确认"`,
-    `}`
+    ...claimFeatures.map((f) => `  ${sanitizeText(f.featureCode)}: ${sanitizeText(f.description ?? "")}`),
   ].join("\n");
+
+  return { system, user };
 }
 
-function buildChatPrompt(request: ChatRequestData): string {
-  const caseId = request.caseId ?? "";
+function buildChatPrompt(request: ChatRequestData): PromptParts {
+  const caseId = sanitizeText(request.caseId ?? "");
   const moduleScope = sanitizeText(request.moduleScope ?? "");
   const contextSummary = sanitizeText(request.contextSummary ?? "");
   const history = (request.history ?? [])
     .map(m => ({ role: m.role, content: sanitizeText(m.content ?? "") }));
   const userMessage = sanitizeText(request.userMessage ?? "");
 
-  return [
+  const system = `你是一位专利审查助手，根据当前模块数据和对话历史回答用户问题。`;
+
+  const user = [
     `案件 ID: ${caseId}`,
     `当前模块: ${moduleScope}`,
     ``,
@@ -343,8 +357,10 @@ function buildChatPrompt(request: ChatRequestData): string {
     ...history.map((m) => `[${m.role}]: ${m.content}`),
     ``,
     `=== 用户消息 ===`,
-    userMessage
+    userMessage,
   ].join("\n");
+
+  return { system, user };
 }
 
 const INTERPRET_TEMPLATES: Record<string, { title: string; instructions: string[] }> = {
@@ -383,28 +399,30 @@ const INTERPRET_TEMPLATES: Record<string, { title: string; instructions: string[
   }
 };
 
-function buildInterpretPrompt(request: InterpretRequest): string {
+function buildInterpretPrompt(request: InterpretRequest): PromptParts {
   const documentType = request.documentType ?? "application";
   const fallback = INTERPRET_TEMPLATES["application"];
   if (!fallback) throw new Error("Missing INTERPRET_TEMPLATES.application");
   const template = INTERPRET_TEMPLATES[documentType] ?? fallback;
-  const caseId = request.caseId ?? "";
-  const documentId = request.documentId ?? "unknown";
-  const fileName = request.fileName ?? "未命名文件";
+  const caseId = sanitizeText(request.caseId ?? "");
+  const documentId = sanitizeText(request.documentId ?? "unknown");
+  const fileName = sanitizeText(request.fileName ?? "未命名文件");
   const documentText = sanitizeText(request.documentText ?? "");
   const relatedDocuments = request.relatedDocuments ?? [];
   const relatedStr = relatedDocuments.length
-    ? relatedDocuments.map((doc) => `- ${doc.fileName}（${doc.documentType}）`).join("\n")
+    ? relatedDocuments.map((doc) => `- ${sanitizeText(doc.fileName)}（${sanitizeText(doc.documentType)}）`).join("\n")
     : "无";
 
-  return [
+  const system = [
     `你是一个专利审查助手。请对以下${template.title}进行深度解读：`,
     "",
     ...template.instructions,
     "",
     "请用中文回答，结构清晰，每个维度用标题分隔。",
     "必须在开头明确写出当前解读文件名。",
-    "",
+  ].join("\n");
+
+  const user = [
     `案件 ID: ${caseId}`,
     `文件 ID: ${documentId}`,
     `文件名: ${fileName}`,
@@ -413,66 +431,74 @@ function buildInterpretPrompt(request: InterpretRequest): string {
     relatedStr,
     "",
     "=== 文档内容 ===",
-    truncate(documentText, 12000)
+    truncate(documentText, 12000),
   ].join("\n");
+
+  return { system, user };
 }
 
-function buildOpinionAnalysisPrompt(request: OpinionAnalysisRequest): string {
-  const caseId = request.caseId ?? "";
-  const documentId = request.documentId ?? "";
+function buildOpinionAnalysisPrompt(request: OpinionAnalysisRequest): PromptParts {
+  const caseId = sanitizeText(request.caseId ?? "");
+  const documentId = sanitizeText(request.documentId ?? "");
   const officeActionText = sanitizeText(request.officeActionText ?? "");
 
-  return [
+  const system = [
     `你是一位资深专利审查员，擅长分析审查意见通知书。`,
+    ``,
+    `请提取驳回理由和引用文献，严格按以下 JSON 格式输出：`,
+    `{`,
+    `  "documentId": "<documentId>",`,
+    `  "rejectionGrounds": [{ "code": "RG-1", "category": "novelty|inventive|clarity|support|amendment|other", "claimNumbers": [1], "summary": "摘要", "legalBasis": "法律依据", "originalText": "原文" }],`,
+    `  "citedReferences": [{ "publicationNumber": "公开号", "rejectionGroundCodes": ["RG-1"], "featureMapping": "特征映射" }],`,
+    `  "legalCaution": "AI 分析法律风险提示"`,
+    `}`,
+  ].join("\n");
+
+  const user = [
     `案件 ID: ${caseId}`,
     `文档 ID: ${documentId}`,
     ``,
     `审查意见通知书文本:`,
     truncate(officeActionText, 12000),
-    ``,
-    `请提取驳回理由和引用文献，严格按以下 JSON 格式输出：`,
-    `{`,
-    `  "documentId": "${documentId}",`,
-    `  "rejectionGrounds": [{ "code": "RG-1", "category": "novelty|inventive|clarity|support|amendment|other", "claimNumbers": [1], "summary": "摘要", "legalBasis": "法律依据", "originalText": "原文" }],`,
-    `  "citedReferences": [{ "publicationNumber": "公开号", "rejectionGroundCodes": ["RG-1"], "featureMapping": "特征映射" }],`,
-    `  "legalCaution": "AI 分析法律风险提示"`,
-    `}`
   ].join("\n");
+
+  return { system, user };
 }
 
-function buildArgumentAnalysisPrompt(request: ArgumentAnalysisRequest): string {
+function buildArgumentAnalysisPrompt(request: ArgumentAnalysisRequest): PromptParts {
   const caseId = request.caseId ?? "";
   const rejectionGrounds = request.rejectionGrounds ?? [];
   const responseText = sanitizeText(request.responseText ?? "");
   const amendedClaimsText = request.amendedClaimsText != null ? sanitizeText(request.amendedClaimsText) : undefined;
 
-  const parts = [
+  const system = [
     `你是一位资深专利审查员，擅长分析意见陈述书中的答辩理由。`,
-    `案件 ID: ${caseId}`,
-    ``,
-    `驳回理由清单:`,
-    ...rejectionGrounds.map((g) => `  ${g.code} (${g.category}): ${g.summary}`),
-    ``,
-    `意见陈述书文本:`,
-    truncate(responseText, 12000)
-  ];
-  if (amendedClaimsText) {
-    parts.push(``, `修改后权利要求:`, truncate(amendedClaimsText, 4000));
-  }
-  parts.push(
     ``,
     `请将每条驳回理由与答辩内容映射，严格按 JSON 格式输出：`,
     `{`,
     `  "mappings": [{ "rejectionGroundCode": "RG-1", "applicantArgument": "答辩原文", "argumentSummary": "摘要", "confidence": "high|medium|low", "amendedClaims": [], "newEvidence": "" }],`,
     `  "unmappedGrounds": ["未映射的 code"],`,
     `  "legalCaution": "AI 分析法律风险提示"`,
-    `}`
-  );
-  return parts.join("\n");
+    `}`,
+  ].join("\n");
+
+  const userParts = [
+    `案件 ID: ${caseId}`,
+    ``,
+    `驳回理由清单:`,
+    ...rejectionGrounds.map((g) => `  ${sanitizeText(g.code)} (${sanitizeText(g.category)}): ${sanitizeText(g.summary)}`),
+    ``,
+    `意见陈述书文本:`,
+    truncate(responseText, 12000),
+  ];
+  if (amendedClaimsText) {
+    userParts.push(``, `修改后权利要求:`, truncate(amendedClaimsText, 4000));
+  }
+  return { system, user: userParts.join("\n") };
 }
 
-function buildReexamDraftPrompt(request: ReexamDraftRequest): string {
-  const caseId = request.caseId ?? "";
+function buildReexamDraftPrompt(request: ReexamDraftRequest): PromptParts {
+  const caseId = sanitizeText(request.caseId ?? "");
   const claimNumber = request.claimNumber ?? 1;
   const rejectionGrounds = request.rejectionGrounds ?? [];
   const argumentMappings = request.argumentMappings ?? [];
@@ -480,42 +506,53 @@ function buildReexamDraftPrompt(request: ReexamDraftRequest): string {
   const inventiveResults = request.inventiveResults;
   const defectResults = request.defectResults;
 
-  const parts = [
+  const system = [
     `你是一位资深专利审查员，负责起草复审意见草稿。`,
-    `案件 ID: ${caseId}`,
-    `权利要求号: ${claimNumber}`,
-    ``,
-    `驳回理由清单:`,
-    ...rejectionGrounds.map((g) => `  ${g.code} (${g.category}): ${g.summary}`),
-    ``,
-    `答辩映射:`,
-    ...argumentMappings.map((m) => `  ${m.rejectionGroundCode}: ${m.argumentSummary} [${m.confidence}]`)
-  ];
-  if (noveltyResults) parts.push(``, `新颖性复核:`, truncate(noveltyResults, 4000));
-  if (inventiveResults) parts.push(``, `创造性复核:`, truncate(inventiveResults, 4000));
-  if (defectResults) parts.push(``, `缺陷复查:`, truncate(defectResults, 2000));
-  parts.push(
     ``,
     `请起草复审意见草稿，严格按 JSON 格式输出：`,
     `{`,
-    `  "claimNumber": ${claimNumber},`,
+    `  "claimNumber": <claimNumber>,`,
     `  "responseItems": [{ "rejectionGroundCode": "RG-1", "category": "类别", "applicantArgumentSummary": "摘要", "examinerResponse": "回应", "conclusion": "argument-accepted|argument-partially-accepted|argument-rejected|needs-further-review", "supportingEvidence": [] }],`,
     `  "overallAssessment": "综合评估",`,
     `  "defectReviewSummary": "缺陷复查总结(可选)",`,
     `  "legalCaution": "法律风险提示"`,
-    `}`
-  );
-  return parts.join("\n");
+    `}`,
+  ].join("\n");
+
+  const userParts = [
+    `案件 ID: ${caseId}`,
+    `权利要求号: ${claimNumber}`,
+    ``,
+    `驳回理由清单:`,
+    ...rejectionGrounds.map((g) => `  ${sanitizeText(g.code)} (${sanitizeText(g.category)}): ${sanitizeText(g.summary)}`),
+    ``,
+    `答辩映射:`,
+    ...argumentMappings.map((m) => `  ${sanitizeText(m.rejectionGroundCode)}: ${sanitizeText(m.argumentSummary)} [${sanitizeText(m.confidence)}]`),
+  ];
+  if (noveltyResults) userParts.push(``, `新颖性复核:`, truncate(noveltyResults, 4000));
+  if (inventiveResults) userParts.push(``, `创造性复核:`, truncate(inventiveResults, 4000));
+  if (defectResults) userParts.push(``, `缺陷复查:`, truncate(defectResults, 2000));
+  return { system, user: userParts.join("\n") };
 }
 
-function buildSummaryPrompt(request: SummaryRequest): string {
+function buildSummaryPrompt(request: SummaryRequest): PromptParts {
   const caseBaseline = sanitizeText(request.caseBaseline ?? "");
   const confirmedFeatures = sanitizeText(request.confirmedFeatures ?? "");
   const reviewedNoveltyComparisons = sanitizeText(request.reviewedNoveltyComparisons ?? "");
   const inventiveAnalysis = sanitizeText(request.inventiveAnalysis ?? "");
 
-  return [
+  const system = [
     `你是一位资深专利审查员，负责撰写审查意见简述。`,
+    ``,
+    `请撰写审查意见简述，严格按 JSON 格式输出：`,
+    `{`,
+    `  "body": "简述正文",`,
+    `  "aiNotes": "AI 备注",`,
+    `  "legalCaution": "法律风险提示"`,
+    `}`,
+  ].join("\n");
+
+  const user = [
     `案件基线: ${caseBaseline}`,
     ``,
     `Claim Chart:`,
@@ -526,21 +563,16 @@ function buildSummaryPrompt(request: SummaryRequest): string {
     ``,
     `创造性分析:`,
     truncate(inventiveAnalysis, 4000),
-    ``,
-    `请撰写审查意见简述，严格按 JSON 格式输出：`,
-    `{`,
-    `  "body": "简述正文",`,
-    `  "aiNotes": "AI 备注",`,
-    `  "legalCaution": "法律风险提示"`,
-    `}`
   ].join("\n");
+
+  return { system, user };
 }
 
-function buildTranslatePrompt(request: TranslateRequest): string {
+function buildTranslatePrompt(request: TranslateRequest): PromptParts {
   const documentText = sanitizeText(request.documentText ?? "");
-  const targetLang = request.targetLang ?? "中文";
+  const targetLang = sanitizeText(request.targetLang ?? "中文");
 
-  return [
+  const system = [
     `你是一名专利文献翻译专家，负责将外文专利文档忠实翻译为${targetLang}。`,
     ``,
     `## 硬约束`,
@@ -550,47 +582,57 @@ function buildTranslatePrompt(request: TranslateRequest): string {
     `4. **不确定术语标注**：对不确定的术语翻译，在译文后用括号标注原文，如"导热界面层（thermal interface layer）"。`,
     `5. **专利格式保留**：保留权利要求编号、附图标记（如 (1)、(2)）等专利特有格式。`,
     ``,
+    `## 输出`,
+    `直接输出${targetLang}翻译文本，保留原文的段落结构和编号。`,
+  ].join("\n");
+
+  const user = [
     `## 输入文档`,
     ``,
     truncate(documentText, 12000),
-    ``,
-    `## 输出`,
-    `直接输出${targetLang}翻译文本，保留原文的段落结构和编号。`
   ].join("\n");
+
+  return { system, user };
 }
 
-function buildExtractCaseFieldsPrompt(request: ExtractCaseFieldsRequest): string {
-  const caseId = request.caseId ?? "";
+function buildExtractCaseFieldsPrompt(request: ExtractCaseFieldsRequest): PromptParts {
+  const caseId = sanitizeText(request.caseId ?? "");
   const documents = request.documents ?? [];
-  const docSections = documents.map((doc, i) => `=== 文件 ${i + 1}: ${doc.fileName} ===\n${doc.text}`);
+  const docSections = documents.map((doc, i) => `=== 文件 ${i + 1}: ${sanitizeText(doc.fileName)} ===\n${sanitizeText(doc.text)}`);
 
-  return [
+  const system = [
     "你是一个专利文档信息提取助手。请从以下专利申请文件中提取案件基本信息和权利要求结构。",
     "",
     "请严格返回 JSON 格式，字段无法确定时设为 null。",
     "",
     JSON.stringify({ title: "string|null", applicationNumber: "string|null", applicant: "string|null", applicationDate: "YYYY-MM-DD|null", priorityDate: "YYYY-MM-DD|null", claims: [{ claimNumber: 1, type: "independent|dependent", dependsOn: [], rawText: "全文" }] }, null, 2),
-    "",
+  ].join("\n");
+
+  const user = [
     `案件 ID: ${caseId}`,
     "",
-    ...docSections
+    ...docSections,
   ].join("\n");
+
+  return { system, user };
 }
 
-function buildClassifyDocumentsPrompt(request: ClassifyDocumentsRequest): string {
+function buildClassifyDocumentsPrompt(request: ClassifyDocumentsRequest): PromptParts {
   const documents = request.documents ?? [];
-  const docSections = documents.map((doc) => `=== 文件 ${doc.fileIndex}: ${doc.fileName} ===\n${doc.textSample}`);
+  const docSections = documents.map((doc) => `=== 文件 ${doc.fileIndex}: ${sanitizeText(doc.fileName)} ===\n${sanitizeText(doc.textSample)}`);
 
-  return [
+  const system = [
     "你是一个专利文档分类助手。请根据文件名和内容识别每个文件的类型。",
     "",
     "类型：application(申请文件)、office-action(审查意见通知书)、office-action-response(意见陈述书)、reference(对比文件)",
     "",
     "请严格返回 JSON 格式：",
     JSON.stringify({ classifications: [{ fileIndex: 0, fileName: "文件名", role: "application|office-action|office-action-response|reference", confidence: "high|medium|low", reason: "理由" }] }, null, 2),
-    "",
-    ...docSections
   ].join("\n");
+
+  const user = docSections.join("\n");
+
+  return { system, user };
 }
 
 // ── 知识库增强 ──────────────────────────────────────────
@@ -765,7 +807,7 @@ async function enhanceWithKnowledge(
       const chunk = chunkMap.get(result.chunkId);
       if (!chunk) continue;
       let metadata: Record<string, unknown> = {};
-      try { metadata = JSON.parse(chunk.metadata) as Record<string, unknown>; } catch { /* ignore */ }
+      try { metadata = JSON.parse(chunk.metadata) as Record<string, unknown>; } catch { logger.warn("[RAG] Malformed chunk metadata", { chunkId: chunk.id }); }
       const source = typeof metadata.fileName === "string" ? metadata.fileName : "unknown";
       const category = typeof metadata.documentCategory === "string" ? metadata.documentCategory : "未知";
       const article = typeof metadata.article === "string" ? metadata.article : "";
@@ -809,56 +851,56 @@ function getAgentContext(agentType: string): string {
 /** 服务端编排入口：构造 prompt → 知识库增强 → 调用 AI */
 export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> {
   try {
-    // 1. 构造 prompt
-    let prompt: string;
+    // 1. 构造 prompt（system + user 分离）
+    let promptParts: PromptParts;
     switch (req.agent) {
       case "claim-chart":
-        prompt = buildClaimChartPrompt(req.request);
+        promptParts = buildClaimChartPrompt(req.request);
         break;
       case "novelty":
-        prompt = buildNoveltyPrompt(req.request);
+        promptParts = buildNoveltyPrompt(req.request);
         break;
       case "inventive":
-        prompt = buildInventivePrompt(req.request);
+        promptParts = buildInventivePrompt(req.request);
         break;
       case "defects":
-        prompt = buildDefectPrompt(req.request);
+        promptParts = buildDefectPrompt(req.request);
         break;
       case "chat":
-        prompt = buildChatPrompt(req.request);
+        promptParts = buildChatPrompt(req.request);
         break;
       case "interpret":
-        prompt = buildInterpretPrompt(req.request);
+        promptParts = buildInterpretPrompt(req.request);
         break;
       case "opinion-analysis":
-        prompt = buildOpinionAnalysisPrompt(req.request);
+        promptParts = buildOpinionAnalysisPrompt(req.request);
         break;
       case "argument-analysis":
-        prompt = buildArgumentAnalysisPrompt(req.request);
+        promptParts = buildArgumentAnalysisPrompt(req.request);
         break;
       case "reexam-draft":
-        prompt = buildReexamDraftPrompt(req.request);
+        promptParts = buildReexamDraftPrompt(req.request);
         break;
       case "summary":
-        prompt = buildSummaryPrompt(req.request);
+        promptParts = buildSummaryPrompt(req.request);
         break;
       case "translate":
-        prompt = buildTranslatePrompt(req.request);
+        promptParts = buildTranslatePrompt(req.request);
         break;
       case "extract-case-fields":
-        prompt = buildExtractCaseFieldsPrompt(req.request);
+        promptParts = buildExtractCaseFieldsPrompt(req.request);
         break;
       case "classify-documents":
-        prompt = buildClassifyDocumentsPrompt(req.request);
+        promptParts = buildClassifyDocumentsPrompt(req.request);
         break;
       default:
         return { ok: false, error: { type: "unsupported", message: `Unknown agent: ${req.agent}` } };
     }
 
-    // 2. 知识库增强
+    // 2. 知识库增强（知识上下文注入 user prompt）
     const query = extractQuery(req.agent, req.request);
     logger.info(`[Orchestrator] agent=${req.agent}, 提取检索 query="${query.slice(0, 80)}${query.length > 80 ? "..." : ""}", knowledgeEnabled=${req.knowledgeEnabled}`);
-    const { prompt: enhancedPrompt, citations } = await enhanceWithKnowledge(prompt, query, req.agent, req.knowledgeEnabled, req.knowledgeEmbedding, req.knowledgeReranker);
+    const { prompt: enhancedUserPrompt, citations } = await enhanceWithKnowledge(promptParts.user, query, req.agent, req.knowledgeEnabled, req.knowledgeEmbedding, req.knowledgeReranker);
 
     // 2.5 检查 API key 可用性
     const { getApiKey } = await import("../security/keyStore.js");
@@ -874,10 +916,11 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
     }
 
     // 3. 调用内部 AI Gateway
-    logger.info(`[Orchestrator] 发送 AI 请求: prompt 长度=${enhancedPrompt.length} 字符, ${citations.length} 条知识引用已注入`);
+    logger.info(`[Orchestrator] 发送 AI 请求: system=${promptParts.system.length} 字符, user=${enhancedUserPrompt.length} 字符, ${citations.length} 条知识引用已注入`);
     const aiResponse = await callInternalGateway({
       agent: req.agent,
-      prompt: enhancedPrompt,
+      systemPrompt: promptParts.system,
+      userPrompt: enhancedUserPrompt,
       caseId: req.caseId,
       providerPreference: req.providerPreference,
       modelId: req.modelId,
@@ -984,9 +1027,15 @@ function extractQuery(agent: string, request: Record<string, unknown>): string {
   }
 }
 
+interface PromptParts {
+  system: string;
+  user: string;
+}
+
 interface InternalGatewayRequest {
   agent: string;
-  prompt: string;
+  systemPrompt: string;
+  userPrompt: string;
   caseId: string;
   providerPreference?: string[] | undefined;
   modelId?: string | undefined;
@@ -1019,7 +1068,10 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
 
   const chatRequest: ChatRequest = {
     modelId: req.modelId ?? "",
-    messages: [{ role: "user", content: req.prompt }],
+    messages: [
+      { role: "system", content: req.systemPrompt },
+      { role: "user", content: req.userPrompt },
+    ],
     apiKey: "",
     ...(req.maxTokens !== undefined && { maxTokens: req.maxTokens }),
     ...(req.signal !== undefined && { signal: req.signal }),

@@ -21,11 +21,21 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 },
 });
 
+const FILE_SIZE_MAX = 100 * 1024 * 1024; // 100MB
+
 /** POST /api/documents/extract-pdf — 提取 PDF 文本 */
 documentsRouter.post("/documents/extract-pdf", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       res.status(400).json({ ok: false, error: "No file provided" });
+      return;
+    }
+    if (req.file.size > FILE_SIZE_MAX) {
+      res.status(400).json({ ok: false, error: "File too large (max 100MB)" });
+      return;
+    }
+    if (req.file.mimetype !== "application/pdf") {
+      res.status(400).json({ ok: false, error: "Invalid file type, expected PDF" });
       return;
     }
 
@@ -93,6 +103,18 @@ documentsRouter.post("/documents/extract-docx", upload.single("file"), async (re
   try {
     if (!req.file) {
       res.status(400).json({ ok: false, error: "No file provided" });
+      return;
+    }
+    if (req.file.size > FILE_SIZE_MAX) {
+      res.status(400).json({ ok: false, error: "File too large (max 100MB)" });
+      return;
+    }
+    const validDocxMimetypes = [
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/octet-stream", // some browsers/clients send generic mimetype
+    ];
+    if (!validDocxMimetypes.includes(req.file.mimetype)) {
+      res.status(400).json({ ok: false, error: "Invalid file type, expected DOCX" });
       return;
     }
 

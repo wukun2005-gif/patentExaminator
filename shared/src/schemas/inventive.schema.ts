@@ -11,6 +11,7 @@ export const inventiveSchema = z.object({
       z.object({
         referenceId: z.string(),
         label: z.string(),
+        /** @internal — AI 不生成，预留供 UI 手动标注段落号 */
         paragraph: z
           .union([z.string(), z.number(), z.null(), z.undefined()])
           .transform((v) => (v === undefined || v === null || v === "" ? undefined : String(v)))

@@ -102,11 +102,12 @@ describe("orchestrator — prompt building", () => {
     });
 
     const call = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]!;
-    const prompt = call[1]!.messages[0]!.content as string;
-    expect(prompt).toContain("权利要求 1");
-    expect(prompt).toContain("一种装置，包括A和B");
-    expect(prompt).toContain("featureCode");
-    expect(prompt).toContain("citationStatus");
+    const systemPrompt = call[1]!.messages[0]!.content as string;
+    const userPrompt = call[1]!.messages[1]!.content as string;
+    expect(userPrompt).toContain("权利要求 1");
+    expect(userPrompt).toContain("一种装置，包括A和B");
+    expect(systemPrompt).toContain("featureCode");
+    expect(systemPrompt).toContain("citationStatus");
   });
 
   it("novelty prompt includes features and reference text", async () => {
@@ -124,10 +125,11 @@ describe("orchestrator — prompt building", () => {
       apiKey: "key",
     });
 
-    const prompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[0]!.content as string;
-    expect(prompt).toContain("特征A");
-    expect(prompt).toContain("REF-001");
-    expect(prompt).toContain("disclosureStatus");
+    const systemPrompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[0]!.content as string;
+    const userPrompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[1]!.content as string;
+    expect(userPrompt).toContain("特征A");
+    expect(userPrompt).toContain("REF-001");
+    expect(systemPrompt).toContain("disclosureStatus");
   });
 
   it("chat prompt includes sanitized history", async () => {
@@ -145,7 +147,7 @@ describe("orchestrator — prompt building", () => {
       apiKey: "key",
     });
 
-    const prompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[0]!.content as string;
+    const prompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[1]!.content as string;
     expect(prompt).toContain("你好");
     expect(prompt).toContain("之前的问题");
     expect(prompt).toContain("novelty");
@@ -166,7 +168,7 @@ describe("orchestrator — prompt building", () => {
         modelId: "test",
         apiKey: "key",
       });
-      const prompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[0]!.content as string;
+      const prompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[1]!.content as string;
       expect(prompt).toContain("test.pdf");
     }
   });
@@ -186,7 +188,7 @@ describe("orchestrator — prompt building", () => {
       apiKey: "key",
     });
 
-    const prompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[0]!.content as string;
+    const prompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[1]!.content as string;
     expect(prompt).toContain("基线数据");
     expect(prompt).toContain("确认特征");
     expect(prompt).toContain("新颖性对照");
@@ -203,9 +205,10 @@ describe("orchestrator — prompt building", () => {
       apiKey: "key",
     });
 
-    const prompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[0]!.content as string;
-    expect(prompt).toContain("中文");
-    expect(prompt).toContain("Hello world");
+    const systemPrompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[0]!.content as string;
+    const userPrompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[1]!.content as string;
+    expect(systemPrompt).toContain("中文");
+    expect(userPrompt).toContain("Hello world");
   });
 });
 

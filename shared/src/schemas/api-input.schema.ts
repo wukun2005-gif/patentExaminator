@@ -3,13 +3,18 @@
  */
 import { z } from "zod";
 
+// ── Agent 枚举（单一事实来源，BUG-152）─────────────────────────
+export const AGENT_VALUES = [
+  "interpret", "claim-chart", "novelty", "inventive", "summary", "chat",
+  "defects", "extract-case-fields", "opinion-analysis",
+  "argument-analysis", "reexam-draft", "translate", "classify-documents"
+] as const;
+
+export const agentEnum = z.enum(AGENT_VALUES);
+
 // ── POST /api/agent/run ──────────────────────────────────────
 export const agentRunInputSchema = z.object({
-  agent: z.enum([
-    "interpret", "claim-chart", "novelty", "inventive", "summary", "chat",
-    "defects", "extract-case-fields", "opinion-analysis",
-    "argument-analysis", "reexam-draft", "translate", "classify-documents"
-  ]),
+  agent: agentEnum,
   caseId: z.string().min(1, "caseId is required"),
   request: z.record(z.unknown()).default({}),
   providerPreference: z.array(z.string()).optional(),
@@ -118,6 +123,9 @@ export const documentsBuildTextIndexInputSchema = z.object({
 // ── BUG-101: 通用 params 校验 ────────────────────────────────
 export const storeNameSchema = z.string().min(1, "store name is required").max(128);
 export const recordIdSchema = z.string().min(1, "record id is required").max(512);
+
+// ── BUG-151: chunks limit 校验 ───────────────────────────────
+export const chunksLimitSchema = z.coerce.number().int().min(1).max(100).default(20);
 
 // ── PUT /api/data/:store/:id (body) ──────────────────────────
 export const dataUpdateInputSchema = z.object({}).passthrough().refine(

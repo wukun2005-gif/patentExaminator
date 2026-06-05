@@ -2,7 +2,7 @@
  * 服务端重排序器 — 使用多信号评分对检索结果重新排序
  * 从 client/src/lib/knowledge/reranker.ts 迁移到服务端
  *
- * cr-2: 优先使用 Cross-Encoder 模型（BAAI/bge-reranker-v2-m3）精排，
+ * cr-2: 优先使用 Cross-Encoder 模型（BAAI/bge-reranker-base）精排，
  * 模型不可用时降级为本地启发式算法。
  * 5 个信号加权：语义相似度、关键词匹配、文档类型、法条引用、chunk 深度
  */
@@ -152,8 +152,9 @@ let crossEncoderModel: unknown = null;
 let crossEncoderLoading = false;
 let crossEncoderFailed = false;
 
-const RERANKER_MODEL = "Xenova/bge-reranker-v2-m3";
+const RERANKER_MODEL = "Xenova/bge-reranker-base";
 const LOAD_TIMEOUT_MS = 10_000;
+const REMOTE_LOAD_TIMEOUT_MS = 120_000; // 远程下载需要更长时间（模型约 266MB）
 const MODEL_CACHE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../models");
 
 /** 获取 Cross-Encoder 模型（懒加载，失败后不再重试） */
@@ -189,7 +190,7 @@ async function getCrossEncoder(): Promise<unknown> {
     } catch {
       // 本地缓存不存在或加载超时，尝试远程下载（同样有超时）
       logger.info(`Cross-encoder local cache miss, attempting remote download...`);
-      crossEncoderModel = await loadWithTimeout(loadModel(false), LOAD_TIMEOUT_MS * 3);
+      crossEncoderModel = await loadWithTimeout(loadModel(false), REMOTE_LOAD_TIMEOUT_MS);
       logger.info(`Cross-encoder reranker downloaded and loaded: ${RERANKER_MODEL}`);
     }
     return crossEncoderModel;
@@ -206,7 +207,7 @@ async function getCrossEncoder(): Promise<unknown> {
 export function preloadCrossEncoder(): void {
   getCrossEncoder().then((model) => {
     if (model) logger.info("[Startup] Cross-encoder reranker preloaded successfully");
-  }).catch(() => { /* 已在 getCrossEncoder 内处理 */ });
+  }).catch((err) => { logger.warn("[Startup] Cross-encoder reranker preload failed:", err); });
 }
 
 interface CrossEncoderInput {
@@ -240,7 +241,7 @@ export async function crossEncoderRerank(
     const scored: CrossEncoderOutput[] = [];
 
     for (const result of results) {
-      // bge-reranker 输入格式: "query [SEP] chunk"
+      // bge-reranker 输入格式: "query [SEP] chunk"（tokenizer 自动处理分隔符）
       const input = `${query} [SEP] ${result.text.slice(0, 512)}`;
       const output = await classifier(input, { topk: 1 });
       // 输出格式: [{ label: string, score: number }]

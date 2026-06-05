@@ -11,7 +11,7 @@ import type {
 import type { AiErrorType } from "@shared/types/api";
 import type {
   ReexamDraftResponse, SummaryResponse,
-  SearchReferencesRequest, SearchReferencesResponse,
+  SearchReferencesResponse,
   ExtractSearchTermsRequest, ExtractSearchTermsResponse,
   SearchWithTermsRequest, AgentRunOptions,
 } from "@shared/types/api";
@@ -671,21 +671,6 @@ export async function agentRun<T>(
     return data.output as T;
   }
   throw new Error("Empty response from gateway");
-}
-
-/** 检索文献搜索 — 调用 /api/search-references */
-export async function searchReferences(
-  request: SearchReferencesRequest,
-  settings: AppSettings,
-  options?: AgentRunOptions
-): Promise<SearchReferencesResponse> {
-  return postJson<SearchReferencesResponse>("/api/search-references", {
-    ...buildSearchBase(request, settings, "search-references", options),
-    maxResults: request.maxResults ?? 5,
-    searchProviderId: request.searchProviderId,
-    searchApiKey: request.searchApiKey,
-    searchBaseUrl: request.searchBaseUrl,
-  });
 }
 
 /** 提取检索词 — 调用 /api/extract-search-terms */

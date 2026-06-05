@@ -19,6 +19,7 @@ export const documentClassificationSchema = z.object({
 
 export const classifyDocumentsOutputSchema = z.object({
   classifications: z.array(documentClassificationSchema).min(1),
+  /** @internal — AI 不生成，预留供扩展 */
   warnings: z.array(z.string()).optional(),
 });
 

@@ -1,23 +1,17 @@
-import { create } from "zustand";
-import { type CaseSlice, createCaseSlice } from "./features/case/caseSlice";
-import {
-  type DocumentsSlice,
-  createDocumentsSlice
-} from "./features/documents/documentsSlice";
-import {
-  type ReferencesSlice,
-  createReferencesSlice
-} from "./features/references/referencesSlice";
-import { type ClaimsSlice, createClaimsSlice } from "./features/claims/claimsSlice";
-import { type NoveltySlice, createNoveltySlice } from "./features/novelty/noveltySlice";
-import { type InventiveSlice, createInventiveSlice } from "./features/inventive/inventiveSlice";
-import { type DefectsSlice, createDefectsSlice } from "./features/defects/defectsSlice";
-import { type ChatSlice, createChatSlice } from "./features/chat/chatSlice";
-import { type SettingsSlice, createSettingsSlice } from "./features/settings/settingsSlice";
-import { type OpinionSlice, createOpinionSlice } from "./features/opinion/opinionSlice";
-import { type InterpretSlice, createInterpretSlice } from "./features/interpret/interpretSlice";
-import { type DraftSlice, createDraftSlice } from "./features/draft/draftSlice";
+import type { CaseSlice } from "./features/case/caseSlice";
+import type { DocumentsSlice } from "./features/documents/documentsSlice";
+import type { ReferencesSlice } from "./features/references/referencesSlice";
+import type { ClaimsSlice } from "./features/claims/claimsSlice";
+import type { NoveltySlice } from "./features/novelty/noveltySlice";
+import type { InventiveSlice } from "./features/inventive/inventiveSlice";
+import type { DefectsSlice } from "./features/defects/defectsSlice";
+import type { ChatSlice } from "./features/chat/chatSlice";
+import type { SettingsSlice } from "./features/settings/settingsSlice";
+import type { OpinionSlice } from "./features/opinion/opinionSlice";
+import type { InterpretSlice } from "./features/interpret/interpretSlice";
+import type { DraftSlice } from "./features/draft/draftSlice";
 
+/** @internal — 仅用于类型推导，外部消费者应使用独立 slice store */
 export type AppStore = CaseSlice &
   DocumentsSlice &
   ReferencesSlice &
@@ -30,21 +24,6 @@ export type AppStore = CaseSlice &
   OpinionSlice &
   InterpretSlice &
   DraftSlice;
-
-export const useStore = create<AppStore>()((set, get) => ({
-  ...createCaseSlice(set, get),
-  ...createDocumentsSlice(set, get),
-  ...createReferencesSlice(set, get),
-  ...createClaimsSlice(set, get),
-  ...createNoveltySlice(set, get),
-  ...createInventiveSlice(set, get),
-  ...createDefectsSlice(set, get),
-  ...createChatSlice(set, get),
-  ...createSettingsSlice(set, get),
-  ...createOpinionSlice(set, get),
-  ...createInterpretSlice(set, get),
-  ...createDraftSlice(set, get)
-}));
 
 export {
   useCaseStore,

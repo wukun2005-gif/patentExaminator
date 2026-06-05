@@ -6,7 +6,9 @@ export const citationSchema = z.object({
     .union([z.string(), z.number(), z.null(), z.undefined()])
     .transform((v) => (v === undefined || v === null || v === "" ? undefined : String(v)))
     .optional(),
+  /** @internal — AI 不生成，预留供 UI 手动标注行号范围 */
   lineStart: z.number().int().optional(),
+  /** @internal — AI 不生成，预留供 UI 手动标注行号范围 */
   lineEnd: z.number().int().optional(),
   quote: z.string().optional(),
   confidence: z.enum(["high", "medium", "low"])
@@ -21,6 +23,7 @@ export const claimChartSchema = z.object({
         description: z.string().min(1),
         specificationCitations: z.array(citationSchema),
         citationStatus: z.enum(["confirmed", "needs-review", "not-found"]),
+        /** @internal — AI 不生成，预留供 UI 手动备注 */
         userNotes: z.string().optional()
       })
     )

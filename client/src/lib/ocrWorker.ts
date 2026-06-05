@@ -59,12 +59,3 @@ export async function runOcr(
     confidence: data.confidence,
   };
 }
-
-/**
- * Compute OCR cache key: sha256(file) + lang + pageCount
- */
-export async function computeOcrCacheKey(file: File, lang: string, pageCount: number): Promise<string> {
-  const { computeFileHash } = await import("./fileHash");
-  const hash = await computeFileHash(file);
-  return `${hash}-${lang}-${pageCount}`;
-}

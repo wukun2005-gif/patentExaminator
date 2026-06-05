@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { agentEnum } from "../../../shared/src/schemas/api-input.schema.js";
 
 export const aiRunRequestSchema = z.object({
-  agent: z.enum(["interpret", "claim-chart", "novelty", "inventive", "summary", "chat", "defects", "extract-case-fields", "opinion-analysis", "argument-analysis", "reexam-draft", "translate", "classify-documents"]),
+  agent: agentEnum,
   providerPreference: z.array(z.string()).min(1),
   modelId: z.string().min(1),
   maxTokens: z.number().int().positive().optional(),
