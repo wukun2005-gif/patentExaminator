@@ -6,6 +6,17 @@ Settings 持久化反复出现回归 bug（providers / searchProviders / knowled
 
 **目标**：建立全面的持久化测试，覆盖 app 中所有**业务数据**存储场景的写入-读回一致性。测试分三层：DB 层（内存数据库，毫秒级）→ HTTP 层（supertest，无真实网络）→ 客户端守卫层（mock fetch）。不消耗 token。
 
+## 核心原则：测试必须断言正确行为，不是记录当前行为
+
+> **反模式**：测试断言当前 buggy 行为（`expect(value).toBeUndefined()`），通过了等于什么都没测。
+> **正确做法**：测试断言**正确行为**（`expect(value).toBeDefined()`），bug 存在时测试**失败**。
+
+规则：
+1. **每个测试用例必须写"预期正确行为"**，不写"记录当前行为"。如果当前代码做不到正确行为，测试就该失败。
+2. **禁止用"已知限制"包装 bug**。"store 层无 isInitialized 守卫"是 bug，不是限制。测试应该断言守卫存在。
+3. **可选字段的正确行为 = 有合理默认值**，不是 undefined。`providerErrorMessages` 应默认为 `[]`，`knowledge` 应默认为 `{ enabled: false }`，等等。如果 `readSettings()` 没给默认值，测试必须失败。
+4. **写入失败的正确行为 = 用户有感知**，不是静默吞掉。如果 `writeSettings` 失败后用户看不到错误提示，测试必须失败。
+
 **范围说明**：
 - **包含**：所有业务实体 store（cases、documents、claimNodes、claimCharts、novelty、inventive、defects、chatSessions、chatMessages、opinionAnalyses、argumentMappings、interpretSummaries、reexamDrafts、summaries、runMarkers、searchSessions、feedback、textIndex、settings）
 - **排除**：`ocrCache`（缓存层，有 7 天过期策略，非业务数据）、`knowledgeSources`/`knowledgeChunks`/`knowledgeVectors`（v0.2.0 知识库功能，已有独立测试 `tests/knowledge-base-e2e.mjs`）
@@ -159,8 +170,8 @@ const FULL_SETTINGS = {
 | 3 | 更新 mimo provider 的 apiKeyRef → 读回验证 deepseek provider 不变 | 局部更新不破坏整体 |
 | 4 | 写入空 `providers: []` → 读回确认为空数组 | 空数组不变成 undefined |
 | 5 | 写入 `enableProviderFallback: false` → 读回确认为 false | 布尔值 false 不丢失 |
-| 6 | 写入不含 `knowledge` 字段的 settings → 读回确认 knowledge 为 undefined | 可选字段缺失时不报错 |
-| 7 | 写入不含 `knowledgeProviders` 字段的 settings → 读回确认为 undefined | 可选字段缺失时不报错 |
+| 6 | 写入不含 `knowledge` 字段的 settings → `readSettings()` 读回 → knowledge 有合理默认值（`{ enabled: false }`） | **可选字段必须有默认值，undefined 会导致 UI 崩溃** |
+| 7 | 写入不含 `knowledgeProviders` 字段的 settings → `readSettings()` 读回 → knowledgeProviders 为 `[]` | **可选数组字段必须默认为空数组** |
 | 8 | `searchProviders` 中 EPO key 含冒号 `key:secret` → 读回完整保留 | 特殊字符不被截断 |
 | 9 | `providerErrorMessages` 数组含 50 条（测试代码动态生成）→ 读回数量和内容一致 | 大数组序列化不丢 |
 | 10 | `knowledgeProviders` 中 reranker 和 embedding 同 providerId 不同 providerType → 各自独立保留 | 复合主键区分正确 |
@@ -285,15 +296,42 @@ const SAMPLE_INTERPRET_SUMMARIES = {
 
 | # | 用例 | 验证点 |
 |---|------|--------|
-| 1 | `isInitialized=false` 时调用 `setSettings` → 记录当前行为（store 层无守卫，会写入；仅组件层 `KnowledgeConfigPanel` 有守卫） | **已知限制：store 层无 isInitialized 守卫** |
-| 2 | `loadFromDb` 完成后调用 `setSettings` → DB 写入成功 | 正常流程可用 |
-| 3 | `updateKnowledgeConfig` 在 `isInitialized=false` 时被调用 → 记录当前行为（store 层无守卫；仅 `KnowledgeConfigPanel` 组件层有守卫） | **已知限制：跨层守卫不一致** |
+| 1 | `isInitialized=false` 时调用 `setSettings` → 断言 `writeSettings` **未被执行** | **store 层必须有 isInitialized 守卫，防止竞态覆盖 DB** |
+| 2 | `loadFromDb` 完成后（`isInitialized=true`）调用 `setSettings` → DB 写入成功 | 正常流程可用 |
+| 3 | `updateKnowledgeConfig` 在 `isInitialized=false` 时被调用 → 断言 `writeSettings` **未被执行** | **store 层必须有 isInitialized 守卫** |
 | 4 | 写入含 `knowledgeProviders` 的 settings → `loadFromDb` 读回 → reranker apiKeyRef 完整 | **reranker key 不丢** |
 | 5 | 写入含 `searchProviders` 的 settings → `loadFromDb` 读回 → EPO key 含冒号完整 | **search key 不丢** |
 
 ---
 
 ## 六、全链路持久化测试（Client → Server → DB）
+
+> **背景**：§一~§五 测的是 DB 层和 mock fetch 层，但用户实际经历的是 `readSettings()` 函数的返回值。如果 `readSettings()` 不给可选字段补默认值，用户刷新页面就丢配置——但 §一~§五 的测试发现不了这个问题，因为它们 mock 了 `loadFromDb`。
+
+### 5.5 readSettings() 真实返回值测试（核心抓 bug）
+
+测试文件：`tests/unit/settingsPersist.test.ts`
+
+**关键区别**：不 mock `loadFromDb`，只 mock 底层 `fetch`（模拟 server 返回）。让真实的 `readSettings()` 代码路径执行。
+
+| # | 用例 | 验证点 | 关联 bug |
+|---|------|--------|---------|
+| 12 | server 返回不含 `providerErrorMessages` 的 settings → `loadFromDb()` → store 中 `providerErrorMessages` 应为 `[]`（不是 undefined） | **readSettings 必须为可选数组字段补默认值** | BUG-134 |
+| 13 | server 返回不含 `knowledge` 的 settings → `loadFromDb()` → store 中 `knowledge` 应有默认值 `{ enabled: false }` | **readSettings 必须为可选对象字段补默认值** | BUG-133 |
+| 14 | server 返回不含 `knowledgeProviders` 的 settings → `loadFromDb()` → store 中 `knowledgeProviders` 应为 `[]` | **同上** | BUG-132 |
+| 15 | server 返回不含 `sanitizeRules` 的 settings → `loadFromDb()` → store 中 `sanitizeRules` 应为 `[]` | **同上** | BUG-135 |
+| 16 | server 返回不含 `ocrQualityThresholds` 的 settings → `loadFromDb()` → store 中 `ocrQualityThresholds` 应有默认值 | **同上** | BUG-136 |
+| 17 | server 返回不含 `agents` 的 settings → `loadFromDb()` → store 中 `agents` 应为 `[]`（不是 undefined，否则 UI 遍历崩溃） | **核心字段也必须有默认值** | — |
+| 18 | server 返回只有 `{ id: "app", mode: "mock" }`（最小 settings）→ `loadFromDb()` → 所有字段都有值，无 undefined | **readSettings 对任何缺失字段都能兜底** | — |
+
+> **测试模式**：mock fetch 让 `GET /api/data/settings/app` 返回精简数据 → 调用 `loadFromDb()` → 断言 store 中每个字段都不是 undefined。
+
+### 5.6 writeSettings 失败感知测试
+
+| # | 用例 | 验证点 | 关联 bug |
+|---|------|--------|---------|
+| 19 | `writeSettings` 网络失败 → 用户应收到错误提示（通过 `idbWriteGuard` 或其他机制） | **写入失败不能静默吞掉** | BUG-137 |
+| 20 | `writeSettings` 返回 500 → 用户应收到错误提示 | **同上** | BUG-137 |
 
 > **背景**：近期多个回归 bug 发生在数据流的不同层次（见下方"回归 bug 分层映射"），仅测试 DB 层无法捕获这些故障。本节设计覆盖完整数据链路的端到端测试。
 
@@ -350,7 +388,7 @@ function createTestApp(db: BetterSqlite3.Database) {
 | 4 | POST 写入含 `knowledgeProviders`（同 providerId 不同 providerType）→ GET 读回 → 两条独立存在 | **复合主键 HTTP 层正确** |
 | 5 | POST 写入空 `providers: []` → GET 读回 → 确认为空数组非 undefined | 空数组 JSON 序列化/反序列化 |
 | 6 | POST 写入 `enableProviderFallback: false` → GET 读回 → 确认为 false | 布尔 false 不被丢失 |
-| 7 | POST 写入不含 `knowledge` 字段 → GET 读回 → 确认为 undefined | 可选字段缺失不报错 |
+| 7 | POST 写入不含 `knowledge` 字段 → `readSettings()` 读回 → knowledge 有合理默认值 | **可选字段必须有默认值** |
 | 8 | POST 写入 50 条 `providerErrorMessages` → GET 读回 → 数量和内容一致 | 大数组 HTTP 传输不丢 |
 
 ### 六.2 Schema ↔ Prompt 一致性测试
@@ -378,8 +416,8 @@ function createTestApp(db: BetterSqlite3.Database) {
 | 7 | 模拟 B-018 场景：loadFromDb 未完成时 updateKnowledgeConfig 被调用 → DB 不被覆盖（需 `@testing-library/react` 渲染 KnowledgeConfigPanel） | **防止挂载时覆盖** |
 | 8 | 模拟 BUG-134 场景：loadFromDb 异步执行期间 persist effect 触发 → 验证 settings 未被覆盖（需 `@testing-library/react` 渲染 KnowledgeConfigPanel） | **异步竞态防护** |
 | 9 | settings 含所有可选字段（knowledge, knowledgeProviders, providerErrorMessages, sanitizeRules, ocrQualityThresholds）→ setSettings → loadFromDb → 全字段完整 | **展开运算符保留所有字段** |
-| 10 | store 层 `setSettings` 在 `isInitialized=false` 时被调用 → 断言 `writeSettings` 未执行（或记录为已知限制：store 层无守卫，依赖调用方自行检查） | **store 层守卫回归防护** |
-| 11 | store 层 `updateKnowledgeConfig` 在 `isInitialized=false` 时被调用 → 验证行为（当前实现在 store 层无守卫，仅组件层有） | **跨层守卫一致性** |
+| 10 | store 层 `setSettings` 在 `isInitialized=false` 时被调用 → 断言 `writeSettings` **未执行** | **store 层守卫是唯一的防线，不能依赖调用方** |
+| 11 | store 层 `updateKnowledgeConfig` 在 `isInitialized=false` 时被调用 → 断言 `writeSettings` **未执行** | **跨层守卫必须一致** |
 
 ### 六.4 Agent 枚举同步测试
 

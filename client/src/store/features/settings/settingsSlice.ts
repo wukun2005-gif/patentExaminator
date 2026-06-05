@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { AppMode } from "@shared/types/domain";
 import type { AppSettings, ProviderErrorMessage } from "@shared/types/agents";
 import type { KnowledgeConfig } from "@shared/types/knowledge";
+import { DEFAULT_KNOWLEDGE_CONFIG } from "@shared/types/knowledge";
 import { getById, create as dbCreate } from "../../../lib/repos";
 import { waitForServerReady } from "../../../lib/serverReady";
 import { createLogger } from "../../../lib/logger";
@@ -49,6 +50,11 @@ async function readSettings(): Promise<AppSettings> {
         ...stored,
         searchProviders: stored.searchProviders ?? REPO_DEFAULT_SETTINGS.searchProviders,
         enableProviderFallback: stored.enableProviderFallback ?? true,
+        knowledgeProviders: stored.knowledgeProviders ?? [],
+        knowledge: stored.knowledge ?? DEFAULT_KNOWLEDGE_CONFIG,
+        providerErrorMessages: stored.providerErrorMessages ?? [],
+        sanitizeRules: stored.sanitizeRules ?? [],
+        ocrQualityThresholds: stored.ocrQualityThresholds ?? { good: 0.7, poor: 0.4 },
       };
       try { localStorage.setItem(LS_KEY, JSON.stringify(result)); } catch { /* ignore */ }
       return result;
@@ -71,6 +77,7 @@ async function writeSettings(settings: AppSettings): Promise<void> {
     await dbCreate("settings", { ...settings, id: SETTINGS_ID });
   } catch (e) {
     log("Server write failed, settings saved to localStorage only:", e);
+    throw e;
   }
 }
 
@@ -147,12 +154,14 @@ export const createSettingsSlice = (
   syncStatus: { connected: false, lastSync: null, syncing: false, error: null },
 
   setSettings: (settings) => {
+    if (!_get().isInitialized) return;
     set(() => ({ settings }));
     writeSettings(settings).catch(idbWriteGuard("settings"));
     if (settings.mode === "real") {
       syncProviderKeys(settings).then((result) => {
         if (!result.success) {
           log("Provider key sync partially failed:", result.failedProviders);
+          _get().setSyncStatus({ error: result.failedProviders.map((p) => `${p.providerId}: ${p.error}`).join(", ") });
         }
       }).catch(idbWriteGuard("settings"));
     }
@@ -183,6 +192,7 @@ export const createSettingsSlice = (
     });
   },
   updateKnowledgeConfig: (config) => {
+    if (!_get().isInitialized) return;
     set((prev) => {
       const next = { ...prev.settings, knowledge: config };
       writeSettings(next).catch(idbWriteGuard("settings"));

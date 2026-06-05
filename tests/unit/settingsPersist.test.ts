@@ -79,7 +79,7 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
         searchProviders: [],
         enableProviderFallback: true,
       },
-      isInitialized: false,
+      isInitialized: true,
       syncStatus: { connected: false, lastSync: null, syncing: false, error: null },
     });
   });
@@ -222,42 +222,33 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
       expect(s.knowledgeProviders![1]!.apiKeyRef).toBe("sk-siliconflow-reranker-key-bbb");
     });
 
-    it("TC-3.2: DB 中无 knowledgeProviders → 读回 undefined → agentRun 不发送 reranker 配置", async () => {
-      // 场景：用户从未配置过知识库 provider，DB 中没有 knowledgeProviders 字段
+    it("TC-3.2: DB 中无 knowledgeProviders → readSettings 补默认值 [] → 不崩溃", async () => {
       mockLoadFromDb({ mode: "real", providers: [], agents: [], searchProviders: [], enableProviderFallback: true });
       useSettingsStore.setState({ settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], enableProviderFallback: true }, isInitialized: false });
       await useSettingsStore.getState().loadFromDb();
 
       const s = useSettingsStore.getState().settings;
       console.log("[TC-3.2] DB 无 knowledgeProviders → 读回:", s.knowledgeProviders);
-
-      // readSettings 第48-52行只显式补了 searchProviders 和 enableProviderFallback
-      // knowledgeProviders 来自 ...stored 展开 — DB 没有就没有
-      expect(s.knowledgeProviders).toBeUndefined();
-
-      // repos.ts 第577-579：knowledgeProviders 为 undefined 时 rerankerProvider 也为 undefined
-      // → agentRun 不发送 knowledgeReranker → 服务端不使用 reranker
-      const kps = (s as unknown as Record<string, unknown>).knowledgeProviders as Array<{ providerType: string; enabled: boolean; apiKeyRef: string }> | undefined;
-      const rerankerProvider = kps?.find((p) => p.providerType === "reranker" && p.enabled && p.apiKeyRef);
-      console.log("[TC-3.2] agentRun 中 rerankerProvider:", rerankerProvider);
-      expect(rerankerProvider).toBeUndefined();
+      // 正确行为：readSettings 为可选数组字段补默认值 []
+      expect(s.knowledgeProviders).toBeDefined();
+      expect(s.knowledgeProviders).toEqual([]);
     });
 
-    it("TC-3.3: DB 中无 knowledgeProviders → readSettings 不补默认值 → UI 访问崩溃", async () => {
+    it("TC-3.3: DB 中无 knowledge → readSettings 补默认值 → 不崩溃", async () => {
       mockLoadFromDb({ mode: "mock", providers: [], agents: [], searchProviders: [], enableProviderFallback: true });
       useSettingsStore.setState({ settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], enableProviderFallback: true }, isInitialized: false });
       await useSettingsStore.getState().loadFromDb();
 
       const s = useSettingsStore.getState().settings;
-      console.log("[TC-3.3] knowledgeProviders:", s.knowledgeProviders, "| knowledge:", s.knowledge);
-
-      // KnowledgeConfigPanel 第66行：settings.knowledgeProviders ?? []
-      // 这行能防 undefined，但其他组件可能直接访问
-      // 问题：readSettings 没有为 knowledgeProviders 提供默认值
-      expect(s.knowledgeProviders).toBeUndefined();
+      console.log("[TC-3.3] knowledge:", s.knowledge);
+      // 正确行为：readSettings 为可选对象字段补默认值
+      expect(s.knowledge).toBeDefined();
+      expect(s.knowledge!.enabled).toBe(false);
+      expect(s.knowledge!.topK).toBeDefined();
+      expect(s.knowledge!.scoreThreshold).toBeDefined();
     });
 
-    it("TC-3.4: 写入后 writeSettings 失败 → 内存有但 DB 没有 → 刷新后 reranker key 丢失", async () => {
+    it("TC-3.4: 写入后 writeSettings 失败 → idbWriteGuard 记录错误", async () => {
       const knowledgeProviders = [EMBEDDING_PROVIDER, RERANKER_PROVIDER];
 
       // writeSettings 的 fetch 失败
@@ -278,22 +269,10 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
       const memSettings = useSettingsStore.getState().settings;
       console.log("[TC-3.4] 内存中 knowledgeProviders:", JSON.stringify(memSettings.knowledgeProviders, null, 2));
       expect(memSettings.knowledgeProviders).toHaveLength(2);
-      expect(memSettings.knowledgeProviders![1]!.apiKeyRef).toBe("sk-siliconflow-reranker-key-bbb");
 
-      // writeSettings 内部 catch 只 log，不调用 idbWriteGuard
-      // 错误被完全静默吞掉 — 用户无任何感知
-      console.log("[TC-3.4] guardedErrors:", guardedErrors.length, "(writeSettings 内部 catch 不经过 idbWriteGuard)");
-      expect(guardedErrors.length).toBe(0); // writeSettings 不用 idbWriteGuard
-
-      // 模拟页面刷新：DB 中没有更新的数据
-      mockLoadFromDb({ mode: "mock", providers: [], agents: [], searchProviders: [], enableProviderFallback: true });
-      useSettingsStore.setState({ settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], enableProviderFallback: true }, isInitialized: false });
-      await useSettingsStore.getState().loadFromDb();
-
-      const afterRefresh = useSettingsStore.getState().settings;
-      console.log("[TC-3.4] 刷新后 knowledgeProviders:", afterRefresh.knowledgeProviders);
-      // bug：刷新后 reranker key 丢失
-      expect(afterRefresh.knowledgeProviders).toBeUndefined();
+      // 正确行为：writeSettings 失败时应调用 idbWriteGuard
+      console.log("[TC-3.4] guardedErrors:", guardedErrors.length);
+      expect(guardedErrors.length).toBeGreaterThan(0);
     });
   });
 
@@ -322,15 +301,16 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
       expect(s.knowledge).toEqual(knowledge);
     });
 
-    it("TC-4.2: DB 中无 knowledge → readSettings 不补默认值 → undefined", async () => {
+    it("TC-4.2: DB 中无 knowledge → readSettings 补默认值 { enabled: false }", async () => {
       mockLoadFromDb({ mode: "mock", providers: [], agents: [], searchProviders: [], enableProviderFallback: true });
       useSettingsStore.setState({ settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], enableProviderFallback: true }, isInitialized: false });
       await useSettingsStore.getState().loadFromDb();
 
       const s = useSettingsStore.getState().settings;
       console.log("[TC-4.2] DB 无 knowledge → 读回:", s.knowledge);
-      // readSettings 没有为 knowledge 提供默认值
-      expect(s.knowledge).toBeUndefined();
+      // 正确行为：readSettings 为 knowledge 补默认值
+      expect(s.knowledge).toBeDefined();
+      expect(s.knowledge!.enabled).toBe(false);
     });
   });
 
@@ -370,14 +350,16 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
       expect(s.providerErrorMessages![0]!.errorCode).toBe("quota_exceeded");
     });
 
-    it("TC-5.2: DB 中无 providerErrorMessages → readSettings 不补默认值 → undefined", async () => {
+    it("TC-5.2: DB 中无 providerErrorMessages → readSettings 补默认值 []", async () => {
       mockLoadFromDb({ mode: "mock", providers: [], agents: [], searchProviders: [], enableProviderFallback: true });
       useSettingsStore.setState({ settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], enableProviderFallback: true }, isInitialized: false });
       await useSettingsStore.getState().loadFromDb();
 
       const s = useSettingsStore.getState().settings;
       console.log("[TC-5.2] DB 无 providerErrorMessages → 读回:", s.providerErrorMessages);
-      expect(s.providerErrorMessages).toBeUndefined();
+      // 正确行为：readSettings 为可选数组字段补默认值 []
+      expect(s.providerErrorMessages).toBeDefined();
+      expect(s.providerErrorMessages).toEqual([]);
     });
   });
 
@@ -422,9 +404,12 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
   // ══════════════════════════════════════════════════════════════════════
 
   describe("§七 竞态条件", () => {
-    it("TC-7.1: loadFromDb 未完成时 setSettings → 空 knowledgeProviders 覆盖 DB", async () => {
+    it("TC-7.1: loadFromDb 未完成时 setSettings → isInitialized 守卫阻止写入 DB", async () => {
       // 场景：页面刷新 → loadFromDb 开始 → 某组件 useEffect 调用 setSettings
-      // setSettings 没有 isInitialized 守卫，用当前 state（空）写入 DB
+      // 正确行为：setSettings 有 isInitialized 守卫，未初始化时不写 DB
+
+      // 模拟页面刷新后 isInitialized = false
+      useSettingsStore.setState({ isInitialized: false });
 
       let resolveLoad: (value: unknown) => void;
       const loadPromise = new Promise((resolve) => { resolveLoad = resolve; });
@@ -439,49 +424,34 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
       // 开始 loadFromDb（异步，fetch 还没返回）
       const loadFromDbPromise = useSettingsStore.getState().loadFromDb();
 
-      // 此时 state 是 DEFAULT_SETTINGS（空 agents、空 providers、无 knowledgeProviders）
-      const currentSettings = useSettingsStore.getState().settings;
-      console.log("[TC-7.1] 竞态时 settings:", { agents: currentSettings.agents.length, providers: currentSettings.providers.length, knowledgeProviders: currentSettings.knowledgeProviders });
+      // 此时 isInitialized = false
+      expect(useSettingsStore.getState().isInitialized).toBe(false);
 
-      // 某组件调用 setSettings（没有 isInitialized 守卫）
-      useSettingsStore.getState().setSettings(currentSettings);
+      // 某组件调用 setSettings
+      useSettingsStore.getState().setSettings(useSettingsStore.getState().settings);
       await new Promise((r) => setTimeout(r, 50));
 
-      // 检查 POST body
+      // 正确行为：isInitialized=false 时 setSettings 不应写入 DB
       const written = getWrittenSettings();
-      console.log("[TC-7.1] 竞态写入 agents:", (written?.agents as unknown[])?.length, "providers:", (written?.providers as unknown[])?.length, "knowledgeProviders:", (written?.knowledgeProviders as unknown[])?.length);
+      console.log("[TC-7.1] isInitialized=false 时写入:", written);
+      expect(written).toBeNull();
 
-      // bug：空数据被写入 DB
-      expect((written?.agents as unknown[]).length).toBe(0);
-      expect((written?.providers as unknown[]).length).toBe(0);
-      expect(written?.knowledgeProviders).toBeUndefined();
-
-      // 现在 loadFromDb 返回真实数据
+      // 清理
       resolveLoad!({
         ok: true,
         json: () => Promise.resolve({
           ok: true,
-          record: {
-            id: "app",
-            mode: "real",
-            providers: [{ providerId: "mimo", apiKeyRef: "real-key", modelIds: ["m1"], defaultModelId: "m1", enabled: true }],
-            agents: [{ agent: "novelty", providerOrder: ["mimo"], modelId: "m1", maxTokens: 4096 }],
-            knowledgeProviders: [{ providerType: "reranker", providerId: "siliconflow", apiKeyRef: "real-reranker-key", modelId: "m1", enabled: true }],
-            searchProviders: [],
-            enableProviderFallback: true,
-          },
+          record: { id: "app", mode: "mock", providers: [], agents: [], searchProviders: [], enableProviderFallback: true },
         }),
       });
       await loadFromDbPromise;
-
-      // loadFromDb 更新了内存，但之前的 POST 已经把空数据发到 server 了
-      // 如果 POST 在 GET 之后到达 server，DB 中存的是空数据
-      // 下次刷新 → 读到空数据 → reranker key 丢失
     });
 
-    it("TC-7.2: isInitialized=false 时 updateKnowledgeConfig → 无守卫，直接写入", async () => {
+    it("TC-7.2: isInitialized=false 时 updateKnowledgeConfig → isInitialized 守卫阻止写入", async () => {
       mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ ok: true }) });
 
+      // 模拟页面刷新后 isInitialized = false
+      useSettingsStore.setState({ isInitialized: false });
       expect(useSettingsStore.getState().isInitialized).toBe(false);
 
       useSettingsStore.getState().updateKnowledgeConfig({
@@ -491,10 +461,10 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
       });
       await new Promise((r) => setTimeout(r, 50));
 
+      // 正确行为：isInitialized=false 时不应写入 DB
       const written = getWrittenSettings();
-      console.log("[TC-7.2] isInitialized=false 时写入:", JSON.stringify(written?.knowledge, null, 2));
-      expect(written).not.toBeNull();
-      // bug：isInitialized=false 时不应该写入
+      console.log("[TC-7.2] isInitialized=false 时写入:", written);
+      expect(written).toBeNull();
     });
   });
 
@@ -533,7 +503,7 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
       console.log("[TC-8.1] syncProviderKeys 不同步 knowledgeProviders — reranker key 通过 request body 传递");
     });
 
-    it("TC-8.2: syncProviderKeys 失败时 syncStatus.error 仍为 null → 用户无感知", async () => {
+    it("TC-8.2: syncProviderKeys 失败时 syncStatus.error 有错误信息 → 用户有感知", async () => {
       mockFetch.mockImplementation((url: string) => {
         if (typeof url === "string" && url.includes("/api/settings/providers/")) {
           return Promise.resolve({ ok: false, status: 500, statusText: "Internal Server Error" });
@@ -552,8 +522,9 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
 
       const syncStatus = useSettingsStore.getState().syncStatus;
       console.log("[TC-8.2] syncProviderKeys 失败后 syncStatus:", syncStatus);
-      // bug：失败了但 error 仍是 null
-      expect(syncStatus.error).toBeNull();
+      // 正确行为：失败时 syncStatus.error 应有错误信息
+      expect(syncStatus.error).not.toBeNull();
+      expect(syncStatus.error).toContain("mimo");
     });
   });
 
@@ -590,7 +561,7 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
       expect(s.ocrQualityThresholds).toEqual(ocrQualityThresholds);
     });
 
-    it("TC-9.2: DB 中无 sanitizeRules/ocrQualityThresholds → 读回 undefined", async () => {
+    it("TC-9.2: DB 中无 sanitizeRules/ocrQualityThresholds → readSettings 补默认值", async () => {
       mockLoadFromDb({ mode: "mock", providers: [], agents: [], searchProviders: [], enableProviderFallback: true });
       useSettingsStore.setState({ settings: { mode: "mock", guidelineVersion: "2023", providers: [], agents: [], searchProviders: [], enableProviderFallback: true }, isInitialized: false });
       await useSettingsStore.getState().loadFromDb();
@@ -598,8 +569,11 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
       const s = useSettingsStore.getState().settings;
       console.log("[TC-9.2] DB 无 sanitizeRules →", s.sanitizeRules);
       console.log("[TC-9.2] DB 无 ocrQualityThresholds →", s.ocrQualityThresholds);
-      expect(s.sanitizeRules).toBeUndefined();
-      expect(s.ocrQualityThresholds).toBeUndefined();
+      // 正确行为：readSettings 为可选字段补默认值
+      expect(s.sanitizeRules).toBeDefined();
+      expect(s.sanitizeRules).toEqual([]);
+      expect(s.ocrQualityThresholds).toBeDefined();
+      expect(s.ocrQualityThresholds).toEqual({ good: 0.7, poor: 0.4 });
     });
   });
 
@@ -642,7 +616,7 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
   // ══════════════════════════════════════════════════════════════════════
 
   describe("§十一 writeSettings 失败处理", () => {
-    it("TC-11.1: writeSettings 网络失败 → idbWriteGuard 记录错误 → 内存状态不回滚", async () => {
+    it("TC-11.1: writeSettings 网络失败 → idbWriteGuard 记录错误 → 用户有感知", async () => {
       mockFetch.mockImplementation((url: string) => {
         if (typeof url === "string" && url.includes("/api/data/settings")) {
           return Promise.reject(new Error("Network error"));
@@ -660,20 +634,10 @@ describe("Settings 持久化 — 全配置项完整链路", () => {
       useSettingsStore.getState().setSettings(newSettings);
       await new Promise((r) => setTimeout(r, 100));
 
-      // writeSettings 内部 catch 只 log，不调用 idbWriteGuard
-      // 错误被完全静默吞掉 — 用户无任何感知
-      console.log("[TC-11.1] guardedErrors:", guardedErrors.length, "(writeSettings 内部 catch 不经过 idbWriteGuard)");
-      expect(guardedErrors.length).toBe(0); // writeSettings 不用 idbWriteGuard
-
-      // 内存状态没有回滚 — 用户看到的是"保存成功"
-      const memSettings = useSettingsStore.getState().settings;
-      console.log("[TC-11.1] 内存 mode:", memSettings.mode, "| providers:", memSettings.providers.length, "| knowledgeProviders:", memSettings.knowledgeProviders?.length);
-      expect(memSettings.mode).toBe("real");
-      expect(memSettings.providers).toHaveLength(1);
-      expect(memSettings.knowledgeProviders).toHaveLength(1);
-
-      // bug：页面刷新后 DB 中没有这些数据
-      // 用户看到的是"配置保存成功"，但刷新后配置丢失
+      // 正确行为：writeSettings 失败时应调用 idbWriteGuard 记录错误
+      console.log("[TC-11.1] guardedErrors:", guardedErrors.length);
+      expect(guardedErrors.length).toBeGreaterThan(0);
+      expect(guardedErrors[0]!.store).toBe("settings");
     });
 
     it("TC-11.2: writeSettings server 500 → idbWriteGuard 记录 → 同上", async () => {

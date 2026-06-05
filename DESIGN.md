@@ -1476,3 +1476,4 @@ Supabase（后端服务）
 | B-041 | 2026-06-02 | .env key 不再污染用户 keyStore — 移除 index.ts 中的 .env key 加载，新增请求体 `apiKey` 可选字段 | server/src/index.ts, schemas.ts, ai.ts, agent.ts, orchestrator.ts |
 | B-038 | 2026-06-02 | AgentClient 简化 1570→341 行 + Mock 迁移到后端 — 删除前端 MockProvider/mockRouter，/agent/run 支持 mock 模式 | AgentClient.ts, agent.ts, orchestrator.ts, router.tsx |
 | FEAT-044 | 2026-06-05 | RAG 知识库质量优化 — 法律文本按条切分、jieba 分词、Parent-Child chunk、BM25 长度归一化、动态 threshold、Multi-Query、MMR 多样性排序、法律文本 Reranking 权重调优、评估体系 | server/src/lib/legalChunker.ts, hybridSearch.ts, knowledgeDb.ts, knowledgeExtract.ts, orchestrator.ts, queryExpand.ts, reranker.ts, knowledge.ts, package.json |
+| FEAT-043 | 2026-06-05 | 持久化 bug 修复（BUG-132~140）— readSettings 补 5 个可选字段默认值、writeSettings 失败不再静默吞掉、setSettings/updateKnowledgeConfig 加 isInitialized 守卫、syncProviderKeys 失败更新 syncStatus.error | settingsSlice.ts, settingsPersist.test.ts, settings.test.ts, syncProviderKeys.test.ts |

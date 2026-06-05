@@ -59,6 +59,7 @@ describe("syncProviderKeys (via setSettings)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockResolvedValue({ ok: true, status: 200, statusText: "OK", json: () => Promise.resolve({ ok: true }) });
+    useSettingsStore.setState({ isInitialized: true });
   });
 
   // ══════════════════════════════════════════════════════════════════════

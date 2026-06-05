@@ -28,6 +28,11 @@ describe("Settings module structure", () => {
 });
 
 describe("Settings slice", () => {
+  beforeEach(async () => {
+    const { useSettingsStore } = await import("@client/store");
+    useSettingsStore.setState({ isInitialized: true });
+  });
+
   it("has default settings with mock mode", async () => {
     const { useSettingsStore } = await import("@client/store");
     const state = useSettingsStore.getState();
