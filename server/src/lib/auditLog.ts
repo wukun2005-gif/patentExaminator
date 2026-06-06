@@ -23,6 +23,11 @@ export interface AuditEntry {
 }
 
 export function writeAudit(entry: AuditEntry): void {
+  // B-042: 测试模式下不写入用户审计日志
+  // 审计日志的目的是监控用户数据库的操作，测试数据库的操作不应记录
+  const isTestMode = (globalThis as Record<string, unknown>).__TEST_SYNC_DB_PATH__ !== undefined;
+  if (isTestMode) return;
+
   const ts = new Date().toISOString();
   const line = JSON.stringify({ ts, ...entry });
   try {

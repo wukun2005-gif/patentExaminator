@@ -9,6 +9,21 @@ import { useDefectsStore, useNoveltyStore, useDraftStore } from "@client/store";
 import type { ReferenceDocument, ClaimFeature } from "@shared/types/domain";
 import type { DefectRequest, DefectResponse, NoveltyRequest, NoveltyResponse, SummaryResponse } from "@shared/types/api";
 
+// Mock HTTP 层，防止写入主服务器
+vi.mock("@client/lib/serverReady", () => ({
+  waitForServerReady: vi.fn().mockResolvedValue(undefined),
+  clearServerReadyCache: vi.fn()
+}));
+
+vi.mock("@client/lib/idbWriteGuard", () => ({
+  idbWriteGuard: vi.fn((store: string) => (error: unknown) => {
+    console.error(`[idbWriteGuard] ${store}:`, error);
+  })
+}));
+
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
 function makeAvailableRef(overrides: Partial<ReferenceDocument> = {}): ReferenceDocument {
   return {
     id: "ref-1",

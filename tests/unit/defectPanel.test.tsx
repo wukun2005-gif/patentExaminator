@@ -1,9 +1,24 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { DefectPanel } from "@client/features/defects/DefectPanel";
 import { useDefectsStore } from "@client/store";
 import type { FormalDefect } from "@shared/types/domain";
 import type { DefectRequest, DefectResponse } from "@shared/types/api";
+
+// Mock HTTP 层，防止写入主服务器
+vi.mock("@client/lib/serverReady", () => ({
+  waitForServerReady: vi.fn().mockResolvedValue(undefined),
+  clearServerReadyCache: vi.fn()
+}));
+
+vi.mock("@client/lib/idbWriteGuard", () => ({
+  idbWriteGuard: vi.fn((store: string) => (error: unknown) => {
+    console.error(`[idbWriteGuard] ${store}:`, error);
+  })
+}));
+
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
 
 function makeDefect(overrides: Partial<FormalDefect> = {}): FormalDefect {
   return {

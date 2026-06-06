@@ -6,6 +6,21 @@ import { ChatBubble } from "@client/features/chat/ChatBubble";
 import { useChatStore, useCaseStore } from "@client/store";
 import type { ChatMessage, ChatSession, PatentCase } from "@shared/types/domain";
 
+// Mock HTTP 层，防止写入主服务器
+vi.mock("@client/lib/serverReady", () => ({
+  waitForServerReady: vi.fn().mockResolvedValue(undefined),
+  clearServerReadyCache: vi.fn()
+}));
+
+vi.mock("@client/lib/idbWriteGuard", () => ({
+  idbWriteGuard: vi.fn((store: string) => (error: unknown) => {
+    console.error(`[idbWriteGuard] ${store}:`, error);
+  })
+}));
+
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
 function makeSession(overrides: Partial<ChatSession> = {}): ChatSession {
   return {
     id: "session-test-1",

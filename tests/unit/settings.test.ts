@@ -1,5 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { ProviderId } from "@shared/types/agents";
+
+// Mock HTTP 层，防止写入主服务器
+vi.mock("@client/lib/serverReady", () => ({
+  waitForServerReady: vi.fn().mockResolvedValue(undefined),
+  clearServerReadyCache: vi.fn()
+}));
+
+vi.mock("@client/lib/idbWriteGuard", () => ({
+  idbWriteGuard: vi.fn((store: string) => (error: unknown) => {
+    console.error(`[idbWriteGuard] ${store}:`, error);
+  })
+}));
+
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
 
 describe("Settings module structure", () => {
   it("ProvidersConfigPanel can be imported", async () => {
