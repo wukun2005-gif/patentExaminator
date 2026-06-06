@@ -6,7 +6,7 @@
  * 环境变量指向临时目录，实现与 app 生产数据库完全隔离。
  */
 import { spawn } from "child_process";
-import { mkdtempSync, rmSync, mkdirSync } from "fs";
+import { mkdtempSync, rmSync, mkdirSync, openSync, closeSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -40,6 +40,10 @@ export async function startIsolatedServer() {
   console.log(`[server-lifecycle] Starting isolated server on port ${port}`);
   console.log(`[server-lifecycle] Temp dir: ${tmpDir}`);
 
+  // 2. 子进程 stdout/stderr 重定向到临时日志文件（避免 Claude Code tasks 目录 ENOSPC）
+  const serverLogPath = join(tmpDir, "server.log");
+  const serverLogFd = openSync(serverLogPath, "w");
+
   // 2. Spawn server 子进程
   console.log(`[server-lifecycle] Parent TEST_BASE=${process.env.TEST_BASE ?? "(unset)"}`);
   const child = spawn("node", ["--import", "tsx", "server/src/index.ts"], {
@@ -51,19 +55,11 @@ export async function startIsolatedServer() {
       KNOWLEDGE_DB_PATH: knowledgeDbPath,
       KNOWLEDGE_DB_DIR: dataDir,
     },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["ignore", serverLogFd, serverLogFd],
     cwd: PROJECT_ROOT,
   });
 
-  activeServer = { child, tmpDir };
-
-  // 转发子进程输出（便于调试）
-  child.stdout.on("data", (data) => {
-    process.stdout.write(`[server] ${data}`);
-  });
-  child.stderr.on("data", (data) => {
-    process.stderr.write(`[server] ${data}`);
-  });
+  activeServer = { child, tmpDir, serverLogPath, serverLogFd };
 
   child.on("exit", (code, signal) => {
     if (activeServer?.child === child) {
@@ -133,6 +129,13 @@ async function doCleanup(child, tmpDir) {
     });
   }
 
+  // 关闭日志文件描述符
+  try {
+    if (activeServer?.serverLogFd) {
+      closeSync(activeServer.serverLogFd);
+    }
+  } catch {}
+
   // 删除临时目录
   try {
     rmSync(tmpDir, { recursive: true, force: true });
@@ -142,13 +145,34 @@ async function doCleanup(child, tmpDir) {
   }
 }
 
+/**
+ * 打印服务器日志（测试失败时调用，便于调试）
+ */
+export function dumpServerLog() {
+  if (!activeServer?.serverLogPath) return;
+  try {
+    const log = readFileSync(activeServer.serverLogPath, "utf-8");
+    if (log.trim()) {
+      console.log(`\n[server-lifecycle] === Server Log (last 100 lines) ===`);
+      const lines = log.trim().split("\n");
+      for (const line of lines.slice(-100)) {
+        console.log(`[server] ${line}`);
+      }
+      console.log(`[server-lifecycle] === End Server Log ===\n`);
+    }
+  } catch {}
+}
+
 // 崩溃清理：确保进程退出时清理子进程和临时文件
 function registerCleanupHandlers() {
   const cleanup = () => {
     if (activeServer) {
-      const { child, tmpDir } = activeServer;
+      const { child, tmpDir, serverLogFd } = activeServer;
       try {
         if (child && !child.killed) child.kill("SIGKILL");
+      } catch {}
+      try {
+        if (serverLogFd) closeSync(serverLogFd);
       } catch {}
       try {
         rmSync(tmpDir, { recursive: true, force: true });

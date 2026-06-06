@@ -39,7 +39,7 @@ import {
   allPassed,
   log,
 } from "./e2e-shared/index.mjs";
-import { startIsolatedServer } from "./e2e-shared/server-lifecycle.mjs";
+import { startIsolatedServer, dumpServerLog } from "./e2e-shared/server-lifecycle.mjs";
 
 // 导入所有测试函数
 import {
@@ -591,6 +591,10 @@ async function main() {
     // FATAL 错误必须以非零退出码退出
     process.exit(1);
   } finally {
+    // 测试失败时打印服务器日志，便于调试
+    if (!allPassed()) {
+      dumpServerLog();
+    }
     // B-042: 清理隔离服务器
     if (serverCleanup) {
       await serverCleanup();
