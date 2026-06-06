@@ -6,6 +6,7 @@ import { Router } from "express";
 import express from "express";
 import multer from "multer";
 import { createRequire } from "module";
+import path from "path";
 import { logger } from "../lib/logger.js";
 import {
   documentsExtractHtmlInputSchema,
@@ -46,6 +47,7 @@ documentsRouter.post("/documents/extract-pdf", upload.single("file"), async (req
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const require = createRequire(import.meta.url);
     const pdfWorkerPath = require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
+    const pdfjsDir = path.dirname(require.resolve("pdfjs-dist/package.json"));
     pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerPath;
 
     const buffer = file.buffer;
@@ -53,6 +55,7 @@ documentsRouter.post("/documents/extract-pdf", upload.single("file"), async (req
       data: new Uint8Array(buffer),
       disableFontFace: true,
       useSystemFonts: false,
+      standardFontDataUrl: path.join(pdfjsDir, "standard_fonts"),
     }).promise;
 
     const pageTexts: string[] = [];
