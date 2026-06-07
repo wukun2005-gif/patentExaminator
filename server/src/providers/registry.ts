@@ -10,6 +10,7 @@ import { QwenAdapter } from "./qwen.js";
 import { BedrockAdapter } from "./bedrock.js";
 import { OpenRouterAdapter } from "./openrouter.js";
 import { OpencodeAdapter } from "./opencode.js";
+import { DoubaoAdapter } from "./doubao.js";
 
 const MIMO_MODEL_FALLBACKS = ["mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni"];
 const GEMINI_MODEL_FALLBACKS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
@@ -39,6 +40,7 @@ export class ProviderRegistry {
     this.register(new BedrockAdapter());
     this.register(new OpenRouterAdapter());
     this.register(new OpencodeAdapter());
+    this.register(new DoubaoAdapter());
   }
 
   register(adapter: ProviderAdapter): void {

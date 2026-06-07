@@ -67,6 +67,14 @@ export const DEFAULT_MODELS: Record<ProviderId, ModelInfo[]> = {
     { id: "minimax-m2.5", recommendation: "MiniMax M2.5", inputTokenLimit: 131072, outputTokenLimit: 8192 },
     { id: "minimax-m2.7", recommendation: "MiniMax M2.7 (最新)", inputTokenLimit: 131072, outputTokenLimit: 8192 },
     { id: "nemotron-3-super-free", recommendation: "Nemotron 3 Super Free (免费)", inputTokenLimit: 128000, outputTokenLimit: 8192 },
+  ],
+  doubao: [
+    { id: "doubao-2.0-pro", recommendation: "最新旗舰 (推荐)", rpm: 10, rpd: 500, tpm: "5.0M" },
+    { id: "doubao-2.0-lite", recommendation: "轻量快速", rpm: 30, rpd: 2000, tpm: "10.0M" },
+    { id: "doubao-1.5-pro-256k", recommendation: "长上下文 (256K)", rpm: 5, rpd: 200, tpm: "3.0M", inputTokenLimit: 262144, outputTokenLimit: 16384 },
+    { id: "doubao-1.5-pro-32k", recommendation: "标准版", rpm: 10, rpd: 500, tpm: "5.0M" },
+    { id: "doubao-1.5-lite-32k", recommendation: "轻量版", rpm: 30, rpd: 2000, tpm: "10.0M" },
+    { id: "doubao-1.5-vision-pro-32k", recommendation: "多模态 (图片理解)", rpm: 5, rpd: 200, tpm: "3.0M" },
   ]
 };
 
