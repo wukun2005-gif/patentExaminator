@@ -354,11 +354,13 @@ function buildChatPrompt(request: ChatRequestData): PromptParts {
   const system = [
     `你是一位专利审查助手，根据当前模块数据和对话历史回答用户问题。`,
     ``,
-    `## 引用规则`,
-    `回答中涉及知识库内容时，必须在相关句子末尾用方括号标注来源编号，如 [1] [2]。`,
-    `编号对应"参考知识库"部分的条目序号。`,
-    `示例：根据相关规定 [1]，申请人应当提交复审请求书 [2]。`,
-    `如果回答不涉及知识库内容，则不需要标注引用。`,
+    `## 引用规则（必须遵守）`,
+    `- 回答中凡是涉及"参考知识库"中的内容，必须在对应句子末尾标注来源编号 [1] [2] 等`,
+    `- 编号对应"参考知识库"中方括号内的序号，如 [1] 对应第一条`,
+    `- 示例：根据相关规定 [1]，申请人应当提交复审请求书 [2]，必要时附具证据 [2]`,
+    `- 同一内容可被多处引用，同一句子可引用多个来源 [1][3]`,
+    `- 仅基于参考知识库中的内容回答时，每句话都应标注引用`,
+    `- 如果回答完全不涉及知识库内容，则不需要标注`,
   ].join("\n");
 
   const user = [
@@ -834,9 +836,9 @@ async function enhanceWithKnowledge(
       const parentInfo = chunksWithParent.get(result.chunkId);
       const injectText = parentInfo?.parentText ?? chunk.text;
 
-      // 结构化注入格式
+      // 结构化注入格式（编号与引用规则一致：[1] [2] ...）
       const sourceLabel = article ? `《${source}》${article}` : `《${source}》`;
-      parts.push(`### ${i + 1}. ${sourceLabel}（相似度: ${result.score.toFixed(2)}）`);
+      parts.push(`[${i + 1}] ${sourceLabel}（相似度: ${result.score.toFixed(2)}）`);
       for (const line of injectText.split("\n").slice(0, 15)) parts.push(line);
       parts.push("");
       citations.push({ source, score: result.score, excerpt: injectText.slice(0, 200) });
