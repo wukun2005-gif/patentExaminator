@@ -45,7 +45,7 @@ export interface AgentRunResponse {
   tokenUsage?: { input: number; output: number; total: number } | undefined;
   attempts?: Array<{ providerId: string; ok: boolean; errorCode?: string }> | undefined;
   error?: { type: string; message: string } | undefined;
-  knowledgeCitations?: Array<{ source: string; score: number; excerpt: string }> | undefined;
+  knowledgeCitations?: Array<{ source: string; sourceId?: string; article?: string; score: number; excerpt: string }> | undefined;
 }
 
 // ── Per-agent 请求类型 ──────────────────────────────────
@@ -355,10 +355,11 @@ function buildChatPrompt(request: ChatRequestData): PromptParts {
     `你是一位专利审查助手，根据当前模块数据和对话历史回答用户问题。`,
     ``,
     `## 引用规则（必须遵守）`,
-    `- 回答中凡是涉及"参考知识库"中的内容，必须在对应句子末尾标注来源编号 [1] [2] 等`,
+    `- 回答中凡是涉及"参考知识库"中的内容，必须在对应句子末尾用 [1] [2] 等编号标注来源`,
     `- 编号对应"参考知识库"中方括号内的序号，如 [1] 对应第一条`,
-    `- 示例：根据相关规定 [1]，申请人应当提交复审请求书 [2]，必要时附具证据 [2]`,
-    `- 同一内容可被多处引用，同一句子可引用多个来源 [1][3]`,
+    `- 引用格式示例：该复审请求将被视为未提出（参见 [1]《专利审查指南》第4.3节）`,
+    `- 引用时尽量注明文件名和具体章节/条款，格式为：（参见 [N]《文件名》第X节/细则X.X）`,
+    `- 同一内容可被多处引用，同一句子可引用多个来源：（参见 [1][3]）`,
     `- 仅基于参考知识库中的内容回答时，每句话都应标注引用`,
     `- 如果回答完全不涉及知识库内容，则不需要标注`,
   ].join("\n");
@@ -817,7 +818,7 @@ async function enhanceWithKnowledge(
 
     const contextPrefix = getAgentContext(agentType);
     const parts = [prompt, "", `## 参考知识库`, contextPrefix, `以下法规段落与当前分析相关（${topResults.length}条）：`, ""];
-    const citations: Array<{ source: string; score: number; excerpt: string }> = [];
+    const citations: Array<{ source: string; sourceId?: string; article?: string; score: number; excerpt: string }> = [];
 
     logger.info(`[RAG] [Step 5] 构建 ${topResults.length} 条 citations（Parent-Child 模式）...`);
     for (let i = 0; i < topResults.length; i++) {
@@ -841,7 +842,7 @@ async function enhanceWithKnowledge(
       parts.push(`[${i + 1}] ${sourceLabel}（相似度: ${result.score.toFixed(2)}）`);
       for (const line of injectText.split("\n").slice(0, 15)) parts.push(line);
       parts.push("");
-      citations.push({ source, score: result.score, excerpt: injectText.slice(0, 200) });
+      citations.push({ source, sourceId: chunk.sourceId, article: article || undefined, score: result.score, excerpt: injectText.slice(0, 200) });
     }
 
     logger.info(`[RAG] === 检索完成 === ${citations.length} 条引用注入 prompt`);

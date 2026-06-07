@@ -433,7 +433,7 @@ export async function getLatestSearchSession(caseId: string): Promise<SearchSess
 // ── Agent API (merged from agentApi.ts) ───────────────
 
 /** 最近一次知识库注入的引用详情（供 UI 读取） */
-export let lastKnowledgeCitations: Array<{ source: string; score: number; excerpt: string }> = [];
+export let lastKnowledgeCitations: Array<{ source: string; sourceId?: string; article?: string; score: number; excerpt: string }> = [];
 
 // ── Settings → Provider 解析 ────────────────────────
 
@@ -653,7 +653,7 @@ export async function agentRun<T>(
     tokenUsage?: { input: number; output: number; total: number };
     attempts?: Array<{ providerId: string; modelId: string; errorCode?: string; duration: number }>;
     error?: { type: string; message: string };
-    knowledgeCitations?: Array<{ source: string; score: number; excerpt: string }>;
+    knowledgeCitations?: Array<{ source: string; sourceId?: string; article?: string; score: number; excerpt: string }>;
   };
 
   if (!data.ok) {

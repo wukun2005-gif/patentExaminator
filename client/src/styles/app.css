@@ -950,6 +950,41 @@
   background: var(--pex-color-error-bg);
 }
 
+.case-list-item .btn-rename-case {
+  display: none;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: var(--pex-font-size-tiny);
+  border: 1px solid var(--pex-color-border-default);
+  border-radius: var(--pex-radius-md);
+  background: transparent;
+  color: var(--pex-color-text-muted);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.case-list-item:hover .btn-rename-case {
+  display: inline-block;
+}
+
+.case-list-item .btn-rename-case:hover {
+  color: var(--pex-color-primary-text);
+  border-color: var(--pex-color-primary-text);
+}
+
+.case-title-edit {
+  font-size: var(--pex-font-size-subtitle);
+  font-weight: var(--pex-font-weight-semibold);
+  color: var(--pex-color-text-primary);
+  margin-bottom: 6px;
+  padding: 2px 6px;
+  border: 1px solid var(--pex-color-primary-text);
+  border-radius: var(--pex-radius-md);
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* Confirm modal */
 .confirm-modal {
   border: none;
@@ -3561,9 +3596,14 @@
 }
 
 .chat-bubble__citation-source {
-  color: var(--text-primary, #333);
+  color: var(--pex-color-primary);
   font-weight: 500;
   font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.chat-bubble__citation-source:hover {
+  text-decoration: underline;
 }
 
 .chat-bubble__citation-excerpt {

@@ -273,7 +273,7 @@ export interface ChatMessage {
     tokenInput: number;
     tokenOutput: number;
   };
-  knowledgeCitations?: Array<{ source: string; score: number; excerpt: string }>;
+  knowledgeCitations?: Array<{ source: string; sourceId?: string; article?: string; score: number; excerpt: string }>;
   createdAt: ISODateTimeString;
 }
 

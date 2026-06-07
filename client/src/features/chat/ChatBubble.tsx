@@ -6,9 +6,15 @@ interface ChatBubbleProps {
   onAction?: (target: string) => void;
 }
 
-/** 将文本中的 [1] [2] 等引用标记解析为带编号的 React 元素 */
-function renderWithCitations(text: string, citationCount: number) {
-  if (citationCount === 0) return text;
+interface CitationInfo {
+  source: string;
+  sourceId?: string;
+  article?: string;
+}
+
+/** 将文本中的 [1] [2] 等引用标记解析为带链接的 React 元素 */
+function renderWithCitations(text: string, citations: CitationInfo[]) {
+  if (citations.length === 0) return text;
   const parts: Array<string | JSX.Element> = [];
   const regex = /\[(\d+)\]/g;
   let lastIndex = 0;
@@ -16,15 +22,19 @@ function renderWithCitations(text: string, citationCount: number) {
   while ((match = regex.exec(text)) !== null) {
     const num = parseInt(match[1], 10);
     if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
-    if (num >= 1 && num <= citationCount) {
+    const cite = citations[num - 1];
+    if (num >= 1 && num <= citations.length && cite) {
+      const label = cite.article ? `${cite.source} ${cite.article}` : cite.source;
       parts.push(
-        <sup
+        <a
           key={`cite-${match.index}`}
           className="chat-bubble__inline-cite"
-          title={`引用 #${num}`}
+          href={`/settings?tab=knowledge`}
+          title={`${label} — 点击查看知识库`}
+          onClick={(e) => { e.stopPropagation(); }}
         >
           [{num}]
-        </sup>
+        </a>
       );
     } else {
       parts.push(match[0]);
@@ -35,10 +45,10 @@ function renderWithCitations(text: string, citationCount: number) {
   return parts;
 }
 
-/** 将一行文本中的 [1] 引用标记渲染为上标 */
-function LineWithCitations({ text, citationCount }: { text: string; citationCount: number }) {
-  const rendered = renderWithCitations(text, citationCount);
-  if (typeof rendered === "string") return <p>{text || " "}</p>;
+/** 将一行文本中的 [1] 引用标记渲染为链接 */
+function LineWithCitations({ text, citations }: { text: string; citations: CitationInfo[] }) {
+  const rendered = renderWithCitations(text, citations);
+  if (typeof rendered === "string") return <p>{text || " "}</p>;
   return <p>{rendered}</p>;
 }
 
@@ -69,7 +79,7 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
           <LineWithCitations
             key={`line-${line.slice(0, 20)}`}
             text={line}
-            citationCount={citationCount}
+            citations={citations}
           />
         ))}
       </div>
@@ -96,7 +106,14 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
             >
               <span className="chat-bubble__citation-num">[{i + 1}]</span>
               <div className="chat-bubble__citation-body">
-                <span className="chat-bubble__citation-source">{c.source}</span>
+                <a
+                  className="chat-bubble__citation-source"
+                  href={`/settings?tab=knowledge`}
+                  title="点击查看知识库"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {c.source}{c.article ? ` ${c.article}` : ""}
+                </a>
                 <span className="chat-bubble__citation-excerpt">{c.excerpt}</span>
               </div>
             </div>

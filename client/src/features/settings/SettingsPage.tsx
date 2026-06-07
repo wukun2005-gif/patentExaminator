@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ProvidersConfigPanel } from "./ProvidersConfigPanel";
 import { AgentsAssignmentPanel } from "./AgentsAssignmentPanel";
 import { SearchProvidersConfigPanel } from "./SearchProvidersConfigPanel";
@@ -10,7 +10,11 @@ type Tab = "providers" | "agents" | "search" | "knowledge";
 const TAB_KEY = "patent-examiner-settings-tab";
 
 export function SettingsPage() {
+  const [searchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab") as Tab | null;
+
   const [tab, setTab] = useState<Tab>(() => {
+    if (tabFromUrl && ["providers", "agents", "search", "knowledge"].includes(tabFromUrl)) return tabFromUrl;
     const saved = localStorage.getItem(TAB_KEY);
     return (saved as Tab) ?? "providers";
   });
