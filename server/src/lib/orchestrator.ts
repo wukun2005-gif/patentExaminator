@@ -224,9 +224,16 @@ function buildNoveltyPrompt(request: NoveltyRequest): PromptParts {
     `    { "featureCode": "A", "disclosureStatus": "clearly-disclosed|possibly-disclosed|not-found|not-applicable", "citations": [{ "label": "[0005]", "paragraph": "0005", "quote": "引用原文", "confidence": "high|medium|low" }], "mismatchNotes": "差异说明" }`,
     `  ],`,
     `  "differenceFeatureCodes": ["B", "C"],`,
-    `  "pendingSearchQuestions": ["待检索问题"],`,
+    `  "pendingSearchQuestions": ["待检索问题，最多5条"],`,
+    `  "aiPreliminaryConclusions": ["对每个pendingSearchQuestion的初步判断，与pendingSearchQuestions一一对应"],`,
     `  "legalCaution": "以上为候选事实整理，不构成新颖性法律结论。"`,
     `}`,
+    ``,
+    `## 重要约束`,
+    `- 每个 row 必须独立分析：若 disclosureStatus 为 not-found，mismatchNotes 必须说明具体原因（如工艺不同、参数范围不重叠等），不得笼统说"内容为空"`,
+    `- pendingSearchQuestions 仅用于提出需要补充检索的具体技术问题，禁止写"对比文件内容为空"——对比文件内容已在上方提供，你必须基于已有内容分析`,
+    `- 若对比文件确实缺少某些技术细节，在 mismatchNotes 中说明即可，不需要为此生成 pendingSearchQuestion`,
+    `- aiPreliminaryConclusions 必须与 pendingSearchQuestions 等长，每个元素是对对应问题的初步分析结论（基于已有对比文件内容推断），不能留空`,
   ].join("\n");
 
   const user = [
@@ -344,7 +351,15 @@ function buildChatPrompt(request: ChatRequestData): PromptParts {
     .map(m => ({ role: m.role, content: sanitizeText(m.content ?? "") }));
   const userMessage = sanitizeText(request.userMessage ?? "");
 
-  const system = `你是一位专利审查助手，根据当前模块数据和对话历史回答用户问题。`;
+  const system = [
+    `你是一位专利审查助手，根据当前模块数据和对话历史回答用户问题。`,
+    ``,
+    `## 引用规则`,
+    `回答中涉及知识库内容时，必须在相关句子末尾用方括号标注来源编号，如 [1] [2]。`,
+    `编号对应"参考知识库"部分的条目序号。`,
+    `示例：根据相关规定 [1]，申请人应当提交复审请求书 [2]。`,
+    `如果回答不涉及知识库内容，则不需要标注引用。`,
+  ].join("\n");
 
   const user = [
     `案件 ID: ${caseId}`,
@@ -799,7 +814,7 @@ async function enhanceWithKnowledge(
     const chunksWithParent = getChunksWithParent(topChunkIds);
 
     const contextPrefix = getAgentContext(agentType);
-    const parts = [prompt, "", contextPrefix, `以下法规段落与当前分析相关（${topResults.length}条）：`, ""];
+    const parts = [prompt, "", `## 参考知识库`, contextPrefix, `以下法规段落与当前分析相关（${topResults.length}条）：`, ""];
     const citations: Array<{ source: string; score: number; excerpt: string }> = [];
 
     logger.info(`[RAG] [Step 5] 构建 ${topResults.length} 条 citations（Parent-Child 模式）...`);
@@ -824,7 +839,7 @@ async function enhanceWithKnowledge(
       parts.push(`### ${i + 1}. ${sourceLabel}（相似度: ${result.score.toFixed(2)}）`);
       for (const line of injectText.split("\n").slice(0, 15)) parts.push(line);
       parts.push("");
-      citations.push({ source, score: result.score, excerpt: injectText.slice(0, 100) });
+      citations.push({ source, score: result.score, excerpt: injectText.slice(0, 200) });
     }
 
     logger.info(`[RAG] === 检索完成 === ${citations.length} 条引用注入 prompt`);
@@ -900,8 +915,8 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
     }
 
     // 2. 知识库增强（知识上下文注入 user prompt）
-    // 某些 agent 不需要 RAG（查询无意义或纯文件名）
-    const SKIP_RAG_AGENTS = new Set(["classify-documents", "extract-case-fields", "translate", "summary"]);
+    // 某些 agent 不需要 RAG（查询无意义、纯文本处理、或 prompt 已包含完整规则）
+    const SKIP_RAG_AGENTS = new Set(["classify-documents", "extract-case-fields", "translate", "summary", "defects", "claim-chart"]);
     const shouldUseRag = req.knowledgeEnabled && !SKIP_RAG_AGENTS.has(req.agent);
     const query = extractQuery(req.agent, req.request);
     logger.info(`[Orchestrator] agent=${req.agent}, 提取检索 query="${query.slice(0, 80)}${query.length > 80 ? "..." : ""}", knowledgeEnabled=${req.knowledgeEnabled}, shouldUseRag=${shouldUseRag}`);
@@ -933,6 +948,11 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       ? Math.min(req.maxTokens ?? agentMaxCap, agentMaxCap)  // 取更小值
       : req.maxTokens;
 
+    // 复杂推理 agent 需要更长超时（MiMo reasoning tokens 耗时）
+    const HEAVY_AGENT_TIMEOUT_MS = 180_000;
+    const HEAVY_AGENTS = new Set(["inventive", "novelty", "defects", "claim-chart", "opinion-analysis", "argument-analysis"]);
+    const agentTimeoutMs = HEAVY_AGENTS.has(req.agent) ? HEAVY_AGENT_TIMEOUT_MS : undefined;
+
     logger.info(`[Orchestrator] 发送 AI 请求: system=${promptParts.system.length} 字符, user=${enhancedUserPrompt.length} 字符, ${citations.length} 条知识引用已注入`);
     const aiResponse = await callInternalGateway({
       agent: req.agent,
@@ -947,18 +967,30 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       maxTokens: effectiveMaxTokens,
       signal: req.signal,
       apiKey: req.apiKey,
+      timeoutMs: agentTimeoutMs,
     });
 
     // 解析 AI 返回的 JSON
     let output: unknown = aiResponse.output;
     if (typeof output === "string") {
+      logger.info(`[Orchestrator] agent=${req.agent}, raw output length=${output.length}, first 1000 chars:\n${output.slice(0, 1000)}`);
       const extracted = extractJsonFromText(output);
       if (extracted) {
+        logger.info(`[Orchestrator] JSON extracted successfully, parsed keys: ${Object.keys(extracted.parsed as object).join(", ")}`);
         output = extracted.parsed;
       } else if (req.agent === "chat" || req.agent === "interpret") {
         // chat/interpret agent 返回纯文本，包装为 { reply } 格式
         output = { reply: output };
+      } else {
+        logger.warn(`[Orchestrator] Failed to extract JSON from agent=${req.agent} output, full content:\n${output}`);
       }
+    }
+
+    // novelty agent: 记录 pendingSearchQuestions 便于调试
+    if (req.agent === "novelty" && output && typeof output === "object") {
+      const data = output as Record<string, unknown>;
+      const rows = data.rows as Array<Record<string, unknown>> | undefined;
+      logger.info(`[Novelty] rows=${rows?.length ?? 0}, pendingSearchQuestions=${JSON.stringify(data.pendingSearchQuestions)?.slice(0, 300)}`);
     }
 
     // B-038: claim-chart 后处理 — 为每个 feature 生成稳定 id 和 source
@@ -967,13 +999,40 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       const data = output as Record<string, unknown>;
       const chartReq = req.request as ClaimChartRequest;
       const claimNumber = chartReq.claimNumber ?? 1;
-      if (Array.isArray(data.features)) {
+      if (Array.isArray(data.features) && data.features.length > 0) {
         data.features = data.features.map((f: Record<string, unknown>) => ({
           ...f,
           id: `${req.caseId}-chart-${claimNumber}-${f.featureCode}`,
+          caseId: req.caseId,
+          claimNumber,
           source: "ai",
         }));
+      } else {
+        // features 缺失或为空数组 — LLM 未生成有效特征
+        const keys = Object.keys(data);
+        logger.warn(`[Orchestrator] claim-chart 输出缺少 features，parsed keys: [${keys.join(", ")}], raw output:\n${JSON.stringify(data).slice(0, 500)}`);
+        return {
+          ok: false,
+          error: {
+            type: "ai-output",
+            message: "AI 未返回有效的权利要求特征。请检查权利要求文本是否完整，或尝试重新运行。",
+          },
+          tokenUsage: aiResponse.tokenUsage,
+          attempts: aiResponse.attempts,
+        };
       }
+    } else if (req.agent === "claim-chart" && typeof output === "string") {
+      // JSON 提取失败，output 仍为原始字符串
+      logger.warn(`[Orchestrator] claim-chart JSON 提取失败，raw output:\n${output.slice(0, 500)}`);
+      return {
+        ok: false,
+        error: {
+          type: "ai-output",
+          message: "AI 未返回有效的 JSON 格式。请检查权利要求文本是否完整，或尝试重新运行。",
+        },
+        tokenUsage: aiResponse.tokenUsage,
+        attempts: aiResponse.attempts,
+      };
     }
 
     return {
@@ -995,7 +1054,11 @@ function extractQuery(agent: string, request: Record<string, unknown>): string {
   switch (agent) {
     case "claim-chart": {
       const r = request as ClaimChartRequest;
-      return (r.claims ?? []).map((c) => c.rawText).join(" ");
+      // 兼容两种格式：claims 数组或单个 claimText
+      if (r.claims && r.claims.length > 0) {
+        return r.claims.map((c) => c.rawText).join(" ");
+      }
+      return (r.claimText ?? "").slice(0, 200);
     }
     case "novelty":
     case "inventive": {
@@ -1063,6 +1126,7 @@ interface InternalGatewayRequest {
   maxTokens?: number | undefined;
   signal?: AbortSignal | undefined;
   apiKey?: string | undefined;
+  timeoutMs?: number | undefined;
 }
 
 interface InternalGatewayResponse {
@@ -1094,6 +1158,7 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
     apiKey: "",
     ...(req.maxTokens !== undefined && { maxTokens: req.maxTokens }),
     ...(req.signal !== undefined && { signal: req.signal }),
+    ...(req.timeoutMs !== undefined && { timeoutMs: req.timeoutMs }),
   };
 
   const result = await registry.runWithFallback(

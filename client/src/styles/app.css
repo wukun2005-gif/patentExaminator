@@ -3532,22 +3532,66 @@
 .chat-bubble__citation-item {
   display: flex;
   gap: 0.5rem;
-  padding: 3px 0;
-  border-bottom: 1px solid var(--border-color, #eee);
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.chat-bubble__citation-item:hover {
+  background-color: var(--pex-color-bg-hover, #f5f5f5);
+}
+
+.chat-bubble__citation-item--expanded {
+  background-color: var(--pex-color-bg-hover, #f5f5f5);
+}
+
+.chat-bubble__citation-num {
+  color: var(--pex-color-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.chat-bubble__citation-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .chat-bubble__citation-source {
-  color: var(--pex-color-primary);
+  color: var(--text-primary, #333);
   font-weight: 500;
-  white-space: nowrap;
+  font-size: 0.78rem;
 }
 
 .chat-bubble__citation-excerpt {
   color: var(--text-secondary, #666);
+  font-size: 0.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 400px;
+}
+
+.chat-bubble__citation-item--expanded .chat-bubble__citation-excerpt {
+  white-space: normal;
+  overflow: visible;
+}
+
+.chat-bubble__inline-cite {
+  color: var(--pex-color-primary);
+  font-size: 0.7em;
+  font-weight: 600;
+  cursor: pointer;
+  vertical-align: super;
+  line-height: 0;
+  padding: 0 1px;
+}
+
+.chat-bubble__inline-cite:hover {
+  text-decoration: underline;
 }
 
 /* Input area */
