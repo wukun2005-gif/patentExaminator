@@ -781,8 +781,8 @@ export function CaseSetupPage() {
           </p>
 
           <div className="overview-grid">
-            {/* Documents by role */}
-            {ROLE_ORDER.map((role) => {
+            {/* Documents by role (skip reference — shown separately below with richer metadata) */}
+            {ROLE_ORDER.filter((role) => role !== "reference").map((role) => {
               const roleDocs = documents.filter((d) => d.role === role);
               if (roleDocs.length === 0) return null;
               return (
