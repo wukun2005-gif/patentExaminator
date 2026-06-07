@@ -8,7 +8,7 @@ import { extractJsonFromText } from "../lib/jsonExtractor.js";
 import { sanitizeText } from "../security/sanitize.js";
 import { validateExternalUrl, validateProviderBaseUrls, BlockedUrlError } from "../lib/urlValidation.js";
 import type { SearchReferencesResponse, SearchReferencesCandidate, SearchSummary, ExtractSearchTermsResponse } from "@shared/types/api";
-import type { ChatRequest } from "../providers/ProviderAdapter.js";
+import type { ChatRequest, ChatResponse } from "../providers/ProviderAdapter.js";
 
 const FETCH_TIMEOUT_MS = 30_000;
 
@@ -39,6 +39,15 @@ function extractFallbackCandidates(rawText: string): SearchReferencesCandidate[]
     });
   }
   return candidates.filter((c) => c.title && c.publicationNumber);
+}
+
+/** 将 LLM 返回的相关度分数归一化到 0-100 整数范围 */
+function normalizeRelevanceScore(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  // LLM 有时返回 0-1 范围的概率值，有时返回 0-100 的整数
+  if (n > 0 && n <= 1) return Math.round(n * 100);
+  return Math.round(Math.min(n, 100));
 }
 
 const searchRequestSchema = z.object({
@@ -164,7 +173,8 @@ searchRouter.post("/search-references", async (req, res) => {
       modelId: request.modelId,
       messages: [{ role: "user", content: extractPrompt }],
       maxTokens: 8192,
-      apiKey
+      apiKey,
+      signal: controller.signal,
     };
 
     const { response: extractRes, attempts: extractAttempts } = await registry.runWithFallback(
@@ -263,9 +273,10 @@ searchRouter.post("/search-references", async (req, res) => {
           modelId: request.modelId,
           messages: [{ role: "user", content: translatePrompt }],
           maxTokens: 4096,
-          apiKey
+          apiKey,
+          signal: controller.signal,
         };
-        
+
         try {
           const { response: translateRes } = await registry.runWithFallback(
             availableProviders as string[],
@@ -276,7 +287,7 @@ searchRouter.post("/search-references", async (req, res) => {
             request.providerBaseUrls as Partial<Record<string, string>> | undefined,
             Object.fromEntries(providerKeys) as Partial<Record<string, string>>
           );
-          
+
           if (!translateRes.error && translateRes.text) {
             const extracted = extractJsonFromText(translateRes.text);
             if (extracted) {
@@ -384,18 +395,37 @@ searchRouter.post("/search-references", async (req, res) => {
       modelId: request.modelId,
       messages: [{ role: "user", content: filterPrompt }],
       maxTokens: 8192,
-      apiKey
+      apiKey,
+      signal: controller.signal,
     };
 
-    const { response: filterRes } = await registry.runWithFallback(
-      availableProviders as string[],
-      filterReq,
-      undefined,
-      request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
-      request.enableModelFallback as Partial<Record<string, boolean>> | undefined,
-      request.providerBaseUrls as Partial<Record<string, string>> | undefined,
-      Object.fromEntries(providerKeys) as Partial<Record<string, string>>
-    );
+    let filterRes: ChatResponse;
+    try {
+      const result = await registry.runWithFallback(
+        availableProviders as string[],
+        filterReq,
+        undefined,
+        request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
+        request.enableModelFallback as Partial<Record<string, boolean>> | undefined,
+        request.providerBaseUrls as Partial<Record<string, string>> | undefined,
+        Object.fromEntries(providerKeys) as Partial<Record<string, string>>
+      );
+      filterRes = result.response;
+    } catch (filterErr) {
+      logger.warn("LLM filter failed, returning raw search results", { error: String(filterErr) });
+      const fallbackCandidates: SearchReferencesCandidate[] = searchRes.results
+        .slice(0, request.maxResults)
+        .map((r) => ({
+          title: r.title,
+          publicationNumber: "",
+          summary: r.content.slice(0, 300),
+          relevanceScore: 50,
+          recommendationReason: "原始搜索结果（AI 筛选超时）",
+          sourceUrl: r.url,
+        }));
+      res.json({ ok: true, candidates: fallbackCandidates, searchQuery } satisfies SearchReferencesResponse);
+      return;
+    }
 
     if (filterRes.error) {
       logger.error("LLM filter results failed", { error: filterRes.error });
@@ -441,7 +471,7 @@ searchRouter.post("/search-references", async (req, res) => {
             publicationNumber: String(c.publicationNumber),
             ...(c.publicationDate ? { publicationDate: String(c.publicationDate) } : {}),
             summary: String(c.summary ?? ""),
-            relevanceScore: Number(c.relevanceScore) || 0,
+            relevanceScore: normalizeRelevanceScore(c.relevanceScore),
             recommendationReason: String(c.recommendationReason ?? ""),
             ...(c.sourceUrl ? { sourceUrl: String(c.sourceUrl) } : {})
           }));
@@ -625,7 +655,8 @@ searchRouter.post("/extract-search-terms", async (req, res) => {
       modelId: request.modelId,
       messages: [{ role: "user", content: extractPrompt }],
       maxTokens: 8192,
-      apiKey
+      apiKey,
+      signal: controller.signal,
     };
 
     const { response: extractRes } = await registry.runWithFallback(
@@ -845,7 +876,8 @@ searchRouter.post("/search-with-terms", async (req, res) => {
           modelId: request.modelId,
           messages: [{ role: "user", content: translatePrompt }],
           maxTokens: 4096,
-          apiKey
+          apiKey,
+          signal: controller.signal,
         };
         try {
           const { response: translateRes } = await registry.runWithFallback(
@@ -924,9 +956,32 @@ searchRouter.post("/search-with-terms", async (req, res) => {
       `权利要求文本:\n${request.claimText.slice(0, 2000)}\n\n` +
       `技术特征:\n${featureText}\n\n` +
       `搜索结果:\n${searchResultsText}\n\n` +
-      `任务：从搜索结果中识别专利文献，提取 title, publicationNumber, publicationDate, summary, relevanceScore, recommendationReason, sourceUrl。` +
-      `按相关度排序，最多返回${request.maxResults}篇。\n\n` +
-      `输出 JSON 数组格式。`
+      `任务：\n` +
+      `1. 从搜索结果中识别专利文献（标题或URL包含专利号：CN/US/EP/JP/KR/WO开头）\n` +
+      `2. 提取每篇专利的：\n` +
+      `   - title: 专利标题\n` +
+      `   - publicationNumber: 公开号（从URL或标题提取，格式如CN108123456A）\n` +
+      `   - publicationDate: 公开日期（如有，格式YYYY-MM-DD）\n` +
+      `   - summary: 技术摘要（从content提取，200字以内）\n` +
+      `   - relevanceScore: 相关度评分（0-100整数，基于与权利要求的技术相似度）\n` +
+      `   - recommendationReason: 推荐理由（简述为何相关）\n` +
+      `   - sourceUrl: 来源URL\n` +
+      `3. 按相关度排序，最多返回${request.maxResults}篇\n\n` +
+      `输出格式：JSON数组\n` +
+      `[{\n` +
+      `  "title": "专利标题",\n` +
+      `  "publicationNumber": "CN108123456A",\n` +
+      `  "publicationDate": "2023-01-15",\n` +
+      `  "summary": "技术摘要",\n` +
+      `  "relevanceScore": 85,\n` +
+      `  "recommendationReason": "推荐理由",\n` +
+      `  "sourceUrl": "https://..."\n` +
+      `}]\n\n` +
+      `重要规则：\n` +
+      `- 只返回专利文献，非专利网页返回空数组\n` +
+      `- 所有信息必须来自搜索结果原文，不得编造\n` +
+      `- relevanceScore 必须是 0-100 的整数，不能用 0-1 的小数\n` +
+      `- 如果没有专利文献，返回空数组 []`
     );
 
     const firstProvider = availableProviders[0];
@@ -937,31 +992,62 @@ searchRouter.post("/search-with-terms", async (req, res) => {
       modelId: request.modelId,
       messages: [{ role: "user", content: filterPrompt }],
       maxTokens: 8192,
-      apiKey
+      apiKey,
+      signal: controller.signal,
     };
 
-    const { response: filterRes } = await registry.runWithFallback(
-      availableProviders as string[], filterReq, undefined,
-      request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
-      request.enableModelFallback as Partial<Record<string, boolean>> | undefined,
-      request.providerBaseUrls as Partial<Record<string, string>> | undefined,
-      Object.fromEntries(providerKeys) as Partial<Record<string, string>>
-    );
+    let filterRes: ChatResponse;
+    try {
+      const result = await registry.runWithFallback(
+        availableProviders as string[], filterReq, undefined,
+        request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
+        request.enableModelFallback as Partial<Record<string, boolean>> | undefined,
+        request.providerBaseUrls as Partial<Record<string, string>> | undefined,
+        Object.fromEntries(providerKeys) as Partial<Record<string, string>>
+      );
+      filterRes = result.response;
+    } catch (filterErr) {
+      // LLM 超时或失败 — 返回原始搜索结果（不过滤），避免整个检索失败
+      logger.warn("LLM filter failed, returning raw search results", { error: String(filterErr) });
+      const fallbackCandidates: SearchReferencesCandidate[] = searchRes.results
+        .slice(0, request.maxResults)
+        .map((r) => ({
+          title: r.title,
+          publicationNumber: "",
+          summary: r.content.slice(0, 300),
+          relevanceScore: 50,
+          recommendationReason: "原始搜索结果（AI 筛选超时）",
+          sourceUrl: r.url,
+        }));
+      res.json({ ok: true, candidates: fallbackCandidates, searchQuery, searchSummary } satisfies SearchReferencesResponse);
+      return;
+    }
 
     if (filterRes.error || !filterRes.text?.trim()) {
-      res.status(502).json({
-        ok: false, candidates: [], searchQuery, searchSummary,
-        error: "AI 筛选结果失败，请稍后重试。"
-      } satisfies SearchReferencesResponse);
+      // LLM 返回错误 — 同样降级为原始搜索结果
+      logger.warn("LLM filter returned error, degrading to raw results", { error: filterRes.error });
+      const fallbackCandidates: SearchReferencesCandidate[] = searchRes.results
+        .slice(0, request.maxResults)
+        .map((r) => ({
+          title: r.title,
+          publicationNumber: "",
+          summary: r.content.slice(0, 300),
+          relevanceScore: 50,
+          recommendationReason: "原始搜索结果（AI 筛选失败）",
+          sourceUrl: r.url,
+        }));
+      res.json({ ok: true, candidates: fallbackCandidates, searchQuery, searchSummary } satisfies SearchReferencesResponse);
       return;
     }
 
     let candidates: SearchReferencesCandidate[] = [];
     try {
+      logger.info(`[Search] LLM filter raw output (${filterRes.text.length} chars): ${filterRes.text.slice(0, 500)}`);
       const extracted = extractJsonFromText(filterRes.text);
       if (extracted) {
         const parsed = extracted.parsed;
         const rawCandidates = Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : ((parsed as { candidates?: Record<string, unknown>[] }).candidates ?? []);
+        logger.info(`[Search] JSON parsed: isArray=${Array.isArray(parsed)}, rawCandidates=${rawCandidates.length}`);
         candidates = rawCandidates
           .filter((c: Record<string, unknown>) => c.title && c.publicationNumber)
           .slice(0, request.maxResults)
@@ -970,15 +1056,19 @@ searchRouter.post("/search-with-terms", async (req, res) => {
             publicationNumber: String(c.publicationNumber),
             ...(c.publicationDate ? { publicationDate: String(c.publicationDate) } : {}),
             summary: String(c.summary ?? ""),
-            relevanceScore: Number(c.relevanceScore) || 0,
+            relevanceScore: normalizeRelevanceScore(c.relevanceScore),
             recommendationReason: String(c.recommendationReason ?? ""),
             ...(c.sourceUrl ? { sourceUrl: String(c.sourceUrl) } : {})
           }));
+        logger.info(`[Search] After filter: ${candidates.length} candidates (from ${rawCandidates.length} raw)`);
       } else {
+        logger.warn("[Search] JSON extraction failed, trying fallback parser");
         const fallbackCandidates = extractFallbackCandidates(filterRes.text);
         if (fallbackCandidates.length > 0) candidates = fallbackCandidates.slice(0, request.maxResults);
+        logger.info(`[Search] Fallback parser: ${candidates.length} candidates`);
       }
-    } catch {
+    } catch (parseErr) {
+      logger.warn("[Search] JSON parse error, trying fallback", { error: String(parseErr) });
       const fallbackCandidates = extractFallbackCandidates(filterRes.text);
       if (fallbackCandidates.length > 0) candidates = fallbackCandidates.slice(0, request.maxResults);
     }
