@@ -507,35 +507,6 @@ export async function testRealTokenUsageReturned() {
   }
 }
 
-// ── Real: Gemini Model List ─────────────────────────────────────────
-
-export async function testRealGeminiModelList() {
-  const GEMINI_KEY = getApiKey("gemini");
-  if (!GEMINI_KEY) {
-    log("Real GeminiModelList", true, "skipped (no GEMINI_KEY)");
-    return;
-  }
-
-  try {
-    const res = await getJSONWithParams("/providers/gemini/models", { apiKey: GEMINI_KEY });
-    const data = await res.json();
-
-    if (!res.ok) {
-      log("Real GeminiModelList", false, data.error || `HTTP ${res.status}`);
-      return;
-    }
-
-    const models = data.models || [];
-    const hasValidModels = models.length > 0;
-    log("Real GeminiModelList", hasValidModels,
-      hasValidModels
-        ? `found ${models.length} models: ${models.slice(0, 5).join(", ")}${models.length > 5 ? "..." : ""}`
-        : "no models returned");
-  } catch (err) {
-    log("Real GeminiModelList", false, err.message);
-  }
-}
-
 // ── Real: EPO Search Candidates ─────────────────────────────────────
 
 export async function testRealEpoSearchCandidates() {

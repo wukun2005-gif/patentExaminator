@@ -77,7 +77,6 @@ import {
   testRealTranslate_G1,
   testRealClassifyDocuments_G1,
   testRealTokenUsageReturned,
-  testRealGeminiModelList,
   testRealEpoSearchCandidates,
   testSchemaClaimChart,
   testSchemaNovelty,
@@ -368,10 +367,6 @@ async function main() {
 
     console.log("\n--- Provider Connectivity ---");
     await withTimeout(() => maybe(testRealProviderConnectivity));
-    await delay(2000);
-
-    console.log("\n--- Gemini Model List ---");
-    await withTimeout(() => maybe(testRealGeminiModelList));
     await delay(2000);
 
     console.log("\n--- Real Agent Tests ---");

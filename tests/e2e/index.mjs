@@ -47,7 +47,6 @@ export {
   testRealTranslate_G1,
   testRealClassifyDocuments_G1,
   testRealTokenUsageReturned,
-  testRealGeminiModelList,
   testRealEpoSearchCandidates,
 } from "./real-agents.mjs";
 
