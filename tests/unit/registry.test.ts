@@ -156,9 +156,10 @@ describe("ProviderRegistry", () => {
 
       registry.register(mimoAdapter);
 
+      // req.modelId 被插到 fallback 列表前面，所以这里用 mimo-v2.5-pro 作为初始模型
       const result = await registry.runWithFallback(
         ["mimo"],
-        baseReq,
+        { ...baseReq, modelId: "mimo-v2.5-pro" },
         ["mimo-v2.5-pro", "mimo-v2.5"]
       );
 
