@@ -9,7 +9,7 @@ function isTextModel(id: string): boolean {
   return !NON_TEXT_PATTERNS.test(id);
 }
 
-const REASONING_MODEL_PATTERNS = /mimo|r1\b|o[134]\b|reasoner|thinking/i;
+const REASONING_MODEL_PATTERNS = /mimo|r1\b|o[134]\b|reasoner|thinking|gemini-[23]\.5/i;
 const REASONING_MAX_TOKENS_MULTIPLIER = 4;
 
 function isReasoningModel(modelId: string): boolean {

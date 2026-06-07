@@ -247,7 +247,7 @@ describe("OpenAICompatibleAdapter.listModels()", () => {
 
 describe("resolveMaxTokens", () => {
   it("returns requested maxTokens for normal models", () => {
-    expect(resolveMaxTokens("gemini-2.5-flash", 4096)).toBe(4096);
+    expect(resolveMaxTokens("gemini-2.0-flash", 4096)).toBe(4096);
   });
 
   it("returns 4x for reasoning models (mimo)", () => {
@@ -264,11 +264,16 @@ describe("resolveMaxTokens", () => {
   });
 
   it("defaults to 4096 when no maxTokens specified", () => {
-    expect(resolveMaxTokens("gemini-2.5-flash")).toBe(4096);
+    expect(resolveMaxTokens("gemini-2.0-flash")).toBe(4096);
   });
 
   it("defaults to 16384 for reasoning model when no maxTokens specified", () => {
     expect(resolveMaxTokens("mimo-v2.5-pro")).toBe(16384);
+  });
+
+  it("returns 4x for reasoning models (gemini-2.5)", () => {
+    expect(resolveMaxTokens("gemini-2.5-flash", 4096)).toBe(16384);
+    expect(resolveMaxTokens("gemini-2.5-pro", 4096)).toBe(16384);
   });
 });
 
