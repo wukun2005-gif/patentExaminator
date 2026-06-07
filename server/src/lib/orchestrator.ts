@@ -977,15 +977,17 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
     let output: unknown = aiResponse.output;
     if (typeof output === "string") {
       logger.info(`[Orchestrator] agent=${req.agent}, raw output length=${output.length}, first 1000 chars:\n${output.slice(0, 1000)}`);
-      const extracted = extractJsonFromText(output);
-      if (extracted) {
-        logger.info(`[Orchestrator] JSON extracted successfully, parsed keys: ${Object.keys(extracted.parsed as object).join(", ")}`);
-        output = extracted.parsed;
-      } else if (req.agent === "chat" || req.agent === "interpret") {
-        // chat/interpret agent 返回纯文本，包装为 { reply } 格式
+      // chat/interpret agent 返回纯文本（含 [1] 引用标记），不走 JSON 提取
+      if (req.agent === "chat" || req.agent === "interpret") {
         output = { reply: output };
       } else {
-        logger.warn(`[Orchestrator] Failed to extract JSON from agent=${req.agent} output, full content:\n${output}`);
+        const extracted = extractJsonFromText(output);
+        if (extracted) {
+          logger.info(`[Orchestrator] JSON extracted successfully, parsed keys: ${Object.keys(extracted.parsed as object).join(", ")}`);
+          output = extracted.parsed;
+        } else {
+          logger.warn(`[Orchestrator] Failed to extract JSON from agent=${req.agent} output, full content:\n${output}`);
+        }
       }
     }
 
