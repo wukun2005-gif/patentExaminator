@@ -1048,6 +1048,15 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
           output = extracted.parsed;
         } else {
           logger.warn(`[Orchestrator] Failed to extract JSON from agent=${req.agent} output, full content:\n${output}`);
+          return {
+            ok: false,
+            error: {
+              type: "ai-output",
+              message: `AI 未返回有效的 JSON 格式（agent=${req.agent}）。请尝试重新运行。`,
+            },
+            tokenUsage: aiResponse.tokenUsage,
+            attempts: aiResponse.attempts,
+          };
         }
       }
     }

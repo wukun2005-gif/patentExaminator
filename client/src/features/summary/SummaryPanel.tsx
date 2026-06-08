@@ -4,7 +4,8 @@ import { useDraftStore } from "../../store";
 import { InlineEdit } from "../../components/InlineEdit";
 import { ErrorBanner } from "../../lib/errorDisplay";
 
-function renderParagraphs(text: string): ReactNode {
+function renderParagraphs(text: string | undefined): ReactNode {
+  if (typeof text !== "string") return null;
   return text.split('\n\n').filter(Boolean).map((p) => (
     <p key={`p-${p.slice(0, 20)}`}>{p}</p>
   ));

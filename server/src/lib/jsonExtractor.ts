@@ -3,6 +3,29 @@ export interface JsonExtractResult {
   raw: string;
 }
 
+/**
+ * LLM 常在 JSON 字符串值内输出字面换行符/制表符（非法 JSON）。
+ * 逐字符扫描，在字符串上下文内将 \n→\\n、\r→\\r、\t→\\t。
+ */
+function repairJsonLiterals(text: string): string {
+  const out: string[] = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (esc) { out.push(ch); esc = false; continue; }
+    if (ch === '\\' && inStr) { out.push(ch); esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; out.push(ch); continue; }
+    if (inStr) {
+      if (ch === '\n') { out.push('\\n'); continue; }
+      if (ch === '\r') { out.push('\\r'); continue; }
+      if (ch === '\t') { out.push('\\t'); continue; }
+    }
+    out.push(ch);
+  }
+  return out.join('');
+}
+
 function stripCodeFences(text: string): string {
   const fencePatterns = [
     /^```(?:json)?\s*\n([\s\S]*?)\n\s*```$/m,
@@ -91,6 +114,30 @@ export function extractJsonFromText(text: string): JsonExtractResult | null {
       }
     } catch {
       // greedy extraction failed
+    }
+  }
+
+  // LLM 常在 JSON 字符串值内输出字面换行符 — 修复后重试
+  const repaired = repairJsonLiterals(cleaned);
+  if (repaired !== cleaned) {
+    try {
+      const parsed = JSON.parse(repaired);
+      if (typeof parsed === "object" && parsed !== null) {
+        return { parsed, raw: repaired };
+      }
+    } catch {
+      // repaired parse failed
+    }
+    const repairedBalanced = findBalancedJson(repaired);
+    if (repairedBalanced) {
+      try {
+        const parsed = JSON.parse(repairedBalanced);
+        if (typeof parsed === "object" && parsed !== null) {
+          return { parsed, raw: repairedBalanced };
+        }
+      } catch {
+        // repaired balanced extraction failed
+      }
     }
   }
 
