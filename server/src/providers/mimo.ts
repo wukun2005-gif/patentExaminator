@@ -6,6 +6,6 @@ export class MimoAdapter extends OpenAICompatibleAdapter {
   defaultBaseUrl = "https://token-plan-cn.xiaomimimo.com/v1";
 
   supportedModels(): string[] {
-    return ["mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni"];
+    return ["mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2-flash"];
   }
 }

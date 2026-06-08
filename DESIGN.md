@@ -8,6 +8,7 @@
 
 | 版本 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|------|---------|----------|-------------|
+| v0.1.0-r47 | 2026-06-08 | bug5 补充: doubao-seed-2.0+ / DeepSeek V4 按 provider 严格对齐官方文档 — 新增 §5.4.1 Provider 官方模型规格（DeepSeek 官方 API、火山引擎、豆包 Seed 三大 provider 的完整参数表）；registry 拆分火山引擎/DeepSeek 官方前缀（deepseek-v4-pro-260425 vs deepseek-v4-pro）；doubao.ts 新增 16 个 seed 模型 ID + 3 个火山 DeepSeek 模型；deepseek.ts 移除火山引擎专属 ID；AgentsAssignmentPanel 补充 doubao provider；5 文件修改 | DESIGN.md §5.4.1, model-capabilities-registry.ts, doubao.ts, deepseek.ts, modelCatalog.ts, AgentsAssignmentPanel.tsx | — |
 | v0.1.0-r46 | 2026-06-07 | bug5: 模型自适应框架 — ModelCapabilities 统一能力声明接口+注册表（6 维度：maxTokens/thinking tokens 三层防御、temperature 自适应、上下文窗口动态截断、structured output 降级、系统提示处理、视觉能力声明）；ChatResponse 新增 thinkingTokens/reasoningText；ChatRequest 新增 responseFormat；orchestrator temperature 传递 + truncateForModel；3 新文件 + 7 修改文件 | ProviderAdapter.ts, gemini.ts, bedrock.ts, registry.ts, orchestrator.ts, ModelCapabilities.ts(新建), model-capabilities-registry.ts(新建), tokenEstimator.ts(新建), provider-adapters.test.ts, registry.test.ts | — |
 | v0.1.0-r45 | 2026-06-06 | bug3: 数据库操作日志扩展到所有 store — 移除 data.ts 中 `store === "settings"` 守卫，所有 CRUD 操作（GET/CREATE/UPDATE/DELETE/DELETE_ALL）均记录审计日志；auditLog.ts 日志文件重命名为 db-audit.log | data.ts, auditLog.ts | — |
 | v0.1.0-r44 | 2026-06-06 | BUG-171: knowledgeDb 测试隔离 — 添加 resetKnowledgeDbForTesting() 和 closeKnowledgeDb() 导出，getKnowledgeDb() 支持 globalThis 注入测试路径；testDb.ts 添加 initKnowledgeSchema()；集成测试 beforeAll 注入 ":memory:" | knowledgeDb.ts, testDb.ts, globalSetup.ts, route-coverage.test.ts, agentPipeline.test.ts | — |
@@ -871,6 +872,167 @@ v0.1.0 实现 11 家 Provider 的非流式 chat completions：
 | Doubao (豆包) | `https://ark.cn-beijing.volces.com/api/v3` | OpenAI-compatible |
 
 > **上下文窗口约束：** 申请文件通常 30–100 页 PDF，多篇对比文件各 10–50 页。各 Provider 选用的模型 context window 需 ≥ 128K tokens，否则超长文档可能导致截断丢失关键段落。orchestrator 使用 `truncateForModel()` 根据模型上下文窗口动态截断。
+
+#### 5.4.1 Provider 官方模型规格（自适应注册表的数据来源）
+
+> **维护说明：** 以下规格来自各 Provider 官方文档，是 `model-capabilities-registry.ts` 的权威数据源。
+> 新增/更新模型时，必须以官方文档为准，不可跨 provider 混用参数。同一模型在不同 provider 的规格可能不同。
+
+##### DeepSeek（官方 `api.deepseek.com`）
+
+来源：https://api-docs.deepseek.com/zh-cn/ → 模型 & 价格（2026-06 获取）
+
+| 模型 ID | 上下文 | 最大输出 | 思考模式 | JSON Output | Tool Calls | 并发限制 | 备注 |
+|---------|--------|---------|---------|------------|-----------|---------|------|
+| `deepseek-v4-pro` | 1M | 384K | 支持（默认开启） | `json_object` | 支持 | 500 | 旗舰推理 |
+| `deepseek-v4-flash` | 1M | 384K | 支持（默认开启） | `json_object` | 支持 | 2500 | 快速推理 |
+| `deepseek-chat` | 64K | 8K | 否 | `json_object` | 支持 | - | 2026-07-24 弃用 → v4-flash 非思考 |
+| `deepseek-reasoner` | 64K | 16K | 是 | 否 | 否 | - | 2026-07-24 弃用 → v4-flash 思考 |
+
+关键差异：
+- JSON Output 使用 `response_format: {type: "json_object"}`（非 `json_schema`），不支持 schema 约束
+- 思考模式通过 `extra_body={"thinking": {"type": "enabled/disabled"}}` 控制，默认 enabled
+- `reasoning_effort` 控制推理强度：`high`（默认）/ `max`（Agent 场景自动设置）
+- 思考模式下 `temperature`、`top_p`、`frequency_penalty`、`presence_penalty` 被静默忽略
+- `frequency_penalty` / `presence_penalty` 已弃用，不再支持
+- 思维链通过 `message.reasoning_content` 返回（与 `content` 同级）
+- `usage.completion_tokens_details.reasoning_tokens` 返回思维链 token 数
+- 工具调用轮次的 `reasoning_content` 必须在后续请求中回传，否则返回 400
+
+##### 火山引擎（`ark.cn-beijing.volces.com/api/v3`）
+
+来源：火山引擎模型广场（2026-06 获取）
+
+> 火山引擎托管的 DeepSeek 模型使用带日期后缀的 ID，通过 DoubaoAdapter 访问同一 API 端点。
+
+| 模型 ID | 上下文 | 最大输出 | 思考 | 结构化输出 | 视觉 | RPM | 来源文档 |
+|---------|--------|---------|------|----------|------|-----|---------|
+| `deepseek-v4-pro-260425` | 1024K | 384K | 是 | 否 | 否 | 15000 | 火山引擎模型广场 |
+| `deepseek-v4-flash-260425` | 1024K | 384K | 是 | 否 | 否 | 15000 | 火山引擎模型广场 |
+| `deepseek-v3-2-251201` | 128K | 32K | 是 | 否 | 否 | 15000 | 火山引擎模型广场 |
+
+##### 豆包 Doubao Seed（火山引擎）
+
+来源：火山引擎模型广场（2026-06 获取）
+
+**Seed 2.0 推荐模型（深度思考 + 多模态理解）：**
+
+| 模型 ID | 上下文 | 最大输出 | 最大思维链 | 结构化输出 | RPM |
+|---------|--------|---------|----------|----------|-----|
+| `doubao-seed-2-0-pro-260215` | 256K | 128K | 128K | 否 | 30000 |
+| `doubao-seed-2-0-lite-260215` | 256K | 128K | 128K | 是 | 30000 |
+| `doubao-seed-2-0-mini-260215` | 256K | 128K | 128K | 是 | 30000 |
+| `doubao-seed-2-0-code-preview-260215` | 256K | 128K | 128K | 否 | 30000 |
+| `doubao-seed-2-0-lite-260428` | 256K | 128K | 128K | 否 | 30000 |
+| `doubao-seed-2-0-mini-260428` | 256K | 128K | 128K | 否 | 30000 |
+
+**Seed 1.6/1.8 往期模型：**
+
+| 模型 ID | 上下文 | 最大输出 | 最大思维链 | 结构化输出 | RPM |
+|---------|--------|---------|----------|----------|-----|
+| `doubao-seed-1-8-251228` | 256K | 64K | 32K | 是 | 30000 |
+| `doubao-seed-1-6-251015` | 256K | 32K | 32K | 是 | 30000 |
+| `doubao-seed-1-6-250615` | 256K | 32K | 32K | 是 | 30000 |
+| `doubao-seed-1-6-flash-250828` | 256K | 32K | 32K | 是 | 30000 |
+| `doubao-seed-1-6-flash-250615` | 256K | 32K | 32K | 是 | 30000 |
+| `doubao-seed-1-6-vision-250815` | 256K | 32K | 32K | 是 | 30000 |
+| `doubao-seed-code-preview-251028` | 256K | 32K | 32K | 否 | 5000 |
+| `doubao-seed-character-251128` | 128K | 32K | - | 否 | 30000 |
+
+关键差异：
+- 所有 seed 模型（除 character）均支持**深度思考**和**多模态理解**（图片输入）
+- 结构化输出支持 `json_schema` 和 `json_object` 两种格式
+- `doubao-seed-character` 是**非推理**模型，不支持深度思考，不支持视觉
+- 1.5 系列（`doubao-1-5-*`）是非推理模型，vision 变体支持图片理解
+
+##### Kimi（`api.moonshot.cn`）
+
+来源：platform.kimi.com → 模型列表 + 模型参数参考 + 创建对话补全 + 使用视觉模型（2026-06 获取）
+
+**活跃模型：**
+
+| 模型 ID | 上下文 | 最大输出 | 思考 | 温度 | 结构化输出 | 视觉 | 状态 |
+|---------|--------|---------|------|------|----------|------|------|
+| `kimi-k2.6` | 256K | 32K | 默认启用 | **不可修改**（固定 1.0） | json_schema | 图片+视频 | 在线 |
+| `kimi-k2.5` | 256K | 32K | 默认启用 | **不可修改**（固定 1.0） | json_schema | 图片 | 在线 |
+| `moonshot-v1-128k` | 128K | 8K | 否 | [0,1] 默认 0.0 | json_schema | 否 | 在线 |
+| `moonshot-v1-32k` | 32K | 8K | 否 | [0,1] 默认 0.0 | json_schema | 否 | 在线 |
+| `moonshot-v1-8k` | 8K | 8K | 否 | [0,1] 默认 0.0 | json_schema | 否 | 在线 |
+| `moonshot-v1-auto` | 自动 | 8K | 否 | [0,1] 默认 0.0 | json_schema | 否 | 在线 |
+| `moonshot-v1-128k-vision-preview` | 128K | 8K | 否 | [0,1] 默认 0.0 | json_schema | 图片 | 在线 |
+| `moonshot-v1-32k-vision-preview` | 32K | 8K | 否 | [0,1] 默认 0.0 | json_schema | 图片 | 在线 |
+| `moonshot-v1-8k-vision-preview` | 8K | 8K | 否 | [0,1] 默认 0.0 | json_schema | 图片 | 在线 |
+
+**已下线模型（2026-05-25）：** `kimi-k2-0905-preview`、`kimi-k2-0711-preview`、`kimi-k2-turbo-preview`、`kimi-k2-thinking`、`kimi-k2-thinking-turbo`
+
+关键差异：
+- kimi-k2.6/k2.5 的 `temperature`/`top_p`/`n`/`presence_penalty`/`frequency_penalty` 均**不可修改**，指定其他值会报错
+- 思考模式通过 `extra_body={"thinking": {"type": "enabled/disabled"}}` 控制，默认 enabled
+- kimi-k2.6 支持 `thinking.keep: "all"` 启用 Preserved Thinking（保留历史 reasoning_content）
+- 思维链通过 `message.reasoning_content` 返回（与 DeepSeek 一致）
+- `max_tokens` 默认 32k，建议 ≥ 16000 以容纳 reasoning_content
+- 结构化输出支持 `json_schema` 和 `json_object`（与 DeepSeek 不同，Kimi 支持 json_schema）
+- 视觉输入支持 `image_url` 和 `video_url`（kimi-k2.6 支持视频）
+- `response_format` 支持 `json_schema` 类型（与 OpenAI 格式一致）
+
+##### GLM 智谱（`open.bigmodel.cn/api/paas/v4`）
+
+来源：docs.bigmodel.cn → 模型概览 + GLM-5.1 + GLM-5V-Turbo + 深度思考（2026-06 获取）
+
+**文本模型：**
+
+| 模型 ID | 上下文 | 最大输出 | 思考 | 视觉 | 状态 |
+|---------|--------|---------|------|------|------|
+| `glm-5.1` | 200K | 128K | 强制启用 | 否 | 在线（最新旗舰） |
+| `glm-5` | 200K | 128K | 强制启用 | 否 | 在线 |
+| `glm-5-turbo` | 200K | 128K | 支持 | 否 | 在线 |
+| `glm-4.7` | 200K | 128K | 强制启用 | 否 | 在线 |
+| `glm-4.7-flash` | 200K | 128K | 支持 | 否 | 在线（免费） |
+| `glm-4.6` | 200K | 128K | 支持 | 否 | 在线 |
+| `glm-4.5-air` | 128K | 96K | 支持 | 否 | 在线 |
+| `glm-4-long` | 1M | 4K | 否 | 否 | 在线 |
+
+**视觉模型：**
+
+| 模型 ID | 上下文 | 最大输出 | 思考 | 视觉输入 | 状态 |
+|---------|--------|---------|------|---------|------|
+| `glm-5v-turbo` | 200K | 128K | 支持 | 图片+视频+文件 | 在线（多模态 Coding） |
+| `glm-4.6v` | 128K | 32K | 支持 | 图片 | 在线 |
+| `glm-4.6v-flash` | 128K | 32K | 支持 | 图片 | 在线（免费） |
+| `glm-4v-flash` | 16K | 1K | 否 | 图片 | 在线（免费） |
+
+关键差异：
+- 思考模式通过 `thinking: {"type": "enabled/disabled"}` 控制
+- GLM-5.1/5/4.7/4.5v 系列**强制启用**思考，不可 disabled
+- 思维链通过 `message.reasoning_content` 返回（与 DeepSeek/Kimi 一致）
+- 视觉输入支持 `image_url`、`video_url`、`file_url`
+- 结构化输出：`response_format` 只支持 `json_object`（不支持 `json_schema`），需在 prompt 中引导 JSON 格式
+- `temperature` 范围 [0, 1]，思考模式推荐 1.0
+- 使用 zai-sdk（非 OpenAI SDK），但 API 兼容 OpenAI 格式
+- 已弃用模型：GLM-Z1 系列（2025-11-15）、GLM-4-0520（2025-12-30）
+
+##### MiMo（`api.xiaomimimo.com`）
+
+来源：XMiMo 官方文档 → 模型与限速 + 模型超参 + OpenAI API 兼容 + 首次调用 API（2026-06-02/03 更新）
+
+| 模型 ID | 上下文 | 最大输出 | 思考 | 结构化输出 | 多模态 | RPM | 备注 |
+|---------|--------|---------|------|----------|--------|-----|------|
+| `mimo-v2.5-pro` | 1M | 128K | 默认启用 | json_object | 否 | 100 | 最强推理 |
+| `mimo-v2-pro` | 1M | 128K | 默认启用 | json_object | 否 | 100 | 同 v2.5-pro |
+| `mimo-v2.5` | 1M | 128K | 默认启用 | json_object | 图片/音频/视频 | - | 全模态理解 |
+| `mimo-v2-omni` | 256K | 128K | 默认启用 | json_object | 图片/音频/视频 | - | 全模态 |
+| `mimo-v2-flash` | 256K | 64K | 默认禁用 | json_object | 否 | - | 低成本快速 |
+
+关键差异：
+- `temperature` 范围 **[0, 1.5]**（非 [0, 1]）
+- 思考模式下 pro/omni 强制 `temperature=1.0, top_p=0.95`，不可自定义
+- `mimo-v2-flash` 默认 thinking 为 disabled
+- `response_format` 支持 `json_object`（非 `json_schema`）
+- 思维链通过 `message.reasoning_content` 返回（与 DeepSeek/Kimi/GLM 一致）
+- 思考模式下多轮工具调用需保留历史 `reasoning_content`
+- 支持 `developer` 角色消息（区别于 `system`）
+- 同时支持 OpenAI API 和 Anthropic API 格式
+- Base URL: `https://api.xiaomimimo.com/v1`（标准）/ `https://token-plan-cn.xiaomimimo.com/v1`（Token Plan）
 
 ### 5.5 安全模块
 

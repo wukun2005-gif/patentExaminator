@@ -467,7 +467,8 @@ describe("getModelCapabilities", () => {
   it("returns reasoning capabilities for mimo-v2 models", () => {
     const caps = getModelCapabilities("mimo-v2.5-pro");
     expect(caps.isReasoning).toBe(true);
-    expect(caps.contextWindow).toBe(131_072);
+    expect(caps.contextWindow).toBe(1_048_576);
+    expect(caps.maxOutputTokens).toBe(131_072);
     expect(caps.supportsVision).toBe(false);
   });
 
@@ -479,7 +480,8 @@ describe("getModelCapabilities", () => {
   it("matches OpenRouter prefixed models (longest prefix wins)", () => {
     const caps = getModelCapabilities("anthropic/claude-opus-4-8");
     expect(caps.isReasoning).toBe(true);
-    expect(caps.contextWindow).toBe(200_000);
+    expect(caps.contextWindow).toBe(1_048_576);
+    expect(caps.maxOutputTokens).toBe(131_072);
   });
 
   it("returns default caps for unknown models", () => {
@@ -494,7 +496,7 @@ describe("getModelCapabilities", () => {
     expect(gemini.temperature.range).toEqual([0, 2]);
 
     const mimo = getModelCapabilities("mimo-v2.5-pro");
-    expect(mimo.temperature.range).toEqual([0, 1]);
+    expect(mimo.temperature.range).toEqual([0, 1.5]);
 
     const deepseekReasoner = getModelCapabilities("deepseek-reasoner");
     expect(deepseekReasoner.temperature.supported).toBe(false);
@@ -505,7 +507,46 @@ describe("getModelCapabilities", () => {
     expect(gemini.supportsStructuredOutput).toBe(true);
 
     const mimo = getModelCapabilities("mimo-v2.5-pro");
-    expect(mimo.supportsStructuredOutput).toBe(false);
+    expect(mimo.supportsStructuredOutput).toBe(true);
+  });
+
+  it("returns reasoning capabilities for doubao-seed-2.0 models", () => {
+    const caps = getModelCapabilities("doubao-seed-2-0-pro-260215");
+    expect(caps.isReasoning).toBe(true);
+    expect(caps.contextWindow).toBe(262_144);
+    expect(caps.maxOutputTokens).toBe(131_072);
+    expect(caps.supportsVision).toBe(true);
+    expect(caps.supportsStructuredOutput).toBe(false);
+    expect(caps.systemPromptMode).toBe("message");
+  });
+
+  it("doubao-seed-2-0-lite/mini-260215 support structured output", () => {
+    const lite = getModelCapabilities("doubao-seed-2-0-lite-260215");
+    expect(lite.supportsStructuredOutput).toBe(true);
+    const mini = getModelCapabilities("doubao-seed-2-0-mini-260215");
+    expect(mini.supportsStructuredOutput).toBe(true);
+  });
+
+  it("returns reasoning capabilities for doubao-seed-1.6 models", () => {
+    const caps = getModelCapabilities("doubao-seed-1-6-250615");
+    expect(caps.isReasoning).toBe(true);
+    expect(caps.contextWindow).toBe(262_144);
+    expect(caps.maxOutputTokens).toBe(32_768);
+    expect(caps.supportsStructuredOutput).toBe(true);
+    expect(caps.supportsVision).toBe(true);
+  });
+
+  it("doubao-seed-character is non-reasoning", () => {
+    const caps = getModelCapabilities("doubao-seed-character-251128");
+    expect(caps.isReasoning).toBe(false);
+    expect(caps.contextWindow).toBe(131_072);
+    expect(caps.supportsVision).toBe(false);
+  });
+
+  it("doubao-1-5-vision supports vision", () => {
+    const caps = getModelCapabilities("doubao-1-5-vision-pro-32k-250115");
+    expect(caps.supportsVision).toBe(true);
+    expect(caps.isReasoning).toBe(false);
   });
 });
 
@@ -534,7 +575,27 @@ describe("isReasoningModel extended regex", () => {
   });
 
   it("matches doubao models", () => {
-    expect(isReasoningModel("doubao-1.5-pro-32k")).toBe(true);
+    expect(isReasoningModel("doubao-1.5-pro-32k")).toBe(false);
+  });
+
+  it("matches doubao-seed-2.0 models as reasoning", () => {
+    expect(isReasoningModel("doubao-seed-2-0-pro-260215")).toBe(true);
+    expect(isReasoningModel("doubao-seed-2-0-lite-260215")).toBe(true);
+    expect(isReasoningModel("doubao-seed-2-0-mini-260215")).toBe(true);
+    expect(isReasoningModel("doubao-seed-2-0-lite-260428")).toBe(true);
+    expect(isReasoningModel("doubao-seed-2-0-mini-260428")).toBe(true);
+  });
+
+  it("matches doubao-seed-1.6 models as reasoning", () => {
+    expect(isReasoningModel("doubao-seed-1-6-250615")).toBe(true);
+    expect(isReasoningModel("doubao-seed-1-6-251015")).toBe(true);
+    expect(isReasoningModel("doubao-seed-1-6-flash-250828")).toBe(true);
+    expect(isReasoningModel("doubao-seed-1-6-vision-250815")).toBe(true);
+    expect(isReasoningModel("doubao-seed-code-preview-251028")).toBe(true);
+  });
+
+  it("doubao-seed-character is NOT reasoning", () => {
+    expect(isReasoningModel("doubao-seed-character-251128")).toBe(false);
   });
 
   it("matches all gemini-N models (not just 2.5/3.5)", () => {

@@ -10,10 +10,14 @@ const BEDROCK_OPENAI_COMPAT_BASE_URL = "https://bedrock-mantle.us-east-1.api.aws
 
 // Common Bedrock model IDs (user can configure custom models too)
 const DEFAULT_MODELS = [
+  // ── Claude Opus 4.8（1M/128K，推理+视觉）──
+  "anthropic.claude-opus-4-8-v1:0",
+  // ── Claude 3.5/3 系列 ──
   "anthropic.claude-3-5-sonnet-20241022-v2:0",
   "anthropic.claude-3-5-haiku-20241022-v1:0",
   "anthropic.claude-3-sonnet-20240229-v1:0",
   "anthropic.claude-3-haiku-20240307-v1:0",
+  // ── Meta Llama ──
   "meta.llama3-2-3b-instruct-v1:0",
   "meta.llama3-2-1b-instruct-v1:0",
 ];

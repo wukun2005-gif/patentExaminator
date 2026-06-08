@@ -11,7 +11,7 @@ function isTextModel(id: string): boolean {
 }
 
 // L2 regex: 宽松兜底 — 宁可误判放大，不要漏判导致崩溃
-const REASONING_MODEL_PATTERNS = /mimo|r1\b|o[134]\b|reasoner|thinking|gemini-\d|glm-\d|k2\.[56]|deepseek-v[34]|kimi-k2|gpt-5|doubao/i;
+const REASONING_MODEL_PATTERNS = /mimo|r1\b|o[134]\b|reasoner|thinking|gemini-\d|glm-\d|k2\.[56]|deepseek-v[34]|kimi-k2|gpt-5|doubao-seed-\d/i;
 const REASONING_MAX_TOKENS_MULTIPLIER = 4;
 
 // L1 运行时缓存：modelId → isReasoning（从 API 响应中学到的）
@@ -291,13 +291,21 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
     const text = (typeof message?.content === "string" ? message.content : "") as string;
     console.log(`[MIMO-DEBUG] choices=${choices.length} textLen=${text.length} finishReason=${firstChoice?.finish_reason}`);
 
-    // D1: 提取 thinking tokens（三层信号）
+    // D1: 提取 thinking tokens（四层信号）
     const thinkingTokensFromUsage = usage?.completion_tokens_details?.reasoning_tokens ?? usage?.reasoning_tokens ?? 0;
     const reasoningContent = typeof message?.reasoning_content === "string" ? message.reasoning_content : undefined;
     const reasoningFromMessage = typeof message?.reasoning === "string" ? message.reasoning : undefined; // OpenRouter
+    // OpenRouter Claude: reasoning_details 数组，每项有 type="text" 和 text 字段
+    const reasoningDetails = Array.isArray(message?.reasoning_details)
+      ? message.reasoning_details
+          .filter((d: Record<string, unknown>) => d.type === "text" && typeof d.text === "string")
+          .map((d: Record<string, unknown>) => d.text as string)
+          .join("")
+      : undefined;
     const thinkingTokens = thinkingTokensFromUsage ||
       (reasoningContent ? 1 : 0) ||
-      (reasoningFromMessage ? 1 : 0);
+      (reasoningFromMessage ? 1 : 0) ||
+      (reasoningDetails ? 1 : 0);
 
     learnThinkingCapability(req.modelId, thinkingTokens);
     console.log(`[MIMO-DEBUG] thinkingTokens=${thinkingTokens} reasoningLen=${reasoningContent?.length ?? 0}`);
@@ -330,7 +338,7 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
       text,
       ...(tokenUsage ? { tokenUsage } : {}),
       thinkingTokens: thinkingTokens > 0 ? thinkingTokens : undefined,
-      reasoningText: reasoningContent || reasoningFromMessage || undefined,
+      reasoningText: reasoningContent || reasoningFromMessage || reasoningDetails || undefined,
       rawResponse: data
     };
   }

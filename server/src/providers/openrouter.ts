@@ -7,17 +7,20 @@ export class OpenRouterAdapter extends OpenAICompatibleAdapter {
 
   supportedModels(): string[] {
     return [
-      "openai/gpt-4o",
-      "openai/gpt-4o-mini",
+      // ── 推理模型 ──
+      "openai/gpt-5.5",
       "anthropic/claude-opus-4-8",
-      "anthropic/claude-3.5-sonnet",
-      "anthropic/claude-3-haiku",
       "google/gemini-2.5-pro",
       "google/gemini-2.5-flash",
-      "deepseek/deepseek-chat",
       "deepseek/deepseek-r1",
-      "meta-llama/llama-4-maverick",
       "qwen/qwen3-235b-a22b",
+      // ── 非推理模型 ──
+      "openai/gpt-4o",
+      "openai/gpt-4o-mini",
+      "anthropic/claude-3.5-sonnet",
+      "anthropic/claude-3-haiku",
+      "deepseek/deepseek-chat",
+      "meta-llama/llama-4-maverick",
     ];
   }
 }

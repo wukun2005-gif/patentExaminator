@@ -30,7 +30,8 @@ const PROVIDER_NAMES: Record<ProviderId, string> = {
   qwen: "Qwen",
   bedrock: "Bedrock",
   openrouter: "OpenRouter",
-  opencode: "OpenCode"
+  opencode: "OpenCode",
+  doubao: "豆包"
 };
 
 export function AgentsAssignmentPanel() {
