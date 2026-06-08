@@ -46,11 +46,22 @@ async function extractPdf(buffer: Buffer): Promise<ExtractionResult> {
       standardFontDataUrl: path.join(pdfjsDir, "standard_fonts") + "/",
     }).promise;
     const texts: string[] = [];
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = reconstructParagraphs(content.items);
-      texts.push(pageText);
+    // Suppress pdfjs-dist internal warnings (e.g. font null-ref) during text extraction
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      const msg = String(args[0] ?? "");
+      if (msg.includes("getTextContent") || msg.includes("GetTextContent")) return;
+      originalWarn.apply(console, args);
+    };
+    try {
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = reconstructParagraphs(content.items);
+        texts.push(pageText);
+      }
+    } finally {
+      console.warn = originalWarn;
     }
     return { text: texts.join("\n\n"), mediaType: "text" };
   } catch (err) {

@@ -221,9 +221,12 @@ describe("OpenAICompatibleAdapter.listModels()", () => {
   });
 
   it("returns model IDs on success", async () => {
+    // First call: /models endpoint
     mockFetch.mockResolvedValueOnce(
       mockResponse({ body: { data: [{ id: "model-a" }, { id: "model-b" }] } })
     );
+    // Verification calls: /chat/completions for each model
+    mockFetch.mockResolvedValue(mockResponse({ body: { choices: [{ message: { content: "ok" } }] } }));
 
     const adapter = new TestAdapter();
     const models = await adapter.listModels("test-key");

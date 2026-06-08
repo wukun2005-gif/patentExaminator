@@ -133,7 +133,6 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
         if (!res.ok) {
           const body = await res.text().catch(() => "");
           const err = new Error(`Failed to list models for ${this.id}: ${res.status} ${body}`);
-          // Don't retry auth errors
           if (res.status === 401 || res.status === 403) throw err;
           lastError = err;
           if (attempt < MAX_RETRIES) {
@@ -144,10 +143,12 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
         }
         const data = (await res.json()) as { data: Array<{ id: string }> };
         const ids = data.data.map((m) => m.id).filter((id) => isTextModel(id));
-        return ids.sort();
+        // Verify each model is actually callable (API may list models that return 404 on chat)
+        const verified = await this.verifyModels(ids, apiKey, base);
+        return verified.sort();
       } catch (e) {
         if (e instanceof Error && (e.message.includes("401") || e.message.includes("403"))) {
-          throw e; // Don't retry auth errors
+          throw e;
         }
         lastError = e instanceof Error ? e : new Error(String(e));
         if (attempt < MAX_RETRIES) {
@@ -156,6 +157,46 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
       }
     }
     throw lastError ?? new Error(`Failed to list models for ${this.id}`);
+  }
+
+  /** Verify models are callable by sending a lightweight chat request to each. */
+  private async verifyModels(modelIds: string[], apiKey: string, baseUrl: string): Promise<string[]> {
+    const CONCURRENCY = 3;
+    const TIMEOUT_MS = 10_000;
+    const verified: string[] = [];
+    const queue = [...modelIds];
+
+    const check = async (modelId: string): Promise<string | null> => {
+      try {
+        const res = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 1 }),
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        return res.ok ? modelId : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const workers: Promise<void>[] = [];
+    for (let i = 0; i < CONCURRENCY; i++) {
+      workers.push((async () => {
+        while (queue.length > 0) {
+          const id = queue.shift();
+          if (!id) break;
+          const result = await check(id);
+          if (result) verified.push(result);
+        }
+      })());
+    }
+    await Promise.all(workers);
+    logger.info(`[listModels] ${this.id}: ${modelIds.length} returned by API, ${verified.length} verified callable`);
+    return verified;
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
