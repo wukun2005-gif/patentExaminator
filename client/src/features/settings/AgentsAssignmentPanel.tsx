@@ -31,7 +31,7 @@ const PROVIDER_NAMES: Record<ProviderId, string> = {
   bedrock: "Bedrock",
   openrouter: "OpenRouter",
   opencode: "OpenCode",
-  doubao: "豆包"
+  doubao: "火山"
 };
 
 export function AgentsAssignmentPanel() {
