@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // ---------------------------------------------------------------------------
 
 function escapeCqlTerm(term: string): string {
-  return term.replace(/"/g, '\\"');
+  return term.replace(/"/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function buildCqlQuery(searchTerms: string): string {
@@ -22,12 +22,12 @@ function buildCqlQuery(searchTerms: string): string {
     if (/^[A-H][0-9][0-9][A-Z]/.test(t)) {
       return `ipc any "${escaped}"`;
     }
-    return `ti any "${escaped}" OR ab any "${escaped}" OR cl any "${escaped}"`;
+    return `ti all "${escaped}" OR ab all "${escaped}" OR cl all "${escaped}"`;
   });
 
   if (conditions.length === 0) {
     const escaped = escapeCqlTerm(searchTerms);
-    return `ti any "${escaped}" OR ab any "${escaped}" OR cl any "${escaped}"`;
+    return `ti all "${escaped}" OR ab all "${escaped}" OR cl all "${escaped}"`;
   }
 
   return conditions.join(" AND ");
@@ -38,10 +38,10 @@ function buildCqlQuery(searchTerms: string): string {
 // ---------------------------------------------------------------------------
 
 describe("buildCqlQuery", () => {
-  it("single term produces valid CQL with ti/ab/cl indexes", () => {
+  it("single term (2 words) produces valid CQL with ti/ab/cl indexes", () => {
     const cql = buildCqlQuery("LED散热模组 相变材料");
     expect(cql).toBe(
-      'ti any "LED散热模组 相变材料" OR ab any "LED散热模组 相变材料" OR cl any "LED散热模组 相变材料"'
+      'ti all "LED散热模组 相变材料" OR ab all "LED散热模组 相变材料" OR cl all "LED散热模组 相变材料"'
     );
   });
 
@@ -49,9 +49,9 @@ describe("buildCqlQuery", () => {
     const cql = buildCqlQuery("LED散热模组 相变材料 | 相变材料层 45-65°C | LED heatsink");
     expect(cql).toContain(" AND ");
     for (const term of ["LED散热模组 相变材料", "相变材料层 45-65°C", "LED heatsink"]) {
-      expect(cql).toContain(`ti any "${term}"`);
-      expect(cql).toContain(`ab any "${term}"`);
-      expect(cql).toContain(`cl any "${term}"`);
+      expect(cql).toContain(`ti all "${term}"`);
+      expect(cql).toContain(`ab all "${term}"`);
+      expect(cql).toContain(`cl all "${term}"`);
     }
   });
 
@@ -64,13 +64,13 @@ describe("buildCqlQuery", () => {
     const cql = buildCqlQuery("LED散热 | H01L33/00");
     expect(cql).toContain(" AND ");
     expect(cql).toContain('ipc any "H01L33/00"');
-    expect(cql).toContain('ti any "LED散热"');
+    expect(cql).toContain('ti all "LED散热"');
   });
 
   it("empty input falls back to original searchTerms", () => {
     const cql = buildCqlQuery("test query");
-    expect(cql).toContain('ti any "test query"');
-    expect(cql).toContain('ab any "test query"');
+    expect(cql).toContain('ti all "test query"');
+    expect(cql).toContain('ab all "test query"');
   });
 
   it("never uses 'desc' index", () => {
@@ -87,7 +87,7 @@ describe("buildCqlQuery", () => {
     const validIndexes = ["ti", "ab", "cl", "ipc"];
     for (const input of testCases) {
       const cql = buildCqlQuery(input);
-      const indexPattern = /\b(\w+)\s+any\b/g;
+      const indexPattern = /\b(\w+)\s+any(?:\b|\s)/g;
       let match: RegExpExecArray | null;
       while ((match = indexPattern.exec(cql)) !== null) {
         expect(validIndexes).toContain(match[1]);
@@ -97,44 +97,51 @@ describe("buildCqlQuery", () => {
 
   it("handles empty spaces around pipe separators", () => {
     const cql = buildCqlQuery("  term1  |  term2  ");
-    expect(cql).toContain('ti any "term1"');
-    expect(cql).toContain('ti any "term2"');
+    expect(cql).toContain('ti all "term1"');
+    expect(cql).toContain('ti all "term2"');
     expect(cql).toContain(" AND ");
   });
 
   it("filters out empty terms from extra pipes", () => {
     const cql = buildCqlQuery("term1 || term2");
     expect(cql).not.toContain('""');
-    expect(cql).toContain('ti any "term1"');
-    expect(cql).toContain('ti any "term2"');
+    expect(cql).toContain('ti all "term1"');
+    expect(cql).toContain('ti all "term2"');
+  });
+
+  it("uses 'all' for multi-word terms (words any order, not exact phrase)", () => {
+    const cql = buildCqlQuery("LED phase change cooling");
+    // All 4 words searched together with 'all' (any order), not split
+    expect(cql).toBe(
+      'ti all "LED phase change cooling" OR ab all "LED phase change cooling" OR cl all "LED phase change cooling"'
+    );
   });
 
   // --- CQL injection prevention (td-22) ---
 
-  it("escapes double quotes in search terms to prevent CQL injection", () => {
-    const cql = buildCqlQuery('term" OR ti any "injected');
-    // The embedded double quote must be escaped so the CQL remains valid
-    expect(cql).toContain('ti any "term\\" OR ti any \\"injected"');
-    // Must NOT contain an unescaped injected clause
-    expect(cql).not.toContain('ti any "injected"');
+  it("strips double quotes to prevent CQL injection", () => {
+    const cql = buildCqlQuery('term" OR ti all "injected');
+    // Quotes stripped → "term OR ti all injected" treated as one search phrase
+    expect(cql).toContain('ti all "term OR ti all injected"');
   });
 
-  it("escapes double quotes in IPC-like terms", () => {
-    // Even if the term starts with IPC pattern, quotes inside must be escaped
+  it("strips double quotes in IPC-like terms", () => {
     const cql = buildCqlQuery('H01L"33/00');
-    expect(cql).toContain('\\"');
+    // Quote stripped → "H01L 33/00", detected as IPC pattern
+    expect(cql).toContain('ipc any "H01L 33/00"');
     expect(cql).not.toContain('H01L"33/00');
   });
 
   it("handles terms with only double quotes", () => {
     const cql = buildCqlQuery('"');
-    // Should escape to \" and not crash
-    expect(cql).toContain('\\"');
+    // Quote stripped → empty string; should not crash
+    expect(cql).toContain('ti all ""');
   });
 
-  it("escapes multiple double quotes in a single term", () => {
+  it("strips multiple double quotes in a single term", () => {
     const cql = buildCqlQuery('a"b"c');
-    expect(cql).toContain('a\\"b\\"c');
+    // Quotes stripped → "a b c" as one phrase
+    expect(cql).toContain('ti all "a b c"');
   });
 
   // --- IPC classification detection (td-22) ---
@@ -149,20 +156,20 @@ describe("buildCqlQuery", () => {
 
   it("does NOT treat lowercase-starting terms as IPC", () => {
     const cql = buildCqlQuery("h01L33/00");
-    expect(cql).toContain("ti any");
+    expect(cql).toContain("ti all");
     expect(cql).not.toContain("ipc any");
   });
 
   it("does NOT treat terms starting with I-Z as IPC", () => {
     const cql = buildCqlQuery("J01L33/00");
-    expect(cql).toContain("ti any");
+    expect(cql).toContain("ti all");
     expect(cql).not.toContain("ipc any");
   });
 
   it("requires 3rd char to be a digit for IPC match", () => {
     // H01L => IPC, H0AB => not IPC (3rd char is not digit)
     const cql = buildCqlQuery("H0AB");
-    expect(cql).toContain("ti any");
+    expect(cql).toContain("ti all");
     expect(cql).not.toContain("ipc any");
   });
 
@@ -215,25 +222,35 @@ describe("buildCqlQuery", () => {
 
     function mockSearchOk(results: Array<{ title: string; pubNum: string }>) {
       const exchangeDocs = results.map((r) => ({
+        "@country": "EP",
+        "@doc-number": r.pubNum,
+        "@kind": "A1",
         "bibliographic-data": {
           "publication-reference": {
-            "document-id": {
-              "doc-number": r.pubNum,
-              "kind": "A1",
-              "country": "EP",
-              "date": "20240101"
-            }
+            "document-id": [
+              {
+                "@document-id-type": "docdb",
+                "country": { "$": "EP" },
+                "doc-number": { "$": r.pubNum },
+                "kind": { "$": "A1" },
+                "date": { "$": "20240101" }
+              }
+            ]
           },
-          "invention-title": r.title,
-          "abstract": `Abstract for ${r.title}`
+          "invention-title": [{ "$": r.title, "@lang": "en" }],
+          "abstract": [{ "$": `Abstract for ${r.title}`, "@lang": "en" }]
         }
       }));
 
       return new Response(
         JSON.stringify({
           "ops:world-patent-data": {
-            "ops:search-retrieval": {
-              "ops:exchange-documents": exchangeDocs
+            "ops:biblio-search": {
+              "ops:search-result": {
+                "exchange-documents": {
+                  "exchange-document": exchangeDocs
+                }
+              }
             }
           }
         }),
