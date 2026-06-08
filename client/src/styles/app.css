@@ -4885,6 +4885,48 @@ select.inline-edit-input {
   white-space: nowrap;
 }
 
+.provider-error-box__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.provider-error-box__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.provider-error-box__expand-btn {
+  border: none;
+  background: none;
+  color: var(--pex-color-primary);
+  font-size: var(--pex-font-size-caption);
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.provider-error-box__expand-btn:hover {
+  text-decoration: underline;
+}
+
+.provider-error-box__details {
+  margin-top: 8px;
+  padding: 8px 10px;
+  font-size: var(--pex-font-size-body-sm);
+  color: var(--pex-color-text-secondary);
+  background: var(--pex-color-bg-card);
+  border-radius: var(--pex-radius-sm);
+  border: 1px solid var(--pex-color-border-default);
+  word-break: break-all;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
 .provider-error-box__message {
   font-size: var(--pex-font-size-body-sm);
   color: var(--pex-color-text-primary);
