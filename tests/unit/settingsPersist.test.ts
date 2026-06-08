@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * 持久化自动测试 — Client 完整链路
  * =================================
@@ -54,15 +55,6 @@ function getLastPostBody(urlPattern: string, method = "POST"): Record<string, un
   return JSON.parse((calls[calls.length - 1]![1] as RequestInit).body as string);
 }
 
-/** 统计特定 URL 的 fetch 调用次数 */
-function countCalls(urlPattern: string, method?: string): number {
-  return mockFetch.mock.calls.filter((c: unknown[]) => {
-    if (typeof c[0] !== "string" || !c[0].includes(urlPattern)) return false;
-    if (method && (c[1] as RequestInit)?.method !== method) return false;
-    return true;
-  }).length;
-}
-
 /** 模拟 DB 返回数据（GET /api/data/:store/:id） */
 function mockDbGet(store: string, id: string, record: Record<string, unknown>) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
@@ -71,16 +63,6 @@ function mockDbGet(store: string, id: string, record: Record<string, unknown>) {
     }
     if (typeof url === "string" && url.includes(`/api/data/${store}`) && !init?.method) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, records: [{ id, ...record }] }) });
-    }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
-  });
-}
-
-/** 模拟 DB 返回空（GET 404） */
-function mockDbEmpty(store: string) {
-  mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-    if (typeof url === "string" && url.includes(`/api/data/${store}`) && !init?.method) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, records: [] }) });
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
   });

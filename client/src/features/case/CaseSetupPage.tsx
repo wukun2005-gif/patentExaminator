@@ -12,7 +12,7 @@ import { extractCaseFields, extractCaseFieldsFallback, type ExtractedFields } fr
 import { createDocument, readDocumentsByCaseId, updateDocument, deleteDocument } from "../../lib/repos";
 import { createClaimNode } from "../../lib/repos";
 import { readCaseById, createCase, updateCase } from "../../lib/repos";
-import { useCaseStore, useDocumentsStore, useClaimsStore, useSettingsStore, useReferencesStore } from "../../store";
+import { useCaseStore, useDocumentsStore, useClaimsStore, useSettingsStore } from "../../store";
 import { agentRun } from "../../lib/repos";
 import { createLogger } from "../../lib/logger";
 import { runOcr, type OcrProgress } from "../../lib/ocrWorker";
@@ -63,8 +63,7 @@ export function CaseSetupPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const { currentCase, setCurrentCase, updateWorkflowState } = useCaseStore();
   const { documents, addDocument, setDocuments } = useDocumentsStore();
-  const { claimNodes, setClaimNodes } = useClaimsStore();
-  const { references } = useReferencesStore();
+  const { setClaimNodes } = useClaimsStore();
   const { settings } = useSettingsStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchFileInputRef = useRef<HTMLInputElement>(null);

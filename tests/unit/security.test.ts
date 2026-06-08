@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { agentRun, searchWithTerms } from "@client/lib/repos";
 import { AiGatewayError } from "@shared/types/api";
 import type { ClaimChartResponse, SearchReferencesResponse } from "@shared/types/api";
@@ -171,7 +171,7 @@ describe("agentRun real mode", () => {
     // Mock fetch: first call returns search result with failed attempts,
     // second call (PATCH settings) succeeds
     let callCount = 0;
-    global.fetch = async (url, init) => {
+    global.fetch = async (url, _init) => {
       callCount++;
       const urlStr = String(url);
       if (urlStr.includes("/api/search-with-terms")) {
