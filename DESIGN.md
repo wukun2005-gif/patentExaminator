@@ -1145,6 +1145,31 @@ approxTokens = ceil(zhChars * 0.6 + latinChars * 0.3)
 
 发送确认框显示：`估算 Token ≈ {displayEstimate} + maxTokens {output}`；发送后用实际 usage 覆盖并累计到 `localMetrics`。
 
+### 6.6 MCP Tool Calling（NF1）
+
+**架构：**
+```
+Orchestrator (chat agent + webSearchEnabled)
+    → Tool Executor (tool loop, max 3 rounds)
+        → MCP Client (stdio subprocess)
+            → MCP Server (web_search tool, SerpAPI)
+    → Cross-Source Fusion (RAG + Web Search)
+    → Re-inject (final LLM call, no tools)
+```
+
+**关键设计决策：**
+- MCP transport：stdio（子进程），未来可升级 SSE/HTTP
+- 搜索 API：SerpAPI 统一覆盖 Google/Bing/Baidu，一个 key 三个引擎
+- 跨源融合：RAG + Web Search 结果合并，按引擎优先级排序
+- 触发范围：仅 chat agent，novelty/inventive 基于已提供对比文件
+- Tool loop 轮数：最多 3 轮，防止无限循环
+- Re-inject：最终回答不带 tools，防止循环
+
+**Provider Tool Calling 支持：**
+- OpenAI-compatible：SSE 流式 tool_calls 累加 + 非流式 message.tool_calls
+- Gemini：functionDeclarations 格式 + functionCall 响应解析
+- Bedrock：暂不支持（降级为纯文本）
+
 ---
 
 ## 7. 安全设计
@@ -1667,4 +1692,5 @@ Supabase（后端服务）
 | B-038 | 2026-06-02 | AgentClient 简化 1570→341 行 + Mock 迁移到后端 — 删除前端 MockProvider/mockRouter，/agent/run 支持 mock 模式 | AgentClient.ts, agent.ts, orchestrator.ts, router.tsx |
 | FEAT-044 | 2026-06-05 | RAG 知识库质量优化 — 法律文本按条切分、jieba 分词、Parent-Child chunk、BM25 长度归一化、动态 threshold、Multi-Query、MMR 多样性排序、法律文本 Reranking 权重调优、评估体系 | server/src/lib/legalChunker.ts, hybridSearch.ts, knowledgeDb.ts, knowledgeExtract.ts, orchestrator.ts, queryExpand.ts, reranker.ts, knowledge.ts, package.json |
 | FEAT-043 | 2026-06-05 | 持久化 bug 修复（BUG-132~140）— readSettings 补 5 个可选字段默认值、writeSettings 失败不再静默吞掉、setSettings/updateKnowledgeConfig 加 isInitialized 守卫、syncProviderKeys 失败更新 syncStatus.error | settingsSlice.ts, settingsPersist.test.ts, settings.test.ts, syncProviderKeys.test.ts |
+| NF1 | 2026-06-09 | Web Search MCP Server + Tool Calling — MCP Server（SerpAPI Google→Bing→Baidu fallback）、MCP Client（stdio 子进程管理）、Tool Loop（LLM 自主判断调用 web_search，最多 3 轮）、跨源融合排序（RAG + Web Search 合并）、ProviderAdapter tool_calls 解析（流式 SSE + 非流式 + Gemini functionCall）、仅 chat agent 触发 | server/src/mcp/web-search-server.ts, mcpClient.ts, lib/toolExecutor.ts, providers/ProviderAdapter.ts, providers/gemini.ts, providers/registry.ts, lib/orchestrator.ts, routes/agent.ts, shared/src/schemas/api-input.schema.ts |
 | BUG-172 | 2026-06-07 | AI 搜索文献 accept 后自动从 sourceUrl 抓取全文 — 新增 `/api/documents/extract-from-url` 端点，复用 knowledgeExtract.extractFromUrl()，前端 handleAccept 后异步抓取回填 extractedText，失败时静默降级到 summary | documents.ts, ReferenceSearchPanel.tsx, urlText.ts, api-input.schema.ts |

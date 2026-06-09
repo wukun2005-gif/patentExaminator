@@ -64,6 +64,8 @@ export interface AgentRunRequest {
   knowledgeReranker?: { baseUrl: string; apiKey: string; modelId: string } | undefined;
   /** B-041: 请求体传入的 API key（测试/外部调用用），优先于 keyStore */
   apiKey?: string | undefined;
+  /** NF1: 是否启用 web search tool calling */
+  webSearchEnabled?: boolean | undefined;
 }
 
 export interface AgentRunResponse {
@@ -73,6 +75,8 @@ export interface AgentRunResponse {
   attempts?: Array<{ providerId: string; ok: boolean; errorCode?: string }> | undefined;
   error?: { type: string; message: string; code?: string } | undefined;
   knowledgeCitations?: Array<{ source: string; sourceId?: string; article?: string; score: number; excerpt: string }> | undefined;
+  /** NF1: web search 引用 */
+  webSearchCitations?: Array<{ title: string; url: string; snippet: string; engine: string }> | undefined;
 }
 
 // ── Per-agent 请求类型 ──────────────────────────────────
@@ -967,7 +971,82 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       };
     }
 
-    // 3. 调用内部 AI Gateway
+    // 3. NF1: Chat agent + webSearchEnabled → 走 tool executor 路径
+    if (req.agent === "chat" && req.webSearchEnabled) {
+      logger.info(`[Orchestrator] NF1: chat agent with webSearchEnabled, using tool executor`);
+      try {
+        const { executeWithTools } = await import("./toolExecutor.js");
+
+        const TEMPERATURE_BY_AGENT: Record<string, number> = {
+          "claim-chart": 0, "novelty": 0, "inventive": 0.2, "interpret": 0.3,
+          "draft": 0.3, "chat": 0.5, "summary": 0, "classify-documents": 0,
+          "extract-case-fields": 0, "opinion-analysis": 0, "argument-analysis": 0,
+          "reexam-draft": 0.2, "defects": 0, "translate": 0,
+        };
+        const agentTemperature = TEMPERATURE_BY_AGENT[req.agent] ?? 0;
+
+        const toolResult = await executeWithTools({
+          systemPrompt: promptParts.system,
+          userPrompt: enhancedUserPrompt,
+          ragCitations: citations,
+          query,
+          ...(req.modelId !== undefined && { modelId: req.modelId }),
+          callLLM: async (overrides) => {
+            // 构建包含 tool 消息的完整请求
+            const { registry } = await import("../providers/registry.js");
+            const { getApiKey: getKey } = await import("../security/keyStore.js");
+
+            const providerApiKeys: Record<string, string> = {};
+            for (const pid of req.providerPreference ?? []) {
+              const key = req.apiKey ?? getKey(pid);
+              if (key) providerApiKeys[pid] = key;
+            }
+
+            const chatReq: ChatRequest = {
+              modelId: req.modelId ?? "",
+              messages: (overrides?.messages ?? [
+                { role: "system", content: promptParts.system },
+                { role: "user", content: enhancedUserPrompt },
+              ]) as ChatRequest["messages"],
+              apiKey: "",
+              ...(req.maxTokens !== undefined && { maxTokens: req.maxTokens }),
+              temperature: agentTemperature,
+              ...(req.signal !== undefined && { signal: req.signal }),
+              ...(overrides?.tools && overrides.tools.length > 0 && { tools: overrides.tools }),
+              ...(overrides?.tool_choice !== undefined && { tool_choice: overrides.tool_choice }),
+            };
+
+            const result = await registry.runWithFallback(
+              req.providerPreference ?? [],
+              chatReq,
+              undefined,
+              req.modelFallbacks,
+              req.enableModelFallback,
+              req.providerBaseUrls,
+              providerApiKeys
+            );
+
+            return {
+              text: result.response.text,
+              ...(result.response.toolCalls ? { toolCalls: result.response.toolCalls } : {}),
+              ...(result.response.error ? { error: { code: result.response.error.code, message: result.response.error.message } } : {}),
+            };
+          },
+        });
+
+        return {
+          ok: true,
+          output: { reply: toolResult.answer },
+          webSearchCitations: toolResult.webSearchCitations,
+          knowledgeCitations: citations.length > 0 ? citations : undefined,
+        };
+      } catch (toolErr) {
+        logger.warn(`[Orchestrator] NF1 tool executor failed, falling back to plain LLM: ${toolErr}`);
+        // 降级到普通 LLM 调用
+      }
+    }
+
+    // 4. 调用内部 AI Gateway（普通路径）
     // 简单任务的 maxTokens 上限（防止推理模型过度思考）
     const SIMPLE_AGENT_MAX_TOKENS: Record<string, number> = {
       "classify-documents": 1024,  // ×4 推理倍数后 = 4096，足够分类 JSON
@@ -978,8 +1057,8 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       ? Math.min(req.maxTokens ?? agentMaxCap, agentMaxCap)  // 取更小值
       : req.maxTokens;
 
-    // 复杂推理 agent 需要更长超时（MiMo reasoning tokens 耗时）
-    const HEAVY_AGENT_TIMEOUT_MS = 180_000;
+    // 复杂推理 agent 需要更长超时（reasoning tokens + 长文本生成耗时）
+    const HEAVY_AGENT_TIMEOUT_MS = 300_000;
     const HEAVY_AGENTS = new Set(["inventive", "novelty", "defects", "claim-chart", "opinion-analysis", "argument-analysis"]);
     const agentTimeoutMs = HEAVY_AGENTS.has(req.agent) ? HEAVY_AGENT_TIMEOUT_MS : undefined;
 
@@ -1203,6 +1282,10 @@ interface InternalGatewayRequest {
   signal?: AbortSignal | undefined;
   apiKey?: string | undefined;
   timeoutMs?: number | undefined;
+  /** NF1: tool definitions */
+  tools?: import("../providers/ProviderAdapter.js").ToolDefinition[] | undefined;
+  /** NF1: tool choice strategy */
+  tool_choice?: "auto" | "none" | "required" | undefined;
 }
 
 interface InternalGatewayResponse {
@@ -1210,6 +1293,8 @@ interface InternalGatewayResponse {
   tokenUsage?: { input: number; output: number; total: number } | undefined;
   attempts?: Array<{ providerId: string; ok: boolean; errorCode?: string; message?: string }> | undefined;
   error?: { code: string; message: string; retryable: boolean } | undefined;
+  /** NF1: tool calls from LLM */
+  toolCalls?: import("../providers/ProviderAdapter.js").ToolCall[] | undefined;
 }
 
 async function callInternalGateway(req: InternalGatewayRequest): Promise<InternalGatewayResponse> {
@@ -1237,6 +1322,9 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
     ...(req.temperature !== undefined && { temperature: req.temperature }),
     ...(req.signal !== undefined && { signal: req.signal }),
     ...(req.timeoutMs !== undefined && { timeoutMs: req.timeoutMs }),
+    // NF1: pass tools if provided
+    ...(req.tools && req.tools.length > 0 && { tools: req.tools }),
+    ...(req.tool_choice && { tool_choice: req.tool_choice }),
   };
 
   const result = await registry.runWithFallback(
@@ -1252,7 +1340,7 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
   if (result.response.error) {
     logger.warn(`[Gateway] LLM 调用失败: code=${result.response.error.code}, message=${result.response.error.message}, attempts=${result.attempts.map(a => `${a.providerId}(${a.errorCode ?? "ok"})`).join(", ")}`);
   } else {
-    logger.info(`[Gateway] LLM 调用成功: ${result.response.text.length} chars, attempts=${result.attempts.map(a => `${a.providerId}(${a.errorCode ?? "ok"})`).join(", ")}`);
+    logger.info(`[Gateway] LLM 调用成功: ${result.response.text.length} chars, toolCalls=${result.response.toolCalls?.length ?? 0}, attempts=${result.attempts.map(a => `${a.providerId}(${a.errorCode ?? "ok"})`).join(", ")}`);
   }
 
   return {
@@ -1260,5 +1348,6 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
     tokenUsage: result.response.tokenUsage,
     attempts: result.attempts,
     error: result.response.error,
+    toolCalls: result.response.toolCalls,
   };
 }

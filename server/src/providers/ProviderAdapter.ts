@@ -62,9 +62,39 @@ export function clearThinkingCache(): void {
   thinkingModelCache.clear();
 }
 
+// ── Tool Use 类型定义（NF1）──────────────────────────────────
+
+export interface ToolParameterProperty {
+  type: string;
+  description?: string;
+  enum?: string[];
+}
+
+export interface ToolDefinition {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, ToolParameterProperty>;
+      required?: string[];
+    };
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string; // JSON string
+  };
+}
+
 export interface ChatRequest {
   modelId: string;
-  messages: Array<{ role: "system" | "user" | "assistant"; content: string | MultimodalPart[] }>;
+  messages: Array<{ role: "system" | "user" | "assistant" | "tool"; content: string | MultimodalPart[]; tool_call_id?: string }>;
   temperature?: number;
   maxTokens?: number;
   apiKey: string;
@@ -77,6 +107,10 @@ export interface ChatRequest {
     type: "json_schema";
     json_schema: { name: string; strict: boolean; schema: Record<string, unknown> };
   };
+  /** NF1: tool definitions for function calling */
+  tools?: ToolDefinition[];
+  /** NF1: tool choice strategy ("auto" | "none" | "required") */
+  tool_choice?: "auto" | "none" | "required";
 }
 
 export interface ChatResponse {
@@ -86,6 +120,8 @@ export interface ChatResponse {
   reasoningText?: string;        // reasoning 内容文本（用于日志/调试）
   rawResponse: unknown;
   error?: { code: string; message: string; retryable: boolean };
+  /** NF1: tool calls returned by the model */
+  toolCalls?: ToolCall[];
 }
 
 export interface ProviderAdapter {
@@ -256,6 +292,12 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
       return { ...m, content: parts };
     });
 
+    // NF1: tool calling support
+    if (req.tools && req.tools.length > 0) {
+      body.tools = req.tools;
+      body.tool_choice = req.tool_choice ?? "auto";
+    }
+
     body.messages = messages;
     body.stream = true;
     body.stream_options = { include_usage: true };
@@ -283,93 +325,34 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
     console.log(`[${tag}] bodySize=${JSON.stringify(body).length} bytes`);
     const reqStartMs = Date.now();
 
-    let res: Response;
+    // Streaming 读取 + 一次性降级到非 streaming
+    // 策略：streaming 超时 → 尝试非 streaming 一次 → 仍失败 → 错误冒泡到 registry（Provider/Model fallback）
+    const STREAM_CHUNK_TIMEOUT_MS = 60_000; // streaming: 60 秒无新数据 → 判定流 hang
+    let buffer = "";
+
     try {
-      res = await fetch(url, fetchInit);
-    } catch (fetchErr) {
-      const elapsed = Date.now() - reqStartMs;
-      const errName = fetchErr instanceof Error ? fetchErr.name : "unknown";
-      const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-      const errCode = (fetchErr as NodeJS.ErrnoException)?.code ?? "none";
-      const errCause = fetchErr instanceof Error && fetchErr.cause
-        ? `cause={name=${(fetchErr.cause as Error)?.name} message=${(fetchErr.cause as Error)?.message} code=${(fetchErr.cause as NodeJS.ErrnoException)?.code}}`
-        : "cause=none";
-      console.log(`[${tag}] ──── FETCH ERROR ──── elapsed=${elapsed}ms`);
-      console.log(`[${tag}] name=${errName} code=${errCode} message=${errMsg}`);
-      console.log(`[${tag}] ${errCause}`);
-      console.log(`[${tag}] stack=${fetchErr instanceof Error ? fetchErr.stack?.split("\n").slice(0, 5).join(" | ") : "no stack"}`);
-      throw fetchErr;
-    }
-
-    const elapsed = Date.now() - reqStartMs;
-    console.log(`[${tag}] ──── RESPONSE ──── elapsed=${elapsed}ms`);
-    console.log(`[${tag}] status=${res.status} statusText=${res.statusText}`);
-    const resHeaders: Record<string, string> = {};
-    res.headers.forEach((v, k) => { resHeaders[k] = v; });
-    console.log(`[${tag}] responseHeaders=${JSON.stringify(resHeaders)}`);
-    const contentLength = res.headers.get("content-length");
-    const contentType = res.headers.get("content-type");
-    console.log(`[${tag}] contentLength=${contentLength} contentType=${contentType}`);
-
-    if (!res.ok) {
-      const errorBody = await res.text().catch(() => "");
-      console.log(`[${tag}] ──── HTTP ERROR ──── status=${res.status} body=${errorBody.slice(0, 500)}`);
-
-      // 容错：stream/stream_options 不被支持时，去掉后重试（回退到非 streaming）
-      if (res.status === 400 && (body.stream_options || body.stream)) {
-        console.log(`[${tag}] streaming may not be supported, retrying as non-streaming`);
-        delete body.stream_options;
+      buffer = await this.fetchAndReadStream(url, fetchInit, body, tag, reqStartMs, STREAM_CHUNK_TIMEOUT_MS);
+    } catch (streamErr) {
+      if (streamErr instanceof Error && (streamErr as Error & { streamTimeout?: boolean }).streamTimeout) {
+        // 流超时：降级到非 streaming（chunk timeout 不适用，registry timeout 兜底）
+        console.log(`[${tag}] ──── STREAM TIMEOUT, RETRY AS NON-STREAMING ────`);
         delete body.stream;
         fetchInit.body = JSON.stringify(body);
         try {
-          res = await fetch(url, fetchInit);
+          buffer = await this.fetchAndReadStream(url, fetchInit, body, tag, reqStartMs, 0);
         } catch (retryErr) {
-          const error = new Error(`Provider ${this.id} returned 400 (retry also failed): ${errorBody}`);
-          (error as Error & { status: number; providerId: ProviderId }).status = 400;
-          (error as Error & { status: number; providerId: ProviderId }).providerId = this.id;
-          throw error;
+          console.log(`[${tag}] ──── NON-STREAMING RETRY ALSO FAILED ────`);
+          throw retryErr;
         }
-        if (!res.ok) {
-          const retryBody = await res.text().catch(() => "");
-          const error = new Error(`Provider ${this.id} returned ${res.status} after retry: ${retryBody}`);
-          (error as Error & { status: number; providerId: ProviderId }).status = res.status;
-          (error as Error & { status: number; providerId: ProviderId }).providerId = this.id;
-          throw error;
-        }
-        // retry 成功，继续往下走（读取 response body）
       } else {
-        const error = new Error(`Provider ${this.id} returned ${res.status}: ${errorBody}`);
-        (error as Error & { status: number; providerId: ProviderId }).status = res.status;
-        (error as Error & { status: number; providerId: ProviderId }).providerId = this.id;
-        throw error;
+        throw streamErr;
       }
-    }
-
-    // 读取完整响应体（兼容 streaming SSE 和普通 JSON）
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error("Response body is null");
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let firstChunkTime = 0;
-    let chunkCount = 0;
-
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!firstChunkTime) {
-        firstChunkTime = Date.now() - reqStartMs;
-        console.log(`[${tag}] ──── FIRST CHUNK ──── TTFB=${firstChunkTime}ms (response headers at ${elapsed}ms)`);
-      }
-      chunkCount++;
-      buffer += decoder.decode(value, { stream: true });
     }
 
     const totalElapsed = Date.now() - reqStartMs;
-    console.log(`[${tag}] ──── STREAM DONE ──── chunks=${chunkCount} totalElapsed=${totalElapsed}ms`);
 
     // 解析：SSE 格式（data: {...}）或普通 JSON
-    // stream_options={include_usage:true} 时，最终 chunk 是 choices:[] + usage
-    // 需要分开保存：data（最后 chunk，含 usage）和 lastContentChunk（最后有 choices 的 chunk）
+    // streaming 时需要分开保存：data（最后 chunk）和 lastContentChunk（最后有 choices 的 chunk）
     let data: Record<string, unknown> = {};
     let lastContentChunk: Record<string, unknown> | undefined;
     const isSSE = buffer.trimStart().startsWith("data: ");
@@ -406,8 +389,10 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
     const message = firstChoice?.message as Record<string, unknown> | undefined;
 
     // 拼接完整文本：SSE 从 delta 累加，普通 JSON 直接取 message.content
+    // NF1: 同时累加 tool_calls（流式分 chunk 到达）
     let text = "";
     let reasoningContent = "";
+    const toolCallsAccum: Map<number, { id: string; type: "function"; function: { name: string; arguments: string } }> = new Map();
     if (isSSE) {
       for (const line of buffer.split("\n")) {
         const trimmed = line.trim();
@@ -419,6 +404,28 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
           const delta = (chunk.choices as Array<Record<string, unknown>>)?.[0]?.delta as Record<string, unknown> | undefined;
           if (typeof delta?.content === "string") text += delta.content;
           if (typeof delta?.reasoning_content === "string") reasoningContent += delta.reasoning_content;
+          // NF1: accumulate tool_calls from streaming delta
+          if (Array.isArray(delta?.tool_calls)) {
+            for (const tc of delta.tool_calls as Array<Record<string, unknown>>) {
+              const idx = tc.index as number;
+              const existing = toolCallsAccum.get(idx);
+              if (!existing) {
+                toolCallsAccum.set(idx, {
+                  id: (tc.id as string) ?? `call_${idx}`,
+                  type: "function",
+                  function: {
+                    name: (tc.function as Record<string, unknown>)?.name as string ?? "",
+                    arguments: (tc.function as Record<string, unknown>)?.arguments as string ?? "",
+                  },
+                });
+              } else {
+                if (tc.id) existing.id = tc.id as string;
+                const fn = tc.function as Record<string, unknown> | undefined;
+                if (fn?.name) existing.function.name = fn.name as string;
+                if (typeof fn?.arguments === "string") existing.function.arguments += fn.arguments;
+              }
+            }
+          }
         } catch { /* skip */ }
       }
     }
@@ -469,12 +476,146 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
         }
       : undefined;
 
-    return {
+    // NF1: extract tool_calls — from non-streaming message or accumulated streaming chunks
+    let toolCalls: ToolCall[] | undefined;
+    if (isSSE && toolCallsAccum.size > 0) {
+      toolCalls = Array.from(toolCallsAccum.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([, tc]) => tc);
+    } else if (!isSSE && Array.isArray(message?.tool_calls) && message.tool_calls.length > 0) {
+      toolCalls = (message.tool_calls as Array<Record<string, unknown>>).map((tc) => ({
+        id: (tc.id as string) ?? "call_0",
+        type: "function" as const,
+        function: {
+          name: (tc.function as Record<string, unknown>)?.name as string ?? "",
+          arguments: (tc.function as Record<string, unknown>)?.arguments as string ?? "",
+        },
+      }));
+    }
+
+    const resp: ChatResponse = {
       text,
-      ...(tokenUsage ? { tokenUsage } : {}),
-      thinkingTokens: thinkingTokens > 0 ? thinkingTokens : undefined,
-      reasoningText: reasoningContent || reasoningFromMessage || reasoningDetails || undefined,
-      rawResponse: data
+      rawResponse: data,
     };
+    if (tokenUsage) resp.tokenUsage = tokenUsage;
+    if (thinkingTokens > 0) resp.thinkingTokens = thinkingTokens;
+    const rText = reasoningContent || reasoningFromMessage || reasoningDetails;
+    if (rText) resp.reasoningText = rText;
+    if (toolCalls) resp.toolCalls = toolCalls;
+    return resp;
+  }
+
+  /**
+   * 发起 HTTP 请求并读取完整响应体（streaming SSE 或普通 JSON）。
+   * 内置 chunk 级超时：如果 chunkTimeoutMs 内没有新数据，强制取消流。
+   * 抛出的错误带 streamTimeout=true 标记，调用方可据此降级重试。
+   */
+  private async fetchAndReadStream(
+    url: string,
+    fetchInit: RequestInit,
+    body: Record<string, unknown>,
+    tag: string,
+    reqStartMs: number,
+    chunkTimeoutMs: number
+  ): Promise<string> {
+    let res: Response;
+    try {
+      res = await fetch(url, fetchInit);
+    } catch (fetchErr) {
+      const elapsed = Date.now() - reqStartMs;
+      const errName = fetchErr instanceof Error ? fetchErr.name : "unknown";
+      const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      console.log(`[${tag}] ──── FETCH ERROR ──── elapsed=${elapsed}ms name=${errName} msg=${errMsg}`);
+      throw fetchErr;
+    }
+
+    const elapsed = Date.now() - reqStartMs;
+    console.log(`[${tag}] ──── RESPONSE ──── elapsed=${elapsed}ms`);
+    console.log(`[${tag}] status=${res.status} statusText=${res.statusText}`);
+    const resHeaders: Record<string, string> = {};
+    res.headers.forEach((v, k) => { resHeaders[k] = v; });
+    console.log(`[${tag}] responseHeaders=${JSON.stringify(resHeaders)}`);
+    console.log(`[${tag}] contentLength=${res.headers.get("content-length")} contentType=${res.headers.get("content-type")}`);
+
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => "");
+      console.log(`[${tag}] ──── HTTP ERROR ──── status=${res.status} body=${errorBody.slice(0, 500)}`);
+
+      // 400 + streaming → 回退到非 streaming
+      if (res.status === 400 && body.stream) {
+        console.log(`[${tag}] streaming not supported (400), retrying as non-streaming`);
+        delete body.stream;
+        fetchInit.body = JSON.stringify(body);
+        res = await fetch(url, fetchInit);
+        if (!res.ok) {
+          const retryBody = await res.text().catch(() => "");
+          const error = new Error(`Provider ${this.id} returned ${res.status} after retry: ${retryBody}`);
+          (error as Error & { status: number; providerId: ProviderId }).status = res.status;
+          (error as Error & { status: number; providerId: ProviderId }).providerId = this.id;
+          throw error;
+        }
+      } else {
+        const error = new Error(`Provider ${this.id} returned ${res.status}: ${errorBody}`);
+        (error as Error & { status: number; providerId: ProviderId }).status = res.status;
+        (error as Error & { status: number; providerId: ProviderId }).providerId = this.id;
+        throw error;
+      }
+    }
+
+    // 读取响应体
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("Response body is null");
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let firstChunkTime = 0;
+    let chunkCount = 0;
+    let chunkTimeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+      for (;;) {
+        const readPromise = chunkTimeoutMs > 0
+          ? reader.read().finally(() => {
+              if (chunkTimeoutId) { clearTimeout(chunkTimeoutId); chunkTimeoutId = undefined; }
+            })
+          : reader.read();
+
+        if (chunkTimeoutMs > 0) {
+          chunkTimeoutId = setTimeout(() => {
+            console.log(`[${tag}] ──── CHUNK TIMEOUT ──── no data for ${chunkTimeoutMs}ms, canceling stream (chunks=${chunkCount})`);
+            reader.cancel("chunk timeout").catch(() => {});
+          }, chunkTimeoutMs);
+        }
+
+        let result: { done: boolean; value?: Uint8Array };
+        try {
+          result = await readPromise as { done: boolean; value?: Uint8Array };
+        } catch (readErr) {
+          if (readErr instanceof Error && readErr.name === "AbortError") {
+            const streamElapsed = Date.now() - reqStartMs;
+            console.log(`[${tag}] ──── STREAM ABORTED ──── chunks=${chunkCount} elapsed=${streamElapsed}ms`);
+            // 标记为流超时，调用方可据此降级重试
+            const timeoutErr = new Error(`Stream timed out after ${streamElapsed}ms (${chunkCount} chunks)`);
+            (timeoutErr as Error & { streamTimeout: boolean }).streamTimeout = true;
+            throw timeoutErr;
+          }
+          throw readErr;
+        }
+
+        if (result.done) break;
+        if (!firstChunkTime) {
+          firstChunkTime = Date.now() - reqStartMs;
+          console.log(`[${tag}] ──── FIRST CHUNK ──── TTFB=${firstChunkTime}ms (response headers at ${elapsed}ms)`);
+        }
+        chunkCount++;
+        buffer += decoder.decode(result.value!, { stream: true });
+      }
+
+      const streamElapsed = Date.now() - reqStartMs;
+      console.log(`[${tag}] ──── STREAM DONE ──── chunks=${chunkCount} totalElapsed=${streamElapsed}ms`);
+    } finally {
+      if (chunkTimeoutId) clearTimeout(chunkTimeoutId);
+    }
+
+    return buffer;
   }
 }

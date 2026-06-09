@@ -1,5 +1,5 @@
 import type { ProviderId } from "@shared/types/agents";
-import type { ProviderAdapter, ChatRequest, ChatResponse } from "./ProviderAdapter.js";
+import type { ProviderAdapter, ChatRequest, ChatResponse, ToolCall } from "./ProviderAdapter.js";
 import { resolveMaxTokens, learnThinkingCapability } from "./ProviderAdapter.js";
 import { getModelCapabilities } from "./model-capabilities-registry.js";
 import { logger } from "../lib/logger.js";
@@ -116,33 +116,47 @@ export class GeminiAdapter implements ProviderAdapter {
 
     const contents = req.messages
       .filter(m => m.role !== "system")
-      .map(m => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: Array.isArray(m.content)
-          ? m.content.map(part => {
-              if (part.type === "text" && part.text != null) {
-                return { text: part.text };
+      .map(m => {
+        // NF1: tool response messages → functionResponse parts
+        if (m.role === "tool" && m.tool_call_id) {
+          return {
+            role: "user" as const,
+            parts: [{
+              functionResponse: {
+                name: m.tool_call_id.replace(/^call_\w+_/, ""), // extract function name from tool_call_id
+                response: { content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) },
               }
-              if (part.type === "inline_data" && part.inline_data != null) {
-                return {
-                  inlineData: {
-                    mimeType: part.inline_data.mimeType,
-                    data: part.inline_data.data
-                  }
-                };
-              }
-              if (part.type === "image_url" && part.image_url != null) {
-                return {
-                  fileData: {
-                    mimeType: "image/png",
-                    fileUri: part.image_url.url
-                  }
-                };
-              }
-              return { text: "" };
-            })
-          : [{ text: m.content }]
-      }));
+            }]
+          };
+        }
+        return {
+          role: m.role === "assistant" ? "model" : "user",
+          parts: Array.isArray(m.content)
+            ? m.content.map(part => {
+                if (part.type === "text" && part.text != null) {
+                  return { text: part.text };
+                }
+                if (part.type === "inline_data" && part.inline_data != null) {
+                  return {
+                    inlineData: {
+                      mimeType: part.inline_data.mimeType,
+                      data: part.inline_data.data
+                    }
+                  };
+                }
+                if (part.type === "image_url" && part.image_url != null) {
+                  return {
+                    fileData: {
+                      mimeType: "image/png",
+                      fileUri: part.image_url.url
+                    }
+                  };
+                }
+                return { text: "" };
+              })
+            : [{ text: m.content }]
+        };
+      });
 
     const systemInstruction = req.messages.find(m => m.role === "system");
 
@@ -173,6 +187,17 @@ export class GeminiAdapter implements ProviderAdapter {
       contents,
       generationConfig
     };
+
+    // NF1: convert OpenAI-style tools to Gemini functionDeclarations format
+    if (req.tools && req.tools.length > 0) {
+      body.tools = [{
+        functionDeclarations: req.tools.map(t => ({
+          name: t.function.name,
+          description: t.function.description,
+          parameters: t.function.parameters,
+        }))
+      }];
+    }
 
     if (systemInstruction) {
       const sysContent = systemInstruction.content;
@@ -226,7 +251,7 @@ export class GeminiAdapter implements ProviderAdapter {
     }
 
     const data = await res.json() as {
-      candidates: Array<{ content: { parts: Array<{ text?: string; thought?: boolean }> } }>;
+      candidates: Array<{ content: { parts: Array<{ text?: string; thought?: boolean; functionCall?: { name: string; args: Record<string, unknown> } }> } }>;
       usageMetadata?: { promptTokenCount: number; candidatesTokenCount: number; thoughtsTokenCount?: number };
       promptFeedback?: unknown;
     };
@@ -235,6 +260,20 @@ export class GeminiAdapter implements ProviderAdapter {
     const allParts = data.candidates?.[0]?.content?.parts ?? [];
     const textParts = allParts.filter((p) => p.text != null && !p.thought);
     const text = textParts.map((p) => p.text!).join("") ?? "";
+
+    // NF1: extract functionCall parts as tool calls
+    let toolCalls: ToolCall[] | undefined;
+    const functionCallParts = allParts.filter((p) => p.functionCall != null);
+    if (functionCallParts.length > 0) {
+      toolCalls = functionCallParts.map((p, i) => ({
+        id: `call_gemini_${i}`,
+        type: "function" as const,
+        function: {
+          name: p.functionCall!.name,
+          arguments: JSON.stringify(p.functionCall!.args ?? {}),
+        },
+      }));
+    }
 
     const totalElapsed = Date.now() - reqStartMs;
     const thinkingTokens = data.usageMetadata?.thoughtsTokenCount ?? 0;
@@ -261,11 +300,13 @@ export class GeminiAdapter implements ProviderAdapter {
         }
       : undefined;
 
-    return {
+    const resp: ChatResponse = {
       text,
-      ...(usage ? { tokenUsage: usage } : {}),
-      thinkingTokens: thinkingTokens > 0 ? thinkingTokens : undefined,
-      rawResponse: data
+      rawResponse: data,
     };
+    if (usage) resp.tokenUsage = usage;
+    if (thinkingTokens > 0) resp.thinkingTokens = thinkingTokens;
+    if (toolCalls) resp.toolCalls = toolCalls;
+    return resp;
   }
 }

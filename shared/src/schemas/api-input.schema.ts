@@ -37,6 +37,8 @@ export const agentRunInputSchema = z.object({
   apiKey: z.string().optional(),
   mock: z.boolean().optional(),
   mockKey: z.string().optional(),
+  /** NF1: 启用 web search tool calling（仅 chat agent 有效） */
+  webSearchEnabled: z.boolean().optional(),
 });
 
 // ── Knowledge embedding config ───────────────────────────────
