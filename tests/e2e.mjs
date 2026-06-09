@@ -42,6 +42,8 @@ import {
   endGroup,
   printSlowTests,
   printGroupTimings,
+  setActiveAbortSignal,
+  clearActiveAbortSignal,
 } from "./e2e-shared/index.mjs";
 import { startIsolatedServer, dumpServerLog } from "./e2e-shared/server-lifecycle.mjs";
 
@@ -355,17 +357,23 @@ async function main() {
   }
 
   // 带超时的测试执行器（用于 real mode）
+  // 使用 AbortController 真正取消 HTTP 请求，避免 background 继续运行
   async function withTimeout(fn, timeoutMs = REAL_MODE_TEST_TIMEOUT) {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), timeoutMs);
+    setActiveAbortSignal(ac.signal);
     try {
-      return await Promise.race([
-        fn(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Test timeout (${timeoutMs / 1000}s)`)), timeoutMs)
-        ),
-      ]);
+      return await fn();
     } catch (err) {
-      log(fn.name, false, err.message);
+      if (ac.signal.aborted) {
+        log(fn.name, false, `Test timeout (${timeoutMs / 1000}s)`);
+      } else {
+        log(fn.name, false, err.message);
+      }
       return null;
+    } finally {
+      clearTimeout(timer);
+      clearActiveAbortSignal();
     }
   }
 

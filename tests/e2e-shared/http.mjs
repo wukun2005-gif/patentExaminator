@@ -10,6 +10,22 @@ import { getTestBase } from "./env.mjs";
 /** 默认请求超时（60 秒，AI 调用可能较慢） */
 const DEFAULT_TIMEOUT_MS = 60_000;
 
+/**
+ * 当前活跃的 AbortSignal（由 withTimeout 设置）
+ * postJSON 优先使用此 signal，实现超时真正取消请求
+ */
+let activeAbortSignal = null;
+
+/** 设置当前活跃的 AbortSignal（由 e2e.mjs withTimeout 调用） */
+export function setActiveAbortSignal(signal) {
+  activeAbortSignal = signal;
+}
+
+/** 清除当前活跃的 AbortSignal */
+export function clearActiveAbortSignal() {
+  activeAbortSignal = null;
+}
+
 // ── HTTP 请求工具 ────────────────────────────────────────────────────
 
 /**
@@ -25,11 +41,13 @@ export async function postJSON(pathname, body, baseUrl, timeoutMs) {
   if (url.includes("localhost:3000")) {
     console.warn(`[http.mjs] ⚠️ POST 指向主服务器! url=${url} | caller: ${new Error().stack?.split("\n")[2]?.trim()}`);
   }
+  // 优先使用 withTimeout 设置的全局 AbortSignal，实现超时真正取消
+  const signal = activeAbortSignal ?? AbortSignal.timeout(timeoutMs || DEFAULT_TIMEOUT_MS);
   return fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs || DEFAULT_TIMEOUT_MS),
+    signal,
   });
 }
 
@@ -42,8 +60,9 @@ export async function getJSON(pathname, baseUrl) {
   if (url.includes("localhost:3000")) {
     console.warn(`[http.mjs] ⚠️ GET 指向主服务器! url=${url} | caller: ${new Error().stack?.split("\n")[2]?.trim()}`);
   }
+  const signal = activeAbortSignal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
   return fetch(url, {
-    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+    signal,
   });
 }
 

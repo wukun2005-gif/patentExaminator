@@ -38,6 +38,8 @@ export {
   getJSON,
   getJSONWithParams,
   parseSSEResponse,
+  setActiveAbortSignal,
+  clearActiveAbortSignal,
 } from "./http.mjs";
 
 // 重试逻辑模块
