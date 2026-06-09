@@ -37,6 +37,7 @@ agentRouter.post("/agent/run", express.json({ limit: "10mb" }), async (req, res)
       mock,
       mockKey,
       webSearchEnabled,
+      groundednessEnabled,
     } = parsed.data;
 
     // B-038: Mock 模式 — 返回 fixture 数据，不调用真实 AI
@@ -77,6 +78,7 @@ agentRouter.post("/agent/run", express.json({ limit: "10mb" }), async (req, res)
       knowledgeReranker,
       apiKey,
       webSearchEnabled,
+      groundednessEnabled,
     });
 
     if (!result.ok) {

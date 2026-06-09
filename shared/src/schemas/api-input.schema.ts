@@ -39,6 +39,8 @@ export const agentRunInputSchema = z.object({
   mockKey: z.string().optional(),
   /** NF1: 启用 web search tool calling（仅 chat agent 有效） */
   webSearchEnabled: z.boolean().optional(),
+  /** NF2: 启用 groundedness detection（仅 chat agent 有效） */
+  groundednessEnabled: z.boolean().optional(),
 });
 
 // ── Knowledge embedding config ───────────────────────────────

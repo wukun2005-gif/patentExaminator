@@ -66,6 +66,8 @@ export interface AgentRunRequest {
   apiKey?: string | undefined;
   /** NF1: 是否启用 web search tool calling */
   webSearchEnabled?: boolean | undefined;
+  /** NF2: 是否启用 groundedness detection */
+  groundednessEnabled?: boolean | undefined;
 }
 
 export interface AgentRunResponse {
@@ -1034,11 +1036,99 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
           },
         });
 
+        // NF2: Groundedness Detection
+        let finalAnswer = toolResult.answer;
+        const nf2Citations = citations.length > 0 ? citations : undefined;
+        const nf2WebCitations = toolResult.webSearchCitations;
+
+        if (req.groundednessEnabled && (nf2Citations || nf2WebCitations)) {
+          logger.info(`[Orchestrator] NF2: 开始 groundedness check`);
+          try {
+            const { checkGroundedness } = await import("./groundednessCheck.js");
+            const gdResult = await checkGroundedness(
+              finalAnswer,
+              nf2Citations,
+              nf2WebCitations,
+              {
+                apiKey: req.apiKey,
+                providerPreference: req.providerPreference,
+                modelId: req.modelId,
+                modelFallbacks: req.modelFallbacks,
+                enableModelFallback: req.enableModelFallback,
+                providerBaseUrls: req.providerBaseUrls,
+                signal: req.signal,
+              }
+            );
+
+            if (gdResult.verdict === "fail") {
+              // 重新生成：加强约束后重试一次
+              logger.info(`[Orchestrator] NF2: groundedness fail, 尝试重新生成`);
+              const retryPrompt = [
+                promptParts.system,
+                "\n\n## 重要约束",
+                "只基于以下参考文档回答，不得添加文档中没有的信息。如果文档中没有相关信息，请明确说明。",
+                "",
+                "## 参考知识库",
+                ...nf2Citations?.map((c, i) => `[${i + 1}] ${c.source}: ${c.excerpt}`) ?? [],
+                ...nf2WebCitations?.map((c, i) => `[${(nf2Citations?.length ?? 0) + i + 1}] ${c.title}: ${c.snippet}`) ?? [],
+              ].join("\n");
+
+              const retryResult = await callInternalGateway({
+                agent: req.agent,
+                systemPrompt: retryPrompt,
+                userPrompt: req.request.userMessage as string || "",
+                caseId: req.caseId,
+                providerPreference: req.providerPreference,
+                modelId: req.modelId,
+                modelFallbacks: req.modelFallbacks,
+                enableModelFallback: req.enableModelFallback,
+                providerBaseUrls: req.providerBaseUrls,
+                maxTokens: 2000,
+                temperature: 0.3,
+                signal: req.signal,
+                apiKey: req.apiKey,
+              });
+
+              if (!retryResult.error && typeof retryResult.output === "string") {
+                // 再次检查
+                const retryGd = await checkGroundedness(
+                  retryResult.output,
+                  nf2Citations,
+                  nf2WebCitations,
+                  {
+                    apiKey: req.apiKey,
+                    providerPreference: req.providerPreference,
+                    modelId: req.modelId,
+                    modelFallbacks: req.modelFallbacks,
+                    enableModelFallback: req.enableModelFallback,
+                    providerBaseUrls: req.providerBaseUrls,
+                    signal: req.signal,
+                  }
+                );
+
+                if (retryGd.verdict !== "fail") {
+                  finalAnswer = retryGd.output;
+                  logger.info(`[Orchestrator] NF2: 重新生成成功, verdict=${retryGd.verdict}`);
+                } else {
+                  // 仍然 fail → 返回部分回答
+                  finalAnswer = retryGd.output;
+                  logger.warn(`[Orchestrator] NF2: 重新生成仍 fail, 返回部分回答`);
+                }
+              }
+            } else {
+              finalAnswer = gdResult.output;
+              logger.info(`[Orchestrator] NF2: groundedness check 完成, verdict=${gdResult.verdict}, score=${gdResult.groundingScore.toFixed(2)}, removed=${gdResult.removedClaims.length}`);
+            }
+          } catch (nf2Err) {
+            logger.warn(`[Orchestrator] NF2 groundedness check failed, using original output: ${nf2Err}`);
+          }
+        }
+
         return {
           ok: true,
-          output: { reply: toolResult.answer },
-          webSearchCitations: toolResult.webSearchCitations,
-          knowledgeCitations: citations.length > 0 ? citations : undefined,
+          output: { reply: finalAnswer },
+          webSearchCitations: nf2WebCitations,
+          knowledgeCitations: nf2Citations,
         };
       } catch (toolErr) {
         logger.warn(`[Orchestrator] NF1 tool executor failed, falling back to plain LLM: ${toolErr}`);
