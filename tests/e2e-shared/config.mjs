@@ -141,8 +141,9 @@ export const AI_RATE_LIMIT_DELAY = Number(process.env.AI_RATE_LIMIT_DELAY) || 20
 /** 搜索请求速率限制延迟（毫秒） — Tavily ~60 RPM (1s), EPO ~30 RPM (2s) */
 export const SEARCH_RATE_LIMIT_DELAY = Number(process.env.SEARCH_RATE_LIMIT_DELAY) || 2000;
 
-/** Real 模式测试单个测试超时（毫秒） */
-export const REAL_MODE_TEST_TIMEOUT = 60_000;
+/** Real 模式测试单个测试超时（毫秒）
+ *  120s: 给 MiMo 60s HTTP timeout + 60s fallback (Gemini/OpenRouter) */
+export const REAL_MODE_TEST_TIMEOUT = 120_000;
 
 /** 重试基础延迟（毫秒） */
 export const RETRY_BASE_DELAY = 2000;
