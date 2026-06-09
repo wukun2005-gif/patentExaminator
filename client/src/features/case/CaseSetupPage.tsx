@@ -7,7 +7,7 @@ import { extractPdfText } from "../../lib/pdfText";
 import { extractDocxText } from "../../lib/docxText";
 import { extractHtmlText } from "../../lib/htmlText";
 import { buildTextIndex } from "../../lib/textIndex";
-import { computeFileHash } from "../../lib/fileHash";
+import { computeFileHash, generateDocId } from "../../lib/fileHash";
 import { extractCaseFields, extractCaseFieldsFallback, type ExtractedFields } from "../../lib/caseFieldExtractor";
 import { createDocument, readDocumentsByCaseId, updateDocument, deleteDocument } from "../../lib/repos";
 import { createClaimNode } from "../../lib/repos";
@@ -295,7 +295,7 @@ export function CaseSetupPage() {
 
         const textIndex = await buildTextIndex(text);
         const doc: SourceDocument = {
-          id: `doc-${fileHash.slice(0, 8)}`,
+          id: generateDocId(),
           caseId,
           role: uploadRole,
           fileName: file.name,
@@ -441,7 +441,7 @@ export function CaseSetupPage() {
         const textIndex = await buildTextIndex(text);
         // 批量上传时先使用 'reference' 作为默认角色，后续由 AI 分类
         const doc: SourceDocument = {
-          id: `doc-${fileHash.slice(0, 8)}`,
+          id: generateDocId(),
           caseId,
           role: "reference", // 默认角色，待 AI 分类后更新
           fileName: file.name,
@@ -520,9 +520,14 @@ export function CaseSetupPage() {
       setClassifyError(`AI 分类失败: ${err instanceof Error ? err.message : String(err)}，所有文件已归入"对比文件"类别`);
       // 分类失败时，将所有待分类文档保存为 reference
       for (const doc of docs) {
-        await createDocument(doc);
-        if (!isMountedRef.current) return;
-        addDocument(doc);
+        try {
+          await createDocument(doc);
+          if (!isMountedRef.current) return;
+          addDocument(doc);
+        } catch (saveErr) {
+          log(`保存文档 ${doc.fileName} 失败:`, saveErr);
+          // 单个文档失败不阻塞其余文档
+        }
       }
       setPendingDocuments([]);
     } finally {
@@ -536,20 +541,28 @@ export function CaseSetupPage() {
     docs: SourceDocument[],
     classifications: DocumentClassification[]
   ) => {
-    for (const classification of classifications) {
-      const doc = docs[classification.fileIndex];
-      if (!doc) continue;
-      
-      // 更新文档角色
-      const updatedDoc: SourceDocument = {
-        ...doc,
-        role: classification.role
-      };
-      
-      // 保存到 server DB
-      await createDocument(updatedDoc);
+    // 构建 fileIndex → classification 映射
+    const classificationMap = new Map<number, DocumentClassification>();
+    for (const c of classifications) {
+      classificationMap.set(c.fileIndex, c);
     }
-    
+
+    // 遍历所有文档，确保每个都写入 DB（AI 未分类的默认 "reference"）
+    for (let i = 0; i < docs.length; i++) {
+      const doc = docs[i]!;
+      const c = classificationMap.get(i);
+      const updatedDoc = {
+        ...doc,
+        role: c ? c.role : "reference" as const,
+      };
+      try {
+        await createDocument(updatedDoc);
+      } catch (err) {
+        log(`保存文档 ${doc.fileName} 失败:`, err);
+        // 单个文档失败不阻塞其余文档
+      }
+    }
+
     // 分类完成后，重新从 server DB 加载所有文档，确保 store 与数据库同步
     const allDocs = await readDocumentsByCaseId(caseId ?? "");
     setDocuments(allDocs);
