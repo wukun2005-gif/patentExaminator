@@ -25,6 +25,7 @@
     "test:watch": "vitest",
     "test:integration": "node tests/log-runner.mjs vitest run -c vitest.integration.config.ts",
     "test:e2e": "node tests/log-runner.mjs node tests/e2e.mjs",
+    "test:e2e:auto": "node tests/log-runner.mjs node tests/e2e.mjs --auto",
     "test:e2e:check": "node tests/log-runner.mjs node tests/e2e.mjs --check",
     "test:e2e:real": "node tests/log-runner.mjs node tests/e2e.mjs --real",
     "test:e2e:db": "node tests/log-runner.mjs node tests/e2e.mjs --only db",

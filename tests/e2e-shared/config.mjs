@@ -190,6 +190,9 @@ export const FILE_TO_TEST_MAP = [
   { pattern: /^shared\/src\/fixtures/, groups: ["mock", "schema"] },
   { pattern: /^shared\/src\/schemas/, groups: ["schema"] },
 
+  // Provider 相关（LLM 调用层）
+  { pattern: /^server\/src\/providers/, groups: ["mock", "real", "schema"] },
+
   // 搜索相关
   { pattern: /^server\/src\/lib\/search/, groups: ["mock", "real"] },
   { pattern: /^server\/src\/routes\/search/, groups: ["mock", "real"] },
