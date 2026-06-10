@@ -277,6 +277,10 @@ export interface ChatMessage {
   webSearchCitations?: Array<{ title: string; url: string; snippet: string; engine: string }>;
   /** 合并引用（RAG + Web 按相关性排序，编号 [1]-[N] 与 AI 回答一致） */
   mergedCitations?: Array<{ title: string; url: string; snippet: string; engine: string }>;
+  /** NF2: groundedness 检测结果 */
+  groundedness?: { score: number; verdict: "pass" | "partial" | "fail"; removedCount: number };
+  /** nf3: 用户上传的文件附件元数据（仅保存文件名和类型，不存全文） */
+  attachments?: Array<{ fileName: string; mimeType: string }>;
   createdAt: ISODateTimeString;
 }
 

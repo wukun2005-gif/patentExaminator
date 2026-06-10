@@ -9,10 +9,14 @@
  */
 import { logger } from "./logger.js";
 import type { ChatRequest } from "../providers/ProviderAdapter.js";
+import type { MultimodalPart } from "../../../shared/src/types/domain.js";
 import { sanitizeText } from "../security/sanitize.js";
 import { extractJsonFromText } from "./jsonExtractor.js";
 import { getModelCapabilities } from "../providers/model-capabilities-registry.js";
 import { estimateTokens } from "./tokenEstimator.js";
+import { metricsCollector } from "./metricsCollector.js";
+import type { RunTimings } from "@shared/types/metrics.js";
+import { estimateCost } from "./costEstimator.js";
 
 /**
  * D3: 根据模型上下文窗口动态截断文本。
@@ -83,6 +87,8 @@ export interface AgentRunResponse {
   webSearchCitations?: Array<{ title: string; url: string; snippet: string; engine: string }> | undefined;
   /** 合并引用（RAG + Web 按相关性排序，编号 [1]-[N] 与 AI 回答一致） */
   mergedCitations?: Array<{ title: string; url: string; snippet: string; engine: string }> | undefined;
+  /** NF2: groundedness 检测结果 */
+  groundedness?: { score: number; verdict: "pass" | "partial" | "fail"; removedCount: number } | undefined;
 }
 
 // ── Per-agent 请求类型 ──────────────────────────────────
@@ -125,6 +131,8 @@ interface ChatRequestData {
   contextSummary?: string;
   history?: Array<{ role: string; content: string }>;
   userMessage?: string;
+  /** nf3: 用户上传的文件附件（已由服务端提取文本） */
+  attachments?: Array<{ fileName: string; text: string; mimeType: string; base64?: string }>;
 }
 
 interface InterpretRequest {
@@ -401,12 +409,31 @@ function buildChatPrompt(request: ChatRequestData): PromptParts {
     `- 如果回答完全不涉及知识库内容，则不需要标注`,
   ].join("\n");
 
+  // nf3: 注入用户上传的附件内容
+  const attachments = request.attachments ?? [];
+  const imageAttachments = attachments.filter(a => a.mimeType.startsWith("image/") && a.base64);
+  const textAttachments = attachments.filter(a => !a.mimeType.startsWith("image/") || !a.base64);
+
+  // 文本附件注入 prompt
+  const attachmentSection = textAttachments.length > 0
+    ? [
+        ``,
+        `=== 用户上传的文件 ===`,
+        ...textAttachments.map((a, i) => {
+          const header = `【文件 ${i + 1}: ${a.fileName}】(${a.mimeType})`;
+          const body = a.text.length > 30000 ? a.text.slice(0, 30000) + "\n[... 内容已截断 ...]" : a.text;
+          return `${header}\n${body}`;
+        }),
+      ].join("\n")
+    : "";
+
   const user = [
     `案件 ID: ${caseId}`,
     `当前模块: ${moduleScope}`,
     ``,
     `=== 当前模块数据 ===`,
     contextSummary,
+    ...(attachmentSection ? [attachmentSection] : []),
     ``,
     `=== 对话历史 ===`,
     ...history.map((m) => `[${m.role}]: ${m.content}`),
@@ -415,7 +442,16 @@ function buildChatPrompt(request: ChatRequestData): PromptParts {
     userMessage,
   ].join("\n");
 
-  return { system, user };
+  // nf3: 图片附件构建 MultimodalPart[]（仅图片部分，文本由 enhancedUserPrompt 提供）
+  let userMultimodal: MultimodalPart[] | undefined;
+  if (imageAttachments.length > 0) {
+    userMultimodal = imageAttachments.map(a => ({
+      type: "image_url" as const,
+      image_url: { url: `data:${a.mimeType};base64,${a.base64}` },
+    }));
+  }
+
+  return { system, user, userMultimodal };
 }
 
 const INTERPRET_TEMPLATES: Record<string, { title: string; instructions: string[] }> = {
@@ -907,8 +943,20 @@ function getAgentContext(agentType: string): string {
 
 /** 服务端编排入口：构造 prompt → 知识库增强 → 调用 AI */
 export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> {
+  // ── Metrics timing ──────────────────────────────────────
+  const timings: RunTimings = {
+    promptBuildMs: 0,
+    ragSearchMs: 0,
+    rerankMs: 0,
+    llmCallMs: 0,
+    groundednessMs: 0,
+    totalMs: 0,
+  };
+  const totalStart = Date.now();
+
   try {
     // 1. 构造 prompt（system + user 分离）
+    const promptStart = Date.now();
     let promptParts: PromptParts;
     switch (req.agent) {
       case "claim-chart":
@@ -953,6 +1001,7 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       default:
         return { ok: false, error: { type: "unsupported", message: `Unknown agent: ${req.agent}` } };
     }
+    timings.promptBuildMs = Date.now() - promptStart;
 
     // 2. 知识库增强（知识上下文注入 user prompt）
     // 某些 agent 不需要 RAG（查询无意义、纯文本处理、或 prompt 已包含完整规则）
@@ -960,9 +1009,11 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
     const shouldUseRag = req.knowledgeEnabled && !SKIP_RAG_AGENTS.has(req.agent);
     const query = extractQuery(req.agent, req.request);
     logger.info(`[Orchestrator] agent=${req.agent}, 提取检索 query="${query.slice(0, 80)}${query.length > 80 ? "..." : ""}", knowledgeEnabled=${req.knowledgeEnabled}, shouldUseRag=${shouldUseRag}`);
+    const ragStart = Date.now();
     const { prompt: enhancedUserPrompt, citations } = shouldUseRag
       ? await enhanceWithKnowledge(promptParts.user, query, req.agent, true, req.knowledgeEmbedding, req.knowledgeReranker)
       : { prompt: promptParts.user, citations: [] };
+    timings.ragSearchMs = Date.now() - ragStart;
 
     // 2.5 检查 API key 可用性
     const { getApiKey } = await import("../security/keyStore.js");
@@ -1005,6 +1056,7 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
 
         // webSearchEnabled 时不把 RAG 注入 user prompt — 交给 toolExecutor 统一融合 RAG+Web 并按相关性排序编号
         // 原始 user prompt 传给 toolExecutor，RAG citations 作为数据传入（不带编号注入）
+        const llmStart = Date.now();
         const toolResult = await executeWithTools({
           systemPrompt: promptParts.system + webSearchGuidance,
           userPrompt: promptParts.user,
@@ -1023,11 +1075,16 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
               if (key) providerApiKeys[pid] = key;
             }
 
+            // nf3: 有图片附件时使用 MultimodalPart[] 作为 user content
+            const defaultUserContent: string | MultimodalPart[] = promptParts.userMultimodal
+              ? [{ type: "text", text: enhancedUserPrompt } as MultimodalPart, ...promptParts.userMultimodal]
+              : enhancedUserPrompt;
+
             const chatReq: ChatRequest = {
               modelId: req.modelId ?? "",
               messages: (overrides?.messages ?? [
                 { role: "system", content: promptParts.system },
-                { role: "user", content: enhancedUserPrompt },
+                { role: "user", content: defaultUserContent },
               ]) as ChatRequest["messages"],
               apiKey: "",
               ...(req.maxTokens !== undefined && { maxTokens: req.maxTokens }),
@@ -1054,6 +1111,7 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
             };
           },
         });
+        timings.llmCallMs = Date.now() - llmStart;
 
         // NF2: Groundedness Detection — 只检查 rerank 后的 top-K（与 AI 看到的一致）
         let finalAnswer = toolResult.answer;
@@ -1062,7 +1120,11 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
         const nf2Citations = merged.filter((c) => c.engine === "rag").map((c) => ({ source: c.title, excerpt: c.snippet, score: 0 }));
         const nf2WebCitations = merged.filter((c) => c.engine !== "rag");
 
+        // NF2: 跟踪 groundedness 结果，返回给前端显示 badge
+        let groundednessResult: { score: number; verdict: "pass" | "partial" | "fail"; removedCount: number } | undefined;
+
         if (req.groundednessEnabled !== false && merged.length > 0) {
+          const gndStart = Date.now();
           logger.info(`[Orchestrator] groundedness check 开始`);
           try {
             const { checkGroundedness } = await import("./groundednessCheck.js");
@@ -1146,27 +1208,65 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
 
                 if (retryGd.verdict !== "fail") {
                   finalAnswer = retryGd.output;
+                  groundednessResult = { score: retryGd.groundingScore, verdict: retryGd.verdict, removedCount: retryGd.removedClaims.length };
                   logger.info(`[Orchestrator] groundedness 重新生成成功, verdict=${retryGd.verdict}`);
                 } else {
                   // 仍然 fail → 返回部分回答
                   finalAnswer = retryGd.output;
+                  groundednessResult = { score: retryGd.groundingScore, verdict: retryGd.verdict, removedCount: retryGd.removedClaims.length };
                   logger.warn(`[Orchestrator] groundedness 重新生成仍 fail, 返回部分回答`);
                 }
               }
             } else {
               finalAnswer = gdResult.output;
+              groundednessResult = { score: gdResult.groundingScore, verdict: gdResult.verdict, removedCount: gdResult.removedClaims.length };
               logger.info(`[Orchestrator] groundedness check 完成, verdict=${gdResult.verdict}, score=${gdResult.groundingScore.toFixed(2)}, removed=${gdResult.removedClaims.length}`);
             }
           } catch (nf2Err) {
             logger.warn(`[Orchestrator] groundedness check failed, using original output: ${nf2Err}`);
           }
+          timings.groundednessMs = Date.now() - gndStart;
         }
+
+        // ── Record metrics (tool executor path) ──────────
+        timings.totalMs = Date.now() - totalStart;
+        try {
+          metricsCollector.record({
+            agent: req.agent,
+            caseId: req.caseId || '',
+            providerId: '',
+            modelId: req.modelId || '',
+            searchProvider: '',
+            rerankerType: req.knowledgeReranker?.modelId || '',
+            embeddingModel: req.knowledgeEmbedding?.modelId || '',
+            durationMs: timings.totalMs,
+            ttftMs: 0,
+            toolRounds: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            thinkingTokens: 0,
+            costMicroUsd: 0,
+            ragCitationCount: citations.length,
+            topCitationScore: Math.max(0, ...citations.map(c => c.score)),
+            webSearchCount: merged.filter(c => c.engine !== "rag").length,
+            groundingScore: -1,
+            groundingVerdict: '',
+            removedClaimsCount: 0,
+            success: true,
+            errorType: '',
+            errorCode: '',
+            timingsJson: JSON.stringify(timings),
+            attemptsJson: '[]',
+          });
+        } catch {}
 
         return {
           ok: true,
           output: { reply: finalAnswer },
           webSearchCitations: merged.filter((c) => c.engine !== "rag"),
           mergedCitations: merged,
+          ...(groundednessResult && { groundedness: groundednessResult }),
         };
       } catch (toolErr) {
         logger.warn(`[Orchestrator] tool executor failed, falling back to plain LLM: ${toolErr}`);
@@ -1210,10 +1310,12 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
     const agentTemperature = TEMPERATURE_BY_AGENT[req.agent] ?? 0;
 
     logger.info(`[Orchestrator] 发送 AI 请求: system=${promptParts.system.length} 字符, user=${enhancedUserPrompt.length} 字符, ${citations.length} 条知识引用已注入`);
+    const plainLlmStart = Date.now();
     const aiResponse = await callInternalGateway({
       agent: req.agent,
       systemPrompt: promptParts.system,
       userPrompt: enhancedUserPrompt,
+      ...(promptParts.userMultimodal ? { userMultimodal: promptParts.userMultimodal } : {}),
       caseId: req.caseId,
       providerPreference: req.providerPreference,
       modelId: req.modelId,
@@ -1226,9 +1328,41 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       apiKey: req.apiKey,
       timeoutMs: agentTimeoutMs,
     });
+    timings.llmCallMs = Date.now() - plainLlmStart;
 
     // LLM 调用失败（如 429/quota-exceeded）— 直接返回错误，让客户端 trackProviderErrors 记录
     if (aiResponse.error) {
+      timings.totalMs = Date.now() - totalStart;
+      try {
+        metricsCollector.record({
+          agent: req.agent,
+          caseId: req.caseId || '',
+          providerId: aiResponse.attempts?.[0]?.providerId || '',
+          modelId: req.modelId || '',
+          searchProvider: '',
+          rerankerType: req.knowledgeReranker?.modelId || '',
+          embeddingModel: req.knowledgeEmbedding?.modelId || '',
+          durationMs: timings.totalMs,
+          ttftMs: 0,
+          toolRounds: 0,
+          inputTokens: aiResponse.tokenUsage?.input || 0,
+          outputTokens: aiResponse.tokenUsage?.output || 0,
+          totalTokens: aiResponse.tokenUsage?.total || 0,
+          thinkingTokens: 0,
+          costMicroUsd: estimateCost(req.modelId || '', aiResponse.tokenUsage?.input || 0, aiResponse.tokenUsage?.output || 0),
+          ragCitationCount: citations.length,
+          topCitationScore: Math.max(0, ...citations.map(c => c.score)),
+          webSearchCount: 0,
+          groundingScore: -1,
+          groundingVerdict: '',
+          removedClaimsCount: 0,
+          success: false,
+          errorType: 'ai-error',
+          errorCode: aiResponse.error.code || '',
+          timingsJson: JSON.stringify(timings),
+          attemptsJson: JSON.stringify(aiResponse.attempts || []),
+        });
+      } catch {}
       return {
         ok: false,
         error: {
@@ -1317,6 +1451,39 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       };
     }
 
+    // ── Record metrics (plain LLM path, success) ────────
+    timings.totalMs = Date.now() - totalStart;
+    try {
+      metricsCollector.record({
+        agent: req.agent,
+        caseId: req.caseId || '',
+        providerId: aiResponse.attempts?.[0]?.providerId || '',
+        modelId: req.modelId || '',
+        searchProvider: '',
+        rerankerType: req.knowledgeReranker?.modelId || '',
+        embeddingModel: req.knowledgeEmbedding?.modelId || '',
+        durationMs: timings.totalMs,
+        ttftMs: 0,
+        toolRounds: 0,
+        inputTokens: aiResponse.tokenUsage?.input || 0,
+        outputTokens: aiResponse.tokenUsage?.output || 0,
+        totalTokens: aiResponse.tokenUsage?.total || 0,
+        thinkingTokens: 0,
+        costMicroUsd: estimateCost(req.modelId || '', aiResponse.tokenUsage?.input || 0, aiResponse.tokenUsage?.output || 0),
+        ragCitationCount: citations.length,
+        topCitationScore: Math.max(0, ...citations.map(c => c.score)),
+        webSearchCount: 0,
+        groundingScore: -1,
+        groundingVerdict: '',
+        removedClaimsCount: 0,
+        success: true,
+        errorType: '',
+        errorCode: '',
+        timingsJson: JSON.stringify(timings),
+        attemptsJson: JSON.stringify(aiResponse.attempts || []),
+      });
+    } catch {}
+
     return {
       ok: true,
       output,
@@ -1328,6 +1495,37 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : undefined;
     logger.error(`Orchestrator error: ${message}${stack ? `\n${stack}` : ""}`);
+    timings.totalMs = Date.now() - totalStart;
+    try {
+      metricsCollector.record({
+        agent: req.agent,
+        caseId: req.caseId || '',
+        providerId: '',
+        modelId: req.modelId || '',
+        searchProvider: '',
+        rerankerType: '',
+        embeddingModel: req.knowledgeEmbedding?.modelId || '',
+        durationMs: timings.totalMs,
+        ttftMs: 0,
+        toolRounds: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        thinkingTokens: 0,
+        costMicroUsd: 0,
+        ragCitationCount: 0,
+        topCitationScore: 0,
+        webSearchCount: 0,
+        groundingScore: -1,
+        groundingVerdict: '',
+        removedClaimsCount: 0,
+        success: false,
+        errorType: 'orchestrator',
+        errorCode: '',
+        timingsJson: JSON.stringify(timings),
+        attemptsJson: '[]',
+      });
+    } catch {}
     return { ok: false, error: { type: "orchestrator", message } };
   }
 }
@@ -1393,12 +1591,16 @@ function extractQuery(agent: string, request: Record<string, unknown>): string {
 interface PromptParts {
   system: string;
   user: string;
+  /** nf3: 图片附件的多模态内容（仅当有图片附件且模型支持视觉时使用） */
+  userMultimodal?: MultimodalPart[];
 }
 
 interface InternalGatewayRequest {
   agent: string;
   systemPrompt: string;
   userPrompt: string;
+  /** nf3: 图片附件的多模态内容 */
+  userMultimodal?: MultimodalPart[] | undefined;
   caseId: string;
   providerPreference?: string[] | undefined;
   modelId?: string | undefined;
@@ -1439,11 +1641,16 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
   const providerOrder = req.providerPreference ?? [];
   logger.info(`[Gateway] providerOrder=[${providerOrder.join(", ")}], hasApiKeys=[${Object.keys(providerApiKeys).join(", ")}], modelId=${req.modelId}`);
 
+  // nf3: 有图片附件时使用 MultimodalPart[] 作为 user content
+  const userContent: string | MultimodalPart[] = req.userMultimodal
+    ? [{ type: "text", text: req.userPrompt } as MultimodalPart, ...req.userMultimodal]
+    : req.userPrompt;
+
   const chatRequest: ChatRequest = {
     modelId: req.modelId ?? "",
     messages: [
       { role: "system", content: req.systemPrompt },
-      { role: "user", content: req.userPrompt },
+      { role: "user", content: userContent },
     ],
     apiKey: "",
     ...(req.maxTokens !== undefined && { maxTokens: req.maxTokens }),

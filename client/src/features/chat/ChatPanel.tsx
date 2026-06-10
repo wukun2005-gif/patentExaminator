@@ -3,8 +3,8 @@ import { useParams, useLocation } from "react-router-dom";
 import { useChatStore, useCaseStore } from "../../store";
 import { ChatBubble } from "./ChatBubble";
 import { buildContextSummary } from "../../lib/chatContext";
-import type { ChatResponse } from "@shared/types/api";
-import { agentRun, lastMergedCitations } from "../../lib/repos";
+import type { ChatResponse, ChatAttachment } from "@shared/types/api";
+import { agentRun, lastMergedCitations, lastGroundedness } from "../../lib/repos";
 import { createSession, createMessage, deleteSession, deleteMessagesBySessionId, updateSession, getSessionsByCaseId, getMessagesBySessionId } from "../../lib/repos";
 import { formatAiErrorMessage } from "../../lib/errorDisplay";
 import type { ChatMessage, ChatSession, ModuleScope } from "@shared/types/domain";
@@ -12,6 +12,22 @@ import type { ChatRequest } from "@shared/types/api";
 
 import { createLogger } from "../../lib/logger";
 const log = createLogger("ChatPanel");
+
+/** nf3: 支持的文件格式 */
+const ACCEPTED_FILE_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+  "text/html",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "image/bmp",
+  "image/tiff",
+].join(",");
+
+const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024; // 20MB
 
 const MODULE_LABELS: Record<string, string> = {
   baseline: "案件基本信息",
@@ -66,6 +82,10 @@ export function ChatPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [panelWidth, setPanelWidth] = useState(340);
+  // nf3: 文件附件状态
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -222,6 +242,11 @@ export function ChatPanel() {
 
     setInput("");
 
+    // nf3: 收集附件元数据（在清空 attachments 之前）
+    const attachmentMeta = attachments.length > 0
+      ? attachments.map(a => ({ fileName: a.fileName, mimeType: a.mimeType }))
+      : undefined;
+
     // Add user message
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}-user`,
@@ -230,6 +255,7 @@ export function ChatPanel() {
       moduleScope,
       role: "user",
       content: text,
+      ...(attachmentMeta ? { attachments: attachmentMeta } : {}),
       createdAt: new Date().toISOString()
     };
     log("Adding user message:", userMsg.id);
@@ -254,13 +280,18 @@ export function ChatPanel() {
         .slice(-10)
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
+      // nf3: 收集当前附件并清空状态
+      const currentAttachments = attachments.length > 0 ? [...attachments] : undefined;
+      setAttachments([]);
+
       const request: ChatRequest = {
         caseId,
         sessionId,
         moduleScope,
         userMessage: text,
         contextSummary,
-        history
+        history,
+        ...(currentAttachments ? { attachments: currentAttachments } : {}),
       };
 
       log("Calling AI...");
@@ -280,6 +311,7 @@ export function ChatPanel() {
         role: "assistant",
         content: replyContent,
         ...(lastMergedCitations.length > 0 ? { mergedCitations: [...lastMergedCitations] } : {}),
+        ...(lastGroundedness ? { groundedness: lastGroundedness } : {}),
         createdAt: new Date().toISOString()
       };
       log("Adding assistant message:", assistantMsg.id);
@@ -321,6 +353,48 @@ export function ChatPanel() {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  // nf3: 文件选择 → 上传到服务端提取
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // 重置 input 以允许重复选择同一文件
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    if (file.size > MAX_ATTACHMENT_SIZE) {
+      alert("文件过大（最大 20MB）");
+      return;
+    }
+
+    setIsExtracting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/chat/extract", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        alert(data.error ?? "文件提取失败");
+        return;
+      }
+      const attachment: ChatAttachment = {
+        fileName: data.fileName,
+        mimeType: data.mimeType,
+        text: data.text,
+        ...(data.base64 ? { base64: data.base64 } : {}),
+      };
+      setAttachments(prev => [...prev, attachment]);
+      log("File extracted:", data.fileName, data.text.length, "chars");
+    } catch (err) {
+      log("File extract error:", err);
+      alert("文件上传失败，请检查网络连接");
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleAction = (target: string) => {
@@ -485,8 +559,56 @@ export function ChatPanel() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* nf3: 附件预览 */}
+          {(attachments.length > 0 || isExtracting) && (
+            <div className="chat-panel__attachments" data-testid="chat-attachments">
+              {attachments.map((a, i) => (
+                <div key={`${a.fileName}-${i}`} className="chat-attachment-chip">
+                  <span className="chat-attachment-chip__icon">
+                    {a.mimeType.startsWith("image/") ? "🖼️" : "📄"}
+                  </span>
+                  <span className="chat-attachment-chip__name" title={a.fileName}>
+                    {a.fileName.length > 20 ? a.fileName.slice(0, 18) + "…" : a.fileName}
+                  </span>
+                  <button
+                    type="button"
+                    className="chat-attachment-chip__remove"
+                    onClick={() => handleRemoveAttachment(i)}
+                    title="移除附件"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {isExtracting && (
+                <div className="chat-attachment-chip chat-attachment-chip--loading">
+                  <span>提取中...</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Input */}
           <div className="chat-panel__input">
+            {/* nf3: 文件上传按钮 */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPTED_FILE_TYPES}
+              onChange={handleFileSelect}
+              style={{ display: "none" }}
+              data-testid="chat-file-input"
+            />
+            <button
+              type="button"
+              className="chat-panel__attach-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isExtracting || isLoading}
+              title="上传文件 (PDF/DOCX/TXT/HTML/图片)"
+              data-testid="btn-attach-file"
+            >
+              📎
+            </button>
             <textarea
               ref={textareaRef}
               value={input}
@@ -499,7 +621,7 @@ export function ChatPanel() {
             <button
               type="button"
               onClick={handleSend}
-              disabled={!input.trim() || isLoading}
+              disabled={(!input.trim() && attachments.length === 0) || isLoading}
               title="发送 (Enter)"
               data-testid="btn-send-chat"
             >

@@ -10,6 +10,8 @@ import { dataRouter } from "./routes/data.js";
 import { ocrRouter } from "./routes/ocr.js";
 import { documentsRouter } from "./routes/documents.js";
 import { agentRouter } from "./routes/agent.js";
+import { metricsRouter } from "./routes/metrics.js";
+import { chatAttachmentsRouter } from "./routes/chat-attachments.js";
 import { logger } from "./lib/logger.js";
 import { closeSyncDb } from "./lib/syncDb.js";
 import path from "path";
@@ -94,6 +96,8 @@ app.use("/api", requireLocalhost, dataRouter);
 app.use("/api", requireLocalhost, ocrRouter);
 app.use("/api", requireLocalhost, documentsRouter);
 app.use("/api", agentRouter);
+app.use("/api", chatAttachmentsRouter);
+app.use("/api", metricsRouter);
 
 // Serve client static files if dist exists
 const clientDist = path.resolve(__dirname, "../../client/dist");

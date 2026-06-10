@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r43 · 2026-06-05</p>
+<p align="right">版本 v0.1.0-r50 · 2026-06-10</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -8,6 +8,9 @@
 
 | 版本 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|------|---------|----------|-------------|
+| v0.1.0-r52 | 2026-06-10 | nf3: 聊天文件上传 — 新增 POST /api/chat/extract 端点（PDF/DOCX/TXT/HTML/图片提取），ChatPanel 添加 📎 附件按钮+chip 预览，ChatBubble 展示附件标签，ChatRequest/ChatMessage 新增 attachments 字段，orchestrator buildChatPrompt 注入附件内容到 prompt，图片附件支持 MultimodalPart 视觉模型 | shared/src/types/api.ts, shared/src/types/domain.ts, server/src/routes/chat-attachments.ts(新建), server/src/lib/orchestrator.ts, server/src/index.ts, client/src/features/chat/ChatPanel.tsx, client/src/features/chat/ChatBubble.tsx, client/src/styles/app.css | — |
+| v0.1.0-r51 | 2026-06-10 | 新增 §6.7 Metrics 体系设计（审查员质量徽章/成本显示/健康状态/反馈按钮 + 开发者 Dashboard + 离线评估 Golden Set 60 题）；docs/metrics-design.md 详细设计文档 | DESIGN.md §6.7, docs/metrics-design.md | — |
+| v0.1.0-r50 | 2026-06-10 | §6.6 文档重构：拆分为 §6.6.1 RAG 管线架构（5 阶段流程图 + Query Expansion/Hybrid Search/Reranker/MMR/Parent-Child 详细设计）、§6.6.2 Web Search MCP Server（NF1）、§6.6.3 Groundedness Detection（NF2）；PRD 同步更新 §12.4 + 术语表 | DESIGN.md §6.6, PRD.md §12.4/附录A | — |
 | v0.1.0-r49 | 2026-06-08 | bug9: client/modelCatalog.ts 硬编码模型数据消除 — server model-capabilities-registry 成为单一数据源（含 recommendation/rpm/rpd/tpm），新增 GET /api/providers/models 端点，client 改为 useModelCatalog() hook 从 server 获取，ModelInfo 新增 contextWindow/maxOutputTokens/isReasoning/supportsVision/supportsStructuredOutput | model-capabilities-registry.ts, ModelCapabilities.ts, settings.ts, modelCatalog.ts, api.ts, ProvidersConfigPanel.tsx, AgentsAssignmentPanel.tsx, agents.ts | — |
 | v0.1.0-r48 | 2026-06-08 | bug7+bug8: logger 时间戳添加时区偏移（+HH:MM）；文献检索结果按 relevanceScore 降序排序 | logger.ts, search.ts | — |
 | v0.1.0-r47 | 2026-06-08 | bug5 补充: doubao-seed-2.0+ / DeepSeek V4 按 provider 严格对齐官方文档 — 新增 §5.4.1 Provider 官方模型规格（DeepSeek 官方 API、火山引擎、豆包 Seed 三大 provider 的完整参数表）；registry 拆分火山引擎/DeepSeek 官方前缀（deepseek-v4-pro-260425 vs deepseek-v4-pro）；doubao.ts 新增 16 个 seed 模型 ID + 3 个火山 DeepSeek 模型；deepseek.ts 移除火山引擎专属 ID；AgentsAssignmentPanel 补充 doubao provider；5 文件修改 | DESIGN.md §5.4.1, model-capabilities-registry.ts, doubao.ts, deepseek.ts, modelCatalog.ts, AgentsAssignmentPanel.tsx | — |
@@ -1145,7 +1148,74 @@ approxTokens = ceil(zhChars * 0.6 + latinChars * 0.3)
 
 发送确认框显示：`估算 Token ≈ {displayEstimate} + maxTokens {output}`；发送后用实际 usage 覆盖并累计到 `localMetrics`。
 
-### 6.6 MCP Tool Calling（NF1）
+### 6.6 RAG 管线与 Web Search（NF1 + NF2）
+
+#### 6.6.1 RAG 管线架构（`server/src/lib/orchestrator.ts` `enhanceWithKnowledge()`）
+
+RAG 管线在 orchestrator 中实现，分为 5 个阶段：
+
+```mermaid
+flowchart TD
+    Q["用户查询"] --> QE["① Query Expansion"]
+    QE --> ES["② Embedding 向量搜索"]
+    QE --> HS["③ Multi-Query + Hybrid Search"]
+    ES --> MERGE["合并去重"]
+    HS --> MERGE
+    MERGE --> RR["④ Reranking (三层降级)"]
+    RR --> MMR["④.5 MMR 多样性排序"]
+    MMR --> PC["⑤ Parent-Child 注入"]
+    PC --> PROMPT["注入 Agent Prompt"]
+```
+
+**阶段 1：Query Expansion**（`server/src/lib/queryExpand.ts`）
+- 跨语言映射：中文专利术语 → 英文（如"权利要求" → "claim"）
+- 法律同义词扩展：如"新颖性" → "novelty, new"
+- 法条知识图谱扩展：基于 `ARTICLE_GRAPH` 结构，命中某法条关键词时自动扩展到关联法条（如命中"新颖性"时扩展到"创造性"、"三步法"）
+- 三者串联：`expandQueryFull()` = crossLanguage → legalSynonyms → articleGraph
+
+**阶段 2：Embedding 向量搜索**（orchestrator.ts 第 733-769 行）
+- 远程 Embedding API 生成查询向量，与知识库全量向量做 cosine similarity
+- 动态阈值：top-15 后用 `topScore × 0.7` 过滤（绝对最低 0.1）
+- Embedding 未配置时降级为纯 BM25
+
+**阶段 3：Multi-Query + Hybrid Search**（`server/src/lib/hybridSearch.ts`）
+- `generateMultiQueries()` 生成多个子查询（原始 + 关键词组合 + 同义词 + 缩短版）
+- 每个子查询执行 `hybridSearch()`：BM25 + 向量的 RRF 融合
+- 融合算法：Reciprocal Rank Fusion（k=60），`score = Σ 1/(k + rank + 1)`
+- BM25 实现：MiniSearch + jieba-wasm 中文分词（37 个法律专用词典）+ 长度归一化
+- 结果合并去重：同一 chunk 取最高 score
+
+**阶段 4：Reranking**（`server/src/lib/reranker.ts`）
+
+三层降级策略：
+
+| 层级 | 实现 | 说明 |
+|------|------|------|
+| 远程 Reranker API | POST `{baseUrl}/v1/rerank` | 用户配置的远程服务 |
+| Cross-Encoder | `Xenova/bge-reranker-base` | 本地模型，懒加载 + 预热 |
+| 启发式加权 | 5 信号融合 | 语义 0.4 + 关键词 0.25 + 文档类型 0.15 + 法条引用 0.15 + 深度 0.05 |
+
+法律文本专用权重：法条引用提升到 0.3，语义降到 0.3。
+
+**阶段 4.5：MMR 多样性排序**
+- `mmrDiversityRank(lambda=0.7, topK=5)` 避免返回过于相似的结果
+
+**阶段 5：Parent-Child 注入**
+- 检索用 child chunk（精准匹配），注入用 parent chunk（完整上下文）
+- 按 `[1] [2] ...` 编号格式注入 prompt
+
+**Chunking 策略**（`server/src/lib/legalChunker.ts`）：
+
+| 文档类型 | 切分策略 | 说明 |
+|---------|---------|------|
+| 法律/法规/司法解释 | 按"第X条" | 长条按"款"拆分（Parent-Child），短条合并 |
+| 审查指南 | 按"第X节" / X.X.X 标题 | 保留章节层级元数据 |
+| 案例 | 按段落 | 保留段落完整性 |
+
+- 最小 100 字符，最大 1500 字符；表格整体保留不拆分
+- 元数据保留：章/节/条/款层级 + 法条引用提取
+
+#### 6.6.2 Web Search MCP Server（NF1）
 
 **架构：**
 ```
@@ -1160,7 +1230,7 @@ Orchestrator (chat agent + webSearchEnabled)
 **关键设计决策：**
 - MCP transport：stdio（子进程），未来可升级 SSE/HTTP
 - 搜索 API：SerpAPI 统一覆盖 Google/Bing/Baidu，一个 key 三个引擎
-- 跨源融合：RAG + Web Search 结果合并，用 localRerank（复用 lib/reranker.ts BAAI/bge-reranker-base）按 query 相关性排序，reranker 失败时 fallback 到引擎优先级
+- 跨源融合：RAG + Web Search 结果合并，用 reranker（三层降级：远程 API → cross-encoder → 启发式）按 query 相关性排序，reranker 失败时 fallback 到引擎优先级（rag > google > bing > baidu）
 - 触发范围：仅 chat agent，`webSearchEnabled !== false` 默认启用，`tool_choice: "auto"` 让 LLM 自主判断是否搜索
 - Tool loop 轮数：最多 3 轮，防止无限循环
 - Re-inject：Top-K 文档结构化注入 prompt（编号 [1][2]...），不带 tools 调 LLM 生成最终回答
@@ -1171,11 +1241,55 @@ Orchestrator (chat agent + webSearchEnabled)
 - Gemini：functionDeclarations 格式 + functionCall 响应解析；tool message 携带 `name` 字段确保 functionResponse 正确路由
 - Bedrock：暂不支持（降级为纯文本）
 
-**Groundedness Detection（NF2）：**
-- LLM-as-judge：回答生成后，第二个 LLM 调用逐句检查是否忠实于检索文档
-- 过滤策略：groundedRatio >= 0.8 保留 grounded + not_verifiable；0.5~0.8 仅保留 grounded；< 0.5 触发重试（最多 1 次）
-- 触发条件：`groundednessEnabled !== false` 默认启用，需有 grounding documents（RAG 或 web search citations）
-- 降级：judge LLM 调用失败或 JSON 解析失败时，默认全部通过（不阻塞用户）
+#### 6.6.3 Groundedness Detection（NF2）
+
+**实现文件：** `server/src/lib/groundednessCheck.ts`
+
+**流程：**
+1. 句子拆分：按中文句号/问号/感叹号/英文句号拆分，保护编号段落 `[0001]` 不被拆断
+2. Judge Prompt 构建：包含参考文档（RAG + Web Search citations），要求 JSON 输出（claims 数组 + groundedRatio + overallVerdict）
+3. LLM-as-Judge 调用：temperature=0，多重降级（调用失败/JSON 解析失败/异常 → 默认 grounded）
+4. 过滤：grounded 保留，ungrounded 移除，not_verifiable 按阈值处理
+
+**阈值策略：**
+- `groundedRatio >= 0.8`：pass，保留 grounded + not_verifiable
+- `0.5 ~ 0.8`：partial，仅保留 grounded
+- `< 0.5`：fail，触发重新生成（加强 system prompt 约束后重试，最多 1 次）
+
+**触发条件：** `groundednessEnabled !== false` 默认启用，需有 grounding documents（RAG 或 web search citations），仅 chat agent
+
+### 6.7 Metrics 体系
+
+> 详见 `docs/metrics-design.md`
+
+#### 6.7.1 面向审查员
+
+| 功能 | 说明 | 实现位置 |
+|------|------|---------|
+| 质量徽章 | Groundedness pass/partial/fail + 引用数 | ChatBubble.tsx |
+| 成本显示 | Token 用量 + 美元估算 | AppShell.tsx |
+| 健康状态 | Provider 成功率、延迟 | SettingsPage |
+| 反馈按钮 | like/dislike 上传 server | feedbackRepo.ts |
+
+#### 6.7.2 面向开发者/管理员（Settings 第 5 tab）
+
+| 功能 | 说明 |
+|------|------|
+| 概览卡片 | 总调用、成功率、Groundedness、总成本 |
+| 模型对比表 | 按 provider:model 聚合，可排序 |
+| 趋势图 | Groundedness / 成功率按天趋势 |
+| 延迟分布 | 堆叠条形图（各阶段耗时） |
+| 成本分析 | 按 Provider / Agent 分解 |
+
+#### 6.7.3 离线评估
+
+- **Golden Set**：60 题，3 个免费 LLM 各生成 20 题（MiMo 2.5 Pro / DeepSeek V4-Pro / Gemini 3.5-Flash）
+- **指标**：Recall@K、MRR、NDCG@K、Faithfulness（LLM-as-Judge）、延迟、成本
+- **流程**：用户选择模型配置 → 跑 60 题 → 生成对比报告
+
+#### 6.7.4 数据采集
+
+`MetricsCollector` 单例在 `orchestrator.runAgent()` 各阶段插入 `Date.now()` 计时，fire-and-forget 批量写入 `metrics_runs` 表。不修改任何现有逻辑，纯增量插桩。
 
 ---
 

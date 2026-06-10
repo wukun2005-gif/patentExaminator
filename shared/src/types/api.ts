@@ -1,5 +1,6 @@
 import type { ProviderId } from "./agents.js";
 import type { ClaimFeature } from "./domain.js";
+import type { MetricsRun } from "./metrics.js";
 
 // ── AI Gateway 错误分类 ──────────────────────────────
 
@@ -62,6 +63,7 @@ export interface AiRunResponse {
   error?: { code: string; message: string; retryable: boolean; providerId?: ProviderId };
   attempts?: Array<{ providerId: ProviderId; ok: boolean; errorCode?: string }>;
   structureErrors?: string[];
+  metrics?: MetricsRun;
 }
 
 // ── Claim Chart ──────────────────────────────────────
@@ -159,6 +161,16 @@ export interface InventiveResponse {
 
 // ── Chat ─────────────────────────────────────────────
 
+/** nf3: 聊天附件（服务端提取后返回给客户端，客户端随 ChatRequest 发送） */
+export interface ChatAttachment {
+  fileName: string;
+  mimeType: string;
+  /** 提取后的文本内容（PDF/DOCX/TXT/HTML/图片 OCR） */
+  text: string;
+  /** 图片 base64（仅图片类型，供视觉模型使用） */
+  base64?: string;
+}
+
 export interface ChatRequest {
   caseId: string;
   sessionId: string;
@@ -166,6 +178,8 @@ export interface ChatRequest {
   userMessage: string;
   contextSummary: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
+  /** nf3: 用户上传的文件附件（已由服务端提取文本） */
+  attachments?: ChatAttachment[];
 }
 
 export interface ChatResponse {
