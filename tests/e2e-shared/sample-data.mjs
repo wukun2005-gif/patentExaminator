@@ -145,7 +145,7 @@ export const SAMPLE_CLAIM_G3 = [
  * @returns {object}
  */
 export function buildMockRequest(options) {
-  const { agent, caseId, moduleScope = "claim-chart", extra = {} } = options;
+  const { agent, caseId, moduleScope = "claim-chart", extra = {}, webSearchEnabled, groundednessEnabled } = options;
 
   const metadata = {
     caseId,
@@ -167,6 +167,8 @@ export function buildMockRequest(options) {
     sanitized: false,
     mock: true,
     metadata,
+    ...(webSearchEnabled !== undefined && { webSearchEnabled }),
+    ...(groundednessEnabled !== undefined && { groundednessEnabled }),
     ...extra,
   };
 }

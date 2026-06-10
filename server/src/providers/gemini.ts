@@ -123,7 +123,7 @@ export class GeminiAdapter implements ProviderAdapter {
             role: "user" as const,
             parts: [{
               functionResponse: {
-                name: m.tool_call_id.replace(/^call_\w+_/, ""), // extract function name from tool_call_id
+                name: m.name || m.tool_call_id.replace(/^call_\w+_/, ""), // 优先用 name 字段
                 response: { content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) },
               }
             }]
@@ -197,6 +197,23 @@ export class GeminiAdapter implements ProviderAdapter {
           parameters: t.function.parameters,
         }))
       }];
+
+      // Convert tool_choice to Gemini tool_config
+      // OpenAI: "auto" | "required" | "none"
+      // Gemini: "AUTO" | "ANY" | "NONE"
+      if (req.tool_choice) {
+        const modeMap: Record<string, string> = {
+          "auto": "AUTO",
+          "required": "ANY",
+          "none": "NONE",
+        };
+        const geminiMode = modeMap[req.tool_choice] ?? "AUTO";
+        body.tool_config = {
+          function_calling_config: {
+            mode: geminiMode
+          }
+        };
+      }
     }
 
     if (systemInstruction) {

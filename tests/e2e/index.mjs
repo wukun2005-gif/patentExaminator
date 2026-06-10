@@ -116,3 +116,15 @@ export {
   testFullPipelineMock_G2,
   testFullPipelineMock_Reexam_G1,
 } from "./pipeline.mjs";
+
+// NF1 + NF2 测试
+export {
+  testNf1WebSearchDefaultEnabled,
+  testNf1WebSearchExplicitlyDisabled,
+  testNf1WebSearchExplicitlyEnabled,
+  testNf2GroundednessDefaultEnabled,
+  testNf2GroundednessExplicitlyDisabled,
+  testNf1Nf2NotTriggeredForNonChat,
+  testNf1RealWebSearchReturnsResults,
+  testNf1MergedCitationsRanking,
+} from "./nf1-nf2.mjs";

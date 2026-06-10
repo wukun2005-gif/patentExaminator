@@ -1,14 +1,28 @@
 /**
  * NF2: Groundedness Detection 单元测试
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   splitIntoSentences,
   buildJudgePrompt,
   filterUngrounded,
+  extractJudgeJson,
   type JudgeResult,
   type GroundingDoc,
 } from "../../server/src/lib/groundednessCheck.js";
+
+// Mock registry for checkGroundedness tests
+const mockRunWithFallback = vi.fn();
+
+vi.mock("../../server/src/providers/registry.js", () => ({
+  registry: { runWithFallback: mockRunWithFallback },
+}));
+vi.mock("../../server/src/security/keyStore.js", () => ({
+  getApiKey: vi.fn(() => "mock-key"),
+}));
+vi.mock("../../server/src/lib/logger.js", () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 
 describe("splitIntoSentences", () => {
   it("TC-001: 按中文句号拆分", () => {
@@ -201,5 +215,152 @@ describe("filterUngrounded", () => {
     expect(result.output).toContain("句子A。");
     expect(result.output).toContain("句子B。");
     expect(result.output).toContain("句子C。");
+  });
+});
+
+describe("extractJudgeJson", () => {
+  it("TC-017: 直接解析纯 JSON", () => {
+    const json: JudgeResult = {
+      claims: [{ text: "句子A。", verdict: "grounded" }],
+      groundedRatio: 1,
+      overallVerdict: "pass",
+    };
+    const result = extractJudgeJson(JSON.stringify(json));
+    expect(result).not.toBeNull();
+    expect(result!.claims).toHaveLength(1);
+    expect(result!.overallVerdict).toBe("pass");
+  });
+
+  it("TC-018: 从 markdown 代码块中提取 JSON", () => {
+    const json: JudgeResult = {
+      claims: [{ text: "句子A。", verdict: "ungrounded" }],
+      groundedRatio: 0,
+      overallVerdict: "fail",
+    };
+    const text = `这是分析结果：\n\`\`\`json\n${JSON.stringify(json, null, 2)}\n\`\`\`\n以上是结果。`;
+    const result = extractJudgeJson(text);
+    expect(result).not.toBeNull();
+    expect(result!.overallVerdict).toBe("fail");
+  });
+
+  it("TC-019: 从混杂文本中提取 JSON", () => {
+    const json: JudgeResult = {
+      claims: [
+        { text: "句子A。", verdict: "grounded" },
+        { text: "句子B。", verdict: "ungrounded" },
+      ],
+      groundedRatio: 0.5,
+      overallVerdict: "partial",
+    };
+    const text = `根据我的分析，结果如下：${JSON.stringify(json)}希望对你有帮助。`;
+    const result = extractJudgeJson(text);
+    expect(result).not.toBeNull();
+    expect(result!.claims).toHaveLength(2);
+    expect(result!.overallVerdict).toBe("partial");
+  });
+
+  it("TC-020: 无效 JSON 返回 null", () => {
+    expect(extractJudgeJson("这不是JSON")).toBeNull();
+    expect(extractJudgeJson("")).toBeNull();
+    expect(extractJudgeJson("{ broken json")).toBeNull();
+  });
+
+  it("TC-021: JSON 无 claims 字段返回 null", () => {
+    expect(extractJudgeJson(JSON.stringify({ groundedRatio: 1 }))).toBeNull();
+  });
+
+  it("TC-022: claims 非数组返回 null", () => {
+    expect(extractJudgeJson(JSON.stringify({ claims: "not-array", groundedRatio: 1 }))).toBeNull();
+  });
+});
+
+describe("checkGroundedness", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("TC-023: 无 grounding docs 时跳过检查，返回 pass", async () => {
+    const { checkGroundedness } = await import("../../server/src/lib/groundednessCheck.js");
+    const result = await checkGroundedness("这是回答。");
+    expect(result.verdict).toBe("pass");
+    expect(result.groundingScore).toBe(1);
+    expect(result.removedClaims).toHaveLength(0);
+    expect(result.output).toBe("这是回答。");
+  });
+
+  it("TC-024: 空回答时跳过检查，返回 pass", async () => {
+    const { checkGroundedness } = await import("../../server/src/lib/groundednessCheck.js");
+    const result = await checkGroundedness("", [{ source: "doc", excerpt: "content" }]);
+    expect(result.verdict).toBe("pass");
+  });
+
+  it("TC-025: judge LLM 失败时降级为全部通过", async () => {
+    mockRunWithFallback.mockResolvedValueOnce({
+      response: { error: { code: "ERROR", message: "fail", retryable: false }, text: "" },
+    });
+    const { checkGroundedness } = await import("../../server/src/lib/groundednessCheck.js");
+    const result = await checkGroundedness(
+      "句子A。句子B。",
+      [{ source: "doc", excerpt: "content" }],
+      undefined,
+      { providerPreference: ["gemini"] }
+    );
+    expect(result.verdict).toBe("pass");
+    expect(result.groundingScore).toBe(1);
+  });
+
+  it("TC-026: judge 返回无效 JSON 时降级为全部通过", async () => {
+    mockRunWithFallback.mockResolvedValueOnce({
+      response: { text: "我无法判断", rawResponse: {} },
+    });
+    const { checkGroundedness } = await import("../../server/src/lib/groundednessCheck.js");
+    const result = await checkGroundedness(
+      "句子A。",
+      [{ source: "doc", excerpt: "content" }],
+      undefined,
+      { providerPreference: ["gemini"] }
+    );
+    expect(result.verdict).toBe("pass");
+  });
+
+  it("TC-027: judge 返回有效结果时正确过滤", async () => {
+    const judgeJson: JudgeResult = {
+      claims: [
+        { text: "有支撑的句子。", verdict: "grounded" },
+        { text: "无支撑的句子。", verdict: "ungrounded" },
+      ],
+      groundedRatio: 0.5,
+      overallVerdict: "partial",
+    };
+    mockRunWithFallback.mockResolvedValueOnce({
+      response: { text: JSON.stringify(judgeJson), rawResponse: {} },
+    });
+    const { checkGroundedness } = await import("../../server/src/lib/groundednessCheck.js");
+    const result = await checkGroundedness(
+      "有支撑的句子。无支撑的句子。",
+      [{ source: "doc", excerpt: "content" }],
+      undefined,
+      { providerPreference: ["gemini"] }
+    );
+    expect(result.verdict).toBe("partial");
+    expect(result.output).toContain("有支撑的句子。");
+    expect(result.output).not.toContain("无支撑的句子。");
+    expect(result.removedClaims).toHaveLength(1);
+  });
+
+  it("TC-028: web search citations 也被用作 grounding docs", async () => {
+    mockRunWithFallback.mockResolvedValueOnce({
+      response: { error: { code: "ERROR", message: "fail", retryable: false }, text: "" },
+    });
+    const { checkGroundedness } = await import("../../server/src/lib/groundednessCheck.js");
+    const result = await checkGroundedness(
+      "句子A。",
+      undefined,
+      [{ url: "https://example.com", title: "Test", snippet: "snippet", engine: "google" }],
+      { providerPreference: ["gemini"] }
+    );
+    // Should attempt to call judge (not skip) since web citations exist
+    expect(mockRunWithFallback).toHaveBeenCalled();
+    expect(result.verdict).toBe("pass"); // degraded to pass on error
   });
 });

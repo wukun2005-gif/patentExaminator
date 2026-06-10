@@ -35,12 +35,14 @@ export const agentRunInputSchema = z.object({
     modelId: z.string(),
   }).optional(),
   apiKey: z.string().optional(),
+  /** NF1: 搜索 API key（测试用，通过请求体传入，CLAUDE.md key 隔离） */
+  searchApiKey: z.string().optional(),
   mock: z.boolean().optional(),
   mockKey: z.string().optional(),
-  /** NF1: 启用 web search tool calling（仅 chat agent 有效） */
-  webSearchEnabled: z.boolean().optional(),
-  /** NF2: 启用 groundedness detection（仅 chat agent 有效） */
-  groundednessEnabled: z.boolean().optional(),
+  /** NF1: 启用 web search tool calling（仅 chat agent 有效，默认启用） */
+  webSearchEnabled: z.boolean().optional().default(true),
+  /** NF2: 启用 groundedness detection（仅 chat agent 有效，默认启用） */
+  groundednessEnabled: z.boolean().optional().default(true),
 });
 
 // ── Knowledge embedding config ───────────────────────────────

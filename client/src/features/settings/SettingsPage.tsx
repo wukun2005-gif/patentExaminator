@@ -66,7 +66,7 @@ export function SettingsPage() {
           onClick={() => handleTabChange("search")}
           data-testid="tab-search"
         >
-          专利搜索
+          搜索
         </button>
         <button
           type="button"

@@ -83,19 +83,11 @@ searchRouter.post("/search-references", async (req, res) => {
   if (request.searchBaseUrl) validateExternalUrl(request.searchBaseUrl);
   validateProviderBaseUrls(request.providerBaseUrls as Record<string, string> | undefined);
 
-  // Resolve search API key:
-  //   - APP mode: frontend sends user-configured key via searchApiKey
-  //   - Dev/test mode: frontend sends nothing, backend uses env vars
-  // These two routes are independent — no fallback between them.
+  // Resolve search API key from request body only
+  // APP mode: frontend sends user-configured key via searchApiKey
+  // Test mode: test script sends key via searchApiKey from .env
   const searchProviderId = request.searchProviderId || "tavily";
-  const envKeyMap: Record<string, string | undefined> = {
-    tavily: process.env.TAVILY_API_KEY,
-    serpapi: process.env.SerpAPI_KEY,
-    epo: process.env.EPO_CONSUMER_KEY && process.env.EPO_CONSUMER_SECRET
-      ? `${process.env.EPO_CONSUMER_KEY}:${process.env.EPO_CONSUMER_SECRET}`
-      : undefined
-  };
-  const searchApiKey = request.searchApiKey || envKeyMap[searchProviderId];
+  const searchApiKey = request.searchApiKey;
   if (!searchApiKey) {
     res.status(503).json({
       ok: false,
@@ -820,20 +812,13 @@ searchRouter.post("/search-with-terms", async (req, res) => {
 
   const searchProviderId = request.searchProviderId || "tavily";
 
-  // Resolve search API key
-  const envKeyMap: Record<string, string | undefined> = {
-    tavily: process.env.TAVILY_API_KEY,
-    serpapi: process.env.SerpAPI_KEY,
-    epo: process.env.EPO_CONSUMER_KEY && process.env.EPO_CONSUMER_SECRET
-      ? `${process.env.EPO_CONSUMER_KEY}:${process.env.EPO_CONSUMER_SECRET}`
-      : undefined
-  };
-  const searchApiKey = request.searchApiKey || envKeyMap[searchProviderId];
+  // Resolve search API key from request body only
+  const searchApiKey = request.searchApiKey;
   if (!searchApiKey) {
     res.status(503).json({
       ok: false,
       candidates: [],
-      error: "搜索服务不可用：未配置搜索 API Key。"
+      error: "搜索服务不可用：未配置搜索 API Key。请在设置→专利搜索中配置，或手动上传文献。"
     } satisfies SearchReferencesResponse);
     return;
   }

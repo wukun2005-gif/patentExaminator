@@ -125,7 +125,7 @@ export function ReferenceSearchPanel({ claimText, features }: ReferenceSearchPan
 
     const enabledSearchProviders = (settings.searchProviders ?? []).filter((p) => p.enabled && p.apiKeyRef);
     if (enabledSearchProviders.length === 0) {
-      setError("未配置搜索 API。请在设置→专利搜索中配置搜索服务的 API Key。");
+      setError("未配置搜索 API。请在设置→搜索中配置搜索服务的 API Key。");
       return;
     }
 

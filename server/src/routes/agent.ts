@@ -34,6 +34,7 @@ agentRouter.post("/agent/run", express.json({ limit: "10mb" }), async (req, res)
       knowledgeEmbedding,
       knowledgeReranker,
       apiKey,
+      searchApiKey,
       mock,
       mockKey,
       webSearchEnabled,
@@ -77,6 +78,7 @@ agentRouter.post("/agent/run", express.json({ limit: "10mb" }), async (req, res)
       knowledgeEmbedding,
       knowledgeReranker,
       apiKey,
+      searchApiKey,
       webSearchEnabled,
       groundednessEnabled,
     });

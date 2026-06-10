@@ -31,9 +31,9 @@ export async function searchPatents(
   maxResults: number = 10,
   config?: SearchProviderConfig
 ): Promise<SearchResponse> {
-  const apiKey = config?.apiKey || process.env.TAVILY_API_KEY;
+  const apiKey = config?.apiKey;
   if (!apiKey) {
-    throw new Error("No search API key configured");
+    throw new Error("No search API key configured (must be passed via config, not from environment)");
   }
 
   const queryList = Array.isArray(queries) ? queries : [queries];

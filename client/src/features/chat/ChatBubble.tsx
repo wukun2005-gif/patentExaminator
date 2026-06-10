@@ -20,7 +20,7 @@ function renderWithCitations(text: string, citations: CitationInfo[]) {
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(text)) !== null) {
-    const num = parseInt(match[1], 10);
+    const num = parseInt(match[1] ?? "0", 10);
     if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
     if (num >= 1 && num <= citations.length) {
       parts.push(
@@ -59,8 +59,8 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
   const actionTarget = actionMatch?.[1];
   const displayContent = content.replace(/\[action:\S+?\]/g, "").trim();
 
-  const citations = message.knowledgeCitations ?? [];
-  const citationCount = citations.length;
+  // server 已合并排序好的引用列表（RAG + Web 按相关性排列的 top-K）
+  const citations = (message.mergedCitations ?? []).map((c) => ({ source: c.title ?? c.url ?? "", excerpt: c.snippet ?? "" }));
 
   return (
     <div className={`chat-bubble chat-bubble--${message.role}`} data-testid={`chat-bubble-${message.id}`}>
@@ -91,9 +91,9 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
           </button>
         </div>
       )}
-      {isAssistant && citationCount > 0 && (
+      {isAssistant && citations.length > 0 && (
         <div className="chat-bubble__citations">
-          <div className="chat-bubble__citations-header">参考知识库</div>
+          <div className="chat-bubble__citations-header">参考文档</div>
           {citations.map((c, i) => (
             <div
               key={`${c.source}-${i}`}
@@ -102,8 +102,8 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
             >
               <span className="chat-bubble__citation-num">[{i + 1}]</span>
               <div className="chat-bubble__citation-body">
-                <span className="chat-bubble__citation-source">{c.source}{c.article ? ` ${c.article}` : ""}</span>
-                <span className="chat-bubble__citation-excerpt">{c.excerpt}</span>
+                <span className="chat-bubble__citation-source">{c.source}</span>
+                {c.excerpt && <span className="chat-bubble__citation-excerpt">{c.excerpt}</span>}
               </div>
             </div>
           ))}

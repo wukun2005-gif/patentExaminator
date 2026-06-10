@@ -64,6 +64,8 @@ export interface AgentRunRequest {
   knowledgeReranker?: { baseUrl: string; apiKey: string; modelId: string } | undefined;
   /** B-041: 请求体传入的 API key（测试/外部调用用），优先于 keyStore */
   apiKey?: string | undefined;
+  /** NF1: 搜索 API key（测试用，通过请求体传入，CLAUDE.md key 隔离） */
+  searchApiKey?: string | undefined;
   /** NF1: 是否启用 web search tool calling */
   webSearchEnabled?: boolean | undefined;
   /** NF2: 是否启用 groundedness detection */
@@ -79,6 +81,8 @@ export interface AgentRunResponse {
   knowledgeCitations?: Array<{ source: string; sourceId?: string; article?: string; score: number; excerpt: string }> | undefined;
   /** NF1: web search 引用 */
   webSearchCitations?: Array<{ title: string; url: string; snippet: string; engine: string }> | undefined;
+  /** 合并引用（RAG + Web 按相关性排序，编号 [1]-[N] 与 AI 回答一致） */
+  mergedCitations?: Array<{ title: string; url: string; snippet: string; engine: string }> | undefined;
 }
 
 // ── Per-agent 请求类型 ──────────────────────────────────
@@ -973,9 +977,9 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
       };
     }
 
-    // 3. NF1: Chat agent + webSearchEnabled → 走 tool executor 路径
-    if (req.agent === "chat" && req.webSearchEnabled) {
-      logger.info(`[Orchestrator] NF1: chat agent with webSearchEnabled, using tool executor`);
+    // 3. NF1: Chat agent + webSearchEnabled（默认 true）→ 走 tool executor 路径
+    if (req.agent === "chat" && req.webSearchEnabled !== false) {
+      logger.info(`[Orchestrator] chat agent with webSearchEnabled, using tool executor`);
       try {
         const { executeWithTools } = await import("./toolExecutor.js");
 
@@ -987,12 +991,27 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
         };
         const agentTemperature = TEMPERATURE_BY_AGENT[req.agent] ?? 0;
 
+        // 在 system prompt 中添加 web search 使用引导
+        const webSearchGuidance = [
+          "",
+          "## 联网搜索",
+          "你可以使用 web_search 工具搜索互联网获取最新信息。",
+          "当你遇到以下情况时，必须调用 web_search：",
+          "- 问题涉及时效性内容（最新法规、近期政策、2024年以后的事件）",
+          "- 参考知识库中没有相关信息或信息可能过时",
+          "- 你的训练数据无法回答该问题",
+          "不要仅凭参考知识库中有结果就不搜索——知识库内容可能不是最新的。",
+        ].join("\n");
+
+        // webSearchEnabled 时不把 RAG 注入 user prompt — 交给 toolExecutor 统一融合 RAG+Web 并按相关性排序编号
+        // 原始 user prompt 传给 toolExecutor，RAG citations 作为数据传入（不带编号注入）
         const toolResult = await executeWithTools({
-          systemPrompt: promptParts.system,
-          userPrompt: enhancedUserPrompt,
+          systemPrompt: promptParts.system + webSearchGuidance,
+          userPrompt: promptParts.user,
           ragCitations: citations,
           query,
           ...(req.modelId !== undefined && { modelId: req.modelId }),
+          ...(req.knowledgeReranker !== undefined && { rerankerConfig: req.knowledgeReranker }),
           callLLM: async (overrides) => {
             // 构建包含 tool 消息的完整请求
             const { registry } = await import("../providers/registry.js");
@@ -1036,13 +1055,15 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
           },
         });
 
-        // NF2: Groundedness Detection
+        // NF2: Groundedness Detection — 只检查 rerank 后的 top-K（与 AI 看到的一致）
         let finalAnswer = toolResult.answer;
-        const nf2Citations = citations.length > 0 ? citations : undefined;
-        const nf2WebCitations = toolResult.webSearchCitations;
+        const merged = toolResult.mergedCitations;
+        // 拆分为 groundedness 期望的两个数组
+        const nf2Citations = merged.filter((c) => c.engine === "rag").map((c) => ({ source: c.title, excerpt: c.snippet, score: 0 }));
+        const nf2WebCitations = merged.filter((c) => c.engine !== "rag");
 
-        if (req.groundednessEnabled && (nf2Citations || nf2WebCitations)) {
-          logger.info(`[Orchestrator] NF2: 开始 groundedness check`);
+        if (req.groundednessEnabled !== false && merged.length > 0) {
+          logger.info(`[Orchestrator] groundedness check 开始`);
           try {
             const { checkGroundedness } = await import("./groundednessCheck.js");
             const gdResult = await checkGroundedness(
@@ -1061,38 +1082,55 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
             );
 
             if (gdResult.verdict === "fail") {
-              // 重新生成：加强约束后重试一次
-              logger.info(`[Orchestrator] NF2: groundedness fail, 尝试重新生成`);
-              const retryPrompt = [
+              // 重新生成：加强约束后重试一次（直接调 LLM，不走完整 gateway）
+              logger.info(`[Orchestrator] groundedness fail, 尝试重新生成`);
+              const retrySystem = [
                 promptParts.system,
-                "\n\n## 重要约束",
-                "只基于以下参考文档回答，不得添加文档中没有的信息。如果文档中没有相关信息，请明确说明。",
+                "\n\n## 重要约束（必须严格遵守）",
+                "1. 只基于以下参考文档回答，不得添加文档中没有的信息",
+                "2. 每个关键事实必须在句末用 [N] 标注来源编号",
+                "3. 如果参考文档中没有相关信息，必须明确说明",
                 "",
-                "## 参考知识库",
-                ...nf2Citations?.map((c, i) => `[${i + 1}] ${c.source}: ${c.excerpt}`) ?? [],
-                ...nf2WebCitations?.map((c, i) => `[${(nf2Citations?.length ?? 0) + i + 1}] ${c.title}: ${c.snippet}`) ?? [],
+                "## 参考文档（按相关性排序）",
+                ...merged.map((c, i) => {
+                  const tag = c.engine === "rag" ? "（知识库）" : "（网络搜索）";
+                  return `[${i + 1}] ${tag} ${c.title}: ${c.snippet}`;
+                }),
               ].join("\n");
 
-              const retryResult = await callInternalGateway({
-                agent: req.agent,
-                systemPrompt: retryPrompt,
-                userPrompt: req.request.userMessage as string || "",
-                caseId: req.caseId,
-                providerPreference: req.providerPreference,
-                modelId: req.modelId,
-                modelFallbacks: req.modelFallbacks,
-                enableModelFallback: req.enableModelFallback,
-                providerBaseUrls: req.providerBaseUrls,
-                maxTokens: 2000,
-                temperature: 0.3,
-                signal: req.signal,
-                apiKey: req.apiKey,
-              });
+              const { registry: retryRegistry } = await import("../providers/registry.js");
+              const { getApiKey: retryGetKey } = await import("../security/keyStore.js");
+              const retryProviderKeys: Record<string, string> = {};
+              for (const pid of req.providerPreference ?? []) {
+                const key = req.apiKey ?? retryGetKey(pid);
+                if (key) retryProviderKeys[pid] = key;
+              }
 
-              if (!retryResult.error && typeof retryResult.output === "string") {
+              const retryResult = await retryRegistry.runWithFallback(
+                req.providerPreference ?? [],
+                {
+                  modelId: req.modelId ?? "",
+                  messages: [
+                    { role: "system", content: retrySystem },
+                    { role: "user", content: req.request.userMessage as string || "" },
+                  ],
+                  apiKey: "",
+                  maxTokens: 2000,
+                  temperature: 0.3,
+                  ...(req.signal !== undefined && { signal: req.signal }),
+                },
+                undefined,
+                req.modelFallbacks,
+                req.enableModelFallback,
+                req.providerBaseUrls,
+                retryProviderKeys
+              );
+
+              const retryOutput = retryResult.response.text;
+              if (!retryResult.response.error && retryOutput) {
                 // 再次检查
                 const retryGd = await checkGroundedness(
-                  retryResult.output,
+                  retryOutput,
                   nf2Citations,
                   nf2WebCitations,
                   {
@@ -1108,30 +1146,30 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
 
                 if (retryGd.verdict !== "fail") {
                   finalAnswer = retryGd.output;
-                  logger.info(`[Orchestrator] NF2: 重新生成成功, verdict=${retryGd.verdict}`);
+                  logger.info(`[Orchestrator] groundedness 重新生成成功, verdict=${retryGd.verdict}`);
                 } else {
                   // 仍然 fail → 返回部分回答
                   finalAnswer = retryGd.output;
-                  logger.warn(`[Orchestrator] NF2: 重新生成仍 fail, 返回部分回答`);
+                  logger.warn(`[Orchestrator] groundedness 重新生成仍 fail, 返回部分回答`);
                 }
               }
             } else {
               finalAnswer = gdResult.output;
-              logger.info(`[Orchestrator] NF2: groundedness check 完成, verdict=${gdResult.verdict}, score=${gdResult.groundingScore.toFixed(2)}, removed=${gdResult.removedClaims.length}`);
+              logger.info(`[Orchestrator] groundedness check 完成, verdict=${gdResult.verdict}, score=${gdResult.groundingScore.toFixed(2)}, removed=${gdResult.removedClaims.length}`);
             }
           } catch (nf2Err) {
-            logger.warn(`[Orchestrator] NF2 groundedness check failed, using original output: ${nf2Err}`);
+            logger.warn(`[Orchestrator] groundedness check failed, using original output: ${nf2Err}`);
           }
         }
 
         return {
           ok: true,
           output: { reply: finalAnswer },
-          webSearchCitations: nf2WebCitations,
-          knowledgeCitations: nf2Citations,
+          webSearchCitations: merged.filter((c) => c.engine !== "rag"),
+          mergedCitations: merged,
         };
       } catch (toolErr) {
-        logger.warn(`[Orchestrator] NF1 tool executor failed, falling back to plain LLM: ${toolErr}`);
+        logger.warn(`[Orchestrator] tool executor failed, falling back to plain LLM: ${toolErr}`);
         // 降级到普通 LLM 调用
       }
     }

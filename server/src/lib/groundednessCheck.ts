@@ -238,7 +238,7 @@ async function callJudge(
   }
 }
 
-function extractJudgeJson(text: string): JudgeResult | null {
+export function extractJudgeJson(text: string): JudgeResult | null {
   try {
     // 尝试直接解析
     const parsed = JSON.parse(text) as JudgeResult;
@@ -246,11 +246,12 @@ function extractJudgeJson(text: string): JudgeResult | null {
       return parsed;
     }
   } catch {
-    // 尝试提取 JSON 块
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
+    // 尝试提取 JSON 块（找第一个 { 到最后一个 }，避免贪婪匹配错误）
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start !== -1 && end > start) {
       try {
-        const parsed = JSON.parse(jsonMatch[0]) as JudgeResult;
+        const parsed = JSON.parse(text.substring(start, end + 1)) as JudgeResult;
         if (parsed.claims && Array.isArray(parsed.claims)) {
           return parsed;
         }
@@ -380,8 +381,10 @@ export async function checkGroundedness(
     };
   }
 
+  const ragCount = knowledgeCitations?.length ?? 0;
+  const webCount = webSearchCitations?.length ?? 0;
   logger.info(
-    `[Groundedness] 开始检查: ${sentences.length} 个句子, ${groundingDocs.length} 个 grounding documents`
+    `[Groundedness] 开始检查: ${sentences.length} 个句子, ${groundingDocs.length} 个 grounding documents (RAG=${ragCount}, Web=${webCount})`
   );
 
   // 调用 LLM Judge

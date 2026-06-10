@@ -1160,15 +1160,22 @@ Orchestrator (chat agent + webSearchEnabled)
 **关键设计决策：**
 - MCP transport：stdio（子进程），未来可升级 SSE/HTTP
 - 搜索 API：SerpAPI 统一覆盖 Google/Bing/Baidu，一个 key 三个引擎
-- 跨源融合：RAG + Web Search 结果合并，按引擎优先级排序
-- 触发范围：仅 chat agent，novelty/inventive 基于已提供对比文件
+- 跨源融合：RAG + Web Search 结果合并，用 localRerank（复用 lib/reranker.ts BAAI/bge-reranker-base）按 query 相关性排序，reranker 失败时 fallback 到引擎优先级
+- 触发范围：仅 chat agent，`webSearchEnabled !== false` 默认启用，`tool_choice: "auto"` 让 LLM 自主判断是否搜索
 - Tool loop 轮数：最多 3 轮，防止无限循环
-- Re-inject：最终回答不带 tools，防止循环
+- Re-inject：Top-K 文档结构化注入 prompt（编号 [1][2]...），不带 tools 调 LLM 生成最终回答
+- API Key 隔离：MCP server 接受 per-request `api_key` 参数（测试用），fallback 到 keyStore key（APP 用户）
 
 **Provider Tool Calling 支持：**
 - OpenAI-compatible：SSE 流式 tool_calls 累加 + 非流式 message.tool_calls
-- Gemini：functionDeclarations 格式 + functionCall 响应解析
+- Gemini：functionDeclarations 格式 + functionCall 响应解析；tool message 携带 `name` 字段确保 functionResponse 正确路由
 - Bedrock：暂不支持（降级为纯文本）
+
+**Groundedness Detection（NF2）：**
+- LLM-as-judge：回答生成后，第二个 LLM 调用逐句检查是否忠实于检索文档
+- 过滤策略：groundedRatio >= 0.8 保留 grounded + not_verifiable；0.5~0.8 仅保留 grounded；< 0.5 触发重试（最多 1 次）
+- 触发条件：`groundednessEnabled !== false` 默认启用，需有 grounding documents（RAG 或 web search citations）
+- 降级：judge LLM 调用失败或 JSON 解析失败时，默认全部通过（不阻塞用户）
 
 ---
 
@@ -1695,3 +1702,4 @@ Supabase（后端服务）
 | NF1 | 2026-06-09 | Web Search MCP Server + Tool Calling — MCP Server（SerpAPI Google→Bing→Baidu fallback）、MCP Client（stdio 子进程管理）、Tool Loop（LLM 自主判断调用 web_search，最多 3 轮）、跨源融合排序（RAG + Web Search 合并）、ProviderAdapter tool_calls 解析（流式 SSE + 非流式 + Gemini functionCall）、仅 chat agent 触发 | server/src/mcp/web-search-server.ts, mcpClient.ts, lib/toolExecutor.ts, providers/ProviderAdapter.ts, providers/gemini.ts, providers/registry.ts, lib/orchestrator.ts, routes/agent.ts, shared/src/schemas/api-input.schema.ts |
 | BUG-172 | 2026-06-07 | AI 搜索文献 accept 后自动从 sourceUrl 抓取全文 — 新增 `/api/documents/extract-from-url` 端点，复用 knowledgeExtract.extractFromUrl()，前端 handleAccept 后异步抓取回填 extractedText，失败时静默降级到 summary | documents.ts, ReferenceSearchPanel.tsx, urlText.ts, api-input.schema.ts |
 | NF2 | 2026-06-09 | Groundedness Detection（LLM-as-Judge 验证）— 新增 groundednessCheck.ts（句子拆分、Judge Prompt、LLM 调用、过滤逻辑）、orchestrator 在 NF1 输出后插入 NF2 检查（pass 保留 grounded+not_verifiable、partial 移除 ungrounded+not_verifiable、fail 触发重新生成）、schema 新增 groundednessEnabled 可选字段、仅 chat agent 触发 | server/src/lib/groundednessCheck.ts(新建), orchestrator.ts, shared/src/schemas/api-input.schema.ts, server/src/routes/agent.ts |
+| NF1+NF2 review | 2026-06-09 | §6.6 更新：跨源融合改为 localRerank、补充 NF2 Groundedness Detection 设计、补充 API Key 隔离说明、补充触发条件默认值 | DESIGN.md §6.6 |

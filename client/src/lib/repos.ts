@@ -434,6 +434,9 @@ export async function getLatestSearchSession(caseId: string): Promise<SearchSess
 
 /** 最近一次知识库注入的引用详情（供 UI 读取） */
 export let lastKnowledgeCitations: Array<{ source: string; sourceId?: string; article?: string; score: number; excerpt: string }> = [];
+export let lastWebSearchCitations: Array<{ title: string; url: string; snippet: string; engine: string }> = [];
+/** 最近一次合并引用（RAG + Web 按相关性排序） */
+export let lastMergedCitations: Array<{ title: string; url: string; snippet: string; engine: string }> = [];
 
 // ── Settings → Provider 解析 ────────────────────────
 
@@ -654,6 +657,8 @@ export async function agentRun<T>(
     attempts?: Array<{ providerId: string; modelId: string; errorCode?: string; duration: number }>;
     error?: { type: string; message: string };
     knowledgeCitations?: Array<{ source: string; sourceId?: string; article?: string; score: number; excerpt: string }>;
+    webSearchCitations?: Array<{ title: string; url: string; snippet: string; engine: string }>;
+    mergedCitations?: Array<{ title: string; url: string; snippet: string; engine: string }>;
   };
 
   if (!data.ok) {
@@ -686,6 +691,12 @@ export async function agentRun<T>(
   // Update knowledge citations
   if (data.knowledgeCitations) {
     lastKnowledgeCitations = data.knowledgeCitations;
+  }
+  if (data.webSearchCitations) {
+    lastWebSearchCitations = data.webSearchCitations;
+  }
+  if (data.mergedCitations) {
+    lastMergedCitations = data.mergedCitations;
   }
 
   if (data.output) {

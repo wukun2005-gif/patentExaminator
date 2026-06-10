@@ -85,9 +85,9 @@ class McpClientManager {
    */
   private async ensureConnected(): Promise<void> {
     if (this.client && this.transport) {
-      // 检查 transport 是否仍然活跃
+      // 心跳检查：调用 listTools 验证连接是否存活
       try {
-        // 简单检查：如果 transport 存在就认为已连接
+        await this.client.listTools();
         return;
       } catch {
         logger.warn("[MCP Client] Connection lost, respawning...");
@@ -119,19 +119,8 @@ class McpClientManager {
     const serverDistPath = path.resolve(__dirname, "../../dist/server/src/mcp/web-search-server.js");
     logger.info(`[MCP Client] Spawning server: src=${serverSrcPath}`);
 
-    // 从 keyStore 或环境变量获取 SerpAPI key
-    let serpApiKey = process.env.SERPAPI_KEY;
-    if (!serpApiKey) {
-      try {
-        const { getApiKey } = await import("../security/keyStore.js");
-        serpApiKey = getApiKey("serpapi") ?? undefined;
-      } catch { /* ignore */ }
-    }
-
-    const env: Record<string, string> = {};
-    if (serpApiKey) {
-      env.SERPAPI_KEY = serpApiKey;
-    }
+    // 不传 key 给子进程 — 符合 CLAUDE.md 两类 Key 严格隔离
+    // API key 只通过 per-request api_key 参数传入（toolExecutor → callTool → args.api_key）
 
     // 优先用编译后的 JS，回退到 tsx 直接运行 TS
     const { existsSync } = await import("fs");
@@ -140,10 +129,14 @@ class McpClientManager {
     const args = useDist ? [serverDistPath] : ["tsx", serverSrcPath];
     logger.info(`[MCP Client] Using ${useDist ? "compiled JS" : "tsx (dev mode)"}: ${useDist ? serverDistPath : serverSrcPath}`);
 
+    // 传递数据库路径给 MCP 子进程（用 __dirname 算绝对路径，不依赖 cwd）
+    const dbPath = path.resolve(__dirname, "../../data/patent-examiner.db");
+    logger.info(`[MCP Client] DB_PATH for subprocess: ${dbPath}`);
+
     this.transport = new StdioClientTransport({
       command,
       args,
-      env,
+      env: { ...process.env, DB_PATH: dbPath },
     });
 
     this.client = new Client(

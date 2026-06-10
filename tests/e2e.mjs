@@ -135,6 +135,14 @@ import {
   testFullPipelineMock_G1,
   testFullPipelineMock_G2,
   testFullPipelineMock_Reexam_G1,
+  testNf1WebSearchDefaultEnabled,
+  testNf1WebSearchExplicitlyDisabled,
+  testNf1WebSearchExplicitlyEnabled,
+  testNf2GroundednessDefaultEnabled,
+  testNf2GroundednessExplicitlyDisabled,
+  testNf1Nf2NotTriggeredForNonChat,
+  testNf1RealWebSearchReturnsResults,
+  testNf1MergedCitationsRanking,
 } from "./e2e/index.mjs";
 
 // ── 初始化 ──────────────────────────────────────────────────────────
@@ -411,6 +419,11 @@ async function main() {
 
     console.log("\n--- EPO Search ---");
     await withTimeout(() => maybe(testRealEpoSearchCandidates));
+
+    console.log("\n--- NF1 Real Web Search ---");
+    await withTimeout(() => maybe(testNf1RealWebSearchReturnsResults));
+    await delay(AI_RATE_LIMIT_DELAY);
+    await withTimeout(() => maybe(testNf1MergedCitationsRanking));
   }
 
   function maybe(fn, ...fnArgs) {
@@ -586,6 +599,16 @@ async function main() {
       await maybe(testFullPipelineMock_G1);
       await maybe(testFullPipelineMock_G2);
       await maybe(testFullPipelineMock_Reexam_G1);
+
+      // NF1 + NF2
+      setGroup("nf1-nf2");
+      console.log("\n--- NF1 + NF2 ---");
+      await maybe(testNf1WebSearchDefaultEnabled);
+      await maybe(testNf1WebSearchExplicitlyDisabled);
+      await maybe(testNf1WebSearchExplicitlyEnabled);
+      await maybe(testNf2GroundednessDefaultEnabled);
+      await maybe(testNf2GroundednessExplicitlyDisabled);
+      await maybe(testNf1Nf2NotTriggeredForNonChat);
 
       // DB Logic-Chain tests (Store → Repo → SQLite, no UI)
       setGroup("db");

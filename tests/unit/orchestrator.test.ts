@@ -69,7 +69,10 @@ describe("orchestrator — agent routing", () => {
         apiKey: "test-key",
       });
       expect(result.ok).toBe(true);
-      expect(registry.runWithFallback).toHaveBeenCalledTimes(1);
+      // chat agent 走 tool executor 路径，mock 不返回 tool_calls 会触发重试（最多 3 次）
+      // 其他 agent 只调 1 次
+      const expectedCalls = agent === "chat" ? 3 : 1;
+      expect(registry.runWithFallback).toHaveBeenCalledTimes(expectedCalls);
     });
   }
 
@@ -152,6 +155,7 @@ describe("orchestrator — prompt building", () => {
       providerPreference: ["gemini"],
       modelId: "test",
       apiKey: "key",
+      webSearchEnabled: false,
     });
 
     const prompt = (registry.runWithFallback as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.messages[1]!.content as string;
@@ -337,6 +341,7 @@ describe("orchestrator — error handling", () => {
       providerPreference: ["gemini"],
       modelId: "test",
       apiKey: "key",
+      webSearchEnabled: false,
     });
 
     expect(result.ok).toBe(false);
@@ -392,6 +397,7 @@ describe("orchestrator — error handling", () => {
       providerPreference: ["gemini"],
       modelId: "test",
       apiKey: "key",
+      webSearchEnabled: false,
     });
 
     expect(result.ok).toBe(true);

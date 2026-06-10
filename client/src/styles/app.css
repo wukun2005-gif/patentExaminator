@@ -3601,6 +3601,17 @@
   font-size: 0.78rem;
 }
 
+.chat-bubble__web-link {
+  color: var(--pex-color-primary);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.chat-bubble__web-link:hover {
+  text-decoration: underline;
+}
+
 .chat-bubble__citation-excerpt {
   color: var(--text-secondary, #666);
   font-size: 0.75rem;

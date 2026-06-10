@@ -196,6 +196,9 @@ export const FILE_TO_TEST_MAP = [
   // 搜索相关
   { pattern: /^server\/src\/lib\/search/, groups: ["mock", "real"] },
   { pattern: /^server\/src\/routes\/search/, groups: ["mock", "real"] },
+  { pattern: /^server\/src\/lib\/toolExecutor/, groups: ["nf1-nf2", "real"] },
+  { pattern: /^server\/src\/mcp\//, groups: ["nf1-nf2", "real"] },
+  { pattern: /^client\/src\/features\/chat\/ChatBubble/, groups: ["nf1-nf2"] },
 
   // 数据库相关
   { pattern: /^server\/src\/lib\/syncDb/, groups: ["db"] },

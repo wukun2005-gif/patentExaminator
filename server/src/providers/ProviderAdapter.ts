@@ -94,7 +94,7 @@ export interface ToolCall {
 
 export interface ChatRequest {
   modelId: string;
-  messages: Array<{ role: "system" | "user" | "assistant" | "tool"; content: string | MultimodalPart[]; tool_call_id?: string }>;
+  messages: Array<{ role: "system" | "user" | "assistant" | "tool"; content: string | MultimodalPart[]; tool_call_id?: string; name?: string }>;
   temperature?: number;
   maxTokens?: number;
   apiKey: string;
@@ -432,6 +432,7 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
     if (!text && typeof message?.content === "string") text = message.content;
     if (!reasoningContent && typeof message?.reasoning_content === "string") reasoningContent = message.reasoning_content;
     console.log(`[${tag}] choices=${choices.length} textLen=${text.length} finishReason=${firstChoice?.finish_reason}`);
+    if (isSSE && toolCallsAccum.size > 0) logger.info(`[${tag}] SSE toolCallsAccum.size=${toolCallsAccum.size}`);
 
     // D1: 提取 thinking tokens（四层信号）
     const thinkingTokensFromUsage = usage?.completion_tokens_details?.reasoning_tokens ?? usage?.reasoning_tokens ?? 0;
@@ -453,7 +454,11 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
     console.log(`[${tag}] thinkingTokens=${thinkingTokens} reasoningLen=${reasoningContent?.length ?? 0}`);
     console.log(`[${tag}] ──── REQUEST END ────`);
 
-    if (!text) {
+    // tool_calls 响应不需要 text content，不是异常
+    const hasToolCalls = (Array.isArray(message?.tool_calls) && message.tool_calls.length > 0) ||
+      (isSSE && toolCallsAccum.size > 0) ||
+      firstChoice?.finish_reason === "tool_calls";
+    if (!text && !hasToolCalls) {
       logger.warn(`${this.id} returned empty or missing content in response`, {
         model: req.modelId,
         hasChoices: Array.isArray(data.choices),

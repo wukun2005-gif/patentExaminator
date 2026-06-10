@@ -4,7 +4,7 @@ import { useChatStore, useCaseStore } from "../../store";
 import { ChatBubble } from "./ChatBubble";
 import { buildContextSummary } from "../../lib/chatContext";
 import type { ChatResponse } from "@shared/types/api";
-import { agentRun, lastKnowledgeCitations } from "../../lib/repos";
+import { agentRun, lastMergedCitations } from "../../lib/repos";
 import { createSession, createMessage, deleteSession, deleteMessagesBySessionId, updateSession, getSessionsByCaseId, getMessagesBySessionId } from "../../lib/repos";
 import { formatAiErrorMessage } from "../../lib/errorDisplay";
 import type { ChatMessage, ChatSession, ModuleScope } from "@shared/types/domain";
@@ -279,7 +279,7 @@ export function ChatPanel() {
         moduleScope,
         role: "assistant",
         content: replyContent,
-        ...(lastKnowledgeCitations.length > 0 ? { knowledgeCitations: [...lastKnowledgeCitations] } : {}),
+        ...(lastMergedCitations.length > 0 ? { mergedCitations: [...lastMergedCitations] } : {}),
         createdAt: new Date().toISOString()
       };
       log("Adding assistant message:", assistantMsg.id);
