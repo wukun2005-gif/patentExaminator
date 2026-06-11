@@ -61,7 +61,6 @@ npm run dev
 
 ## 安全说明
 
-- API Key 仅存储在服务器内存中，不写入磁盘或 localStorage
 - 导出文件包含法律声明，明确标注为「审查辅助素材，不构成法律结论」
 
 ---
@@ -84,7 +83,7 @@ npm run dev
 │           ▼                           ▼                    │
 │  ┌─────────────────┐       ┌─────────────────────┐        │
 │  │  向量语义搜索     │       │  BM25 关键词搜索     │        │
-│  │  cosine similarity│       │  jieba 中文分词      │        │
+│  │  cosine similarity│       │   中文分词      │        │
 │  └────────┬────────┘       └──────────┬──────────┘        │
 │           │                           │                    │
 │           └─────────┬─────────────────┘                    │
@@ -100,7 +99,7 @@ npm run dev
 │                    ▼                                       │
 │           ┌──────────────────┐     ┌──────────────────┐   │
 │           │  RAG Citations   │     │  Web Search MCP   │   │
-│           │  [1] [2] [3]...  │←───→│  SerpAPI 多引擎   │   │
+│           │  [1] [2] [3]...  │←───→│  server   多引擎   │   │
 │           └────────┬─────────┘     └────────┬─────────┘   │
 │                    │                         │              │
 │                    └────────────┬────────────┘              │
@@ -145,8 +144,8 @@ npm run dev
 
 **Hybrid Search 融合**：
 
-- **向量搜索**：远程 Embedding API 生成向量，cosine similarity 全量扫描
-- **关键词搜索**：MiniSearch BM25 + jieba-wasm 中文分词 + 长度归一化
+- **向量搜索**： Embedding API 生成向量，cosine similarity 全量扫描
+- **关键词搜索**：BM25 + 中文分词 + 长度归一化
 - **融合算法**：Reciprocal Rank Fusion（RRF，k=60），`score = Σ 1/(k + rank + 1)`
 
 **Reranker 三层降级**：
@@ -154,16 +153,16 @@ npm run dev
 | 层级 | 实现 | 说明 |
 |------|------|------|
 | 远程 Reranker API | POST `/v1/rerank` | 用户配置的远程服务 |
-| Cross-Encoder | bge-reranker-base | 本地模型，懒加载 + 预热 |
+| Cross-Encoder | reranker | 本地模型，懒加载 + 预热 |
 | 启发式加权 | 5 信号融合 | 语义 0.4 + 关键词 0.25 + 文档类型 0.15 + 法条引用 0.15 + 深度 0.05 |
 
 ### Web Search MCP Server
 
 当 RAG 知识库无法回答时，LLM 自主判断调用 Web Search（Tool Calling，最多 3 轮）。
 
-- **搜索 API**：SerpAPI 多引擎 fallback（Google → Bing → Baidu）
+- **搜索 API**：多引擎 fallback（G* → Bi* → Ba*）
 - **MCP 协议**：基于 Model Context Protocol，stdio 子进程通信
-- **跨源融合**：RAG + Web Search 结果统一 reranker 排序，引擎优先级兜底（rag > google > bing > baidu）
+- **跨源融合**：RAG + Web Search 结果统一 reranker 排序，引擎优先级兜底（rag > search engine ）
 
 ### Groundedness Check（接地性检查）
 
