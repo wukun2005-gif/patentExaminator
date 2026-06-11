@@ -9,6 +9,7 @@ export class OpenRouterAdapter extends OpenAICompatibleAdapter {
     return [
       // ── 推理模型 ──
       "openai/gpt-5.5",
+      "anthropic/claude-fable-5",
       "anthropic/claude-opus-4-8",
       "google/gemini-2.5-pro",
       "google/gemini-2.5-flash",

@@ -138,6 +138,10 @@ const CAPABILITY_PRESETS: Record<string, Partial<ModelCapabilities>> = {
   "anthropic/claude-opus-4": { isReasoning: true, contextWindow: 1_048_576, maxOutputTokens: 131_072, temperature: { supported: true, range: [0, 1] }, supportsStructuredOutput: true, supportsVision: true, systemPromptMode: "message", recommendation: "Claude Opus 4.8 (1M/128K)" },
   "anthropic/claude-opus-4-8": { isReasoning: true, contextWindow: 1_048_576, maxOutputTokens: 131_072, temperature: { supported: true, range: [0, 1] }, supportsStructuredOutput: true, supportsVision: true, systemPromptMode: "message", recommendation: "Claude Opus 4.8 (1M/128K)" },
   "anthropic/claude-3.5-sonnet": { isReasoning: false, contextWindow: 200_000, maxOutputTokens: 8_192, temperature: { supported: true, range: [0, 1] }, supportsStructuredOutput: true, supportsVision: true, systemPromptMode: "message", recommendation: "Claude 3.5 Sonnet" },
+  // ── Anthropic Claude Fable 5（OpenRouter 托管，2026-06-09 发布）──
+  // 来源：openrouter.ai → anthropic/claude-fable-5
+  // Mythos-class 模型，1M 上下文，128K 输出，支持推理、视觉、文件输入
+  "anthropic/claude-fable-5": { isReasoning: true, contextWindow: 1_048_576, maxOutputTokens: 131_072, temperature: { supported: true, range: [0, 1] }, supportsStructuredOutput: true, supportsVision: true, systemPromptMode: "message", recommendation: "Claude Fable 5 (Mythos, 1M/128K)" },
   "anthropic/claude-3-haiku":     { isReasoning: false, contextWindow: 200_000, maxOutputTokens: 4_096, temperature: { supported: true, range: [0, 1] }, supportsStructuredOutput: true, supportsVision: true, systemPromptMode: "message", recommendation: "Claude 3 Haiku (快速)" },
   // ── Anthropic Claude（Bedrock 托管，model ID 用 . 分隔）──
   "anthropic.claude-opus-4": { isReasoning: true, contextWindow: 1_048_576, maxOutputTokens: 131_072, temperature: { supported: true, range: [0, 1] }, supportsStructuredOutput: true, supportsVision: true, systemPromptMode: "message" },
@@ -272,7 +276,7 @@ const PROVIDER_MODEL_IDS: Record<ProviderId, string[]> = {
     "meta.llama3-2-1b-instruct-v1:0",
   ],
   openrouter: [
-    "openai/gpt-5.5", "anthropic/claude-opus-4-8", "google/gemini-2.5-pro", "google/gemini-2.5-flash",
+    "openai/gpt-5.5", "anthropic/claude-fable-5", "anthropic/claude-opus-4-8", "google/gemini-2.5-pro", "google/gemini-2.5-flash",
     "deepseek/deepseek-r1", "qwen/qwen3-235b-a22b",
     "openai/gpt-4o", "openai/gpt-4o-mini",
     "anthropic/claude-3.5-sonnet", "anthropic/claude-3-haiku",
