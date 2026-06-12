@@ -11,8 +11,12 @@ import { spawn } from "child_process";
 import { mkdirSync, rmSync, readdirSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { backupDatabases } from "./backup-db.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// 每天首次跑测试时自动备份用户数据库（保留最近 7 天）
+try { backupDatabases(); } catch { /* backup failure should not block tests */ }
 const LOG_DIR = join(__dirname, "logs");
 mkdirSync(LOG_DIR, { recursive: true });
 
