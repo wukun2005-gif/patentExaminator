@@ -137,6 +137,7 @@ export function getAllApiKeys() {
   return {
     gemini: getApiKey("gemini"),
     mimo: getApiKey("mimo"),
+    volcengine: getApiKey("volcengine"),
     openrouter: getApiKey("openrouter"),
     tavily: getApiKey("tavily"),
     serp: getApiKey("serp"),
@@ -148,6 +149,7 @@ export function printEnvSummary() {
   console.log("─── 环境配置 ───");
   console.log(`Gemini: ${hasApiKey("gemini") ? `已配置 (${maskKey(getApiKey("gemini"))})` : "未配置"}`);
   console.log(`MiMo: ${hasApiKey("mimo") ? `已配置 (${maskKey(getApiKey("mimo"))})` : "未配置"}`);
+  console.log(`火山引擎: ${hasApiKey("volcengine") ? `已配置 (${maskKey(getApiKey("volcengine"))})` : "未配置"}`);
   console.log(`OpenRouter: ${hasApiKey("openrouter") ? `已配置 (${maskKey(getApiKey("openrouter"))})` : "未配置"}`);
   console.log(`Tavily: ${hasApiKey("tavily") ? `已配置 (${maskKey(getApiKey("tavily"))})` : "未配置"}`);
   console.log(`SerpAPI: ${hasApiKey("serp") ? `已配置 (${maskKey(getApiKey("serp"))})` : "未配置"}`);

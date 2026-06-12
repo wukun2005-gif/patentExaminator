@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r50 · 2026-06-10</p>
+<p align="right">版本 v0.1.0-r54 · 2026-06-11</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -8,13 +8,14 @@
 
 | 版本 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|------|---------|----------|-------------|
+| v0.1.0-r54 | 2026-06-11 | 文档同步修复 — §3.3 ProviderId 从 5 家更新为 11 家（+gemini/qwen/bedrock/openrouter/opencode/volcengine）；ADR-005 同步更新；docs/ 目录 15 个文档审查：2 个 Coze 迁移文档加归档标注（coze-agent-architecture.md、system-specification.md 描述 B-038 前架构）；model-adaptation-plan.md 标注已合并到 master plan | DESIGN.md §3.3, §2 ADR-005, docs/ | — |
 | v0.1.0-r53 | 2026-06-11 | nf5: 离线评估指标计算 — 扩展 DB schema（golden_set 6 列 + golden_runs 9 列增量升级）、新增 multiJudge.ts（3-provider 并行打分 + majority vote/average 聚合）、evalMetrics.ts（10+ 指标：NDCG chunk 级、Recall、KB/Web Hit Rate、Faithfulness multi-judge、Answer Correctness、Fact Coverage、Article Accuracy、Source Routing/Attribution、Conflict Resolution、Refusal Accuracy）、evalRunner 集成新指标、goldenSetGenerator 支持 mustIncludeFacts/更长参考答案、metrics 路由新增报告详情端点、Dashboard 展示新指标列、44 个单元测试 | syncDb.ts, shared/src/types/metrics.ts, multiJudge.ts(新建), evalMetrics.ts(新建), evalRunner.ts, goldenSetGenerator.ts, metrics.ts, MetricsDashboard.tsx, evalMetrics.test.ts(新建), multiJudge.test.ts(新建) | — |
 | v0.1.0-r52 | 2026-06-10 | nf3: 聊天文件上传 — 新增 POST /api/chat/extract 端点（PDF/DOCX/TXT/HTML/图片提取），ChatPanel 添加 📎 附件按钮+chip 预览，ChatBubble 展示附件标签，ChatRequest/ChatMessage 新增 attachments 字段，orchestrator buildChatPrompt 注入附件内容到 prompt，图片附件支持 MultimodalPart 视觉模型 | shared/src/types/api.ts, shared/src/types/domain.ts, server/src/routes/chat-attachments.ts(新建), server/src/lib/orchestrator.ts, server/src/index.ts, client/src/features/chat/ChatPanel.tsx, client/src/features/chat/ChatBubble.tsx, client/src/styles/app.css | — |
 | v0.1.0-r51 | 2026-06-10 | 新增 §6.7 Metrics 体系设计（审查员质量徽章/成本显示/健康状态/反馈按钮 + 开发者 Dashboard + 离线评估 Golden Set 60 题）；docs/metrics-design.md 详细设计文档 | DESIGN.md §6.7, docs/metrics-design.md | — |
 | v0.1.0-r50 | 2026-06-10 | §6.6 文档重构：拆分为 §6.6.1 RAG 管线架构（5 阶段流程图 + Query Expansion/Hybrid Search/Reranker/MMR/Parent-Child 详细设计）、§6.6.2 Web Search MCP Server（NF1）、§6.6.3 Groundedness Detection（NF2）；PRD 同步更新 §12.4 + 术语表 | DESIGN.md §6.6, PRD.md §12.4/附录A | — |
 | v0.1.0-r49 | 2026-06-08 | bug9: client/modelCatalog.ts 硬编码模型数据消除 — server model-capabilities-registry 成为单一数据源（含 recommendation/rpm/rpd/tpm），新增 GET /api/providers/models 端点，client 改为 useModelCatalog() hook 从 server 获取，ModelInfo 新增 contextWindow/maxOutputTokens/isReasoning/supportsVision/supportsStructuredOutput | model-capabilities-registry.ts, ModelCapabilities.ts, settings.ts, modelCatalog.ts, api.ts, ProvidersConfigPanel.tsx, AgentsAssignmentPanel.tsx, agents.ts | — |
 | v0.1.0-r48 | 2026-06-08 | bug7+bug8: logger 时间戳添加时区偏移（+HH:MM）；文献检索结果按 relevanceScore 降序排序 | logger.ts, search.ts | — |
-| v0.1.0-r47 | 2026-06-08 | bug5 补充: doubao-seed-2.0+ / DeepSeek V4 按 provider 严格对齐官方文档 — 新增 §5.4.1 Provider 官方模型规格（DeepSeek 官方 API、火山引擎、豆包 Seed 三大 provider 的完整参数表）；registry 拆分火山引擎/DeepSeek 官方前缀（deepseek-v4-pro-260425 vs deepseek-v4-pro）；doubao.ts 新增 16 个 seed 模型 ID + 3 个火山 DeepSeek 模型；deepseek.ts 移除火山引擎专属 ID；AgentsAssignmentPanel 补充 doubao provider；5 文件修改 | DESIGN.md §5.4.1, model-capabilities-registry.ts, doubao.ts, deepseek.ts, modelCatalog.ts, AgentsAssignmentPanel.tsx | — |
+| v0.1.0-r47 | 2026-06-08 | bug5 补充: doubao-seed-2.0+ / DeepSeek V4 按 provider 严格对齐官方文档 — 新增 §5.4.1 Provider 官方模型规格（DeepSeek 官方 API、火山引擎、豆包 Seed 三大 provider 的完整参数表）；registry 拆分火山引擎/DeepSeek 官方前缀（deepseek-v4-pro-260425 vs deepseek-v4-pro）；volcengine.ts 新增 16 个 seed 模型 ID + 3 个火山 DeepSeek 模型；deepseek.ts 移除火山引擎专属 ID；AgentsAssignmentPanel 补充 volcengine provider；5 文件修改 | DESIGN.md §5.4.1, model-capabilities-registry.ts, volcengine.ts, deepseek.ts, modelCatalog.ts, AgentsAssignmentPanel.tsx | — |
 | v0.1.0-r46 | 2026-06-07 | bug5: 模型自适应框架 — ModelCapabilities 统一能力声明接口+注册表（6 维度：maxTokens/thinking tokens 三层防御、temperature 自适应、上下文窗口动态截断、structured output 降级、系统提示处理、视觉能力声明）；ChatResponse 新增 thinkingTokens/reasoningText；ChatRequest 新增 responseFormat；orchestrator temperature 传递 + truncateForModel；3 新文件 + 7 修改文件 | ProviderAdapter.ts, gemini.ts, bedrock.ts, registry.ts, orchestrator.ts, ModelCapabilities.ts(新建), model-capabilities-registry.ts(新建), tokenEstimator.ts(新建), provider-adapters.test.ts, registry.test.ts | — |
 | v0.1.0-r45 | 2026-06-06 | bug3: 数据库操作日志扩展到所有 store — 移除 data.ts 中 `store === "settings"` 守卫，所有 CRUD 操作（GET/CREATE/UPDATE/DELETE/DELETE_ALL）均记录审计日志；auditLog.ts 日志文件重命名为 db-audit.log | data.ts, auditLog.ts | — |
 | v0.1.0-r44 | 2026-06-06 | BUG-171: knowledgeDb 测试隔离 — 添加 resetKnowledgeDbForTesting() 和 closeKnowledgeDb() 导出，getKnowledgeDb() 支持 globalThis 注入测试路径；testDb.ts 添加 initKnowledgeSchema()；集成测试 beforeAll 注入 ":memory:" | knowledgeDb.ts, testDb.ts, globalSetup.ts, route-coverage.test.ts, agentPipeline.test.ts | — |
@@ -233,7 +234,7 @@ Vite `server.proxy` 配置（`client/vite.config.ts`）：
 
 - **背景 / 问题：** 单一 Provider 可能因配额、网络等原因不可用，需要 fallback 机制保证可用性。
 - **备选方案：** (a) 仅支持单一 Provider；(b) 多 Provider 按优先级 fallback + MiMo 内部模型级 fallback。
-- **决策：** 采用方案 (b)。支持 5 家 Provider（Kimi/GLM/Minimax/MiMo/Deepseek），按用户配置的优先级顺序 fallback。MiMo/Token Plan 额外支持模型级 fallback（MiMo-V2.5-Pro → MiMo-V2.5 → MiMo-V2-Pro → MiMo-V2-Omni）。429/配额错误立即切换；5xx/网络错误指数退避后重试；401 鉴权失败不重试不切换。
+- **决策：** 采用方案 (b)。支持 11 家 Provider（Kimi/GLM/Minimax/MiMo/Deepseek/Gemini/Qwen/Bedrock/OpenRouter/OpenCode/Doubao），按用户配置的优先级顺序 fallback。MiMo/Token Plan 额外支持模型级 fallback（MiMo-V2.5-Pro → MiMo-V2.5 → MiMo-V2-Pro → MiMo-V2-Omni）。429/配额错误立即切换；5xx/网络错误指数退避后重试；401 鉴权失败不重试不切换。
 - **影响：** 提高系统可用性；增加 Gateway 复杂度（需管理重试逻辑和 attempt 记录）。
 - **关联章节：** DEVELOPMENT_PLAN §8.9.3
 
@@ -427,7 +428,7 @@ interface ChatMessage {
 **第一级：模型连接（`ProviderConnection`）**
 
 ```typescript
-type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek";
+type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek" | "gemini" | "qwen" | "bedrock" | "openrouter" | "opencode" | "volcengine";
 
 interface ProviderConnection {
   providerId: ProviderId;
@@ -909,7 +910,7 @@ v0.1.0 实现 11 家 Provider 的非流式 chat completions：
 
 来源：火山引擎模型广场（2026-06 获取）
 
-> 火山引擎托管的 DeepSeek 模型使用带日期后缀的 ID，通过 DoubaoAdapter 访问同一 API 端点。
+> 火山引擎托管的 DeepSeek 模型使用带日期后缀的 ID，通过 VolcengineAdapter 访问同一 API 端点。
 
 | 模型 ID | 上下文 | 最大输出 | 思考 | 结构化输出 | 视觉 | RPM | 来源文档 |
 |---------|--------|---------|------|----------|------|-----|---------|

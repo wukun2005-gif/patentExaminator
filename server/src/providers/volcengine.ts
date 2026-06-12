@@ -1,8 +1,8 @@
 import { OpenAICompatibleAdapter } from "./ProviderAdapter.js";
 import type { ProviderId } from "@shared/types/agents";
 
-export class DoubaoAdapter extends OpenAICompatibleAdapter {
-  id: ProviderId = "doubao";
+export class VolcengineAdapter extends OpenAICompatibleAdapter {
+  id: ProviderId = "volcengine";
   defaultBaseUrl = "https://ark.cn-beijing.volces.com/api/v3";
 
   supportedModels(): string[] {

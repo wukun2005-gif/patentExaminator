@@ -288,7 +288,7 @@ const PROVIDER_MODEL_IDS: Record<ProviderId, string[]> = {
     "minimax-m2.5", "minimax-m2.7",
     "nemotron-3-super-free",
   ],
-  doubao: [
+  volcengine: [
     "doubao-seed-2-0-lite-260428", "doubao-seed-2-0-mini-260428",
     "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-lite-260215",
     "doubao-seed-2-0-mini-260215", "doubao-seed-2-0-code-preview-260215",

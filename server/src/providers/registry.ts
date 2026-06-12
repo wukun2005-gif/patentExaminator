@@ -12,7 +12,7 @@ import { QwenAdapter } from "./qwen.js";
 import { BedrockAdapter } from "./bedrock.js";
 import { OpenRouterAdapter } from "./openrouter.js";
 import { OpencodeAdapter } from "./opencode.js";
-import { DoubaoAdapter } from "./doubao.js";
+import { VolcengineAdapter } from "./volcengine.js";
 
 const BACKOFF_DELAYS = [500, 1500];
 const MAX_RETRIES = 2;
@@ -40,7 +40,7 @@ export class ProviderRegistry {
     this.register(new BedrockAdapter());
     this.register(new OpenRouterAdapter());
     this.register(new OpencodeAdapter());
-    this.register(new DoubaoAdapter());
+    this.register(new VolcengineAdapter());
   }
 
   register(adapter: ProviderAdapter): void {

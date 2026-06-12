@@ -33,6 +33,7 @@ export const SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1";
 export const API_KEY_NAMES = {
   gemini: "GEMINI_KEY",
   mimo: "MiMo_KEY",
+  volcengine: "volc-key",
   openrouter: "Openrouter_KEY",
   tavily: "TAVILY_API_KEY",
   serp: "SerpAPI_KEY",
@@ -48,6 +49,7 @@ export const API_KEY_NAMES = {
 export const DEFAULT_MODEL_IDS = {
   gemini: "gemini-3.5-flash",
   mimo: "mimo-v2.5-pro",
+  volcengine: "doubao-seed-2-0-pro-260215",
   openrouter: "z-ai/glm-4.5-air:free",
 };
 
@@ -199,6 +201,11 @@ export const FILE_TO_TEST_MAP = [
   { pattern: /^server\/src\/lib\/toolExecutor/, groups: ["nf1-nf2", "real"] },
   { pattern: /^server\/src\/mcp\//, groups: ["nf1-nf2", "real"] },
   { pattern: /^client\/src\/features\/chat\/ChatBubble/, groups: ["nf1-nf2"] },
+
+  // Golden Set / 离线评估
+  { pattern: /^server\/src\/lib\/goldenSetGenerator/, groups: ["real"] },
+  { pattern: /^server\/src\/lib\/evalRunner/, groups: ["real"] },
+  { pattern: /^server\/src\/routes\/metrics/, groups: ["real"] },
 
   // 数据库相关
   { pattern: /^server\/src\/lib\/syncDb/, groups: ["db"] },

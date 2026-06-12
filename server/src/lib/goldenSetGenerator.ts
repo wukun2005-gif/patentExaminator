@@ -121,7 +121,7 @@ export interface GoldenSetProviderConfig {
  * - mimo → 直接使用（MiMo 自有端点）
  * - gemini → 直接使用（Gemini 自有端点）
  * - deepseek → 直接使用（DeepSeek 自有端点）
- * - 否则 doubao → 使用火山托管的 DeepSeek 模型
+ * - 否则 volcengine → 使用火山托管的 DeepSeek 模型
  */
 export function resolveGoldenSetProviders(): GoldenSetProviderConfig[] {
   const db = getSyncDb();
@@ -158,8 +158,8 @@ export function resolveGoldenSetProviders(): GoldenSetProviderConfig[] {
     configs.push({ providerId: "gemini", model: "gemini-3.5-flash", apiKey: apiKeys["gemini"], label: "Gemini" });
   }
   // DeepSeek 只从火山引擎 provider 取，不从 deepseek provider 取
-  if (apiKeys["doubao"]) {
-    configs.push({ providerId: "doubao", model: "deepseek-v4-pro-260425", apiKey: apiKeys["doubao"], label: "DeepSeek" });
+  if (apiKeys["volcengine"]) {
+    configs.push({ providerId: "volcengine", model: "deepseek-v4-pro-260425", apiKey: apiKeys["volcengine"], label: "DeepSeek" });
   }
 
   return configs;
@@ -763,6 +763,8 @@ export async function getGoldenSet(): Promise<GoldenQuestion[]> {
  */
 export async function clearGoldenSet(): Promise<void> {
   const db = getSyncDb();
+  // 先删 runs（有 FK 引用 golden_set），再删 golden_set
+  db.exec("DELETE FROM metrics_golden_runs");
   db.exec("DELETE FROM metrics_golden_set");
   logger.info("[GoldenSet] Cleared golden set");
 }
