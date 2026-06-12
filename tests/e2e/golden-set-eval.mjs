@@ -112,7 +112,7 @@ export async function testGoldenEvalGenerate() {
 
   const providerConfigs = [];
   if (mimoKey) providerConfigs.push({ providerId: "mimo", model: "mimo-v2.5", apiKey: mimoKey, label: "MiMo" });
-  if (volcengineKey) providerConfigs.push({ providerId: "volcengine", model: "deepseek-v4-pro-260425", apiKey: volcengineKey, label: "DeepSeek (火山)" });
+  if (volcengineKey) providerConfigs.push({ providerId: "volcengine", model: "deepseek-v4-flash-260425", apiKey: volcengineKey, label: "DeepSeek (火山)" });
   if (volcengineKey) providerConfigs.push({ providerId: "volcengine", model: "doubao-seed-2-0-pro-260215", apiKey: volcengineKey, label: "doubao-seed (火山)" });
 
   // Multi-judge keys: mimo + volcengine（DeepSeek + doubao-seed 共用 key，替换 Gemini）
@@ -340,7 +340,7 @@ export async function testGoldenEvalModelCombination() {
   // 构建 eval configs — 使用主 LLM 作为 eval config（每个 question 需要 20-90s，太多 configs 会超时）
   const configs = [];
   if (mimoKey) configs.push({ label: "MiMo-v2.5", providerId: "mimo", modelId: "mimo-v2.5" });
-  else if (volcengineKey) configs.push({ label: "DeepSeek-v4-pro", providerId: "volcengine", modelId: "deepseek-v4-pro-260425" });
+  else if (volcengineKey) configs.push({ label: "DeepSeek-v4-flash", providerId: "volcengine", modelId: "deepseek-v4-flash-260425" });
 
   if (configs.length === 0) {
     log("GoldenEval: Model combination eval", true, "skipped (no API keys)");

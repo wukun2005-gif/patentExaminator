@@ -100,7 +100,7 @@ async function main() {
     const providerConfigs = [];
     if (mimoKey) providerConfigs.push({ providerId: "mimo", model: "mimo-v2.5", apiKey: mimoKey, label: "MiMo" });
     if (volcengineKey) {
-      providerConfigs.push({ providerId: "volcengine", model: "deepseek-v4-pro-260425", apiKey: volcengineKey, label: "DeepSeek (火山)" });
+      providerConfigs.push({ providerId: "volcengine", model: "deepseek-v4-flash-260425", apiKey: volcengineKey, label: "DeepSeek (火山)" });
       providerConfigs.push({ providerId: "volcengine", model: "doubao-seed-2-0-pro-260215", apiKey: volcengineKey, label: "doubao-seed (火山)" });
     }
 
@@ -229,7 +229,7 @@ async function main() {
     console.log("━━━ Step 4: Model combination evaluation ━━━");
     const evalConfigs = [];
     if (mimoKey) evalConfigs.push({ label: "MiMo-v2.5", providerId: "mimo", modelId: "mimo-v2.5" });
-    else if (volcengineKey) evalConfigs.push({ label: "DeepSeek-v4-pro", providerId: "volcengine", modelId: "deepseek-v4-pro-260425" });
+    else if (volcengineKey) evalConfigs.push({ label: "DeepSeek-v4-pro", providerId: "volcengine", modelId: "deepseek-v4-flash-260425" });
 
     const evalApiKey = mimoKey || volcengineKey;
     // 只评估 chat agent（最快，每个问题 ~2 分钟）

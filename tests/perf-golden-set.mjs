@@ -62,7 +62,7 @@ async function main() {
     const providerConfigs = [];
     if (mimoKey) providerConfigs.push({ providerId: "mimo", model: "mimo-v2.5", apiKey: mimoKey, label: "MiMo" });
     if (volcengineKey) {
-      providerConfigs.push({ providerId: "volcengine", model: "deepseek-v4-pro-260425", apiKey: volcengineKey, label: "DeepSeek" });
+      providerConfigs.push({ providerId: "volcengine", model: "deepseek-v4-flash-260425", apiKey: volcengineKey, label: "DeepSeek" });
       providerConfigs.push({ providerId: "volcengine", model: "doubao-seed-2-0-pro-260215", apiKey: volcengineKey, label: "doubao-seed" });
     }
 

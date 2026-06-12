@@ -185,7 +185,7 @@ export function resolveGoldenSetProviders(): GoldenSetProviderConfig[] {
   // DeepSeek 只从火山引擎 provider 取，不从 deepseek provider 取
   if (apiKeys["volcengine"]) {
     configs.push({
-      providerId: "volcengine", model: "deepseek-v4-pro-260425", apiKey: apiKeys["volcengine"], label: "DeepSeek",
+      providerId: "volcengine", model: "deepseek-v4-flash-260425", apiKey: apiKeys["volcengine"], label: "DeepSeek",
       ...(fallbacks["volcengine"] && { modelFallbacks: fallbacks["volcengine"] }),
       ...(enableFallback["volcengine"] && { enableModelFallback: true }),
     });

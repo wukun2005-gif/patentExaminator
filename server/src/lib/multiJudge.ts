@@ -36,7 +36,7 @@ export interface MultiJudgeResult<T> {
  */
 export const DEFAULT_JUDGE_CONFIGS: Array<{ providerId: string; modelId: string }> = [
   { providerId: "mimo", modelId: "mimo-v2.5" },
-  { providerId: "volcengine", modelId: "deepseek-v4-pro-260425" },
+  { providerId: "volcengine", modelId: "deepseek-v4-flash-260425" },
   { providerId: "volcengine", modelId: "doubao-seed-2-0-pro-260215" },
 ];
 
