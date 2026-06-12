@@ -13,6 +13,7 @@ const LOG_FILE = join(LOG_DIR, "db-audit.log");
 const BACKUP_FILE = join(LOG_DIR, "db-audit.1.log");
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 const MAX_FIELD_LEN = 500; // dataBefore/dataAfter 单字段最大字符数
+const MAX_SETTINGS_FIELD_LEN = 4000; // settings store 的 JSON 通常较大，放宽限制
 
 try { mkdirSync(LOG_DIR, { recursive: true }); } catch { /* exists */ }
 
@@ -26,12 +27,28 @@ export interface AuditEntry {
   result?: string;
 }
 
-/** 截断过大的数据字段，避免单行日志膨胀 */
-function truncateData(data: unknown): unknown {
+/** 截断过大的数据字段，避免单行日志膨胀。settings store 使用更大的上限 */
+function truncateData(data: unknown, store?: string): unknown {
   if (data === undefined || data === null) return data;
   const json = JSON.stringify(data);
-  if (json.length <= MAX_FIELD_LEN) return data;
-  return json.slice(0, MAX_FIELD_LEN) + `… (${json.length} chars truncated)`;
+  const limit = store === "settings" ? MAX_SETTINGS_FIELD_LEN : MAX_FIELD_LEN;
+  if (json.length <= limit) return data;
+  // settings 数据截断时，先提取 providers 摘要再截断
+  if (store === "settings" && typeof data === "object" && data !== null) {
+    const obj = data as Record<string, unknown>;
+    const summary: Record<string, unknown> = {};
+    if (Array.isArray(obj.providers)) {
+      summary.providers = obj.providers.map((p: Record<string, unknown>) => ({
+        providerId: p.providerId,
+        enabled: p.enabled,
+        hasKey: !!(p.apiKeyRef && p.apiKeyRef !== ""),
+        modelCount: Array.isArray(p.modelIds) ? p.modelIds.length : 0,
+      }));
+    }
+    if (obj.mode) summary.mode = obj.mode;
+    return { _summary: summary, _truncated: json.slice(0, limit) + `… (${json.length} chars total)` };
+  }
+  return json.slice(0, limit) + `… (${json.length} chars truncated)`;
 }
 
 /** 超过阈值时轮转日志文件 */
@@ -54,8 +71,8 @@ export function writeAudit(entry: AuditEntry): void {
   const line = JSON.stringify({
     ts,
     ...entry,
-    dataBefore: truncateData(entry.dataBefore),
-    dataAfter: truncateData(entry.dataAfter),
+    dataBefore: truncateData(entry.dataBefore, entry.store),
+    dataAfter: truncateData(entry.dataAfter, entry.store),
   });
   try {
     rotateIfNeeded();
