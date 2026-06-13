@@ -646,13 +646,24 @@ metricsRouter.post("/metrics/golden-set/clean", async (_req, res) => {
 
 // POST /api/metrics/eval/run
 // Run offline evaluation
-// Body: { configs: EvalConfig[], apiKey: string, agentFilter?: string }
+// Body: { configs: EvalConfig[], apiKey: string, agentFilter?: string,
+//         judgeApiKeys?, maxConcurrency?, modelFallbacks?, enableModelFallback?,
+//         knowledgeEnabled?, knowledgeEmbedding?, knowledgeReranker? }
 metricsRouter.post("/metrics/eval/run", async (req, res) => {
   try {
-    const { configs, apiKey, agentFilter } = req.body as {
+    const { configs, apiKey, agentFilter, judgeApiKeys, maxConcurrency,
+      modelFallbacks, enableModelFallback,
+      knowledgeEnabled, knowledgeEmbedding, knowledgeReranker } = req.body as {
       configs?: unknown[];
       apiKey?: string;
       agentFilter?: string;
+      judgeApiKeys?: Record<string, string>;
+      maxConcurrency?: number;
+      modelFallbacks?: Record<string, string[]>;
+      enableModelFallback?: boolean;
+      knowledgeEnabled?: boolean;
+      knowledgeEmbedding?: { baseUrl: string; apiKey: string; modelId: string };
+      knowledgeReranker?: { baseUrl: string; apiKey: string; modelId: string };
     };
     if (!configs || !Array.isArray(configs) || configs.length === 0) {
       return res.status(400).json({ error: "需要提供至少一个模型配置" });
@@ -664,6 +675,13 @@ metricsRouter.post("/metrics/eval/run", async (req, res) => {
     const report = await runEvaluation(configs, {
       llmApiKey: apiKey,
       agentFilter,
+      judgeApiKeys,
+      maxConcurrency,
+      modelFallbacks,
+      enableModelFallback,
+      knowledgeEnabled,
+      knowledgeEmbedding,
+      knowledgeReranker,
     });
     writeAudit({
       op: "CREATE",
