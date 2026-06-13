@@ -339,6 +339,42 @@ function insertGoldenQuestion(q: GoldenQuestion): void {
   );
 }
 
+/**
+ * Import golden questions from JSON array (用于 C 阶段验证前的数据准备).
+ * Accepts the same shape as the golden-set JSON file exported by A.2.
+ */
+export function importGoldenQuestions(raw: Array<Record<string, unknown>>): number {
+  const db = getSyncDb();
+  // Clear existing first
+  db.prepare("DELETE FROM metrics_golden_set").run();
+  let count = 0;
+  for (const r of raw) {
+    const q: GoldenQuestion = {
+      id: String(r.id ?? ""),
+      agent: String(r.agent ?? "chat"),
+      query: String(r.query ?? ""),
+      expectedAnswer: String(r.expectedAnswer ?? ""),
+      expectedSources: (r.expectedSources ?? []) as string[],
+      expectedArticles: (r.expectedArticles ?? []) as string[],
+      category: String(r.category ?? ""),
+      difficulty: String(r.difficulty ?? "medium"),
+      generatedBy: String(r.generatedBy ?? ""),
+      sourceType: (r.sourceType ?? "kb_only") as GoldenQuestion["sourceType"],
+      expectedSource: String(r.expectedSource ?? "kb"),
+      sourceRoutingRationale: String(r.sourceRoutingRationale ?? ""),
+      mustIncludeFacts: (r.mustIncludeFacts ?? []) as string[],
+      relevanceGrading: (r.relevanceGrading ?? []) as RelevanceGrade[],
+      verifiedBy: String(r.verifiedBy ?? "auto"),
+      contextChunkIds: (r.contextChunkIds ?? []) as string[],
+    };
+    if (!q.id || !q.query) continue;
+    insertGoldenQuestion(q);
+    count++;
+  }
+  logger.info(`[GoldenSet] Imported ${count} questions from JSON`);
+  return count;
+}
+
 function loadAllGoldenQuestions(): GoldenQuestion[] {
   const db = getSyncDb();
   const rows = db.prepare(

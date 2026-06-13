@@ -11,8 +11,8 @@ import { Agent, setGlobalDispatcher } from "undici";
 // 设置 undici 全局 dispatcher，将 headersTimeout 提高到 10 分钟
 // （默认 300s 会在 grading 252 次 LLM 调用时超时）
 setGlobalDispatcher(new Agent({
-  headersTimeout: 600_000,
-  bodyTimeout: 600_000,
+  headersTimeout: 1_200_000,
+  bodyTimeout: 1_200_000,
   connectTimeout: 30_000,
 }));
 

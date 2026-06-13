@@ -559,6 +559,28 @@ metricsRouter.get("/metrics/golden-set", async (_req, res) => {
   }
 });
 
+// POST /api/metrics/golden-set/import
+// Import golden set questions from JSON (用于 C 阶段验证前的数据准备)
+metricsRouter.post("/metrics/golden-set/import", async (req, res) => {
+  try {
+    const { questions } = req.body as { questions: unknown[] };
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: "需要提供 questions 数组" });
+    }
+    const { importGoldenQuestions } = await import("../lib/goldenSetGenerator.js");
+    const count = importGoldenQuestions(questions as never[]);
+    writeAudit({
+      op: "CREATE",
+      store: "metrics_golden_set",
+      caller: "user",
+      dataAfter: { imported: count },
+    });
+    res.json({ ok: true, count });
+  } catch (err) {
+    res.status(500).json({ error: errMsg(err) });
+  }
+});
+
 // DELETE /api/metrics/golden-set
 // Clear golden set for regeneration
 metricsRouter.delete("/metrics/golden-set", async (_req, res) => {
