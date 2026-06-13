@@ -198,17 +198,12 @@ async function main() {
       console.log(`被删题目: ${dataClean.deleted.join(", ")}`);
     }
 
-    // ── 保存清理后的 Golden Set JSON ──
+    // ── 保存清理后的 Golden Set JSON（clean 端点直接返回 questions）──
     const cleanPath = path.join(process.cwd(), "tests", "eval-reports", `golden-set-${ts2}.json`);
-    try {
-      const resExport2 = await getJSON("/metrics/golden-set");
-      const dataExport2 = await resExport2.json();
-      if (dataExport2.questions) {
-        writeFileSync(cleanPath, JSON.stringify(dataExport2.questions, null, 2), "utf-8");
-        console.log(`\n✅ 清理后 golden set 已保存: ${cleanPath}`);
-      }
-    } catch (e) {
-      console.warn(`\n⚠️ 清理后 golden set 导出失败: ${e}`);
+    if (dataClean.questions) {
+      mkdirSync(path.dirname(cleanPath), { recursive: true });
+      writeFileSync(cleanPath, JSON.stringify(dataClean.questions, null, 2), "utf-8");
+      console.log(`\n✅ 清理后 golden set 已保存: ${cleanPath}`);
     }
 
     // 打印文件位置摘要

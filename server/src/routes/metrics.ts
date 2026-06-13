@@ -626,10 +626,11 @@ metricsRouter.get("/metrics/golden-set/quality", async (_req, res) => {
 });
 
 // POST /api/metrics/golden-set/clean
-// C 清理不合格题目 — 删除 B 阶段检查不通过的题目
+// C 清理不合格题目 — 删除 B 阶段检查不通过的题目，返回清理后的 golden set
 metricsRouter.post("/metrics/golden-set/clean", async (_req, res) => {
   try {
     const { cleanGoldenSet } = await import("../lib/goldenSetQuality.js");
+    const { getGoldenSet } = await import("../lib/goldenSetGenerator.js");
     const result = cleanGoldenSet();
     writeAudit({
       op: "DELETE",
@@ -638,7 +639,9 @@ metricsRouter.post("/metrics/golden-set/clean", async (_req, res) => {
       dataBefore: { totalBefore: result.deleted.length + result.kept },
       dataAfter: { deleted: result.deleted.length, kept: result.kept },
     });
-    res.json(result);
+    // 返回清理结果 + 清理后的 golden set（供导出 JSON）
+    const questions = await getGoldenSet();
+    res.json({ ...result, questions });
   } catch (err) {
     res.status(500).json({ error: errMsg(err) });
   }
