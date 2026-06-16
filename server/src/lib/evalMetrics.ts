@@ -22,9 +22,8 @@ import type { SourceType, ExpectedSource } from "../../../shared/src/types/metri
 /**
  * 批量评估多个题目的检索 chunk 相关性（0-3）
  *
- * 优化：把所有 kb_only 题目的 chunk 全部合并到 1 个 prompt，2 个 judge 并行评估。
- * 原来：每题单独调用 → 5 题 × 2 judge = 10 次
- * 优化后：所有 chunks 合并到 1 个 prompt → 2 次
+ * 分批处理：每批最多 batchQuestions 个题目，避免 prompt 过大导致 judge 超时。
+ * 每批内 2 个 judge 并行评估。
  */
 export async function computeRetrievalMetricsBatch(
   questions: Array<{
@@ -34,12 +33,39 @@ export async function computeRetrievalMetricsBatch(
   }>,
   judgeApiKeys: Record<string, string>,
   k: number = 10,
+  batchQuestions: number = 5,
 ): Promise<Map<string, { ndcg: number; recall: number; grades: Array<{ chunkId: string; grade: number }> }>> {
   const result = new Map<string, { ndcg: number; recall: number; grades: Array<{ chunkId: string; grade: number }> }>();
 
   if (questions.length === 0) return result;
 
-  // 构建合并 prompt：一次评估所有题目的所有 chunk
+  // 分批处理，避免 prompt 过大导致超时
+  for (let batchStart = 0; batchStart < questions.length; batchStart += batchQuestions) {
+    const batch = questions.slice(batchStart, batchStart + batchQuestions);
+    const batchResult = await computeRetrievalMetricsSingleBatch(batch, judgeApiKeys, k);
+    batchResult.forEach((metrics, id) => {
+      result.set(id, metrics);
+    });
+  }
+
+  return result;
+}
+
+/**
+ * 单批检索指标评估（内部函数）
+ */
+async function computeRetrievalMetricsSingleBatch(
+  questions: Array<{
+    questionId: string;
+    query: string;
+    chunks: Array<{ id: string; text?: string }>;
+  }>,
+  judgeApiKeys: Record<string, string>,
+  k: number,
+): Promise<Map<string, { ndcg: number; recall: number; grades: Array<{ chunkId: string; grade: number }> }>> {
+  const result = new Map<string, { ndcg: number; recall: number; grades: Array<{ chunkId: string; grade: number }> }>();
+
+  // 构建合并 prompt：一次评估本批次题目的所有 chunk
   const allChunksParts: string[] = [];
   const chunkIndexMap: Array<{ questionId: string; chunkId: string; index: number }> = [];
 
@@ -113,7 +139,7 @@ export async function computeRetrievalMetricsBatch(
       aggregatedGrades.push({ chunkId: chunkIndexMap[i]!.chunkId, grade: Math.round(avgGrade) });
     }
   } else {
-    logger.warn(`[EvalMetrics] Batch chunk grading failed, all chunks graded 0`);
+    logger.warn(`[EvalMetrics] Batch chunk grading failed (${questions.length} questions, ${chunkIndexMap.length} chunks), all graded 0`);
     for (const item of chunkIndexMap) {
       aggregatedGrades.push({ chunkId: item.chunkId, grade: 0 });
     }

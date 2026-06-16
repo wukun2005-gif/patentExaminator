@@ -293,9 +293,11 @@ export async function runEvaluation(
       }
     }
 
-    // 一次性评估所有题目的检索指标
+    // 分批评估检索指标（每批 5 题，避免 prompt 过大导致 judge 超时）
+    const retrievalBatchSize = 5;
+    logger.info(`[EvalRunner] Phase 2: 检索指标评估，${retrievalBatchData.length} 题分批（每批 ${retrievalBatchSize} 题）`);
     const retrievalMetricsMap = retrievalBatchData.length > 0
-      ? await computeRetrievalMetricsBatch(retrievalBatchData, judgeApiKeys, 10)
+      ? await computeRetrievalMetricsBatch(retrievalBatchData, judgeApiKeys, 10, retrievalBatchSize)
       : new Map();
 
     // Phase 3: 批量语义指标评估（分批，每批 7 题）
