@@ -405,8 +405,8 @@ function extractArticleNumber(ref: string): string {
     const clause = lawMatch[2] ? `-${CN_NUM_MAP[lawMatch[2]!] ?? lawMatch[2]}` : "";
     return article + clause;
   }
-  // 匹配 "第N.M节" 或 "N.M" 格式（审查指南）
-  const guideMatch = ref.match(/(\d+(?:\.\d+)?)/);
+  // 匹配 "第N.M.L节" 或 "N.M.L" 格式（审查指南多级节号）
+  const guideMatch = ref.match(/(\d+(?:\.\d+)+)/);
   if (guideMatch) return guideMatch[1]!;
   return "";
 }
@@ -482,8 +482,8 @@ function extractAllArticleRefs(text: string): string[] {
   while ((match = lawPattern.exec(text)) !== null) {
     refs.push(match[0]);
   }
-  // 第N.M节、第N章
-  const guidePattern = /第?\d+(?:\.\d+)?(?:节|章|部分)/g;
+  // 第N.M节、第N章 — 支持多级节号如 "第3.2.1.1节"
+  const guidePattern = /第?\d+(?:\.\d+)+(?:节|章)?/g;
   while ((match = guidePattern.exec(text)) !== null) {
     refs.push(match[0]);
   }
@@ -898,6 +898,21 @@ export async function computeSemanticMetricsBatch(
 
   if (questions.length === 0) return result;
 
+  // 空答案直接返回 0，不发给 LLM judge（与单题函数行为一致）
+  const emptyResult = { aggregated: 0, individualResults: [], judgeCount: 0 };
+  const nonEmptyQuestions = questions.filter((q) => {
+    if (!q.answer || q.answer.trim().length === 0) {
+      result.set(q.questionId, {
+        faithfulness: { ...emptyResult },
+        answerCorrectness: { ...emptyResult },
+        factCoverage: { ...emptyResult },
+      });
+      return false;
+    }
+    return true;
+  });
+  if (nonEmptyQuestions.length === 0) return result;
+
   // 构建合并 prompt：一次评估多个题目
   const system = `你是专利复审评估专家。请一次性评估多个题目的三个维度，输出 JSON 数组。
 
@@ -929,7 +944,7 @@ export async function computeSemanticMetricsBatch(
   // 构建 user prompt
   const userParts: string[] = [];
 
-  for (const q of questions) {
+  for (const q of nonEmptyQuestions) {
     userParts.push(`## 题目：${q.questionId}`);
     userParts.push("### 参考文档");
     userParts.push(q.context.slice(0, 4000));
@@ -997,8 +1012,10 @@ export async function computeSemanticMetricsBatch(
     }
   }
 
-  // 聚合结果：多个 judge 取平均
+  // 聚合结果：多个 judge 取平均（跳过已处理的空答案）
   for (const q of questions) {
+    if (result.has(q.questionId)) continue;
+
     const emptyResult = { aggregated: 0, individualResults: [], judgeCount: 0 };
 
     if (judgeResults.length === 0) {

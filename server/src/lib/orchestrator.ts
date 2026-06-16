@@ -419,6 +419,11 @@ function buildChatPrompt(request: ChatRequestData): PromptParts {
     `- 同一内容可被多处引用，同一句子可引用多个来源：（参见 [1][3]）`,
     `- 仅基于参考知识库中的内容回答时，每句话都应标注引用`,
     `- 如果回答完全不涉及知识库内容，则不需要标注`,
+    ``,
+    `## 法条引用（硬性要求）`,
+    `- 回答涉及法律法规时，必须写出完整条款编号（如'《专利法》第二十二条第三款'）`,
+    `- 禁止使用'根据专利法'、'根据相关规定'等模糊表述而不给出具体条款号`,
+    `- 当知识库中同时包含法律原文和审查指南解读时，应同时引用两者：先引法条，再引指南`,
   ].join("\n");
 
   // nf3: 注入用户上传的附件内容
@@ -1127,6 +1132,7 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
               ...(overrides?.tool_choice !== undefined && { tool_choice: overrides.tool_choice }),
             };
 
+            logger.info(`[Agent] chat using modelId="${chatReq.modelId ?? "default"}", providers=[${(req.providerPreference ?? []).join(", ")}]`);
             const result = await registry.runWithFallback(
               req.providerPreference ?? [],
               chatReq,
@@ -1161,6 +1167,12 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
 
         if (req.groundednessEnabled !== false && merged.length > 0) {
           const gndStart = Date.now();
+
+          // 空答案直接判 fail，不浪费 LLM 调用
+          if (finalAnswer.trim().length === 0) {
+            groundednessResult = { score: 0, verdict: "fail", removedCount: 0 };
+            logger.info(`[Orchestrator] groundedness check 跳过（空答案），verdict=fail`);
+          } else {
           logger.info(`[Orchestrator] groundedness check 开始`);
           try {
             const { checkGroundedness } = await import("./groundednessCheck.js");
@@ -1261,6 +1273,7 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
             logger.warn(`[Orchestrator] groundedness check failed, using original output: ${nf2Err}`);
           }
           timings.groundednessMs = Date.now() - gndStart;
+          } // end else (非空答案)
         }
         // D4: 诊断 — groundedness 后的最终 answer
         logger.info(`[Orchestrator] D4 after groundedness: finalAnswerLen=${finalAnswer.length}, finalAnswer=${finalAnswer.slice(0, 300)}`);
@@ -1703,6 +1716,7 @@ async function callInternalGateway(req: InternalGatewayRequest): Promise<Interna
     ...(req.tool_choice && { tool_choice: req.tool_choice }),
   };
 
+  logger.info(`[Gateway] answer generation using modelId="${chatRequest.modelId ?? "default"}", providers=[${providerOrder.join(", ")}]`);
   const result = await registry.runWithFallback(
     providerOrder,
     chatRequest,
