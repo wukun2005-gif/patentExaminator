@@ -47,6 +47,7 @@ export async function searchPatents(
       const searchFn = providerId === "tavily" ? searchTavily
         : providerId === "epo" ? searchEpoAdapter
         : providerId === "serper" ? (k: string, n: number, a: string) => searchSerper(k, n, a, config?.baseUrl)
+        : providerId === "serpapi" ? searchSerpapi
         : config?.baseUrl ? (k: string, n: number, a: string) => searchCustom(k, n, a, config.baseUrl as string)
         : null;
       if (!searchFn) return Promise.resolve([] as SearchResult[]);
@@ -172,6 +173,39 @@ async function searchSerper(
   };
 
   return (data.organic ?? []).map((r) => ({
+    title: r.title,
+    url: r.link,
+    content: r.snippet,
+    score: r.position ? 1 / r.position : 0,
+  }));
+}
+
+async function searchSerpapi(
+  query: string,
+  maxResults: number,
+  apiKey: string,
+): Promise<SearchResult[]> {
+  const url = new URL("https://serpapi.com/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("engine", "google");
+  url.searchParams.set("num", String(maxResults));
+
+  const response = await fetch(url.toString(), {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    logger.error("SerpAPI error", { status: response.status, text });
+    throw new Error(`SerpAPI error: ${response.status}`);
+  }
+
+  const data = (await response.json()) as {
+    organic_results?: Array<{ title: string; link: string; snippet: string; position?: number }>;
+  };
+
+  return (data.organic_results ?? []).map((r) => ({
     title: r.title,
     url: r.link,
     content: r.snippet,

@@ -160,7 +160,7 @@ describe("agentRun real mode", () => {
       // The error message should contain the actual API error, not just a generic message
       expect((err as AiGatewayError).message).toContain("quota-exceeded");
       expect((err as AiGatewayError).attempts).toHaveLength(1);
-      expect((err as AiGatewayError).attempts![0].errorCode).toBe("quota-exceeded");
+      expect((err as AiGatewayError).attempts![0]!.errorCode).toBe("quota-exceeded");
     }
     global.fetch = originalFetch;
   });
@@ -193,12 +193,12 @@ describe("agentRun real mode", () => {
 
     const result = await searchWithTerms(
       { caseId: "test", claimText: "test", features: [], searchQueries: ["test"] },
-      REAL_SETTINGS
+      undefined
     );
 
     expect(result.ok).toBe(true);
     expect(result.attempts).toHaveLength(2);
-    expect(result.attempts![0].errorCode).toBe("quota-exceeded");
+    expect(result.attempts![0]!.errorCode).toBe("quota-exceeded");
 
     // trackProviderErrors should have been called → PATCH settings was attempted
     expect(callCount).toBeGreaterThanOrEqual(2); // search + settings PATCH
@@ -246,7 +246,7 @@ describe("agentRun real mode", () => {
     const messages = (patchBody as { providerErrorMessages?: Array<{ errorCode?: string }> })?.providerErrorMessages;
     expect(messages).toBeDefined();
     expect(messages!.length).toBeGreaterThanOrEqual(1);
-    expect(messages![0].errorCode).toBe("quota-exceeded");
+    expect(messages![0]!.errorCode).toBe("quota-exceeded");
 
     global.fetch = originalFetch;
   });

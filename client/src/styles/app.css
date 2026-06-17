@@ -1424,7 +1424,6 @@
 
 .fallback-model-row {
   transition: all 0.15s ease;
-  user-select: none;
 }
 
 .fallback-model-row:hover {
@@ -1461,6 +1460,31 @@
   font-weight: var(--pex-font-weight-medium);
 }
 
+.fallback-verified-badge {
+  display: inline-block;
+  padding: 0 4px;
+  background: #10b981;
+  color: #fff;
+  border-radius: var(--pex-radius-sm);
+  font-size: var(--pex-font-size-tiny);
+  font-weight: bold;
+}
+
+.fallback-unverified-badge {
+  display: inline-block;
+  padding: 0 4px;
+  background: #ef4444;
+  color: #fff;
+  border-radius: var(--pex-radius-sm);
+  font-size: var(--pex-font-size-tiny);
+  font-weight: bold;
+}
+
+.fallback-verifying-badge {
+  display: inline-block;
+  font-size: var(--pex-font-size-tiny);
+}
+
 .add-provider select {
   padding: 8px 12px;
   border: 1px dashed var(--pex-color-text-disabled);
@@ -1478,9 +1502,10 @@
   flex-direction: column;
   border: 1px solid var(--pex-color-border-default);
   border-radius: var(--pex-radius-xl);
-  overflow: hidden;
+  /* 不用 overflow:hidden，否则会裁剪 model-select 的 absolute 下拉框 */
 }
 
+/* 用首尾子元素的 border-radius 替代 overflow:hidden 的圆角效果 */
 .agent-table__header {
   display: grid;
   grid-template-columns: 120px 1fr 240px 60px;
@@ -1490,6 +1515,8 @@
   font-size: var(--pex-font-size-caption);
   font-weight: var(--pex-font-weight-semibold);
   color: var(--pex-color-text-muted);
+  border-top-left-radius: var(--pex-radius-xl);
+  border-top-right-radius: var(--pex-radius-xl);
   border-bottom: 1px solid var(--pex-color-border-default);
 }
 
@@ -1505,6 +1532,8 @@
 
 .agent-table__row:last-child {
   border-bottom: none;
+  border-bottom-left-radius: var(--pex-radius-xl);
+  border-bottom-right-radius: var(--pex-radius-xl);
 }
 
 .agent-table__row:hover {

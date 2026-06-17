@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import type { ProviderConnection, ProviderId } from "@shared/types/agents";
 import { PRESET_MODEL_PROVIDERS } from "@shared/types/agents";
 import { useSettingsStore } from "../../store";
-import { fetchModels } from "../../lib/api";
+import { fetchModels, verifyModel } from "../../lib/api";
 import { useModelCatalog, getModelMeta, getModelIds } from "../../lib/modelCatalog";
 import { ProviderErrorBox } from "./ProviderErrorBox";
 import { createLogger } from "../../lib/logger";
@@ -60,6 +60,7 @@ export function ProvidersConfigPanel() {
   const [keyInput, setKeyInput] = useState("");
   const [loadingModels, setLoadingModels] = useState<string | null>(null);
   const [modelError, setModelError] = useState<Record<string, string>>({});
+  const [verifiedModels, setVerifiedModels] = useState<Record<string, Set<string>>>({});
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
   const dragItem = useRef<{ providerId: string; index: number } | null>(null);
   const dragOverItem = useRef<{ providerId: string; index: number } | null>(null);
@@ -242,24 +243,51 @@ export function ProvidersConfigPanel() {
     if (!provider.apiKeyRef) return;
     setLoadingModels(id);
     setModelError((prev) => ({ ...prev, [id]: "" }));
+    // 清除旧的验证状态，让 UI 显示 ⏳（isVerified=null）
+    setVerifiedModels((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     const preset = PRESET_MODEL_PROVIDERS.find((p) => p.id === id);
+    const base = provider.baseUrl ?? preset?.baseUrl;
     try {
-      const models = await fetchModels(id, provider.apiKeyRef, provider.baseUrl ?? preset?.baseUrl);
+      const models = await fetchModels(id, provider.apiKeyRef, base);
       if (!isMountedRef.current) return;
       if (models.length > 0) {
         const defaultId = models.includes(provider.defaultModelId)
           ? provider.defaultModelId
           : models[0] ?? "";
-        // 保留用户已配置的 fallback 顺序，只移除不可用的、添加新发现的
         const existingFallbacks = provider.modelFallbacks ?? [];
         const modelSet = new Set(models);
-        // 1. 保留用户配置中仍然可用的模型（按原顺序）
         const preserved = existingFallbacks.filter((m) => modelSet.has(m) && m !== defaultId);
-        // 2. 添加新发现的模型（不在用户配置中的）
         const preservedSet = new Set([defaultId, ...preserved]);
         const newModels = models.filter((m) => !preservedSet.has(m));
         const fallbacks = [defaultId, ...preserved, ...newModels];
         updateProvider(id, { modelIds: models, defaultModelId: defaultId, modelFallbacks: fallbacks });
+
+        // 逐个验证模型是否真实可用
+        const verified = new Set<string>();
+        const CONCURRENCY = 3;
+        const queue = [...models];
+        const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, () =>
+          (async () => {
+            while (queue.length > 0) {
+              const modelId = queue.shift();
+              if (!modelId) break;
+              try {
+                const result = await verifyModel(id, modelId, provider.apiKeyRef, base);
+                if (result.ok) verified.add(modelId);
+              } catch {
+                // 验证失败不阻塞
+              }
+            }
+          })()
+        );
+        await Promise.all(workers);
+        if (isMountedRef.current) {
+          setVerifiedModels((prev) => ({ ...prev, [id]: verified }));
+        }
       }
     } catch (error) {
       if (isMountedRef.current) setModelError((prev) => ({ ...prev, [id]: error instanceof Error ? error.message : "查询失败" }));
@@ -431,7 +459,7 @@ export function ProvidersConfigPanel() {
                           <tr>
                             <th className="fallback-table__handle-col" />
                             <th className="fallback-table__seq-col">#</th>
-                            <th>模型</th>
+                            <th>Model ID</th>
                             <th>推荐场景</th>
                             <th>配额</th>
                             <th className="fallback-table__action-col" />
@@ -441,25 +469,33 @@ export function ProvidersConfigPanel() {
                           {fallbackList.map((model, i) => {
                             const isDefault = model === provider.defaultModelId;
                             const meta = modelMetaMap.get(model);
+                            const verified = verifiedModels[preset.id];
+                            const isVerified = verified ? verified.has(model) : null; // null = not yet verified
                             return (
                               <tr
                                 key={model}
                                 className={`fallback-model-row ${isDefault ? "fallback-model-row--selected" : ""}`}
-                                draggable
-                                onDragStart={() => handleDragStart(preset.id, i)}
                                 onDragOver={(e) => handleDragOver(e, preset.id, i)}
                                 onDrop={() => handleDrop(preset.id)}
-                                onDragEnd={handleDragEnd}
                                 data-testid={`fallback-row-${preset.id}-${i}`}
                               >
                                 <td className="fallback-table__handle-col">
-                                  <span className="drag-handle" aria-label="拖拽排序">⠿</span>
+                                  <span
+                                    className="drag-handle"
+                                    draggable
+                                    onDragStart={() => handleDragStart(preset.id, i)}
+                                    onDragEnd={handleDragEnd}
+                                    aria-label="拖拽排序"
+                                  >⠿</span>
                                 </td>
                                 <td className="fallback-table__seq-col">{i + 1}</td>
                                 <td>
                                   <span className="fallback-model-name">
                                     {model}
                                     {isDefault && <span className="fallback-current-badge">当前默认</span>}
+                                    {isVerified === true && <span className="fallback-verified-badge" title="已验证可用">✓</span>}
+                                    {isVerified === false && <span className="fallback-unverified-badge" title="验证失败">✗</span>}
+                                    {isVerified === null && loadingModels === preset.id && <span className="fallback-verifying-badge" title="验证中…">⏳</span>}
                                   </span>
                                 </td>
                                 <td className="fallback-table__meta-col">

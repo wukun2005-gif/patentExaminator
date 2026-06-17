@@ -468,7 +468,7 @@ function buildChatPrompt(request: ChatRequestData): PromptParts {
     }));
   }
 
-  return { system, user, userMultimodal };
+  return { system, user, ...(userMultimodal ? { userMultimodal } : {}) };
 }
 
 const INTERPRET_TEMPLATES: Record<string, { title: string; instructions: string[] }> = {
@@ -932,7 +932,7 @@ async function enhanceWithKnowledge(
       parts.push(`[${i + 1}] ${sourceLabel}（相似度: ${result.score.toFixed(2)}）`);
       for (const line of injectText.split("\n").slice(0, 15)) parts.push(line);
       parts.push("");
-      citations.push({ source, sourceId: chunk.sourceId, chunkId: result.chunkId, article: article || undefined, score: result.score, excerpt: injectText.slice(0, 200) });
+      citations.push({ source, sourceId: chunk.sourceId, chunkId: result.chunkId, ...(article ? { article } : {}), score: result.score, excerpt: injectText.slice(0, 200) });
     }
 
     logger.info(`[RAG] === 检索完成 === ${citations.length} 条引用注入 prompt`);
@@ -1527,6 +1527,8 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
         thinkingTokens: 0,
         ragCitationCount: citations.length,
         topCitationScore: Math.max(0, ...citations.map(c => c.score)),
+        webTopScore: 0,
+        fusionTopScore: 0,
         webSearchCount: 0,
         groundingScore: -1,
         groundingVerdict: '',
@@ -1569,6 +1571,8 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
         thinkingTokens: 0,
         ragCitationCount: 0,
         topCitationScore: 0,
+        webTopScore: 0,
+        fusionTopScore: 0,
         webSearchCount: 0,
         groundingScore: -1,
         groundingVerdict: '',

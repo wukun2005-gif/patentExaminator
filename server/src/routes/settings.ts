@@ -55,3 +55,47 @@ settingsRouter.get("/providers/:providerId/models", async (req, res) => {
     res.status(502).json({ error: message });
   }
 });
+
+// Verify a single model is callable (lightweight chat test)
+settingsRouter.post("/providers/:providerId/verify-model", async (req, res) => {
+  const idParsed = storeNameSchema.safeParse(req.params.providerId);
+  if (!idParsed.success) {
+    res.status(400).json({ error: idParsed.error.issues.map(i => i.message).join("; ") });
+    return;
+  }
+  const providerId = idParsed.data;
+
+  const { apiKey, baseUrl, modelId } = req.body as { apiKey?: string; baseUrl?: string; modelId?: string };
+  if (!apiKey || !modelId) {
+    res.status(400).json({ error: "apiKey and modelId are required" });
+    return;
+  }
+
+  const adapter = registry.get(providerId);
+  if (!adapter) {
+    res.status(404).json({ error: `Unknown provider: ${providerId}` });
+    return;
+  }
+
+  const base = baseUrl || adapter.defaultBaseUrl;
+  try {
+    const res_ = await fetch(`${base}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 1 }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res_.ok) {
+      res.json({ ok: true, modelId });
+    } else {
+      const body = await res_.text().catch(() => "");
+      res.json({ ok: false, modelId, error: `HTTP ${res_.status}: ${body.slice(0, 200)}` });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.json({ ok: false, modelId, error: message });
+  }
+});

@@ -197,6 +197,8 @@ dataRouter.put("/data/:store/:id", express.json(), (req, res) => {
       return;
     }
 
+    if (store === "settings") clearSettingsCache();
+
     writeAudit({ op: "UPDATE", store, recordId: id, caller: req.header("X-Caller") ?? "unknown", dataBefore, dataAfter: data, result: "OK" });
 
     res.json({ ok: true, id });

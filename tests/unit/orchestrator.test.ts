@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@server/providers/registry.js", () => ({
   registry: {
     runWithFallback: vi.fn().mockResolvedValue({
-      response: { text: '{"ok":true}', tokenUsage: { input: 10, output: 5, total: 15 } },
+      response: { text: '{"ok":true}', tokenUsage: { input: 10, output: 5, total: 15 }, rawResponse: null },
       attempts: [{ providerId: "gemini", ok: true }]
     })
   }
@@ -56,7 +56,7 @@ describe("orchestrator — agent routing", () => {
       // claim-chart 需要有效的 features 才能通过验证
       if (agent === "claim-chart") {
         vi.mocked(registry.runWithFallback).mockResolvedValueOnce({
-          response: { text: JSON.stringify({ claimNumber: 1, features: [{ featureCode: "A", description: "test feature", specificationCitations: [], citationStatus: "needs-review" }] }), tokenUsage: { input: 10, output: 5, total: 15 } },
+          response: { text: JSON.stringify({ claimNumber: 1, features: [{ featureCode: "A", description: "test feature", specificationCitations: [], citationStatus: "needs-review" }] }), tokenUsage: { input: 10, output: 5, total: 15 }, rawResponse: null },
           attempts: [{ providerId: "gemini", ok: true }]
         });
       }
@@ -300,7 +300,8 @@ describe("orchestrator — claim-chart post-processing", () => {
     (registry.runWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       response: {
         text: parsedOutput,  // 返回对象而非字符串，模拟路由层 JSON.parse
-        tokenUsage: { input: 10, output: 5, total: 15 }
+        tokenUsage: { input: 10, output: 5, total: 15 },
+        rawResponse: null,
       },
       attempts: [{ providerId: "gemini", ok: true }]
     });
@@ -350,7 +351,7 @@ describe("orchestrator — error handling", () => {
 
   it("returns error when claim-chart gateway returns malformed JSON string", async () => {
     (registry.runWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      response: { text: "not-json{{", tokenUsage: { input: 10, output: 5, total: 15 } },
+      response: { text: "not-json{{", tokenUsage: { input: 10, output: 5, total: 15 }, rawResponse: null },
       attempts: [{ providerId: "gemini", ok: true }]
     });
 
@@ -385,7 +386,7 @@ describe("orchestrator — error handling", () => {
 
   it("returns token usage from gateway response", async () => {
     (registry.runWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      response: { text: '{"ok":true}', tokenUsage: { input: 100, output: 50, total: 150 } },
+      response: { text: '{"ok":true}', tokenUsage: { input: 100, output: 50, total: 150 }, rawResponse: null },
       attempts: [{ providerId: "gemini", ok: true }]
     });
 

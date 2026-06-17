@@ -229,7 +229,19 @@ export async function executeWithTools(input: ToolExecutorInput): Promise<ToolEx
   const fuseResult = totalCandidates > 0
     ? await fuseAndRank(query, ragCitations, webSearchResults, rerankerConfig)
     : { citations: [] as FusedCitation[], webTopScore: 0, fusionTopScore: 0 };
-  const { citations, webTopScore, fusionTopScore } = fuseResult;
+  const { webTopScore, fusionTopScore } = fuseResult;
+  let { citations } = fuseResult;
+
+  // Step 3.5: 法律文件保底 — 如果融合结果中没有法律类 RAG 文档，从 RAG 候选池中补充
+  const LAW_FILE_PATTERNS = ["专利法", "专利法实施细则"];
+  const hasLawFile = citations.some(c => c.engine === "rag" && LAW_FILE_PATTERNS.some(p => c.title.includes(p)));
+  if (!hasLawFile && ragCitations.length > 0) {
+    const lawCandidate = ragCitations.find(c => LAW_FILE_PATTERNS.some(p => c.source.includes(p)));
+    if (lawCandidate) {
+      citations = [...citations, { title: lawCandidate.source, url: "", snippet: lawCandidate.excerpt, engine: "rag" }];
+      logger.info(`[ToolExecutor] 法律文件保底: 补充 "${lawCandidate.source}" (score=${lawCandidate.score.toFixed(4)})`);
+    }
+  }
 
   // Step 4: 注入 Top-K 文档后调 LLM（不带 tools），强制要求引用标注
   // 全部结果（RAG + Web）按 reranker 相关性统一编号 [1]-[N]
@@ -238,7 +250,7 @@ export async function executeWithTools(input: ToolExecutorInput): Promise<ToolEx
     logger.info(`[ToolExecutor] Re-inject: injecting ${citations.length} docs (${countSources(citations)}), final call without tools`);
     // D4: 诊断 — 打印 re-inject 的文档内容
     for (let i = 0; i < citations.length; i++) {
-      const c = citations[i];
+      const c = citations[i]!;
       logger.info(`[ToolExecutor] D4 re-inject[${i}]: engine=${c.engine}, title=${c.title?.slice(0, 80)}, snippet=${c.snippet?.slice(0, 150)}`);
     }
     const docsSection = citations
@@ -267,7 +279,8 @@ export async function executeWithTools(input: ToolExecutorInput): Promise<ToolEx
       "2. 每句话末尾用 [N] 标注来源",
       "3. [N] 对应上方文档序号",
       "4. 无相关信息时说明'参考文档中未找到'",
-      "5. 讨论法律法规时，必须明确引用具体条款编号（如'《专利法》第二十二条第三款'）。不能只说'根据专利法'或'根据相关规定'而不给出具体条款号。如果参考文档中包含具体法条，必须引用。",
+      "5. **法条引用是硬性要求**：回答涉及法律法规时，必须写出完整条款编号（如'《专利法》第二十二条第三款'、'《专利法实施细则》第一百一十三条'）。禁止使用'根据专利法'、'根据相关规定'、'依据法律'等模糊表述而不给出具体条款号。即使参考文档中没有直接标注法条编号，你也应当根据文档内容推断并写出对应的法条。这是审查类回答的基本要求。",
+      "6. **法条优先于审查指南**：当参考文档中同时包含法律原文和审查指南解读时，回答应同时引用两者——先引法条，再引审查指南对应章节。例如：'根据《专利法》第二十二条第三款的规定（参见 [1]《专利审查指南》第四章），创造性是指……'",
     ];
 
     if (finalAnswer) {
@@ -400,12 +413,13 @@ async function fuseAndRank(
         signal: AbortSignal.timeout(30000),
       });
       if (res.ok) {
-        const data = await res.json() as { results: Array<{ index: number; relevance_score: number }> };
-        const fusionTopScore = data.results.length > 0 ? data.results[0].relevance_score : 0;
+        const data = await res.json() as { results?: Array<{ index: number; relevance_score: number }> };
+        const results = data.results ?? [];
+        const fusionTopScore = results.length > 0 ? results[0]!.relevance_score : 0;
         // Web top score: 最高分的 web 结果（engine !== "rag"）
-        const webResult = data.results.find((r) => r.index >= 0 && r.index < allResults.length && allResults[r.index]?.engine !== "rag");
+        const webResult = results.find((r) => r.index >= 0 && r.index < allResults.length && allResults[r.index]?.engine !== "rag");
         const webTopScore = webResult?.relevance_score ?? 0;
-        const reranked = data.results
+        const reranked = results
           .filter((r) => r.index >= 0 && r.index < allResults.length)
           .map((r) => allResults[r.index])
           .filter((c): c is FusedCitation => !!c);

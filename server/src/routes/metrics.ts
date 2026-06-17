@@ -173,7 +173,7 @@ metricsRouter.get("/metrics/by-dimension", (req, res) => {
             val = t[timingKey] ?? 0;
           }
           if (!buckets[r.dv]) buckets[r.dv] = [];
-          buckets[r.dv].push(val);
+          buckets[r.dv]!.push(val);
         } catch { /* skip malformed */ }
       }
       for (const [dv, vals] of Object.entries(buckets)) {
@@ -534,7 +534,7 @@ metricsRouter.post("/metrics/golden-set/generate", async (req, res) => {
     }
 
     const questions = await generateGoldenSet(
-      providerConfigs,
+      providerConfigs as Array<{ providerId: import("@shared/types/agents").ProviderId; model: string; apiKey: string; label: string; modelFallbacks?: string[]; enableModelFallback?: boolean }>,
       searchApiKey || undefined,
       "tavily",
     );
@@ -600,36 +600,8 @@ metricsRouter.delete("/metrics/golden-set", async (_req, res) => {
 // Body: { judgeApiKeys? }
 metricsRouter.post("/metrics/golden-set/grade", async (req, res) => {
   try {
-    const { gradeGoldenSet } = await import("../lib/goldenSetGrading.js");
-
-    const judgeApiKeys = (req.body as { judgeApiKeys?: Record<string, string> }).judgeApiKeys || {};
-
-    // 请求体未传 key 时从 DB 读（App client 场景）
-    if (Object.keys(judgeApiKeys).length === 0) {
-      const db = getSyncDb();
-      const settingsRow = db.prepare(
-        "SELECT data FROM sync_data WHERE store_name = 'settings' AND record_id = 'app'"
-      ).get() as { data: string } | undefined;
-      if (settingsRow) {
-        try {
-          const settings = JSON.parse(settingsRow.data) as Record<string, unknown>;
-          const providers = (settings.providers ?? []) as Array<{
-            providerId: string; apiKeyRef?: string;
-          }>;
-          for (const p of providers) {
-            if (p.apiKeyRef) judgeApiKeys[p.providerId] = p.apiKeyRef;
-          }
-        } catch { /* ignore */ }
-      }
-    }
-
-    if (Object.keys(judgeApiKeys).length < 1) {
-      return res.status(400).json({ error: "需要至少 1 个 judge API key（MiMo 或 DeepSeek）" });
-    }
-
-    const results = await gradeGoldenSet(judgeApiKeys);
-    writeAudit({ op: "UPDATE", store: "metrics_golden_set", caller: "user", dataAfter: { graded: results.length } });
-    res.json({ graded: results.length, results });
+    // gradeGoldenSet module not yet implemented (goldenSetGrading.ts does not exist)
+    return res.status(501).json({ error: "Relevance grading not yet implemented" });
   } catch (err) {
     res.status(500).json({ error: errMsg(err) });
   }
@@ -651,15 +623,16 @@ metricsRouter.get("/metrics/golden-set/quality", async (_req, res) => {
 // C 清理不合格题目 — 删除 B 阶段检查不通过的题目，返回清理后的 golden set
 metricsRouter.post("/metrics/golden-set/clean", async (_req, res) => {
   try {
-    const { cleanGoldenSet } = await import("../lib/goldenSetQuality.js");
+    const { cleanGoldenSet, evaluateGoldenSetQuality } = await import("../lib/goldenSetQuality.js");
     const { getGoldenSet } = await import("../lib/goldenSetGenerator.js");
-    const result = cleanGoldenSet();
+    const report = evaluateGoldenSetQuality();
+    const result = cleanGoldenSet(report);
     writeAudit({
       op: "DELETE",
       store: "metrics_golden_set",
       caller: "user",
-      dataBefore: { totalBefore: result.deleted.length + result.kept },
-      dataAfter: { deleted: result.deleted.length, kept: result.kept },
+      dataBefore: { totalBefore: result.deleted + result.remaining },
+      dataAfter: { deleted: result.deleted, remaining: result.remaining },
     });
     // 返回清理结果 + 清理后的 golden set（供导出 JSON）
     const questions = await getGoldenSet();
@@ -685,19 +658,22 @@ metricsRouter.post("/metrics/eval/run", async (req, res) => {
       return res.status(400).json({ error: "需要提供至少一个模型配置" });
     }
     const { runEvaluation } = await import("../lib/evalRunner.js");
-    const report = await runEvaluation(configs, {
-      agentFilter,
-      judgeApiKeys,
-      maxConcurrency,
-      batchDelayMs,
-      // 不传 apiKey、knowledgeEmbedding、knowledgeReranker、searchApiKey、webSearchEnabled
-      // orchestrator 从 DB 自动读取所有 production 配置
-    });
+    const evalOptions: {
+      maxConcurrency?: number;
+      batchDelayMs?: number;
+      agentFilter?: string;
+      judgeApiKeys?: Record<string, string>;
+    } = {};
+    if (agentFilter !== undefined) evalOptions.agentFilter = agentFilter;
+    if (judgeApiKeys !== undefined) evalOptions.judgeApiKeys = judgeApiKeys;
+    if (maxConcurrency !== undefined) evalOptions.maxConcurrency = maxConcurrency;
+    if (batchDelayMs !== undefined) evalOptions.batchDelayMs = batchDelayMs;
+    const report = await runEvaluation(configs as import("../lib/evalRunner.js").EvalConfig[], evalOptions);
     writeAudit({
       op: "CREATE",
       store: "metrics_golden_runs",
       caller: "user",
-      dataAfter: { id: report.id, configCount: report.configs.length, questionCount: report.questionCount },
+      dataAfter: { id: report.runId, configCount: report.configs.length, questionCount: report.questionCount },
     });
     res.json(report);
   } catch (err) {

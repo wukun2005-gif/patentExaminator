@@ -206,8 +206,8 @@ export interface GoldenSetProviderConfig {
  * 无视 enabled 状态——只要有 key 就可用。
  * 规则：
  * - mimo → 直接使用（MiMo 自有端点）
- * - volcengine + deepseek → 火山托管的 DeepSeek 模型
- * - volcengine + doubao-seed → 火山自研 doubao-seed 模型（替换 Gemini）
+ * - volcengine + doubao-flash → 火山自研 doubao-flash 模型
+ * - volcengine + doubao-seed → 火山自研 doubao-seed 模型
  */
 export function resolveGoldenSetProviders(): GoldenSetProviderConfig[] {
   const db = getSyncDb();
@@ -258,15 +258,15 @@ export function resolveGoldenSetProviders(): GoldenSetProviderConfig[] {
   if (apiKeys["volcengine"]) {
     configs.push({
       providerId: "volcengine",
-      model: "doubao-seed-2-0-pro-260215",
+      model: "doubao-seed-code-preview-251028",
       apiKey: apiKeys["volcengine"],
       label: "doubao-seed",
     });
   }
-  // DeepSeek 只从火山引擎 provider 取，不从 deepseek provider 取
+  // doubao-flash 从火山引擎 provider 取
   if (apiKeys["volcengine"]) {
     configs.push({
-      providerId: "volcengine", model: "deepseek-v3-1-250821", apiKey: apiKeys["volcengine"], label: "DeepSeek",
+      providerId: "volcengine", model: "doubao-seed-code-preview-251028", apiKey: apiKeys["volcengine"], label: "doubao-lite",
       ...(fallbacks["volcengine"] && { modelFallbacks: fallbacks["volcengine"] }),
       ...(enableFallback["volcengine"] && { enableModelFallback: true }),
     });
@@ -355,10 +355,10 @@ export function importGoldenQuestions(raw: Array<Record<string, unknown>>): numb
       expectedSources: (r.expectedSources ?? []) as string[],
       expectedArticles: (r.expectedArticles ?? []) as string[],
       category: String(r.category ?? ""),
-      difficulty: String(r.difficulty ?? "medium"),
+      difficulty: (["easy", "medium", "hard"].includes(String(r.difficulty)) ? String(r.difficulty) : "medium") as "easy" | "medium" | "hard",
       generatedBy: String(r.generatedBy ?? ""),
       sourceType: (r.sourceType ?? "kb_only") as GoldenQuestion["sourceType"],
-      expectedSource: String(r.expectedSource ?? "kb"),
+      expectedSource: (["kb", "web", "kb+web", "any"].includes(String(r.expectedSource)) ? String(r.expectedSource) : "kb") as ExpectedSource,
       sourceRoutingRationale: String(r.sourceRoutingRationale ?? ""),
       mustIncludeFacts: (r.mustIncludeFacts ?? []) as string[],
       verifiedBy: String(r.verifiedBy ?? "auto"),

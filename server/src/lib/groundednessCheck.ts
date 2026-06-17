@@ -387,10 +387,11 @@ export async function checkGroundedness(
   );
   // D4: 诊断 — 打印句子和 grounding docs 内容
   for (let i = 0; i < sentences.length; i++) {
-    logger.info(`[Groundedness] D4 sentence[${i}]: ${sentences[i].slice(0, 200)}`);
+    logger.info(`[Groundedness] D4 sentence[${i}]: ${sentences[i]?.slice(0, 200) ?? "(undefined)"}`);
   }
   for (let i = 0; i < groundingDocs.length; i++) {
-    logger.info(`[Groundedness] D4 doc[${i}]: source=${groundingDocs[i].source}, excerpt=${groundingDocs[i].excerpt.slice(0, 150)}`);
+    const doc = groundingDocs[i];
+    logger.info(`[Groundedness] D4 doc[${i}]: source=${doc?.source ?? "(undefined)"}, excerpt=${doc?.excerpt?.slice(0, 150) ?? "(undefined)"}`);
   }
 
   // 调用 LLM Judge

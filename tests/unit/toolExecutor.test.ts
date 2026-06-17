@@ -78,7 +78,7 @@ describe("executeWithTools", () => {
     expect(mcpClient.getTools).toHaveBeenCalledOnce();
     expect(mcpClient.callTool).toHaveBeenCalledWith("web_search", { query: "test" });
     expect(result.webSearchCitations).toHaveLength(1);
-    expect(result.webSearchCitations[0].url).toBe("https://example.com");
+    expect(result.webSearchCitations[0]!.url).toBe("https://example.com");
     // 3 次调用：tool loop + direct answer + re-inject
     expect(callLLM).toHaveBeenCalledTimes(3);
   });
@@ -104,7 +104,7 @@ describe("executeWithTools", () => {
     expect(result.webSearchCitations).toEqual([]);
     // 降级调用不带 tools
     expect(callLLM).toHaveBeenCalledOnce();
-    expect(callLLM.mock.calls[0][0].tools).toBeUndefined();
+    expect(callLLM.mock.calls[0]![0].tools).toBeUndefined();
     expect(mcpClient.callTool).not.toHaveBeenCalled();
   });
 
@@ -249,7 +249,7 @@ describe("executeWithTools", () => {
     });
 
     expect(result.webSearchCitations).toHaveLength(1);
-    expect(result.webSearchCitations[0].engine).toBe("google");
+    expect(result.webSearchCitations[0]!.engine).toBe("google");
   });
 
   it("re-inject prompt 包含超链接指令和 URL", async () => {
@@ -364,9 +364,9 @@ describe("executeWithTools", () => {
 
     // webSearchCitations 应该包含 URL
     expect(result.webSearchCitations).toHaveLength(2);
-    expect(result.webSearchCitations[0].url).toBe("https://uspto.gov/2026-rules");
-    expect(result.webSearchCitations[0].title).toBe("USPTO 2026 Rules");
-    expect(result.webSearchCitations[1].url).toBe("https://cnipa.gov.cn/notice");
+    expect(result.webSearchCitations[0]!.url).toBe("https://uspto.gov/2026-rules");
+    expect(result.webSearchCitations[0]!.title).toBe("USPTO 2026 Rules");
+    expect(result.webSearchCitations[1]!.url).toBe("https://cnipa.gov.cn/notice");
   });
 
   it("RAG + Web 融合后两者都出现在 citations 中", async () => {
@@ -412,8 +412,8 @@ describe("executeWithTools", () => {
 
     // webSearchCitations 只包含 web 结果（不含 RAG）
     expect(result.webSearchCitations).toHaveLength(1);
-    expect(result.webSearchCitations[0].engine).toBe("google");
-    expect(result.webSearchCitations[0].url).toBe("https://uspto.gov");
+    expect(result.webSearchCitations[0]!.engine).toBe("google");
+    expect(result.webSearchCitations[0]!.url).toBe("https://uspto.gov");
   });
 
   it("web_search 工具调用不传 api_key（MCP server 自己从数据库读取）", async () => {

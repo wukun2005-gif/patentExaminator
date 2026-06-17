@@ -105,7 +105,7 @@ describe("持久化 — Client 完整链路", () => {
     useDefectsStore.setState({ defects: [], ranCases: [] } as any);
     useChatStore.setState({ sessions: [], messages: [], activeSessionId: null });
     useOpinionStore.setState({ officeActionAnalysis: null, argumentMappings: [], argumentRanCases: [] } as any);
-    useDraftStore.setState({ reexamDraft: null, summary: null });
+    useDraftStore.setState({ reexamDrafts: {}, summaries: {} });
     useInterpretStore.setState({ interpretSummaries: {} });
   });
 
@@ -129,7 +129,7 @@ describe("持久化 — Client 完整链路", () => {
       expect(written?.knowledge).toEqual(FULL_SETTINGS.knowledge);
 
       // 模拟刷新 — loadFromDb
-      mockDbGet("settings", "app", FULL_SETTINGS);
+      mockDbGet("settings", "app", FULL_SETTINGS as unknown as Record<string, unknown>);
       useSettingsStore.setState({ isInitialized: false });
       await useSettingsStore.getState().loadFromDb();
       const s = useSettingsStore.getState().settings;

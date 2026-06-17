@@ -4,7 +4,7 @@ import { logger } from "../lib/logger.js";
 import { getModelCapabilities } from "./model-capabilities-registry.js";
 
 const NON_TEXT_PATTERNS =
-  /\bembed\b|\bimage\b|\bimagen\b|\btts\b|\baudio\b|\bspeech\b|\basr\b|\bwhisper\b|\bdall\b|\bvision\b|\bmoderation\b|\brerank\b|\bcode-search\b|\bveo\b|\bvideo\b|\blyria\b|\bmusic\b|\bclip\b|\bupscale\b|\brecontext\b|\btranscrib|\bcomputer[- ]?use\b/i;
+  /\bembed\b|\bimage\b|\bimagen\b|\btts\b|\baudio\b|\bspeech\b|\basr\b|\bwhisper\b|\bdall\b|\bvision\b|\bmoderation\b|\brerank\b|\bcode-search\b|\bveo\b|\bvideo\b|\blyria\b|\bmusic\b|\bclip\b|\bupscale\b|\brecontext\b|\btranscrib|\bcomputer[- ]?use\b|\bseedance\b|\bseedream\b|\bseededit\b|\bseed3d\b|\bhitem3d\b|\bhyper3d\b|\bwan\d|\bui-tars\b/i;
 
 function isTextModel(id: string): boolean {
   return !NON_TEXT_PATTERNS.test(id);

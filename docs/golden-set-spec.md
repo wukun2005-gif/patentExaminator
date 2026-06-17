@@ -36,9 +36,9 @@
 
 | # | 指标 | 类别 | 计算方式 | 需要 judge？ | 需要 golden set？ | 适用 sourceType |
 |---|------|------|---------|-------------|------------------|----------------|
-| M1 | **NDCG@K** | 检索排序 | DCG@K / IDCG@K | ❌ | ✅ relevanceGrading | kb_only |
-| M2 | **Recall@K** | 检索覆盖 | relevant_in_topK / total_relevant | ❌ | ✅ relevanceGrading | kb_only |
-| M3 | **KB Hit Rate** | 检索覆盖 | kb_only 题的 Recall@K | ❌ | ✅ relevanceGrading | kb_only |
+| M1 | **NDCG@K** | 检索排序 | DCG@K / IDCG@K | ✅ 实时评估 | ❌ reference-free | **全部** |
+| M2 | **Recall@K** | 检索覆盖 | relevant_in_topK / total_relevant | ✅ 实时评估 | ❌ reference-free | **全部** |
+| M3 | **KB Hit Rate** | 检索覆盖 | kb_only 题的 Recall@K | ✅ 实时评估 | ❌ reference-free | kb_only |
 | M5 | **Faithfulness** | 生成忠实度 | 2 judge → claim 支持率 → average | ✅ | ❌ reference-free | 全部 |
 | M6 | **Answer Correctness** | 生成正确性 | 2 judge → 与 expectedAnswer 对比 → average | ✅ | ✅ expectedAnswer | 全部 |
 | M7 | **Fact Coverage** | 生成完整性 | 2 judge → mustIncludeFacts 覆盖率 → average | ✅ | ✅ mustIncludeFacts | 全部 |
@@ -59,20 +59,23 @@
 
 #### M1: NDCG@K（检索排序质量）
 
-**为什么选这个指标**：KB 检索返回 top-K 个 chunk，但并非所有 chunk 都相关。NDCG 考虑了排序位置——排在前面的相关 chunk 贡献更大。比单纯的 Recall 更能反映用户体验。
+**为什么选这个指标**：检索返回 top-K 个 citations（KB chunks + web search results），但并非所有 citations 都相关。NDCG 考虑了排序位置——排在前面的相关 citations 贡献更大。比单纯的 Recall 更能反映用户体验。
 
 **公式**：
 ```
 DCG@K = Σᵢ₌₁ᴷ (2^relᵢ - 1) / log₂(i + 1)
 NDCG@K = DCG@K / IDCG@K
 
-relᵢ = 第 i 个检索结果的 relevance grade（0-3，来自 relevanceGrading）
-IDCG@K = 理想排序（按 grade 降序）的 DCG
+relᵢ = LLM judge 对第 i 个检索结果的 relevance grade（0-3）
+IDCG@K = 假设所有 K 个 citations 都是 grade 3 的理想 DCG
 ```
 
-**输入数据**：`relevanceGrading` 字段（chunk 级 grading，由 A.2 阶段产出）
+**输入数据**：
+- `retrievedChunks`：实际检索到的 citations 列表（包括 KB chunks 和 web search results，按排序顺序）
+- `query`：题目 query
+- LLM judge API（实时评估）
 
-**范围**：仅 `kb_only`（web 搜索是非确定性的，不存在稳定的 ground truth chunk 集）
+**范围**：所有 sourceType（通过 LLM 实时评估 citation 与 query 的相关性）
 
 ---
 
@@ -82,12 +85,15 @@ IDCG@K = 理想排序（按 grade 降序）的 DCG
 
 **公式**：
 ```
-Recall@K = (grade ≥ 2 的 chunk 中被检索到的数量) / (grade ≥ 2 的 chunk 总数)
+Recall@K = (top-K 中 LLM judge 判定 grade ≥ 2 的 citation 数) / (LLM judge 判定 grade ≥ 2 的 citation 总数)
 ```
 
-**输入数据**：`relevanceGrading` 字段（grade ≥ 2 视为"相关"）
+**输入数据**：
+- `retrievedChunks`：实际检索到的 citations 列表（包括 KB chunks 和 web search results）
+- `query`：题目 query
+- LLM judge API（实时评估）
 
-**范围**：仅 `kb_only`（同 M1）
+**范围**：所有 sourceType（同 M1）
 
 ---
 
@@ -95,11 +101,14 @@ Recall@K = (grade ≥ 2 的 chunk 中被检索到的数量) / (grade ≥ 2 的 c
 
 **为什么选这个指标**：KB 检索质量的单一来源监控。KB Hit Rate 低说明知识库检索有问题。
 
-**公式**：对 `kb_only` 题目计算 Recall@K
+**公式**：对 `kb_only` 题目，只统计来自 KB 的检索结果，计算 Recall@K
 
-**输入数据**：`relevanceGrading` 字段 + `sourceType` 字段
+**输入数据**：
+- `retrievedChunks`：实际检索到的 chunk 列表（仅 KB 来源）
+- `query`：题目 query
+- LLM judge API（实时评估）
 
-**范围**：仅 `kb_only`
+**范围**：仅 `kb_only`（M3 是 M2 的子集，专门监控 KB 检索质量）
 
 > **Web 搜索质量如何衡量？**
 >
@@ -237,17 +246,14 @@ Refusal Accuracy = no_answer 题中正确拒绝的数量 / no_answer 题总数
 
 | 指标类型 | judge 时机 | 说明 |
 |----------|-----------|------|
-| **确定性指标**（M1-M3, M8-M11） | 不需要 judge | 用 golden set 的预计算数据直接计算 |
-| **语义指标**（M5, M6, M7） | 评估阶段实时调用 judge | 因为需要对比 RAG 输出和参考数据 |
+| **确定性指标**（M8-M11） | 不需要 judge | 用 golden set 的预计算数据直接计算 |
+| **检索质量指标**（M1-M3） | 评估阶段实时调用 judge | 对每个 citation（KB chunk + web result）实时评估相关性 |
+| **语义指标**（M5, M6, M7） | 评估阶段实时调用 judge | 对比 RAG 输出和参考数据 |
 
-> **关键区分**：judge 出现在两个不同的场景：
-> 1. **A.2 阶段**：judge 对候选 KB chunks 打分，产出 `relevanceGrading`（仅 `kb_only` 题目，为 M1-M3 服务）
-> 2. **D 阶段**：judge 对 RAG 输出打分，产出 Faithfulness/AnswerCorrectness/FactCoverage（为 M5-M7 服务，适用全部 sourceType）
->
-> 两次 judge 的输入和目的完全不同，不可混淆。
->
-> **Web 搜索不需要 A.2 阶段的 chunk 级 grading**：web 内容是动态的，无法预计算 ground truth。
-> Web 搜索质量通过 D 阶段的端到端答案质量衡量（M6/M7/M8）。
+> **Judge 使用场景**：
+> - **D 阶段**：judge 对检索 citations 实时打分（M1-M3），或对 RAG 输出打分（M5-M7）
+> - **所有 sourceType 都评估 M1/M2**：NDCG/Recall 衡量 citations 与 query 的相关性，不只是 KB chunks
+> - **M3 KB Hit Rate 仅适用于 kb_only**：专门监控 KB 检索质量
 
 ---
 
@@ -263,7 +269,7 @@ Refusal Accuracy = no_answer 题中正确拒绝的数量 / no_answer 题总数
 | S2 | 指标变化与用户体验一致 | 指标下降时，人工抽检确认答案质量确实下降 |
 | S3 | 评估结果可重复 | 相同配置多次评估，指标方差 < 5% |
 | S4 | 评估覆盖所有题型 | 5 种 sourceType × 5 个 category = 25 个 cell，至少覆盖 21 个 |
-| S5 | Golden set 质量合格 | A.2 阶段 grading 后，每道 `kb_only` 题至少 1 个 grade≥2 的候选 |
+| S5 | Golden set 质量合格 | 人工抽检确认题目和答案质量 |
 
 ### 3.2 反模式
 
@@ -271,8 +277,7 @@ Refusal Accuracy = no_answer 题中正确拒绝的数量 / no_answer 题总数
 |--------|------|---------|
 | 指标无区分度 | 所有配置得分差不多 | 比较 best vs worst 配置的指标差异 |
 | 指标与体验脱节 | 指标涨了但用户说更差了 | 定期人工抽检 + 用户反馈 |
-| Golden set 质量差 | 题目不合理或答案错误 | A.2 阶段的质量校验 + 人工抽检 |
-| Grading 循环自证 | 生成 chunk 和 grading chunk 是同一批 | A.2 必须独立采样候选集 |
+| Golden set 质量差 | 题目不合理或答案错误 | 人工抽检 |
 
 ---
 
@@ -296,60 +301,30 @@ Refusal Accuracy = no_answer 题中正确拒绝的数量 / no_answer 题总数
 | `expectedSource` | enum | **M9** Source Routing | A.1 | 路由正确性检查 |
 | `sourceRoutingRationale` | string | — | A.1 | 解释为什么选这个源（辅助理解，不参与指标计算） |
 | `expectedSources` | string[] | — | A.1 | 文件名/URL 列表（辅助理解，不参与指标计算） |
-| `relevanceGrading` | RelevanceGrade[] | **M1/M2/M3** | A.2 | chunk 级 ground truth（仅 `kb_only`） |
 | `generatedBy` | string | — | A.1 | 记录哪个 provider 生成 |
 | `verifiedBy` | enum | — | A.1 | 验证方式 |
 
 **字段删除建议**：
 - `sourceRoutingRationale` 和 `expectedSources` 不直接参与指标计算，但有助于标记不可信和调试，保留。
 
-### 4.2 RelevanceGrade 结构
-
-```typescript
-interface RelevanceGrade {
-  source: "kb" | "web";       // 来源类型
-  docId: string;              // 文档标识
-  chunkId?: string;           // chunk 标识（KB 必填）
-  grade: 0 | 1 | 2 | 3;      // 聚合后的 relevance grade
-  rationale: string;          // 聚合理由
-  judges?: JudgeResult[];     // 每个 judge 的独立打分
-}
-
-interface JudgeResult {
-  provider: string;           // judge provider ID
-  grade: 0 | 1 | 2 | 3 | null;  // null = judge 调用失败
-  rationale: string;
-}
-```
-
-**映射指标**：M1 NDCG@K、M2 Recall@K、M3 KB Hit Rate
-
-**Relevance Grade 标准**（TREC/NIST）：
-
-| Grade | 含义 | 在指标计算中的作用 |
-|-------|------|-------------------|
-| 0 | 不相关 | 不计入 recall，对 NDCG 贡献为 0 |
-| 1 | 边际相关 | 不计入 recall（grade ≥ 2 才计入），对 NDCG 有小贡献 |
-| 2 | 部分相关 | 计入 recall，对 NDCG 有中等贡献 |
-| 3 | 高度相关 | 计入 recall，对 NDCG 有最大贡献 |
 
 ### 4.3 题目类型（sourceType）
 
-| sourceType | 检索指标（chunk 级） | 答案指标（端到端） | 说明 |
+| sourceType | 检索指标（citation 级） | 答案指标（端到端） | 说明 |
 |------------|-------------------|-------------------|------|
 | `kb_only` | M1, M2, M3 | M5, M6, M7, M8, M9 | 纯 KB 场景：检索 + 答案都评估 |
-| `web_only` | ❌ 不评估 | M5, M6, M7, M8, M9 | 纯 Web 场景：只评估端到端答案质量 |
-| `cross_source` | ❌ 不评估 | M5, M6, M7, M8, M9 | 综合场景：只评估端到端答案质量 |
-| `conflict` | ❌ 不评估 | M9, M10 | 冲突处理场景：评估路由 + 冲突解决 |
-| `no_answer` | ❌ 不评估 | M9, M11 | 拒绝回答场景：评估拒绝准确性 |
+| `web_only` | M1, M2 | M5, M6, M7, M8, M9 | 纯 Web 场景：评估 web citation 质量 |
+| `cross_source` | M1, M2 | M5, M6, M7, M8, M9 | 综合场景：评估混合 citation 质量 |
+| `conflict` | M1, M2 | M9, M10 | 冲突处理场景：评估路由 + 冲突解决 |
+| `no_answer` | M1, M2 | M9, M11 | 拒绝回答场景：评估拒绝准确性 |
 
-> **为什么 web 类型不评估检索指标？**
+> **所有 sourceType 都评估检索指标（M1/M2）**
 >
-> Web 搜索是非确定性的。同一问题在不同时间搜索，会得到不同的网页结果。
-> 不存在稳定的 "relevant chunk set" 可以作为 ground truth，因此 chunk 级检索指标（NDCG/Recall/Hit Rate）不适用。
+> NDCG 和 Recall 衡量的是 **actual citations**（包括 KB chunks、web search results 等）与 query 的相关性。
+> 不是只有 KB chunks 才叫 citation —— web search results URLs 也是 citations。
 >
-> Web 搜索质量通过端到端答案质量衡量：系统是否找到了能回答问题的信息（M6），是否覆盖了关键事实（M7），法条引用是否准确（M8）。
-> 这是 Copilot、Perplexity 等跨源系统的通用做法。
+> 通过 LLM 实时评估每个 citation 的相关性（0-3），然后计算 NDCG 和 Recall。
+> 这样可以统一衡量所有 sourceType 的检索质量。
 
 ### 4.4 题目类型分布矩阵
 
@@ -387,15 +362,11 @@ Phase 1 分四个阶段执行：
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ A.1 生成 Golden Set                                          │
-│ 产出：21 题 + 参考答案（relevanceGrading 为空）                 │
+│ 产出：21 题 + 参考答案                                        │
 │ 为指标服务：M5-M11 的输入数据                                   │
 ├─────────────────────────────────────────────────────────────┤
-│ A.2 Relevance Grading                                        │
-│ 产出：有 KB chunk 题目的 chunk 级 ground truth                 │
-│ 为指标服务：M1-M3 的输入数据（kb_only + cross + conflict）      │
-├─────────────────────────────────────────────────────────────┤
 │ B Golden Set 质量评估                                         │
-│ 产出：质量报告（题目是否合格、grading 是否可信）                  │
+│ 产出：质量报告（题目是否合格）                                   │
 │ 目的：确保 golden set 本身质量达标，不产出垃圾指标                │
 ├─────────────────────────────────────────────────────────────┤
 │ C 清理不合格题目                                               │
@@ -404,7 +375,7 @@ Phase 1 分四个阶段执行：
 ├─────────────────────────────────────────────────────────────┤
 │ D 用 Golden Set 评估模型                                      │
 │ 产出：评估报告（各项指标分数）                                    │
-│ 计算指标：M1-M3（kb_only）+ M5-M11（按 sourceType）            │
+│ 计算指标：M1-M3（实时评估）+ M5-M11（按 sourceType）            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -412,40 +383,44 @@ Phase 1 分四个阶段执行：
 
 | 阶段 | 逐题调用 | 批量合并后 | 说明 |
 |------|---------|-----------|------|
-| A.1 生成 | 3 | 3 | 已是批量（每 provider 1 次生成 7 题） |
-| A.2 Grading | 32 | **2** | 有 KB chunk 的题目（16 题 × 1 批量 prompt × 2 judge） |
+| A.1 生成 | 3 | 3 | 3 providers × 1 call = 3（每 provider 批量生成 7 题） |
 | B 质量评估 | 0 | 0 | 确定性检查，不调用 LLM |
 | D RAG 生成 | 21 | 21 | 每题独立检索，不可合并 |
-| D 语义指标 | 126 | **2** | M5/M6/M7 合并为 1 个 prompt × 2 judge |
-| **总计** | **170** | **~28** | |
-
-> **A.2 批量 grading**
->
-> 每题 4 个候选合并为 1 个 prompt，每个 judge 只需 1 次调用即可评完所有候选。
-> 16 题 × 2 judge = 32 次 LLM 调用（原来逐个候选需要 128 次）。
+| D 检索指标 | 42 | **2** | M1-M2：21 题 × 10 citations 全部合并到 1 个 prompt × 2 judge |
+| D 语义指标 | 42 | **6** | M5/M6/M7：21 题分 3 批（每批 7 题）× 2 judge |
+| **总计** | **108** | **~32** | |
 
 > **B 阶段为什么 0 次 LLM 调用？**
-> B 的 10 项检查全部是确定性规则：题数计数、矩阵覆盖、字符长度、grade 分布统计、方差计算。
+> B 的检查全部是确定性规则：题数计数、矩阵覆盖、字符长度。
 > 不需要 LLM 判断，用代码即可完成。
 
 **批量合并策略**：
 
 核心原则：**能合并的 prompt 尽量合并，减少 LLM 调用次数。**
 
-| 阶段 | 合并方式 | 风险 |
+| 阶段 | 合并方式 | 效果 |
 |------|---------|------|
-| A.2 | 所有候选塞进 1 个 prompt，2 judge 各调 1 次 | prompt 长（~20K tokens），judge 可能漏评。需要实现方实测 prompt 长度对打分质量的影响，必要时分批 |
-| C judge | 21 题的答案+参考数据合并为 1 个 prompt，M5/M6/M7 三指标一次返回 | 同上。如果质量下降，可按 7 题一批分 3 次调用 |
+| D 检索指标 | 21 题 × 10 citations = 210 citations 全部合并到 1 个 prompt，2 judge 并行 | 420 → **2** 次 |
+| D 语义指标 | 21 题分 3 批（每批 7 题），M5/M6/M7 三指标合并到 1 个 prompt，2 judge 并行 | 126 → **6** 次 |
 
 **不可合并的调用**：
 - D RAG 生成：每道题的 query 不同 → 检索结果不同 → 生成答案不同，存在顺序依赖，必须逐题执行
+
+**Batch size 选择依据**：
+- 检索指标：210 citations × 300 chars ≈ 63k chars ≈ 20k tokens（安全）
+- 语义指标：7 题 × ~10k chars ≈ 70k chars ≈ 25k tokens（接近上限，如质量下降可减小 batch）
+
+**⚠️ 注意**：
+- D 检索指标适用于**所有 sourceType**（NDCG/Recall 衡量 citations 与 query 的相关性）
+- D 检索指标中 M3 KB Hit Rate 仅适用于 `kb_only` 题目
+- D 语义指标中 Refusal Accuracy 单独调用（仅 no_answer 3 题需要），已计入 6 次
 
 ### 5.1 A.1 生成 Golden Set
 
 **职责**：生成题目和参考答案。
 
 **输入**：知识库 chunks、web 搜索结果
-**输出**：21 道 GoldenQuestion，`relevanceGrading = []`
+**输出**：21 道 GoldenQuestion
 
 **流程**：
 
@@ -473,104 +448,25 @@ Phase 1 分四个阶段执行：
 | `expectedArticles` | M8 | Article Accuracy 的对比基准 |
 | `expectedSource` | M9 | Source Routing 的对比基准 |
 | `sourceType` | M3/M9/M10/M11 | 决定该题评估哪些指标 |
-| `contextChunkIds` | A.2 | kb_only 题的正样本 chunk IDs（A.2 grading 用） |
-| `relevanceGrading` | — | **此阶段留空**，由 A.2 填充（有 KB chunk 的题目） |
+| `contextChunkIds` | 调试 | 记录生成时使用的 chunk IDs（调试用，不参与指标计算） |
 
 **Token 消耗**：~21 次 LLM 调用，~2 万 tokens
 
-**⚠️ 不做的事**：不调用 multi-judge，不做 relevance grading。web 搜索结果是生成问题的辅助工具，不存储为 ground truth。
+**⚠️ 不做的事**：web 搜索结果是生成问题的辅助工具，不存储为 ground truth。
 
 ---
 
-### 5.2 A.2 Relevance Grading
+### 5.2 B Golden Set 质量评估
 
-**职责**：为 `kb_only` 题目建立 chunk 级 ground truth 池。
-
-**输入**：A.1 的 `kb_only` 题目（含 query）+ 独立采样的候选 KB chunks
-**输出**：每道 `kb_only` 题的 `relevanceGrading` 字段（写回 DB）
-
-> **为什么只对 `kb_only` 做 grading？**
->
-> - `kb_only`：KB 内容稳定，可以预计算 ground truth chunk 集 → 支持 M1/M2/M3 检索指标
-> - `web_only` / `cross_source` / `conflict`：web 内容是动态的，无法预计算 ground truth chunk 集
-> - Web 搜索质量通过 D 阶段的端到端答案质量衡量（M6/M7/M8），不需要 chunk 级 grading
-> - `no_answer`：设计上无好候选，不需要 grading
-
-**为什么必须独立采样？**
-
-A.1 生成题目时使用的 chunk 是 LLM 生成问题的上下文，天然高度相关。用它做 grading 是**循环自证**——所有生成 chunk 都会得 grade 3，对评估检索排序没有价值。
-
-A.2 必须从知识库**独立采样**一批候选（与生成 chunk 无关），包含相关和不相关的 chunk，才能真实反映 RAG 检索的排序质量。
-
-**流程**：
-
-```
-1. 加载 A.1 生成的所有 kb_only 题目
-
-2. 对每道题，构建候选集（每题 1 正样本 + 3 负样本）：
-   ├─ 候选 1：生成该题用的 KB chunk（正样本）
-   ├─ 候选 2-4：从知识库随机采样 3 个其他 chunk（负样本）
-
-3. 2 个 LLM judge（MiMo + DeepSeek）对每个候选独立打分（0-3）
-
-4. 聚合：2 个 judge 取平均，四舍五入到最近整数
-
-5. 写回 DB（更新 relevanceGrading 字段）
-```
-
-**字段 → 指标映射**：
-
-| 产出字段 | 服务的指标 | 说明 |
-|---------|-----------|------|
-| `relevanceGrading[].grade` | M1, M2, M3 | NDCG/Recall 的 relᵢ |
-| `relevanceGrading[].source` | M3 | KB 来源统计 |
-| `relevanceGrading[].judges` | B9 Judge 一致性 | B 阶段计算 2 judge 打分差异，差异 > 2 标记为不可信 |
-
-**Multi-Judge 配置**：
-
-| Judge | Provider | 模型 | 用途 |
-|-------|----------|------|------|
-| Judge 1 | MiMo | mimo-v2.5 | A.2 + C |
-| Judge 2 | 火山引擎 (DeepSeek) | deepseek-v3-2-251201 | A.2 + C |
-
-> **为什么只用 2 个 judge？** volcengine doubao-seed 120s 超时频繁，3 judge 方案不可靠。
-> 2 judge 取平均（而非 majority vote），牺牲少量精度换取稳定性。
-
-**Judge Prompt**：
-
-```
-你是专利复审领域的评估专家。给定一个问题和一段文本，请判断该文本对回答问题的相关程度。
-
-评分标准：
-- 0分：完全不相关，内容与问题无关
-- 1分：边际相关，提及了相关主题但不直接回答问题
-- 2分：部分相关，包含回答问题所需的部分信息
-- 3分：高度相关，直接且完整地回答了问题
-
-问题：{query}
-
-文本：{chunk_text}
-
-请输出 JSON：
-{
-  "grade": 0|1|2|3,
-  "rationale": "打分理由"
-}
-```
-
----
-
-### 5.3 B Golden Set 质量评估
-
-**职责**：验证 A.1 + A.2 产出的 golden set 本身质量是否达标。
+**职责**：验证 A.1 产出的 golden set 本身质量是否达标。
 
 **为什么需要这个阶段？**
 
-Golden set 是所有指标的 ground truth 来源。如果 golden set 质量差（题目不合理、答案错误、grading 不可信），后续 D 阶段产出的所有指标都不可信——垃圾进，垃圾出。
+Golden set 是所有指标的 ground truth 来源。如果 golden set 质量差（题目不合理、答案错误），后续 D 阶段产出的所有指标都不可信——垃圾进，垃圾出。
 
 B 阶段是 golden set 的"出厂质检"，确保只有合格的 golden set 才进入 D 阶段。
 
-**输入**：A.1 + A.2 产出的完整 golden set
+**输入**：A.1 产出的完整 golden set
 **输出**：质量报告（通过 / 不通过 + 具体问题清单）
 
 **检查项**：
@@ -582,21 +478,11 @@ B 阶段是 golden set 的"出厂质检"，确保只有合格的 golden set 才�
 | B3 | query 质量 | 每题 query ≥ 20 字，不重复 | 全部 | **C 阶段删除** |
 | B4 | expectedAnswer 质量 | 每题 200-500 字，引用法条 | 全部 | **C 阶段删除** |
 | B5 | mustIncludeFacts | 每题 3-8 个事实点 | 全部 | **C 阶段删除** |
-| B6 | relevanceGrading 非空 | 有 KB chunk 的题目至少 1 个 grading 候选 | **有 KB chunk** | 重跑 A.2 |
-| B7 | Grading 分布 | 正样本不能全是 grade=0（排除 no_answer）；允许 ≤20% 失败 | **有 grading，非 no_answer** | **C 阶段删除** |
-| B8 | Grading 可信度 | 每题正样本至少 1 个 grade≥1（排除 no_answer）；允许 ≤20% 失败 | **有 grading，非 no_answer** | **C 阶段删除** |
-| B9 | Judge 一致性 | 2 judge 打分差异 ≤ 2 | **有 grading 数据** | **C 阶段删除** |
 | B10 | 题目不重复 | 任意两题 query 语义相似度 < 0.8 | 全部 | **C 阶段删除** |
 
 **C 阶段清理**：B 阶段检查完成后，自动删除 B3/B4/B5/B7/B8/B9/B10 不合格的题目。删除后导出两个 JSON：
-- `golden-set-raw-{ts}.json`：A.2 后的原始快照（全部题目，调试用）
+- `golden-set-raw-{ts}.json`：A.1 后的原始快照（全部题目，调试用）
 - `golden-set-{ts}.json`：清理后的干净版（仅合格题目，用于 D 阶段评估）
-
-> **为什么 B6-B9 只对 `kb_only` 检查？**
->
-> `web_only` / `cross_source` / `conflict` / `no_answer` 题目不做 A.2 grading（web 内容动态，无法预计算 ground truth）。
-> 这些题目的质量通过 A.1 的 `expectedAnswer` / `mustIncludeFacts` / `expectedArticles` 保证（B4/B5 检查），
-> 以及 C 阶段的端到端答案质量衡量（M6/M7/M8）。
 
 **质量报告格式**：
 
@@ -607,28 +493,24 @@ B 阶段是 golden set 的"出厂质检"，确保只有合格的 golden set 才�
   "checks": {
     "B1_count": { "passed": true, "detail": "21/21" },
     "B2_matrix": { "passed": true, "detail": "21/21 cells covered" },
-    "B3_query_quality": { "passed": true, "detail": "0 issues" },
-    "B7_grading_distribution": { "passed": true, "detail": "2 questions with all positive samples graded 0 (threshold: 4)", "questions": ["gs-abc123", "gs-def456"] },
-    "B8_min_grade": { "passed": true, "detail": "19/21 graded questions have positive grade≥1 (threshold: 4 failures)" },
-    "B9_judge_variance": { "passed": false, "detail": "3 questions with variance > 1.5", "questions": ["gs-xyz789"] }
+    "B3_query_quality": { "passed": true, "detail": "0 issues" }
   },
   "warnings": ["gs-abc123: expectedAnswer only 150 chars (min 200)"],
-  "recommendation": "PROCEED_WITH_CAUTION — 2 checks failed, review flagged questions"
+  "recommendation": "PROCEED"
 }
 ```
 
 **决策规则**：
 - **B1/B2 不通过** → 重跑 A.1
-- **B6 不通过** → 重跑 A.2
 - **其他检查不通过** → C 阶段自动删除不合格题目，保留合格题目进入 D 阶段
 
 ---
 
-### 5.4 D 用 Golden Set 评估模型
+### 5.3 D 用 Golden Set 评估模型
 
-**职责**：用含 grading 的完整 golden set 评估 RAG 系统。
+**职责**：用 golden set 评估 RAG 系统。
 
-**输入**：完整 golden set（含 relevanceGrading）+ 被测 RAG 配置
+**输入**：golden set + 被测 RAG 配置
 **输出**：评估报告（各项指标分数）
 
 **⚠️ 关键约束：必须使用实际 app 的 chat Q&A 流程**
@@ -653,7 +535,7 @@ D 阶段评估的目的是 **eval app 中用户配置的模型组合和 chat que
 **流程**：
 
 ```
-1. 加载 golden set（从 DB，含 relevanceGrading）
+1. 加载 golden set（从 DB）
 
 2. 对每个 golden question：
    a. 用实际 app 的 chat Q&A 流程生成答案
@@ -662,12 +544,6 @@ D 阶段评估的目的是 **eval app 中用户配置的模型组合和 chat que
 3. 计算指标：
    ┌─────────────────────────────────────────────────────┐
    │ 确定性指标（直接计算，不需要 judge）                     │
-   │ ├─ M1 NDCG@K：用 relevanceGrading 的 grade 计算       │
-   │ │   （仅 kb_only）                                    │
-   │ ├─ M2 Recall@K：用 grade≥2 的 chunk 统计              │
-   │ │   （仅 kb_only）                                    │
-   │ ├─ M3 KB Hit Rate：kb_only 题的 Recall                │
-   │ │   （仅 kb_only）                                    │
    │ ├─ M8 Article Accuracy：expectedArticles 对比          │
    │ │   （全部 sourceType）                                │
    │ ├─ M9 Source Routing：expectedSource 对比实际           │
@@ -676,6 +552,12 @@ D 阶段评估的目的是 **eval app 中用户配置的模型组合和 chat que
    │ │   （仅 conflict）                                    │
    │ └─ M11 Refusal Accuracy：no_answer 题拒绝率            │
    │     （仅 no_answer）                                    │
+   ├─────────────────────────────────────────────────────┤
+   │ 检索质量指标（LLM judge 实时评估，全部 sourceType）       │
+   │ ├─ M1 NDCG@K：对每个 citation 实时评估相关性             │
+   │ │   grade→DCG/IDCG                                    │
+   │ ├─ M2 Recall@K：统计 grade≥2 的 citation 覆盖率        │
+   │ └─ M3 KB Hit Rate：kb_only 题的 Recall（仅 kb_only）   │
    ├─────────────────────────────────────────────────────┤
    │ 语义指标（2 judge：MiMo + DeepSeek）                     │
    │ ├─ M5 Faithfulness：2 judge → claim 支持率 → average   │
@@ -686,6 +568,12 @@ D 阶段评估的目的是 **eval app 中用户配置的模型组合和 chat que
    │     （全部 sourceType）                                │
    └─────────────────────────────────────────────────────┘
 
+   > **为什么所有 sourceType 都评估 M1/M2？**
+   >
+   > NDCG/Recall 衡量的是 actual citations（KB chunks + web search results）与 query 的相关性。
+   > 不是只有 KB chunks 才叫 citation —— web search results URLs 也是 citations。
+   > 通过 LLM 实时评估每个 citation 的相关性（0-3），然后计算 NDCG 和 Recall。
+
 4. 汇总报告
 ```
 
@@ -693,9 +581,9 @@ D 阶段评估的目的是 **eval app 中用户配置的模型组合和 chat que
 
 | 指标 | 数据来源 | 适用 sourceType | 计算时机 |
 |------|---------|----------------|---------|
-| M1 NDCG@K | `relevanceGrading`（A.2 产出）+ RAG 检索结果 | kb_only | 评估时 |
-| M2 Recall@K | `relevanceGrading`（A.2 产出）+ RAG 检索结果 | kb_only | 评估时 |
-| M3 KB Hit Rate | M2 的子集（`sourceType == "kb_only"`） | kb_only | 评估时 |
+| M1 NDCG@K | LLM judge 实时评估 + 检索 citations（KB + web） | **全部** | 评估时 |
+| M2 Recall@K | LLM judge 实时评估 + 检索 citations（KB + web） | **全部** | 评估时 |
+| M3 KB Hit Rate | M2 的子集（仅 KB 来源的检索结果） | kb_only | 评估时 |
 | M5 Faithfulness | RAG 答案 + 检索上下文 | 全部 | 评估时（judge） |
 | M6 Answer Correctness | RAG 答案 + `expectedAnswer`（A.1 产出） | 全部 | 评估时（judge） |
 | M7 Fact Coverage | RAG 答案 + `mustIncludeFacts`（A.1 产出） | 全部 | 评估时（judge） |
@@ -703,4 +591,10 @@ D 阶段评估的目的是 **eval app 中用户配置的模型组合和 chat que
 | M9 Source Routing | `expectedSource`（A.1 产出）+ RAG 实际源 | 全部 | 评估时 |
 | M10 Conflict Resolution | `sourceType == "conflict"`（A.1 产出）+ RAG 路由 | conflict | 评估时 |
 | M11 Refusal Accuracy | `sourceType == "no_answer"`（A.1 产出）+ RAG 回答 | no_answer | 评估时 |
+
+> **M1/M2 适用于所有 sourceType**：
+> - kb_only：评估 KB chunks 与 query 的相关性
+> - web_only：评估 web search results 与 query 的相关性
+> - cross_source：评估混合 citations（KB + web）与 query 的相关性
+> - conflict/no_answer：评估所有 citations 与 query 的相关性
 

@@ -153,8 +153,9 @@ export function MetricsDashboard() {
       );
       const dimMap: Record<string, DimRow[]> = {};
       for (let i = 0; i < dims.length; i++) {
-        if (dimResults[i].ok) {
-          const data = await dimResults[i].json() as DimResponse;
+        const res = dimResults[i];
+        if (res?.ok) {
+          const data = await res.json() as DimResponse;
           dimMap[data.dimension] = data.rows;
         }
       }

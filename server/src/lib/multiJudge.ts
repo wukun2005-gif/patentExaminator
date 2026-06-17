@@ -33,10 +33,10 @@ export interface MultiJudgeResult<T> {
 
 // ── 默认配置 ──────────────────────────────────────────
 
-/** 默认 2-judge 配置（spec §5.2: MiMo + GLM，取平均；doubao-seed 因 120s 超时频繁已移除） */
+/** 默认 2-judge 配置（spec §5.2: MiMo + doubao，取平均） */
 export const DEFAULT_JUDGE_CONFIGS: Array<{ providerId: string; modelId: string }> = [
   { providerId: "mimo", modelId: "mimo-v2.5" },
-  { providerId: "volcengine", modelId: "glm-4-7-251222" },
+  { providerId: "volcengine", modelId: "doubao-seed-code-preview-251028" },
 ];
 
 /** 向后兼容：provider ID 列表 */
@@ -131,6 +131,7 @@ export async function callMultiJudge(
   // 构建每个 judge 的调用任务
   const judgeTasks = judgeCfgs.map(async (cfg): Promise<JudgeOutput> => {
     const { providerId, modelId } = cfg;
+    logger.info(`[MultiJudge] judge using providerId="${providerId}", modelId="${modelId}"`);
     const apiKey = judgeApiKeys[providerId];
     if (!apiKey) {
       logger.warn(`[MultiJudge] ${providerId} judge skipped: no API key configured`);

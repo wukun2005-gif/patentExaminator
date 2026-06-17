@@ -13,6 +13,20 @@ export async function fetchModels(providerId: string, apiKey: string, baseUrl?: 
   return data.models;
 }
 
+/** 验证单个模型是否可用（发送轻量 chat 请求） */
+export async function verifyModel(providerId: string, modelId: string, apiKey: string, baseUrl?: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${API_BASE}/providers/${encodeURIComponent(providerId)}/verify-model`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ apiKey, baseUrl, modelId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    return { ok: false, error: (body as { error?: string }).error ?? `HTTP ${res.status}` };
+  }
+  return res.json() as Promise<{ ok: boolean; error?: string }>;
+}
+
 /** bug9: 从 server 获取完整模型目录（含能力元数据，无需 API Key） */
 export async function fetchModelCatalog(): Promise<Record<string, Array<{ id: string; recommendation?: string; rpm?: number; rpd?: number; tpm?: string; contextWindow?: number; maxOutputTokens?: number; isReasoning?: boolean; supportsVision?: boolean; supportsStructuredOutput?: boolean }>>> {
   const res = await fetch(`${API_BASE}/providers/models`);

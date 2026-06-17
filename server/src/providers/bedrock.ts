@@ -135,8 +135,8 @@ export class BedrockAdapter implements ProviderAdapter {
       return {
         text,
         ...(usage ? { tokenUsage: usage } : {}),
-        thinkingTokens: thinkingTokens > 0 ? thinkingTokens : undefined,
-        reasoningText: reasoningContent || undefined,
+        ...(thinkingTokens > 0 ? { thinkingTokens } : {}),
+        ...(reasoningContent ? { reasoningText: reasoningContent } : {}),
         rawResponse: data
       };
     } catch (error) {

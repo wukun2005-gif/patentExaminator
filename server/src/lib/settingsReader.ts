@@ -48,6 +48,7 @@ export async function readSettingsFromDb(): Promise<DbSettings> {
       (p: { providerId: string }) => p.providerId
     );
     const modelId = enabledProviders[0]?.defaultModelId ?? "";
+    logger.info(`[SettingsReader] DEBUG enabledProviders[0]=${JSON.stringify(enabledProviders[0] ? { providerId: enabledProviders[0].providerId, defaultModelId: enabledProviders[0].defaultModelId, modelIds: enabledProviders[0].modelIds, modelFallbacks: enabledProviders[0].modelFallbacks } : null)}, resolved modelId="${modelId}"`);
 
     // modelFallbacks / enableModelFallback / providerBaseUrls
     const modelFallbacks: Record<string, string[]> = {};
@@ -57,7 +58,7 @@ export async function readSettingsFromDb(): Promise<DbSettings> {
       providerId: string; modelFallbacks?: string[]; modelIds?: string[]; enableModelFallback?: boolean; baseUrl?: string;
     }>) {
       modelFallbacks[p.providerId] = p.modelFallbacks ?? p.modelIds ?? [];
-      enableModelFallback[p.providerId] = p.enableModelFallback ?? true;
+      enableModelFallback[p.providerId] = p.enableModelFallback ?? false;
       if (p.baseUrl) providerBaseUrls[p.providerId] = p.baseUrl;
     }
 
@@ -127,6 +128,9 @@ export async function fillMissingSettings<T extends {
   }
   if (!req.modelId) {
     (req as Record<string, unknown>).modelId = dbSettings.modelId;
+    logger.info(`[SettingsReader] DEBUG fillMissingSettings: req.modelId was empty, set to "${dbSettings.modelId}"`);
+  } else {
+    logger.info(`[SettingsReader] DEBUG fillMissingSettings: req.modelId already set to "${req.modelId}"`);
   }
   if (!req.modelFallbacks && dbSettings.modelFallbacks) {
     (req as Record<string, unknown>).modelFallbacks = dbSettings.modelFallbacks;

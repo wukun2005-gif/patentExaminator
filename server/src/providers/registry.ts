@@ -166,6 +166,7 @@ export class ProviderRegistry {
       }
 
       try {
+        logger.info(`[Registry] ${providerId} (no-fallback) using modelId="${req.modelId ?? "default"}"`);
         const result = await this.executeWithRetry(adapter, buildReq(req, {}));
         attempts.push(...result.attempts);
 

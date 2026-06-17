@@ -328,7 +328,7 @@ export async function runEvaluation(
             answer,
             context: sources.join("\n"),
             expectedAnswer: q.expectedAnswer,
-            mustIncludeFacts: q.mustIncludeFacts.length > 0 ? q.mustIncludeFacts : undefined,
+            ...(q.mustIncludeFacts.length > 0 ? { mustIncludeFacts: q.mustIncludeFacts } : {}),
           });
         }
       }

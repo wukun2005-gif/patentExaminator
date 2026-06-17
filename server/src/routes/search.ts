@@ -1002,7 +1002,7 @@ searchRouter.post("/search-with-terms", async (req, res) => {
         };
         try {
           const { response: translateRes } = await registry.runWithFallback(
-            availableProviders as string[], translateReq, undefined,
+            availableProviders as string[], translateReq,
             request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
             request.enableModelFallback as Partial<Record<string, boolean>> | undefined,
             request.providerBaseUrls as Partial<Record<string, string>> | undefined,
@@ -1124,7 +1124,7 @@ searchRouter.post("/search-with-terms", async (req, res) => {
     let filterAttempts: Array<{ providerId: string; ok: boolean; errorCode?: string; message?: string }> | undefined;
     try {
       const result = await registry.runWithFallback(
-        availableProviders as string[], filterReq, undefined,
+        availableProviders as string[], filterReq,
         request.modelFallbacks as Partial<Record<string, string[]>> | undefined,
         request.enableModelFallback as Partial<Record<string, boolean>> | undefined,
         request.providerBaseUrls as Partial<Record<string, string>> | undefined,

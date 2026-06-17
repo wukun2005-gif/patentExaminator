@@ -317,10 +317,10 @@ export function getModelInfo(modelId: string): ModelInfo {
   const rec = caps.recommendation ?? (modelId.startsWith("gemini-") ? inferGeminiRecommendation(modelId) : undefined);
   return {
     id: modelId,
-    recommendation: rec,
-    rpm: caps.rpm,
-    rpd: caps.rpd,
-    tpm: caps.tpm,
+    ...(rec ? { recommendation: rec } : {}),
+    ...(caps.rpm != null ? { rpm: caps.rpm } : {}),
+    ...(caps.rpd != null ? { rpd: caps.rpd } : {}),
+    ...(caps.tpm != null ? { tpm: caps.tpm } : {}),
     contextWindow: caps.contextWindow,
     maxOutputTokens: caps.maxOutputTokens,
     isReasoning: caps.isReasoning,

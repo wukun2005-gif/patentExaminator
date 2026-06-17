@@ -122,7 +122,7 @@ async function main() {
       },
     },
     BASE,
-    1_200_000,
+    3_600_000,
   );
   const endEval = performance.now();
   const evalData = await evalRes.json();
