@@ -53,7 +53,6 @@ interface EvalConfigSummary {
   passRate: number;
   avgAnswerCorrectness: number;
   avgFactCoverage: number;
-  avgArticleAccuracy: number;
   avgSourceRoutingAccuracy: number;
   avgKbHitRate: number;
 }
@@ -564,7 +563,6 @@ export function MetricsDashboard() {
                         <th>Faithfulness</th>
                         <th>答案正确性</th>
                         <th>事实覆盖</th>
-                        <th>法条准确</th>
                         <th>路由准确</th>
                         <th>KB Hit</th>
                         <th>通过率</th>
@@ -579,7 +577,6 @@ export function MetricsDashboard() {
                           <td>{c.avgFaithfulness.toFixed(3)}</td>
                           <td>{(c.avgAnswerCorrectness ?? 0).toFixed(3)}</td>
                           <td>{(c.avgFactCoverage ?? 0).toFixed(3)}</td>
-                          <td>{(c.avgArticleAccuracy ?? 0).toFixed(3)}</td>
                           <td>{(c.avgSourceRoutingAccuracy ?? 0).toFixed(3)}</td>
                           <td>{(c.avgKbHitRate ?? 0).toFixed(3)}</td>
                           <td>{(c.passRate * 100).toFixed(0)}%</td>

@@ -75,7 +75,7 @@ async function computeRetrievalMetricsSingleBatch(
 
     allChunksParts.push(`## 问题：${q.query}`);
     for (const chunk of topK) {
-      const text = chunk.text?.slice(0, 300) || "";
+      const text = chunk.text?.slice(0, 500) || "";
       const globalIndex = chunkIndexMap.length;
       allChunksParts.push(`### Chunk ${globalIndex + 1} (ID: ${chunk.id}, Question: ${q.questionId})\n${text}`);
       chunkIndexMap.push({ questionId: q.questionId, chunkId: chunk.id, index: globalIndex });
@@ -356,197 +356,6 @@ export async function computeFactCoverage(
 // ── 确定性指标（不需要 judge） ──
 
 /**
- * 中文数字 → 阿拉伯数字映射
- */
-const CN_NUM_MAP: Record<string, string> = {
-  "一": "1", "二": "2", "三": "3", "四": "4", "五": "5",
-  "六": "6", "七": "7", "八": "8", "九": "9", "十": "10",
-  "十一": "11", "十二": "12", "十三": "13", "十四": "14", "十五": "15",
-  "十六": "16", "十七": "17", "十八": "18", "十九": "19", "二十": "20",
-  "二十一": "21", "二十二": "22", "二十三": "23", "二十四": "24", "二十五": "25",
-  "二十六": "26", "二十七": "27", "二十八": "28", "二十九": "29",
-};
-
-/**
- * 专利法条文 ↔ 审查指南章节 交叉引用表
- *
- * key: 专利法条文（如"第二十二条第二款"）
- * value: 对应的审查指南章节关键词列表
- *
- * 来源：《专利审查指南》与《专利法》对照表
- */
-const LAW_TO_GUIDE_KEYWORDS: Record<string, string[]> = {
-  // 第二十二条：授予专利权的发明和实用新型应当具备新颖性、创造性和实用性
-  "第二十二条": ["新颖性", "创造性", "实用性", "三章", "第四章", "第五章"],
-  "第二十二条第一款": ["新颖性", "创造性", "实用性"],
-  "第二十二条第二款": ["新颖性", "第三章3.1", "单独对比", "现有技术"],
-  "第二十二条第三款": ["创造性", "第四章", "非显而易见", "突出的实质性特点"],
-  "第二十三条": ["外观设计", "新颖性", "区别"],
-  "第二十四条": ["新颖性宽限", "不丧失新颖性"],
-  "第二十五条": ["不授予专利权"],
-  "第二十六条": ["说明书", "权利要求书", "充分公开"],
-  "第二十六条第三款": ["充分公开", "清楚", "完整", "实现"],
-  "第二十六条第四款": ["权利要求", "清楚", "简要", "支持"],
-  "第三十三条": ["修改", "超范围"],
-  "第三十八条": ["驳回"],
-  "第四十一条": ["复审"],
-  "第六十四条": ["保护范围", "权利要求"],
-};
-
-/**
- * 从法条/章节引用中提取编号（数字部分）
- * 如 "第二十二条第二款" → "22-2", "第6.1节" → "6.1"
- */
-function extractArticleNumber(ref: string): string {
-  // 匹配 "第N条" 或 "第N条第M款" 格式
-  const lawMatch = ref.match(/第([一二三四五六七八九十百]+)条(?:第([一二三四五六七八九十百]+)款)?/);
-  if (lawMatch) {
-    const article = CN_NUM_MAP[lawMatch[1]!] ?? lawMatch[1]!;
-    const clause = lawMatch[2] ? `-${CN_NUM_MAP[lawMatch[2]!] ?? lawMatch[2]}` : "";
-    return article + clause;
-  }
-  // 匹配 "第N.M.L节" 或 "N.M.L" 格式（审查指南多级节号）
-  const guideMatch = ref.match(/(\d+(?:\.\d+)+)/);
-  if (guideMatch) return guideMatch[1]!;
-  return "";
-}
-
-/**
- * 检查法条引用与答案中的引用是否匹配（支持交叉引用）
- *
- * 匹配策略（按优先级）：
- * 1. 直接字符串包含
- * 2. 编号格式统一后匹配（"第九条" ↔ "第9条"）
- * 3. 同一法条的不同款匹配（答案引用法条，expected 是其中一款）
- * 4. 交叉引用：专利法条文 ↔ 审查指南章节（通过共享关键词）
- */
-export function computeArticleAccuracy(
-  answer: string,
-  expectedArticles: string[]
-): number {
-  if (!answer) return 0;
-  if (expectedArticles.length === 0) return 1;
-
-  const normAnswer = answer.toLowerCase();
-  // 提取答案中所有法条/章节引用
-  const answerRefs = extractAllArticleRefs(answer);
-  let matched = 0;
-
-  for (const article of expectedArticles) {
-    const normArticle = article.toLowerCase().trim();
-    if (!normArticle) continue;
-
-    // 策略 1：直接字符串包含
-    if (normAnswer.includes(normArticle)) {
-      matched++;
-      continue;
-    }
-
-    // 策略 2：编号格式统一后匹配（"第二十二条第二款" ↔ "第22条第2款"）
-    const normalized = normalizeArticleRef(normArticle);
-    if (normalized && normAnswer.includes(normalized)) {
-      matched++;
-      continue;
-    }
-
-    // 策略 3：提取编号比较（"第二十二条第二款" → "22-2"）
-    const expectedNum = extractArticleNumber(article);
-    if (expectedNum) {
-      const answerNums = answerRefs.map(extractArticleNumber).filter(Boolean);
-      if (answerNums.some((n) => n === expectedNum || expectedNum.startsWith(n) || n.startsWith(expectedNum))) {
-        matched++;
-        continue;
-      }
-    }
-
-    // 策略 4：交叉引用 — 专利法条文 ↔ 审查指南章节
-    // 如果 expected 是法条，检查答案是否引用了对应的审查指南章节
-    if (checkCrossReference(article, answerRefs, normAnswer)) {
-      matched++;
-      continue;
-    }
-  }
-
-  return matched / expectedArticles.length;
-}
-
-/**
- * 从文本中提取所有法条/章节引用
- * 匹配：第N条、第N条第M款、第N.M节、第N章、第N节 等
- */
-function extractAllArticleRefs(text: string): string[] {
-  const refs: string[] = [];
-  // 第N条（第M款）
-  const lawPattern = /第[一二三四五六七八九十百\d]+条(?:第[一二三四五六七八九十百\d]+款)?/g;
-  let match: RegExpExecArray | null;
-  while ((match = lawPattern.exec(text)) !== null) {
-    refs.push(match[0]);
-  }
-  // 第N.M节、第N章 — 支持多级节号如 "第3.2.1.1节"
-  const guidePattern = /第?\d+(?:\.\d+)+(?:节|章)?/g;
-  while ((match = guidePattern.exec(text)) !== null) {
-    refs.push(match[0]);
-  }
-  // 审查指南特定格式：如 "第二部分第三章3.1节"
-  const guideSection = /第[一二三四五六七八九十百]+部分第[一二三四五六七八九十百]+章[\d.]*节?/g;
-  while ((match = guideSection.exec(text)) !== null) {
-    refs.push(match[0]);
-  }
-  return refs;
-}
-
-/**
- * 将中文法条编号转为阿拉伯数字格式
- * "第二十二条第二款" → "第22条第2款"
- */
-function normalizeArticleRef(ref: string): string {
-  return ref.replace(/[一二三四五六七八九十百]+/g, (m) => CN_NUM_MAP[m] ?? m);
-}
-
-/**
- * 检查交叉引用：expected 法条 vs answer 中的审查指南引用
- *
- * 逻辑：如果 expected 是专利法条文，而 answer 引用了审查指南章节，
- * 通过交叉引用表检查两者是否指向同一法律概念。
- */
-function checkCrossReference(
-  expectedArticle: string,
-  answerRefs: string[],
-  normAnswer: string
-): boolean {
-  // 查找 expected 对应的审查指南关键词
-  const expectedNorm = expectedArticle.toLowerCase();
-  for (const [law, keywords] of Object.entries(LAW_TO_GUIDE_KEYWORDS)) {
-    if (expectedNorm.includes(law.toLowerCase()) || law.toLowerCase().includes(expectedNorm)) {
-      // 检查答案中是否有引用审查指南且包含对应关键词
-      for (const ref of answerRefs) {
-        if (ref.includes("审查指南") || ref.includes("指南") || /\d+\.\d+/.test(ref)) {
-          // 答案引用了审查指南，检查是否包含相关关键词
-          if (keywords.some((kw) => normAnswer.includes(kw.toLowerCase()))) {
-            return true;
-          }
-        }
-      }
-      // 也检查答案中是否有同一条法律的其他款（如 expected 是"第二十二条第二款"，
-      // 答案只引用了"第二十二条"，也算部分匹配）
-      const lawNum = extractArticleNumber(law);
-      if (lawNum) {
-        for (const ref of answerRefs) {
-          const refNum = extractArticleNumber(ref);
-          if (refNum && (lawNum.startsWith(refNum) || refNum.startsWith(lawNum))) {
-            // 同一条法律，检查关键词
-            if (keywords.some((kw) => normAnswer.includes(kw.toLowerCase()))) {
-              return true;
-            }
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
-/**
  * Source Routing Accuracy — 路由是否正确
  *
  * 比较 expectedSource vs 实际使用的源
@@ -597,7 +406,11 @@ export function computeSourceAttributionAccuracy(
 /**
  * Conflict Resolution Rate — 冲突题中正确选择权威源的比例
  *
- * 规范 §5.3: conflict 类型题目，正确行为是优先采用 KB（权威来源）
+ * 规范 §5.3: conflict 类型题目，正确行为是优先采用权威来源。
+ * expectedSource 表示期望系统使用哪些源：
+ * - "kb": 只用 KB（权威优先）→ actual 必须是 "kb"
+ * - "web": 只用 web → actual 必须是 "web"
+ * - "kb+web": 两边都用并解决冲突 → actual 必须是 "mixed"
  */
 export function computeConflictResolution(
   sourceType: SourceType,
@@ -606,11 +419,15 @@ export function computeConflictResolution(
 ): number {
   if (sourceType !== "conflict") return 1; // 非冲突题不评估
 
-  // conflict 题的 expectedSource 应为 "kb"（权威优先）
-  if (expectedSource === "kb") {
-    return actualSource === "kb" ? 1 : 0;
-  }
-  return actualSource === "kb" ? 1 : 0.5;
+  // expectedSource 到期望 actualSource 的映射
+  const expectedActualMap: Record<string, string> = {
+    "kb": "kb",
+    "web": "web",
+    "kb+web": "mixed",
+  };
+  const expectedActual = expectedActualMap[expectedSource];
+  if (!expectedActual) return actualSource === "kb" ? 1 : 0.5; // fallback
+  return actualSource === expectedActual ? 1 : 0;
 }
 
 /**
@@ -635,8 +452,8 @@ export async function computeRefusalAccuracy(
     "背景：这是一个 golden set 中的 no_answer 类型题目，正确做法是表明无法确定/信息不足。",
     "",
     "评分标准（0.0 - 1.0）：",
-    "- 1.0: 明确拒绝回答，表明信息不足或无法确定，且保持简洁",
-    "- 0.7: 拒绝回答但内容冗长",
+    "- 1.0: 正确识别信息不足并拒绝直接回答。常见模式：(a) 明确拒绝+简洁说明原因；(b) 委婉拒绝+指出缺少什么信息+提供分析框架/基本原则供用户后续参考。模式(b)中的'分析框架'是有价值的补充，不算冗长，应给满分",
+    "- 0.7: 拒绝回答但内容冗长且无实质价值（废话连篇、重复啰嗦）",
     "- 0.4: 部分拒绝但包含不确定的推测",
     "- 0.1: 没有拒绝，直接给出了不确定的答案",
     "- 0.0: 完全没有拒绝，自信地给出了错误答案",

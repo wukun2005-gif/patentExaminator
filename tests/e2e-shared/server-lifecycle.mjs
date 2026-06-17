@@ -6,10 +6,11 @@
  * 环境变量指向临时目录，实现与 app 生产数据库完全隔离。
  */
 import { spawn } from "child_process";
-import { mkdtempSync, rmSync, mkdirSync, openSync, closeSync, readFileSync, existsSync, readdirSync, copyFileSync, statSync } from "fs";
+import { mkdtempSync, rmSync, mkdirSync, openSync, closeSync, readFileSync, existsSync, readdirSync, statSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { fileURLToPath } from "url";
+import Database from "better-sqlite3";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "../..");
@@ -48,19 +49,30 @@ export async function startIsolatedServer(options = {}) {
     console.log(`[server-lifecycle] prodSyncDb: ${prodSyncDb} exists=${existsSync(prodSyncDb)}`);
     console.log(`[server-lifecycle] prodKnowledgeDb: ${prodKnowledgeDb} exists=${existsSync(prodKnowledgeDb)}`);
 
+    // 用 SQLite backup API 复制 DB，确保 WAL 中未 checkpoint 的数据也被完整复制。
+    // 直接 copyFileSync 只复制主 .db 文件会丢失 WAL 中的最新写入。
+    const backupDb = async (src, dst) => {
+      const srcDb = new Database(src, { readonly: true });
+      try {
+        await srcDb.backup(dst);  // better-sqlite3 backup API，自动处理 WAL
+      } finally {
+        srcDb.close();
+      }
+    };
+
     if (existsSync(prodSyncDb)) {
       const srcSize = statSync(prodSyncDb).size;
-      copyFileSync(prodSyncDb, syncDbPath);
+      await backupDb(prodSyncDb, syncDbPath);
       const dstSize = statSync(syncDbPath).size;
-      console.log(`[server-lifecycle] Copied sync DB: ${srcSize} bytes → ${dstSize} bytes ${srcSize === dstSize ? "OK" : "SIZE MISMATCH!"}`);
+      console.log(`[server-lifecycle] Backed up sync DB: ${srcSize} bytes → ${dstSize} bytes`);
     } else {
       console.error(`[server-lifecycle] WARNING: production sync DB not found, isolated server will start with empty DB`);
     }
     if (existsSync(prodKnowledgeDb)) {
       const srcSize = statSync(prodKnowledgeDb).size;
-      copyFileSync(prodKnowledgeDb, knowledgeDbPath);
+      await backupDb(prodKnowledgeDb, knowledgeDbPath);
       const dstSize = statSync(knowledgeDbPath).size;
-      console.log(`[server-lifecycle] Copied knowledge DB: ${srcSize} bytes → ${dstSize} bytes ${srcSize === dstSize ? "OK" : "SIZE MISMATCH!"}`);
+      console.log(`[server-lifecycle] Backed up knowledge DB: ${srcSize} bytes → ${dstSize} bytes`);
     } else {
       console.error(`[server-lifecycle] WARNING: production knowledge DB not found, isolated server will start with empty KB`);
     }

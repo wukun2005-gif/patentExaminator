@@ -161,7 +161,6 @@ export interface GoldenQuestion {
   query: string;
   expectedAnswer: string;
   expectedSources: string[];    // file names
-  expectedArticles: string[];   // article references
   category: string;
   difficulty: 'easy' | 'medium' | 'hard';
   generatedBy: string;
@@ -189,7 +188,6 @@ export interface GoldenRunResult {
 
   answerCorrectness: number;
   factCoverage: number;
-  articleAccuracy: number;
   sourceRoutingAccuracy: number;
   sourceAttributionAccuracy: number;
   conflictResolution: number;
@@ -214,7 +212,6 @@ export interface EvalConfigSummary {
 
   avgAnswerCorrectness: number;
   avgFactCoverage: number;
-  avgArticleAccuracy: number;
   avgSourceRoutingAccuracy: number;
   avgKbHitRate: number;
 }

@@ -1192,66 +1192,161 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
             );
 
             if (gdResult.verdict === "fail") {
-              // 重新生成：加强约束后重试一次（直接调 LLM，不走完整 gateway）
               logger.info(`[Orchestrator] groundedness fail, 尝试重新生成`);
-              const retrySystem = [
-                promptParts.system,
-                "\n\n## 重要约束（必须严格遵守）",
-                "1. 只基于以下参考文档回答，不得添加文档中没有的信息",
-                "2. 每个关键事实必须在句末用 [N] 标注来源编号",
-                "3. 如果参考文档中没有相关信息，必须明确说明",
-                "",
-                "## 参考文档（按相关性排序）",
-                ...merged.map((c, i) => {
-                  const tag = c.engine === "rag" ? "（知识库）" : "（网络搜索）";
-                  return `[${i + 1}] ${tag} ${c.title}: ${c.snippet}`;
-                }),
-              ].join("\n");
 
-              const { registry: retryRegistry } = await import("../providers/registry.js");
-              const { getApiKey: retryGetKey } = await import("../security/keyStore.js");
-              const retryProviderKeys: Record<string, string> = {};
-              for (const pid of req.providerPreference ?? []) {
-                const key = req.apiKey ?? retryGetKey(pid);
-                if (key) retryProviderKeys[pid] = key;
+              // 检测 grounding documents 中是否有 web 结果
+              const hasWebInGrounding = merged.some(c => c.engine !== "rag");
+
+              // 辅助函数：解析 provider keys
+              const resolveProviderKeys = async (): Promise<Record<string, string>> => {
+                const { getApiKey: rk } = await import("../security/keyStore.js");
+                const keys: Record<string, string> = {};
+                for (const pid of req.providerPreference ?? []) {
+                  const key = req.apiKey ?? rk(pid);
+                  if (key) keys[pid] = key;
+                }
+                return keys;
+              };
+
+              // 辅助函数：执行 groundedness check
+              const runGroundednessCheck = async (
+                answer: string,
+                citations: Array<{ source: string; excerpt: string; score: number }>,
+                webCitations: Array<{ title: string; url: string; snippet: string; engine: string }>
+              ) => {
+                return checkGroundedness(answer, citations, webCitations, {
+                  apiKey: req.apiKey,
+                  providerPreference: req.providerPreference,
+                  modelId: req.modelId,
+                  modelFallbacks: req.modelFallbacks,
+                  enableModelFallback: req.enableModelFallback,
+                  providerBaseUrls: req.providerBaseUrls,
+                  signal: req.signal,
+                });
+              };
+
+              let retryOutput: string | undefined;
+              let retryMergedForCheck = merged;
+              let retryNf2ForCheck = nf2Citations;
+              let retryNf2WebForCheck = nf2WebCitations;
+
+              if (!hasWebInGrounding && req.webSearchEnabled !== false) {
+                // grounding 全是 RAG → 第一次可能信息不充分 → 走 toolExecutor 允许 web search
+                logger.info(`[Orchestrator] grounding 无 web 结果，走 toolExecutor 重新生成（允许 web search）`);
+
+                const { executeWithTools: retryExecute } = await import("./toolExecutor.js");
+
+                const retryWebGuidance = [
+                  "", "## 联网搜索",
+                  "你可以使用 web_search 工具搜索互联网获取最新信息。",
+                  "当你遇到以下情况时，必须调用 web_search：",
+                  "- 参考文档中没有回答问题所需的信息",
+                  "- 你的训练数据无法回答该问题",
+                ].join("\n");
+
+                const retrySystem = [
+                  promptParts.system,
+                  retryWebGuidance,
+                  "\n\n## 重要约束",
+                  "1. 优先使用 web_search 搜索补充信息",
+                  "2. 每个关键事实必须在句末用 [N] 标注来源编号",
+                  "3. 如果搜索后仍无相关信息，必须明确说明",
+                  "",
+                  "## 已有参考文档（如不充分，请用 web_search 搜索补充）",
+                  ...merged.map((c, i) => {
+                    const tag = c.engine === "rag" ? "（知识库）" : "（网络搜索）";
+                    return `[${i + 1}] ${tag} ${c.title}: ${c.snippet}`;
+                  }),
+                ].join("\n");
+
+                const retryKeys = await resolveProviderKeys();
+
+                const retryToolResult = await retryExecute({
+                  systemPrompt: retrySystem,
+                  userPrompt: req.request.userMessage as string || "",
+                  ragCitations: [],
+                  query: req.request.userMessage as string || "",
+                  ...(req.modelId !== undefined && { modelId: req.modelId }),
+                  ...(req.knowledgeReranker !== undefined && { rerankerConfig: req.knowledgeReranker }),
+                  callLLM: async (overrides) => {
+                    const { registry: retryReg } = await import("../providers/registry.js");
+                    const chatReq = {
+                      modelId: req.modelId ?? "",
+                      messages: (overrides?.messages ?? [
+                        { role: "system" as const, content: retrySystem },
+                        { role: "user" as const, content: req.request.userMessage as string || "" },
+                      ]),
+                      apiKey: "",
+                      maxTokens: 2000,
+                      temperature: 0.3,
+                      ...(req.signal !== undefined && { signal: req.signal }),
+                      ...(overrides?.tools && overrides.tools.length > 0 && { tools: overrides.tools }),
+                      ...(overrides?.tool_choice !== undefined && { tool_choice: overrides.tool_choice }),
+                    };
+                    const result = await retryReg.runWithFallback(
+                      req.providerPreference ?? [], chatReq, req.modelFallbacks,
+                      req.enableModelFallback, req.providerBaseUrls, retryKeys
+                    );
+                    return {
+                      text: result.response.text,
+                      ...(result.response.toolCalls ? { toolCalls: result.response.toolCalls } : {}),
+                      ...(result.response.error ? { error: { code: result.response.error.code, message: result.response.error.message } } : {}),
+                    };
+                  },
+                });
+
+                retryOutput = retryToolResult.answer;
+                // 用新的 merged citations 做 groundedness check
+                retryMergedForCheck = retryToolResult.mergedCitations;
+                retryNf2ForCheck = retryMergedForCheck.filter(c => c.engine === "rag").map(c => ({ source: c.title, excerpt: c.snippet, score: 0 }));
+                retryNf2WebForCheck = retryMergedForCheck.filter(c => c.engine !== "rag");
+
+              } else {
+                // 已有 web 结果 或 webSearchDisabled → 直接调 LLM，不带 tools（原有行为）
+                logger.info(`[Orchestrator] grounding 已有 web 结果或 webSearchDisabled，直接调 LLM 重新生成`);
+
+                const retrySystem = [
+                  promptParts.system,
+                  "\n\n## 重要约束（必须严格遵守）",
+                  "1. 只基于以下参考文档回答，不得添加文档中没有的信息",
+                  "2. 每个关键事实必须在句末用 [N] 标注来源编号",
+                  "3. 如果参考文档中没有相关信息，必须明确说明",
+                  "",
+                  "## 参考文档（按相关性排序）",
+                  ...merged.map((c, i) => {
+                    const tag = c.engine === "rag" ? "（知识库）" : "（网络搜索）";
+                    return `[${i + 1}] ${tag} ${c.title}: ${c.snippet}`;
+                  }),
+                ].join("\n");
+
+                const { registry: retryRegistry } = await import("../providers/registry.js");
+                const retryProviderKeys = await resolveProviderKeys();
+
+                const retryResult = await retryRegistry.runWithFallback(
+                  req.providerPreference ?? [],
+                  {
+                    modelId: req.modelId ?? "",
+                    messages: [
+                      { role: "system", content: retrySystem },
+                      { role: "user", content: req.request.userMessage as string || "" },
+                    ],
+                    apiKey: "",
+                    maxTokens: 2000,
+                    temperature: 0.3,
+                    ...(req.signal !== undefined && { signal: req.signal }),
+                  },
+                  req.modelFallbacks,
+                  req.enableModelFallback,
+                  req.providerBaseUrls,
+                  retryProviderKeys
+                );
+
+                retryOutput = retryResult.response.text;
               }
 
-              const retryResult = await retryRegistry.runWithFallback(
-                req.providerPreference ?? [],
-                {
-                  modelId: req.modelId ?? "",
-                  messages: [
-                    { role: "system", content: retrySystem },
-                    { role: "user", content: req.request.userMessage as string || "" },
-                  ],
-                  apiKey: "",
-                  maxTokens: 2000,
-                  temperature: 0.3,
-                  ...(req.signal !== undefined && { signal: req.signal }),
-                },
-                req.modelFallbacks,
-                req.enableModelFallback,
-                req.providerBaseUrls,
-                retryProviderKeys
-              );
-
-              const retryOutput = retryResult.response.text;
-              if (!retryResult.response.error && retryOutput) {
+              if (retryOutput && retryOutput.trim().length > 0) {
                 // 再次检查
-                const retryGd = await checkGroundedness(
-                  retryOutput,
-                  nf2Citations,
-                  nf2WebCitations,
-                  {
-                    apiKey: req.apiKey,
-                    providerPreference: req.providerPreference,
-                    modelId: req.modelId,
-                    modelFallbacks: req.modelFallbacks,
-                    enableModelFallback: req.enableModelFallback,
-                    providerBaseUrls: req.providerBaseUrls,
-                    signal: req.signal,
-                  }
-                );
+                const retryGd = await runGroundednessCheck(retryOutput, retryNf2ForCheck, retryNf2WebForCheck);
 
                 if (retryGd.verdict !== "fail") {
                   finalAnswer = retryGd.output || originalAnswer;
@@ -1343,7 +1438,7 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
     // 复杂推理 agent 需要更长超时（reasoning tokens + 长文本生成耗时）
     const HEAVY_AGENT_TIMEOUT_MS = 300_000;
     const HEAVY_AGENTS = new Set(["inventive", "novelty", "defects", "claim-chart", "opinion-analysis", "argument-analysis"]);
-    const agentTimeoutMs = HEAVY_AGENTS.has(req.agent) ? HEAVY_AGENT_TIMEOUT_MS : undefined;
+    const agentTimeoutMs = req.timeoutMs ?? (HEAVY_AGENTS.has(req.agent) ? HEAVY_AGENT_TIMEOUT_MS : undefined);
 
     // D2: 各 agent 的期望 temperature（与 DESIGN.md §6.4 对齐）
     const TEMPERATURE_BY_AGENT: Record<string, number> = {

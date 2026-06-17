@@ -1,9 +1,46 @@
 import { OpenAICompatibleAdapter } from "./ProviderAdapter.js";
+import type { ChatRequest, ChatResponse } from "./ProviderAdapter.js";
 import type { ProviderId } from "@shared/types/agents";
+import { logger } from "../lib/logger.js";
+
+/**
+ * 百炼 thinking 模式模型：不支持 tool_choice=required/object，需降级为 auto。
+ * 维护策略：遇到新 thinking 模型 HTTP 400 "tool_choice ... not support ... thinking mode" 时加入。
+ * 注：百炼非 thinking 模型收到 tool_choice=auto 无副作用，所以宁可多列不可遗漏。
+ */
+const BAILIAN_THINKING_MODELS = new Set([
+  // Qwen3.7
+  "qwen3.7-max",
+  "qwen3.7-max-2026-06-08",
+  "qwen3.7-max-2026-05-20",
+  "qwen3.7-max-preview",
+  "qwen3.7-plus",
+  "qwen3.7-plus-2026-05-26",
+  // Qwen3.6
+  "qwen3.6-max-preview",
+  // DeepSeek（百炼上的 deepseek-v4-pro/r1 均为 thinking 模式）
+  "deepseek-v4-pro",
+  "deepseek-v4-flash",
+  "deepseek-r1",
+  "deepseek-r1-0528",
+  "deepseek-r1-distill-qwen-32b",
+  "deepseek-r1-distill-qwen-14b",
+  "deepseek-r1-distill-qwen-7b",
+]);
 
 export class BailianAdapter extends OpenAICompatibleAdapter {
   id: ProviderId = "bailian";
   defaultBaseUrl = "https://ws-3vv2b1h4akmem3xz.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
+
+  override async chat(req: ChatRequest): Promise<ChatResponse> {
+    // 百炼 thinking 模式不支持 tool_choice=required/object，降级为 auto
+    // 非 thinking 模型收到 tool_choice=auto 无副作用，所以统一处理
+    if ((req.tool_choice === "required" || typeof req.tool_choice === "object") && BAILIAN_THINKING_MODELS.has(req.modelId)) {
+      logger.info(`[Bailian] thinking 模型 ${req.modelId} 不支持 tool_choice=${JSON.stringify(req.tool_choice)}，降级为 auto`);
+      return super.chat({ ...req, tool_choice: "auto" });
+    }
+    return super.chat(req);
+  }
 
   supportedModels(): string[] {
     return [

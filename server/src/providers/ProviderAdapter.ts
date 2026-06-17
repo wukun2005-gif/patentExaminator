@@ -333,7 +333,7 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
 
     // Streaming 读取 + 一次性降级到非 streaming
     // 策略：streaming 超时 → 尝试非 streaming 一次 → 仍失败 → 错误冒泡到 registry（Provider/Model fallback）
-    const STREAM_CHUNK_TIMEOUT_MS = 60_000; // streaming: 60 秒无新数据 → 判定流 hang
+    const STREAM_CHUNK_TIMEOUT_MS = 120_000; // streaming: 120 秒无新数据 → thinking 模型推理时间长，60s 太短
     let buffer = "";
 
     try {
@@ -411,6 +411,18 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
         // 额外 log: 最后一个 chunk 的顶层 key（排除 choices/usage 以减少噪音）
         const lastKeys = Object.keys(data).filter(k => k !== "choices" && k !== "usage");
         logger.warn(`[${tag}] D2 last chunk keys (non-choices/usage): ${JSON.stringify(lastKeys)}`);
+
+        // Bailian 等 provider 可能返回 HTTP 200 + SSE error body（chunks=1, choices=0, error+id keys）
+        // 这种情况需要抛异常让 Registry 触发 fallback，否则会返回空内容
+        if (sseWithChoicesCount === 0 && data.error) {
+          const errBody = data.error as Record<string, unknown>;
+          const errCode = (errBody.code as string) ?? "unknown";
+          const errMsg = (errBody.message as string) ?? JSON.stringify(errBody);
+          logger.warn(`[${tag}] SSE error response (no choices), throwing to trigger fallback: code=${errCode}, message=${errMsg.slice(0, 200)}`);
+          const sseErr = new Error(`SSE error response: ${errCode} - ${errMsg}`);
+          (sseErr as Error & { status?: number }).status = 429; // 触发 Registry quota-exceeded fallback
+          throw sseErr;
+        }
       }
     }
     const source = lastContentChunk ?? data;

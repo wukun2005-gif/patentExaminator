@@ -255,16 +255,20 @@ export function ProvidersConfigPanel() {
       const models = await fetchModels(id, provider.apiKeyRef, base);
       if (!isMountedRef.current) return;
       if (models.length > 0) {
-        const defaultId = models.includes(provider.defaultModelId)
-          ? provider.defaultModelId
-          : models[0] ?? "";
+        // BUG-FIX: 永远保留用户选择的 defaultModelId，不覆盖
+        const userDefaultId = provider.defaultModelId ?? "";
         const existingFallbacks = provider.modelFallbacks ?? [];
         const modelSet = new Set(models);
-        const preserved = existingFallbacks.filter((m) => modelSet.has(m) && m !== defaultId);
-        const preservedSet = new Set([defaultId, ...preserved]);
-        const newModels = models.filter((m) => !preservedSet.has(m));
-        const fallbacks = [defaultId, ...preserved, ...newModels];
-        updateProvider(id, { modelIds: models, defaultModelId: defaultId, modelFallbacks: fallbacks });
+        // 如果用户选择的模型不在 API 返回列表中，把它加到最前面
+        const mergedModels = userDefaultId && !modelSet.has(userDefaultId)
+          ? [userDefaultId, ...models]
+          : [...models];
+        // 保留用户已有的 fallback 顺序，只追加新模型
+        const preserved = existingFallbacks.filter((m) => mergedModels.includes(m));
+        const preservedSet = new Set(preserved);
+        const newModels = mergedModels.filter((m) => !preservedSet.has(m));
+        const fallbacks = [...preserved, ...newModels];
+        updateProvider(id, { modelIds: mergedModels, defaultModelId: userDefaultId, modelFallbacks: fallbacks });
 
         // 逐个验证模型是否真实可用
         const verified = new Set<string>();

@@ -150,6 +150,7 @@ export async function callMultiJudge(
         apiKey: "",
         maxTokens,
         temperature,
+        timeoutMs: 300_000, // thinking 模型推理时间长，120s 默认超时不够
         ...(options?.signal !== undefined && { signal: options.signal }),
       };
 

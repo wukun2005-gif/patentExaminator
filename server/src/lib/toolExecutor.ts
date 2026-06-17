@@ -6,9 +6,9 @@
  * 2. 跨源融合 — 收集 RAG + Web Search 结果，统一 reranker 排序
  * 3. Re-inject — Top-K 注入 prompt，不带 tools 调 LLM 生成最终回答
  *
- * 流程：所有轮次使用 tool_choice=auto，由 system prompt 引导 LLM 调用搜索。
- * 注：tool_choice=required 会导致部分模型（Gemini/豆包/DeepSeek）返回空响应，
- * 因此改用 auto + prompt 引导的组合策略。
+ * 流程：第 1 轮使用 tool_choice=required 强制调用搜索，后续轮次 tool_choice=auto。
+ * 注：百炼 thinking 模式模型（qwen3.7-max 等）不支持 tool_choice=required，
+ * BailianAdapter 会自动降级为 auto。
  */
 import { logger } from "./logger.js";
 import { mcpClient } from "../mcp/mcpClient.js";
