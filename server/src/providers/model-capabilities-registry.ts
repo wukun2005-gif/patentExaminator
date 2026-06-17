@@ -301,6 +301,50 @@ const PROVIDER_MODEL_IDS: Record<ProviderId, string[]> = {
     "doubao-1-5-pro-32k-250115", "doubao-1-5-lite-32k-250115", "doubao-1-5-vision-pro-32k-250115",
     "deepseek-v4-pro-260425", "deepseek-v4-flash-260425", "deepseek-v3-1-250821",
   ],
+  bailian: [
+    // Qwen3.7
+    "qwen3.7-max", "qwen3.7-max-2026-06-08", "qwen3.7-max-2026-05-20",
+    "qwen3.7-plus", "qwen3.7-plus-2026-05-26",
+    // Qwen3.6
+    "qwen3.6-max-preview",
+    "qwen3.6-plus", "qwen3.6-plus-2026-04-02",
+    "qwen3.6-flash", "qwen3.6-flash-2026-04-16",
+    "qwen3.6-35b-a3b", "qwen3.6-27b",
+    // Qwen3.5
+    "qwen3.5-plus", "qwen3.5-plus-2026-04-20", "qwen3.5-plus-2026-02-15",
+    "qwen3.5-flash", "qwen3.5-flash-2026-02-23",
+    "qwen3.5-397b-a17b", "qwen3.5-122b-a10b", "qwen3.5-35b-a3b", "qwen3.5-27b",
+    // Qwen3
+    "qwen3-max", "qwen3-max-2026-01-23", "qwen3-max-preview", "qwen3-max-2025-09-23",
+    "qwen3-235b-a22b", "qwen3-235b-a22b-instruct-2507", "qwen3-235b-a22b-thinking-2507",
+    "qwen3-next-80b-a3b-instruct", "qwen3-next-80b-a3b-thinking",
+    "qwen3-32b", "qwen3-30b-a3b", "qwen3-30b-a3b-instruct-2507", "qwen3-30b-a3b-thinking-2507",
+    "qwen3-14b", "qwen3-8b",
+    // Qwen3-Coder
+    "qwen3-coder-plus", "qwen3-coder-plus-2025-09-23", "qwen3-coder-plus-2025-07-22",
+    "qwen3-coder-flash", "qwen3-coder-flash-2025-07-28",
+    "qwen3-coder-next", "qwen3-coder-480b-a35b-instruct", "qwen3-coder-30b-a3b-instruct",
+    // Qwen Legacy
+    "qwen-max", "qwen-plus", "qwen-plus-latest",
+    "qwen-plus-2025-12-01", "qwen-plus-2025-09-11", "qwen-plus-2025-07-28",
+    "qwen-plus-2025-07-14", "qwen-plus-2025-04-28", "qwen-plus-2025-01-25",
+    "qwen-plus-0112", "qwen-plus-1220",
+    "qwen-flash", "qwen-flash-2025-07-28", "qwen-turbo", "qwq-plus",
+    "qwen-coder-plus", "qwen-coder-turbo",
+    "qwen-long", "qwen-long-latest", "qwen-long-2025-01-25",
+    "qwen-math-plus", "qwen-math-plus-latest", "qwen-math-plus-0919", "qwen-math-plus-0816", "qwen-math-turbo",
+    // DeepSeek
+    "deepseek-v4-pro", "deepseek-v4-flash",
+    "deepseek-v3.2", "deepseek-v3.2-exp", "deepseek-v3.1", "deepseek-v3",
+    "deepseek-r1", "deepseek-r1-0528",
+    "deepseek-r1-distill-qwen-32b", "deepseek-r1-distill-qwen-14b", "deepseek-r1-distill-qwen-7b",
+    // GLM
+    "glm-5.1", "glm-5", "glm-4.7", "glm-4.6",
+    // Kimi
+    "kimi-k2.7-code", "kimi-k2.6", "kimi-k2.5", "kimi-k2-thinking", "Moonshot-Kimi-K2-Instruct",
+    // MiniMax
+    "MiniMax-M2.5",
+  ],
 };
 
 /** Gemini 模型推荐语推断（API 返回的模型可能不在目录中） */

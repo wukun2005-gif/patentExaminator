@@ -33,10 +33,10 @@ export interface MultiJudgeResult<T> {
 
 // ── 默认配置 ──────────────────────────────────────────
 
-/** 默认 2-judge 配置（spec §5.2: MiMo + doubao，取平均） */
+/** 默认 2-judge 配置（spec §5.2: MiMo + 百炼，取平均） */
 export const DEFAULT_JUDGE_CONFIGS: Array<{ providerId: string; modelId: string }> = [
   { providerId: "mimo", modelId: "mimo-v2.5" },
-  { providerId: "volcengine", modelId: "doubao-seed-code-preview-251028" },
+  { providerId: "bailian", modelId: "MiniMax-M2.5" },
 ];
 
 /** 向后兼容：provider ID 列表 */
@@ -153,6 +153,16 @@ export async function callMultiJudge(
         ...(options?.signal !== undefined && { signal: options.signal }),
       };
 
+      // 自动生成 fallback 链：仅 bailian 需要（从 supportedModels 末尾向前 fallback）
+      // MiMo 等单模型 provider 不需要 fallback
+      const effectiveModelFallbacks: Record<string, string[]> = { ...(options?.modelFallbacks ?? {}) };
+      if (!effectiveModelFallbacks[providerId] && providerId === "bailian") {
+        const adapter = registry.get(providerId);
+        if (adapter) {
+          effectiveModelFallbacks[providerId] = [...adapter.supportedModels()].reverse();
+        }
+      }
+
       const providerApiKeys: Record<string, string> = { [providerId]: apiKey };
       const enableFallback = options?.enableModelFallback !== undefined
         ? { [providerId]: options.enableModelFallback }
@@ -160,7 +170,7 @@ export async function callMultiJudge(
       const result = await registry.runWithFallback(
         [providerId],
         chatReq,
-        options?.modelFallbacks,
+        effectiveModelFallbacks,
         enableFallback,
         undefined,
         providerApiKeys

@@ -34,6 +34,7 @@ export const API_KEY_NAMES = {
   gemini: "GEMINI_KEY",
   mimo: "MiMo_KEY",
   volcengine: "volc-key",
+  bailian: "bailian_key",
   openrouter: "Openrouter_KEY",
   tavily: "TAVILY_API_KEY",
   serp: "SerpAPI_KEY",
@@ -51,6 +52,7 @@ export const DEFAULT_MODEL_IDS = {
   gemini: "gemini-3.5-flash",
   mimo: "mimo-v2.5-pro",
   volcengine: "doubao-seed-2-0-pro-260215",
+  bailian: "MiniMax-M2.5",
   openrouter: "z-ai/glm-4.5-air:free",
 };
 

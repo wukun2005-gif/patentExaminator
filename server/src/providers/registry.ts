@@ -13,6 +13,7 @@ import { BedrockAdapter } from "./bedrock.js";
 import { OpenRouterAdapter } from "./openrouter.js";
 import { OpencodeAdapter } from "./opencode.js";
 import { VolcengineAdapter } from "./volcengine.js";
+import { BailianAdapter } from "./bailian.js";
 
 const BACKOFF_DELAYS = [500, 1500];
 const MAX_RETRIES = 2;
@@ -41,6 +42,7 @@ export class ProviderRegistry {
     this.register(new OpenRouterAdapter());
     this.register(new OpencodeAdapter());
     this.register(new VolcengineAdapter());
+    this.register(new BailianAdapter());
   }
 
   register(adapter: ProviderAdapter): void {

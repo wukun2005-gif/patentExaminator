@@ -117,7 +117,7 @@ async function main() {
       // judge API keys 从 .env 读取（自动测试场景，不依赖 DB）
       judgeApiKeys: {
         ...(getApiKey("mimo") ? { mimo: getApiKey("mimo") } : {}),
-        ...(getApiKey("volcengine") ? { volcengine: getApiKey("volcengine") } : {}),
+        ...(getApiKey("bailian") ? { bailian: getApiKey("bailian") } : {}),
         ...(getApiKey("gemini") ? { gemini: getApiKey("gemini") } : {}),
       },
     },

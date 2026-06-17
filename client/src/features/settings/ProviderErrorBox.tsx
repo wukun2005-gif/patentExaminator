@@ -13,7 +13,8 @@ const PROVIDER_NAMES: Record<ProviderId, string> = {
   bedrock: "Bedrock",
   openrouter: "OpenRouter",
   opencode: "OpenCode",
-  volcengine: "火山引擎"
+  volcengine: "火山引擎",
+  bailian: "百炼"
 };
 
 const ERROR_BRIEF: Record<string, string> = {

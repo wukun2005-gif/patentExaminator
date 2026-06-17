@@ -1,7 +1,7 @@
 import type { AppMode } from "./domain.js";
 import type { KnowledgeConfig } from "./knowledge.js";
 
-export type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek" | "gemini" | "qwen" | "bedrock" | "openrouter" | "opencode" | "volcengine";
+export type ProviderId = "kimi" | "glm" | "minimax" | "mimo" | "deepseek" | "gemini" | "qwen" | "bedrock" | "openrouter" | "opencode" | "volcengine" | "bailian";
 
 export interface ModelInfo {
   id: string;
@@ -106,7 +106,8 @@ export const PRESET_MODEL_PROVIDERS: PresetModelProvider[] = [
   { id: "bedrock", displayName: "AWS Bedrock", desc: "AWS Bedrock OpenAI-Compatible API", baseUrl: "https://bedrock-mantle.us-east-1.api.aws/v1", keyPlaceholder: "bedrock-api-key" },
   { id: "openrouter", displayName: "OpenRouter", desc: "统一 API 聚合数百模型", baseUrl: "https://openrouter.ai/api/v1", keyPlaceholder: "sk-or-v1-..." },
   { id: "opencode", displayName: "OpenCode Zen", desc: "OpenCode 官方精选模型网关", baseUrl: "https://opencode.ai/zen/v1", keyPlaceholder: "opencode-zen-key" },
-  { id: "volcengine", displayName: "火山引擎", desc: "字节跳动 · 火山引擎", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", keyPlaceholder: "sk-..." }
+  { id: "volcengine", displayName: "火山引擎", desc: "字节跳动 · 火山引擎", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", keyPlaceholder: "sk-..." },
+  { id: "bailian", displayName: "百炼", desc: "阿里云百炼 (千问+三方模型)", baseUrl: "https://ws-3vv2b1h4akmem3xz.cn-beijing.maas.aliyuncs.com/compatible-mode/v1", keyPlaceholder: "sk-..." }
 ];
 
 export const PRESET_SEARCH_PROVIDERS: PresetSearchProvider[] = [
