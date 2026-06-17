@@ -494,7 +494,7 @@ export function ProvidersConfigPanel() {
                                     {model}
                                     {isDefault && <span className="fallback-current-badge">当前默认</span>}
                                     {isVerified === true && <span className="fallback-verified-badge" title="已验证可用">✓</span>}
-                                    {isVerified === false && <span className="fallback-unverified-badge" title="验证失败">✗</span>}
+                                    {isVerified === false && <span className="fallback-unverified-badge" title="验证失败（可能临时不可用）">⚠</span>}
                                     {isVerified === null && loadingModels === preset.id && <span className="fallback-verifying-badge" title="验证中…">⏳</span>}
                                   </span>
                                 </td>

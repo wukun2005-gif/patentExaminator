@@ -1473,7 +1473,7 @@
 .fallback-unverified-badge {
   display: inline-block;
   padding: 0 4px;
-  background: #ef4444;
+  background: #f59e0b;
   color: #fff;
   border-radius: var(--pex-radius-sm);
   font-size: var(--pex-font-size-tiny);

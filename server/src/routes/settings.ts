@@ -3,6 +3,7 @@ import { registry } from "../providers/registry.js";
 import { getModelCatalog } from "../providers/model-capabilities-registry.js";
 import { settingsModelsQuerySchema, storeNameSchema } from "../../../shared/src/schemas/api-input.schema.js";
 import { validateExternalUrl, BlockedUrlError } from "../lib/urlValidation.js";
+import { logger } from "../lib/logger.js";
 
 export const settingsRouter = Router();
 
@@ -89,13 +90,16 @@ settingsRouter.post("/providers/:providerId/verify-model", async (req, res) => {
       signal: AbortSignal.timeout(10_000),
     });
     if (res_.ok) {
+      logger.info(`[verify-model] ${providerId}/${modelId}: OK`);
       res.json({ ok: true, modelId });
     } else {
       const body = await res_.text().catch(() => "");
+      logger.warn(`[verify-model] ${providerId}/${modelId}: HTTP ${res_.status} — ${body.slice(0, 200)}`);
       res.json({ ok: false, modelId, error: `HTTP ${res_.status}: ${body.slice(0, 200)}` });
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    logger.warn(`[verify-model] ${providerId}/${modelId}: ${message}`);
     res.json({ ok: false, modelId, error: message });
   }
 });

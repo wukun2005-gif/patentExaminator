@@ -213,8 +213,14 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
           body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 1 }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
-        return res.ok ? modelId : null;
-      } catch {
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          logger.warn(`[listModels:verify] ${this.id}/${modelId}: HTTP ${res.status} — ${body.slice(0, 200)}`);
+          return null;
+        }
+        return modelId;
+      } catch (e) {
+        logger.warn(`[listModels:verify] ${this.id}/${modelId}: ${e instanceof Error ? e.message : String(e)}`);
         return null;
       }
     };
