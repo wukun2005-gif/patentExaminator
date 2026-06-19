@@ -11,6 +11,7 @@ import { ocrRouter } from "./routes/ocr.js";
 import { documentsRouter } from "./routes/documents.js";
 import { agentRouter } from "./routes/agent.js";
 import { metricsRouter } from "./routes/metrics.js";
+import { notificationsRouter } from "./routes/notifications.js";
 import { chatAttachmentsRouter } from "./routes/chat-attachments.js";
 import { logger } from "./lib/logger.js";
 import { closeSyncDb } from "./lib/syncDb.js";
@@ -98,6 +99,7 @@ app.use("/api", requireLocalhost, documentsRouter);
 app.use("/api", agentRouter);
 app.use("/api", chatAttachmentsRouter);
 app.use("/api", metricsRouter);
+app.use("/api", notificationsRouter);
 
 // Serve client static files if dist exists
 const clientDist = path.resolve(__dirname, "../../client/dist");

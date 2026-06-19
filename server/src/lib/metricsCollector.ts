@@ -57,7 +57,7 @@ class MetricsCollector {
           success, error_type, error_code,
           timings_json, attempts_json
         ) VALUES (
-          ?, datetime('now'), ?, ?, ?, ?,
+          ?, datetime('now','localtime'), ?, ?, ?, ?,
           ?, ?, ?,
           ?, ?, ?,
           ?, ?, ?, ?,

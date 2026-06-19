@@ -77,6 +77,14 @@ export interface AppSettings {
   knowledge?: KnowledgeConfig;
   /** nf-9: 知识库独立 API Provider 配置 */
   knowledgeProviders?: KnowledgeProviderConnection[];
+  /** 离线评估配置（持久化） */
+  evalConfig?: {
+    judgeConfigs?: Array<{ providerId: string; modelId: string }> | undefined;
+    generatorProviderId?: string | undefined;
+    generatorModel?: string | undefined;
+    questionCount?: number | undefined;
+    selectedEvalSetId?: string | undefined;
+  };
 }
 
 export interface PresetModelProvider {

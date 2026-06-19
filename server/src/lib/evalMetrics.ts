@@ -34,6 +34,7 @@ export async function computeRetrievalMetricsBatch(
   judgeApiKeys: Record<string, string>,
   k: number = 10,
   batchQuestions: number = 5,
+  judgeConfigs?: Array<{ providerId: string; modelId: string }>,
 ): Promise<Map<string, { ndcg: number; recall: number; grades: Array<{ chunkId: string; grade: number }> }>> {
   const result = new Map<string, { ndcg: number; recall: number; grades: Array<{ chunkId: string; grade: number }> }>();
 
@@ -42,7 +43,7 @@ export async function computeRetrievalMetricsBatch(
   // 分批处理，避免 prompt 过大导致超时
   for (let batchStart = 0; batchStart < questions.length; batchStart += batchQuestions) {
     const batch = questions.slice(batchStart, batchStart + batchQuestions);
-    const batchResult = await computeRetrievalMetricsSingleBatch(batch, judgeApiKeys, k);
+    const batchResult = await computeRetrievalMetricsSingleBatch(batch, judgeApiKeys, k, judgeConfigs);
     batchResult.forEach((metrics, id) => {
       result.set(id, metrics);
     });
@@ -62,23 +63,24 @@ async function computeRetrievalMetricsSingleBatch(
   }>,
   judgeApiKeys: Record<string, string>,
   k: number,
+  judgeConfigs?: Array<{ providerId: string; modelId: string }>,
 ): Promise<Map<string, { ndcg: number; recall: number; grades: Array<{ chunkId: string; grade: number }> }>> {
   const result = new Map<string, { ndcg: number; recall: number; grades: Array<{ chunkId: string; grade: number }> }>();
 
-  // 构建合并 prompt：一次评估本批次题目的所有 chunk
+  // 构建合并 prompt：一次评估本批次题目的全部 chunk（spec M2: Recall 分母是 grade≥2 的总数，非 top-K）
   const allChunksParts: string[] = [];
-  const chunkIndexMap: Array<{ questionId: string; chunkId: string; index: number }> = [];
+  const chunkIndexMap: Array<{ questionId: string; chunkId: string; index: number; isTopK: boolean }> = [];
 
   for (const q of questions) {
-    const topK = q.chunks.slice(0, k);
-    if (topK.length === 0) continue;
+    if (q.chunks.length === 0) continue;
 
     allChunksParts.push(`## 问题：${q.query}`);
-    for (const chunk of topK) {
+    for (let ci = 0; ci < q.chunks.length; ci++) {
+      const chunk = q.chunks[ci]!;
       const text = chunk.text?.slice(0, 500) || "";
       const globalIndex = chunkIndexMap.length;
       allChunksParts.push(`### Chunk ${globalIndex + 1} (ID: ${chunk.id}, Question: ${q.questionId})\n${text}`);
-      chunkIndexMap.push({ questionId: q.questionId, chunkId: chunk.id, index: globalIndex });
+      chunkIndexMap.push({ questionId: q.questionId, chunkId: chunk.id, index: globalIndex, isTopK: ci < k });
     }
   }
 
@@ -103,7 +105,7 @@ async function computeRetrievalMetricsSingleBatch(
   const outputs = await callMultiJudge(
     { system, user },
     judgeApiKeys,
-    { temperature: 0, maxTokens: 4000 },
+    { temperature: 0, maxTokens: 4000, ...(judgeConfigs ? { judgeConfigs } : {}) },
   );
 
   // 解析每个 judge 的结果
@@ -146,30 +148,33 @@ async function computeRetrievalMetricsSingleBatch(
   }
 
   // 按 questionId 分组，计算每个题目的 NDCG 和 Recall
+  // spec M1: NDCG 用 top-K；spec M2: Recall 分母是全部 chunk 中 grade≥2 的总数
   for (const q of questions) {
-    const topK = q.chunks.slice(0, k);
-    const questionGrades = aggregatedGrades
-      .filter(g => topK.some(c => c.id === g.chunkId))
-      .slice(0, k);
+    const allQuestionIdx = chunkIndexMap
+      .map((c, i) => c.questionId === q.questionId ? i : -1)
+      .filter(i => i >= 0);
+    const topKGrades = allQuestionIdx
+      .filter(i => chunkIndexMap[i]!.isTopK)
+      .map(i => aggregatedGrades[i]!);
+    const allGrades = allQuestionIdx.map(i => aggregatedGrades[i]!);
 
-    // 计算 NDCG
+    // NDCG: 仅用 top-K grades
     let dcg = 0;
-    for (let i = 0; i < questionGrades.length; i++) {
-      dcg += (Math.pow(2, questionGrades[i]!.grade) - 1) / Math.log2(i + 2);
+    for (let i = 0; i < topKGrades.length; i++) {
+      dcg += (Math.pow(2, topKGrades[i]!.grade) - 1) / Math.log2(i + 2);
     }
-
     let idcg = 0;
-    for (let i = 0; i < Math.min(k, questionGrades.length); i++) {
+    for (let i = 0; i < Math.min(k, topKGrades.length); i++) {
       idcg += (Math.pow(2, 3) - 1) / Math.log2(i + 2);
     }
-
     const ndcg = idcg > 0 ? Math.min(1, dcg / idcg) : 0;
 
-    // 计算 Recall
-    const relevantInTopK = questionGrades.filter(g => g.grade >= 2).length;
-    const recall = questionGrades.length > 0 ? relevantInTopK / questionGrades.length : 0;
+    // Recall: 分母 = 全部 chunk 中 grade≥2 的总数，分子 = top-K 中 grade≥2 的数
+    const totalRelevant = allGrades.filter(g => g.grade >= 2).length;
+    const relevantInTopK = topKGrades.filter(g => g.grade >= 2).length;
+    const recall = totalRelevant > 0 ? relevantInTopK / totalRelevant : 0;
 
-    result.set(q.questionId, { ndcg, recall, grades: questionGrades });
+    result.set(q.questionId, { ndcg, recall, grades: topKGrades });
   }
 
   return result;
@@ -213,14 +218,24 @@ export async function computeFaithfulnessMultiJudge(
   const system = [
     "你是专利审查 AI 助手的事实核查员。请判断以下回答是否忠实于提供的参考文档。",
     "",
+    "【评估流程】",
+    "1. 将回答拆解为独立的声明（claims）",
+    "2. 对每个声明，检查是否被参考文档支持",
+    "3. 计算：faithfulness = 被支持的声明数 / 总声明数",
+    "",
     "评分标准（0.0 - 1.0）：",
-    "- 1.0: 回答完全忠实于文档，所有声明都有文档支撑",
+    "- 1.0: 所有声明都有文档支撑",
     "- 0.7-0.9: 大部分忠实，个别声明无法验证",
     "- 0.4-0.6: 部分忠实，存在一些无支撑声明",
     "- 0.1-0.3: 大部分不忠实，多数声明无文档支撑",
     "- 0.0: 完全不忠实，回答与文档无关或全是幻觉",
     "",
-    "输出 JSON：{ \"score\": 0.0-1.0, \"reasoning\": \"评分理由\" }",
+    "输出 JSON：{",
+    '  "claims": [{"claim": "声明内容", "supported": true/false, "evidence": "文档中的支撑文本或无"}],',
+    '  "score": 0.0-1.0,',
+    '  "reasoning": "评分理由"',
+    "}",
+    "score 必须等于 supported=true 的 claim 数 / 总 claim 数。",
     "严格按 JSON 格式输出，不要输出 markdown 代码块。",
   ].join("\n");
 
@@ -237,8 +252,18 @@ export async function computeFaithfulnessMultiJudge(
   return multiJudgeContinuous(
     { system, user },
     judgeApiKeys,
-    parseScoreFromJson,
-    { defaultValue: 0.5, ...judgeOpts }
+    (rawText) => {
+      const json = extractJsonFromLLM(rawText);
+      if (json && typeof json.score === "number") return Math.max(0, Math.min(1, json.score));
+      // fallback: 从 claims 数组计算
+      if (json && Array.isArray(json.claims)) {
+        const total = json.claims.length;
+        const supported = json.claims.filter((c: { supported?: boolean }) => c.supported).length;
+        return total > 0 ? supported / total : 0;
+      }
+      return null;
+    },
+    { defaultValue: 0, ...judgeOpts }
   );
 }
 
@@ -701,7 +726,12 @@ export async function computeSemanticMetricsBatch(
     mustIncludeFacts?: string[];
   }>,
   judgeApiKeys: Record<string, string>,
-  judgeOpts?: { modelFallbacks?: Record<string, string[]>; enableModelFallback?: boolean }
+  judgeOpts?: {
+    modelFallbacks?: Record<string, string[]>;
+    enableModelFallback?: boolean;
+    /** judge 配置数组（覆盖默认 2-judge 配置） */
+    judgeConfigs?: Array<{ providerId: string; modelId: string }>;
+  }
 ): Promise<Map<string, {
   faithfulness: MultiJudgeResult<number>;
   answerCorrectness: MultiJudgeResult<number>;

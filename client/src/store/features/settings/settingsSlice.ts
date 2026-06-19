@@ -40,15 +40,20 @@ const REPO_DEFAULT_SETTINGS: AppSettings = {
     }
   ],
   agents: [
+    { agent: "extract-case-fields", providerOrder: [], modelId: "", maxTokens: 8192 },
+    { agent: "classify-documents", providerOrder: [], modelId: "", maxTokens: 2048 },
     { agent: "interpret", providerOrder: [], modelId: "", maxTokens: 4096 },
+    { agent: "search-references", providerOrder: [], modelId: "", maxTokens: 4096 },
     { agent: "claim-chart", providerOrder: [], modelId: "", maxTokens: 4096 },
     { agent: "novelty", providerOrder: [], modelId: "", maxTokens: 4096 },
     { agent: "inventive", providerOrder: [], modelId: "", maxTokens: 4096 },
+    { agent: "defects", providerOrder: [], modelId: "", maxTokens: 4096 },
+    { agent: "opinion-analysis", providerOrder: [], modelId: "", maxTokens: 4096 },
+    { agent: "argument-analysis", providerOrder: [], modelId: "", maxTokens: 4096 },
+    { agent: "reexam-draft", providerOrder: [], modelId: "", maxTokens: 4096 },
     { agent: "summary", providerOrder: [], modelId: "", maxTokens: 4096 },
+    { agent: "translate", providerOrder: [], modelId: "", maxTokens: 4096 },
     { agent: "chat", providerOrder: [], modelId: "", maxTokens: 4096 },
-    { agent: "extract-case-fields", providerOrder: [], modelId: "", maxTokens: 8192 },
-    { agent: "classify-documents", providerOrder: [], modelId: "", maxTokens: 2048 },
-    { agent: "translate", providerOrder: [], modelId: "", maxTokens: 4096 }
   ],
   searchProviders: [
     { providerId: "tavily", name: "Tavily", apiKeyRef: "", enabled: true }

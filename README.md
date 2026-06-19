@@ -1,6 +1,6 @@
 # 专利复审 AI 助手
 
-> AI 辅助发明专利复审的 Web 工具 — RAG + Web Search + Groundedness 三重知识增强
+> AI 辅助发明专利复审的 Web 工具 — RAG + Web Search + Groundedness 三重知识增强 · 内置离线评估平台持续监控质量
 
 目标用户：发明专利复审实质审查员。本工具辅助完成审查意见解析、申请人答辩映射、复审事实复核和逐条回应草稿生成，所有 AI 输出为候选事实整理，需审查员确认。
 
@@ -55,6 +55,8 @@ npm run dev
 | Groundedness | LLM-as-Judge 验证回答忠实度，自动过滤幻觉声明 | 自动触发 |
 | 聊天文件上传 | 聊天中上传 PDF/DOCX/TXT/HTML/图片，AI 理解文件内容回答问题 | AI 助手 📎 按钮 |
 | 数据同步 | 跨设备数据同步，服务器 SQLite 存储 | `/settings` (同步 tab) |
+| Metrics Dashboard | 五维度 × 八指标实时监控，延迟分布、Groundedness 趋势图 | `/settings` (性能指标 tab) |
+| 离线评估 | Golden Set 生成 + Multi-Judge 评估 + Eval Set 管理，量化 RAG 质量 | `/settings` (性能指标 tab) |
 | 设置 | 配置 AI Provider、Agent 分配、知识库和同步 | `/settings` |
 
 ---
@@ -170,4 +172,65 @@ npm run dev
 
 - **阈值策略**：groundedRatio ≥ 0.8 通过；0.5~0.8 仅保留有据声明；< 0.5 触发重新生成
 - **降级保护**：Judge 调用失败时默认通过，不阻塞用户
+
+---
+
+## 质量监控与离线评估平台
+
+> 不仅能用 AI，还能**量化 AI 好不好用**。
+
+系统内置完整的 Metrics 采集和离线评估平台，覆盖从单次调用到全局趋势的全链路质量监控。
+
+### 五维度指标体系
+
+每次 AI 调用自动采集 20+ 字段（延迟、Token、Groundedness、RAG 分数等），按 **5 个维度**独立聚合分析：
+
+| 维度 | 回答的问题 | 示例 |
+|------|-----------|------|
+| **LLM Provider** | 哪个模型最好？ | gemini:gemini-3.1-flash-lite vs mimo:mimo-v2.5-pro |
+| **Search Provider** | 哪个搜索引擎最相关？ | google vs bing vs baidu |
+| **Reranker** | 重排序模型对检索质量有多大提升？ | bge-reranker-v2-m3 |
+| **Embedding** | 向量模型对检索质量有多大影响？ | bge-m3 |
+| **模型组合** | 完整 pipeline 配置的端到端表现？ | LLM + Search + Reranker + Embedding 全链路 |
+
+每个维度支持 **8 项指标**：调用次数、成功率、耗时（p50/p90/p99）、Groundedness、RAG 分数、TTFT、Web 相关性、跨源相关性。
+
+### 离线评估（Golden Set + Multi-Judge）
+
+用固定测试集量化 RAG 系统质量，确保每次配置变更不会导致质量退化。
+
+**评估指标（M1-M10）**：
+
+| 指标 | 衡量什么 | 优先级 |
+|------|---------|:---:|
+| NDCG@K | 检索排序质量（位置敏感） | P0 |
+| Faithfulness | 生成内容是否忠实于检索文档（防幻觉） | P0 |
+| Source Routing | KB vs Web 路由是否正确 | P0 |
+| Recall@K | 关键信息是否被检索到 | P1 |
+| KB Hit Rate | 知识库检索质量 | P1 |
+| Answer Correctness | 端到端答案正确性 | P1 |
+| Fact Coverage | 关键事实是否覆盖 | P1 |
+| Conflict Resolution | KB 与 Web 矛盾时是否正确选择权威源 | P2 |
+| Refusal Accuracy | 无可靠答案时是否拒绝回答 | P2 |
+
+**Multi-Judge 架构**：M5/M6/M7 等语义指标使用 2-3 个 LLM judge 独立打分，取算术平均，消除单模型偏差。
+
+**Golden Set 设计**：按 sourceType（kb_only / web_only / cross_source / conflict / no_answer）× category（新颖性 / 创造性 / 权利要求 / 形式缺陷 / 程序）矩阵生成，确保全场景覆盖。
+
+### Eval Set 管理
+
+Dashboard 内置 Eval Set 管理界面，支持创建、上传、重命名、删除评估集，异步执行评估任务，实时查看进度。
+
+```
+Settings → 性能指标 tab
+  ├─ 概览卡片（总调用 / 成功率 / Groundedness）
+  ├─ 5 维度 × 8 指标对比表
+  ├─ 延迟分布（p50/p90/p99 + 堆叠条形图）
+  ├─ Groundedness 趋势图（按天）
+  └─ 离线评估
+       ├─ Eval Set 管理（CRUD + JSON 导入）
+       ├─ Golden Set 生成（3 LLM × 7 题 = 21 题）
+       ├─ 异步评估运行 + 进度条
+       └─ 历史报告对比
+```
 

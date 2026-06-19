@@ -148,3 +148,42 @@ export {
   testNf1RealWebSearchReturnsResults,
   testNf1MergedCitationsRanking,
 } from "./nf1-nf2.mjs";
+
+// Eval Set CRUD 测试 (nf5-2 Phase 1)
+export {
+  testEvalSetCreate,
+  testEvalSetList,
+  testEvalSetDetail,
+  testEvalSetRename,
+  testEvalSetRenameVerify,
+  testEvalSetDelete,
+  testEvalSetDeleteVerify,
+  testEvalSetImport,
+  testEvalSetImportCleanup,
+} from "./eval-sets.mjs";
+
+export {
+  testAsyncGenerateReturnsTaskId,
+  testAsyncGenerateProgress,
+  testAsyncCancelGenerate,
+  testAsyncEvalReturnsTaskId,
+  testAsyncEvalProgress,
+  testAsyncCancelEval,
+  testAsyncTasksList,
+  testAsyncNotificationsSSE,
+  testAsyncCleanup,
+} from "./async-tasks.mjs";
+
+// Phase 3: 模型选择 + 比较 + 分析报告 (nf5-2)
+export {
+  testCompareMissingRunIds,
+  testCompareSingleRunId,
+  testCompareNonexistentRunIds,
+  testAnalysisNonexistentReport,
+  testGenerateAcceptsProviderParams,
+  testEvalAcceptsJudgeConfigs,
+  testSyncEvalAcceptsJudgeConfigs,
+  testCompareWithRealReports,
+  testAnalysisWithRealReport,
+  testPhase3Cleanup,
+} from "./metrics-phase3.mjs";

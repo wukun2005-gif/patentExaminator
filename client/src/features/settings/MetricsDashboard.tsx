@@ -1,5 +1,5 @@
 /**
- * Metrics Dashboard — Settings 页第 5 tab
+ * Metrics Dashboard — Settings 页「指标」tab
  *
  * 纯 UI 组件：所有数据直接从 server API 获取，
  * 本地只有 useState（UI 状态），无 store，无逻辑处理。
@@ -35,54 +35,6 @@ interface AgentRow {
   count: number;
 }
 
-interface GoldenQuestion {
-  id: string;
-  agent: string;
-  query: string;
-  category: string;
-  difficulty: string;
-  generated_by: string;
-}
-
-interface EvalConfigSummary {
-  label: string;
-  avgRecall: number;
-  avgNdcg: number;
-  avgFaithfulness: number;
-  avgDurationMs: number;
-  passRate: number;
-  avgAnswerCorrectness: number;
-  avgFactCoverage: number;
-  avgSourceRoutingAccuracy: number;
-  avgKbHitRate: number;
-}
-
-interface EvalResult {
-  configLabel: string;
-  recall: number;
-  ndcg: number;
-  faithfulness: number;
-}
-
-interface EvalQuestionRow {
-  query: string;
-  results: EvalResult[];
-}
-
-interface EvalReport {
-  runId: string;
-  timestamp: string;
-  configs: EvalConfigSummary[];
-  questionCount: number;
-  questionBreakdown: EvalQuestionRow[];
-}
-
-interface ReportListItem {
-  id: string;
-  timestamp: string;
-  config_json: string;
-}
-
 interface DimRow {
   dimension_value: string;
   run_count: number;
@@ -116,15 +68,6 @@ export function MetricsDashboard() {
   const [dateTo, setDateTo] = useState("");
   const [sortCol, setSortCol] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
-
-  // Offline eval state
-  const [goldenSet, setGoldenSet] = useState<{ count: number; questions: GoldenQuestion[] } | null>(null);
-  const [evalReports, setEvalReports] = useState<ReportListItem[]>([]);
-  const [selectedReport, setSelectedReport] = useState<EvalReport | null>(null);
-  const [evalLoading, setEvalLoading] = useState(false);
-  const [evalError, setEvalError] = useState<string | null>(null);
-  const [evalSuccess, setEvalSuccess] = useState<string | null>(null);
-  const [showOfflineEval, setShowOfflineEval] = useState(false);
 
   const refreshAll = useCallback(async () => {
     setLoading(true);
@@ -167,22 +110,7 @@ export function MetricsDashboard() {
     }
   }, [selectedAgent, dateFrom, dateTo]);
 
-  const refreshGoldenSet = useCallback(async () => {
-    try {
-      const res = await fetch("/api/metrics/golden-set");
-      if (res.ok) setGoldenSet(await res.json());
-    } catch { /* ignore */ }
-  }, []);
-
-  const refreshEvalReports = useCallback(async () => {
-    try {
-      const res = await fetch("/api/metrics/eval/reports");
-      if (res.ok) setEvalReports(await res.json());
-    } catch { /* ignore */ }
-  }, []);
-
   useEffect(() => { refreshAll(); }, [refreshAll]);
-  useEffect(() => { refreshGoldenSet(); refreshEvalReports(); }, [refreshGoldenSet, refreshEvalReports]);
 
   // ── Derived UI data ────────────────────────────────────
 
@@ -228,97 +156,6 @@ export function MetricsDashboard() {
   const ttftRows = summary.filter(r => r.avg_ttft_ms != null && r.avg_ttft_ms > 0);
   const totalTtftRuns = ttftRows.reduce((s, r) => s + r.run_count, 0);
   const avgTtft = totalTtftRuns > 0 ? ttftRows.reduce((s, r) => s + (r.avg_ttft_ms ?? 0) * r.run_count, 0) / totalTtftRuns : 0;
-
-  // ── Offline eval handlers ──────────────────────────────
-
-  const handleGenerateGoldenSet = async () => {
-    setEvalLoading(true);
-    setEvalError(null);
-    setEvalSuccess(null);
-    try {
-      const res = await fetch("/api/metrics/golden-set/generate", { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json() as { error?: string };
-        throw new Error(data.error || "生成失败");
-      }
-      const data = await res.json() as { count: number };
-      setEvalSuccess(`Golden Set 生成成功：${data.count} 题`);
-      await refreshGoldenSet();
-    } catch (err) {
-      setEvalError(err instanceof Error ? err.message : "生成失败");
-    } finally {
-      setEvalLoading(false);
-    }
-  };
-
-  const handleClearGoldenSet = async () => {
-    setEvalLoading(true);
-    setEvalError(null);
-    try {
-      await fetch("/api/metrics/golden-set", { method: "DELETE" });
-      setGoldenSet(null);
-      setEvalSuccess("Golden Set 已清空");
-    } catch (err) {
-      setEvalError(err instanceof Error ? err.message : "清空失败");
-    } finally {
-      setEvalLoading(false);
-    }
-  };
-
-  const handleRunEval = async () => {
-    // Build configs from summary data (unique provider:model combos)
-    const seen = new Set<string>();
-    const configs = summary
-      .filter((r) => {
-        const k = `${r.provider_id}:${r.model_id}`;
-        if (seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      })
-      .map((r) => ({
-        label: `${r.provider_id}:${r.model_id}`,
-        providerId: r.provider_id,
-        modelId: r.model_id,
-      }));
-    if (configs.length === 0) {
-      setEvalError("暂无模型配置，请先使用 Agent 产生指标数据");
-      return;
-    }
-    setEvalLoading(true);
-    setEvalError(null);
-    setEvalSuccess(null);
-    try {
-      const res = await fetch("/api/metrics/eval/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ configs }),
-      });
-      if (!res.ok) {
-        const data = await res.json() as { error?: string };
-        throw new Error(data.error || "评估失败");
-      }
-      const report = await res.json() as EvalReport;
-      setSelectedReport(report);
-      setEvalSuccess(`评估完成：${report.questionCount} 题 x ${report.configs.length} 配置`);
-      await refreshEvalReports();
-    } catch (err) {
-      setEvalError(err instanceof Error ? err.message : "评估失败");
-    } finally {
-      setEvalLoading(false);
-    }
-  };
-
-  const handleViewReport = async (reportId: string) => {
-    // Load full report detail via dedicated endpoint (nf5)
-    try {
-      const res = await fetch(`/api/metrics/eval/reports/${reportId}`);
-      if (res.ok) {
-        const report = await res.json() as EvalReport;
-        setSelectedReport(report);
-        setEvalSuccess(`报告 ${reportId.slice(0, 8)}... 加载于 ${new Date(report.timestamp).toLocaleString()}`);
-      }
-    } catch { /* ignore */ }
-  };
 
   const SortIcon = ({ col }: { col: string }) => {
     if (sortCol !== col) return <span className="metrics-table__sort-icon"> </span>;
@@ -478,149 +315,6 @@ export function MetricsDashboard() {
           </div>
         );
       })}
-
-      {/* Offline Evaluation */}
-      <div className="metrics-section">
-        <h3
-          className="metrics-section__toggle"
-          onClick={() => setShowOfflineEval(!showOfflineEval)}
-          data-testid="offline-eval-toggle"
-        >
-          离线评估 <span className="metrics-section__toggle__arrow">{showOfflineEval ? "▼" : "▶"}</span>
-        </h3>
-        {showOfflineEval && (
-          <div className="offline-eval" data-testid="offline-eval">
-            {evalError && <div className="metrics-error" data-testid="eval-error">{evalError}</div>}
-            {evalSuccess && <div className="metrics-success" data-testid="eval-success">{evalSuccess}</div>}
-
-            {/* Golden Set Management */}
-            <div className="offline-eval__section">
-              <h4>Golden Set</h4>
-              {goldenSet && goldenSet.count > 0 ? (
-                <div>
-                  <p>已有 <strong>{goldenSet.count}</strong> 道题目</p>
-                  <div className="offline-eval__actions">
-                    <button type="button" onClick={handleGenerateGoldenSet} disabled={evalLoading} data-testid="golden-regenerate">
-                      {evalLoading ? "生成中..." : "重新生成"}
-                    </button>
-                    <button type="button" onClick={handleClearGoldenSet} disabled={evalLoading} data-testid="golden-clear">
-                      清空
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <p className="metrics-hint">尚未生成 Golden Set</p>
-                  <button type="button" onClick={handleGenerateGoldenSet} disabled={evalLoading} data-testid="golden-generate">
-                    {evalLoading ? "生成中..." : "生成 Golden Set"}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Run Evaluation */}
-            <div className="offline-eval__section">
-              <h4>运行评估</h4>
-              {summary.length > 0 ? (
-                <div>
-                  <p className="metrics-hint">
-                    将使用已有的 {(() => {
-                      const seen = new Set<string>();
-                      return summary.filter((r) => {
-                        const k = `${r.provider_id}:${r.model_id}`;
-                        if (seen.has(k)) return false;
-                        seen.add(k);
-                        return true;
-                      }).length;
-                    })()} 个模型配置运行 Golden Set 评估
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleRunEval}
-                    disabled={evalLoading || !goldenSet || goldenSet.count === 0}
-                    data-testid="eval-run"
-                  >
-                    {evalLoading ? "评估中..." : "开始评估"}
-                  </button>
-                </div>
-              ) : (
-                <p className="metrics-hint">暂无模型配置，运行 Agent 后可评估</p>
-              )}
-            </div>
-
-            {/* Selected Report Detail */}
-            {selectedReport && (
-              <div className="offline-eval__section">
-                <h4>评估结果</h4>
-                <p>题目数: {selectedReport.questionCount} | 时间: {new Date(selectedReport.timestamp).toLocaleString()}</p>
-                <div className="metrics-table-wrap">
-                  <table className="metrics-table">
-                    <thead>
-                      <tr>
-                        <th>配置</th>
-                        <th>Recall@K</th>
-                        <th>NDCG@K</th>
-                        <th>Faithfulness</th>
-                        <th>答案正确性</th>
-                        <th>事实覆盖</th>
-                        <th>路由准确</th>
-                        <th>KB Hit</th>
-                        <th>通过率</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedReport.configs.map((c) => (
-                        <tr key={c.label}>
-                          <td>{c.label}</td>
-                          <td>{c.avgRecall.toFixed(3)}</td>
-                          <td>{c.avgNdcg.toFixed(3)}</td>
-                          <td>{c.avgFaithfulness.toFixed(3)}</td>
-                          <td>{(c.avgAnswerCorrectness ?? 0).toFixed(3)}</td>
-                          <td>{(c.avgFactCoverage ?? 0).toFixed(3)}</td>
-                          <td>{(c.avgSourceRoutingAccuracy ?? 0).toFixed(3)}</td>
-                          <td>{(c.avgKbHitRate ?? 0).toFixed(3)}</td>
-                          <td>{(c.passRate * 100).toFixed(0)}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Historical Reports */}
-            {evalReports.length > 0 && (
-              <div className="offline-eval__section">
-                <h4>历史报告</h4>
-                <div className="metrics-table-wrap">
-                  <table className="metrics-table">
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>时间</th>
-                        <th>操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {evalReports.map((r) => (
-                        <tr key={r.id}>
-                          <td>{r.id.slice(0, 8)}...</td>
-                          <td>{new Date(r.timestamp).toLocaleString()}</td>
-                          <td>
-                            <button type="button" onClick={() => handleViewReport(r.id)} data-testid={`view-report-${r.id.slice(0, 8)}`}>
-                              查看
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Empty */}
       {!loading && !error && summary.length === 0 && (

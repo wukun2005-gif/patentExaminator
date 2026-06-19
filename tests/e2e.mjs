@@ -155,6 +155,34 @@ import {
   testGoldenEvalQuality,
   testGoldenEvalModelCombination,
   testGoldenEvalCleanup,
+  testEvalSetCreate,
+  testEvalSetList,
+  testEvalSetDetail,
+  testEvalSetRename,
+  testEvalSetRenameVerify,
+  testEvalSetDelete,
+  testEvalSetDeleteVerify,
+  testEvalSetImport,
+  testEvalSetImportCleanup,
+  testAsyncGenerateReturnsTaskId,
+  testAsyncGenerateProgress,
+  testAsyncCancelGenerate,
+  testAsyncEvalReturnsTaskId,
+  testAsyncEvalProgress,
+  testAsyncCancelEval,
+  testAsyncTasksList,
+  testAsyncNotificationsSSE,
+  testAsyncCleanup,
+  testCompareMissingRunIds,
+  testCompareSingleRunId,
+  testCompareNonexistentRunIds,
+  testAnalysisNonexistentReport,
+  testGenerateAcceptsProviderParams,
+  testEvalAcceptsJudgeConfigs,
+  testSyncEvalAcceptsJudgeConfigs,
+  testCompareWithRealReports,
+  testAnalysisWithRealReport,
+  testPhase3Cleanup,
 } from "./e2e/index.mjs";
 
 // ── 初始化 ──────────────────────────────────────────────────────────
@@ -461,6 +489,39 @@ async function main() {
     await withTimeout(() => maybe(testGoldenEvalQuality));
     await withTimeout(() => maybe(testGoldenEvalModelCombination), GOLDEN_EVAL_TIMEOUT);
     await withTimeout(() => maybe(testGoldenEvalCleanup));
+
+    // Eval Set CRUD 测试 (nf5-2 Phase 1)
+    console.log("\n--- Eval Set CRUD ---");
+    const evalSetId = await withTimeout(() => maybe(testEvalSetCreate));
+    await withTimeout(() => maybe(testEvalSetList));
+    await withTimeout(() => maybe(testEvalSetDetail, evalSetId));
+    await withTimeout(() => maybe(testEvalSetRename, evalSetId));
+    await withTimeout(() => maybe(testEvalSetRenameVerify, evalSetId));
+    await withTimeout(() => maybe(testEvalSetDelete, evalSetId));
+    await withTimeout(() => maybe(testEvalSetDeleteVerify, evalSetId));
+    const importedSetId = await withTimeout(() => maybe(testEvalSetImport));
+    await withTimeout(() => maybe(testEvalSetImportCleanup, importedSetId));
+
+    // Async Task 测试 (nf5-2 Phase 2)
+    console.log("\n--- Async Tasks ---");
+    await withTimeout(() => maybe(testAsyncNotificationsSSE));
+    const genTaskId = await withTimeout(() => maybe(testAsyncGenerateReturnsTaskId));
+    if (genTaskId) {
+      await withTimeout(() => maybe(testAsyncGenerateProgress, genTaskId));
+      await withTimeout(() => maybe(testAsyncCancelGenerate));
+    }
+    const evalTaskId = await withTimeout(() => maybe(testAsyncEvalReturnsTaskId));
+    if (evalTaskId) {
+      await withTimeout(() => maybe(testAsyncEvalProgress, evalTaskId));
+      await withTimeout(() => maybe(testAsyncCancelEval, evalTaskId));
+    }
+    await withTimeout(() => maybe(testAsyncTasksList));
+    await withTimeout(() => maybe(testAsyncCleanup));
+
+    // Phase 3: 比较 + 分析报告（需要已有报告）
+    console.log("\n--- Phase 3: Compare + Analysis (real reports) ---");
+    await withTimeout(() => maybe(testCompareWithRealReports));
+    await withTimeout(() => maybe(testAnalysisWithRealReport));
   }
 
   function maybe(fn, ...fnArgs) {
@@ -654,6 +715,18 @@ async function main() {
       // DB Scenario regression tests (bugs 18/19/21/22 etc.)
       console.log("\n--- DB Scenario Regression ---");
       await maybe(runDbScenarioTests);
+
+      // Phase 3 参数验证测试 (nf5-2, 不需要 API Key)
+      setGroup("phase3");
+      console.log("\n--- Phase 3: Parameter Validation ---");
+      await maybe(testCompareMissingRunIds);
+      await maybe(testCompareSingleRunId);
+      await maybe(testCompareNonexistentRunIds);
+      await maybe(testAnalysisNonexistentReport);
+      await maybe(testGenerateAcceptsProviderParams);
+      await maybe(testEvalAcceptsJudgeConfigs);
+      await maybe(testSyncEvalAcceptsJudgeConfigs);
+      await maybe(testPhase3Cleanup);
 
       // Real mode tests (optional, auto-skip if no key)
       if (GEMINI_KEY) {

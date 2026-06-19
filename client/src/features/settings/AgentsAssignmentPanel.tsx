@@ -147,7 +147,6 @@ export function AgentsAssignmentPanel() {
           <span>功能</span>
           <span>说明</span>
           <span>使用模型</span>
-          <span />
         </div>
         {AGENT_OPTIONS.map((agentOpt) => {
           const assignment = getAssignment(agentOpt.id);
@@ -289,18 +288,6 @@ export function AgentsAssignmentPanel() {
                     </div>
                   )}
                 </div>
-              </span>
-              <span>
-                {assignment && (
-                  <button
-                    type="button"
-                    className="btn-text"
-                    onClick={() => handleReset(agentOpt.id)}
-                    data-testid={`btn-reset-agent-${agentOpt.id}`}
-                  >
-                    重置
-                  </button>
-                )}
               </span>
             </div>
           );

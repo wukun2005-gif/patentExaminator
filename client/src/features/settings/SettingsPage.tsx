@@ -5,8 +5,9 @@ import { AgentsAssignmentPanel } from "./AgentsAssignmentPanel";
 import { SearchProvidersConfigPanel } from "./SearchProvidersConfigPanel";
 import { KnowledgeConfigPanel } from "./KnowledgeConfigPanel";
 import { MetricsDashboard } from "./MetricsDashboard";
+import { OfflineEvalPanel } from "./OfflineEvalPanel";
 
-type Tab = "providers" | "agents" | "search" | "knowledge" | "metrics";
+type Tab = "providers" | "agents" | "search" | "knowledge" | "metrics" | "eval";
 
 const TAB_KEY = "patent-examiner-settings-tab";
 
@@ -15,7 +16,7 @@ export function SettingsPage() {
   const tabFromUrl = searchParams.get("tab") as Tab | null;
 
   const [tab, setTab] = useState<Tab>(() => {
-    if (tabFromUrl && ["providers", "agents", "search", "knowledge", "metrics"].includes(tabFromUrl)) return tabFromUrl;
+    if (tabFromUrl && ["providers", "agents", "search", "knowledge", "metrics", "eval"].includes(tabFromUrl)) return tabFromUrl;
     const saved = localStorage.getItem(TAB_KEY);
     return (saved as Tab) ?? "providers";
   });
@@ -85,6 +86,14 @@ export function SettingsPage() {
         >
           指标
         </button>
+        <button
+          type="button"
+          className={`settings-tab ${tab === "eval" ? "settings-tab--active" : ""}`}
+          onClick={() => handleTabChange("eval")}
+          data-testid="tab-eval"
+        >
+          离线评估
+        </button>
       </div>
 
       <div className="settings-content">
@@ -93,6 +102,7 @@ export function SettingsPage() {
         {tab === "search" && <SearchProvidersConfigPanel />}
         {tab === "knowledge" && <KnowledgeConfigPanel />}
         {tab === "metrics" && <MetricsDashboard />}
+        {tab === "eval" && <OfflineEvalPanel />}
       </div>
     </div>
   );

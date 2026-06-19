@@ -126,6 +126,21 @@ export interface LatencyPercentiles {
   stage: string;
 }
 
+// ── Eval Set Management (nf5-2 Phase 1) ───────────────
+
+/** 评估集元数据（不含具体 questions） */
+export interface EvalSet {
+  id: string;                        // datetime-based unique set ID
+  name: string;                      // 用户可编辑的名称
+  createdAt: string;
+  updatedAt: string;
+  questionCount: number;
+  sourceTypeDistribution: Record<string, number>;  // {kb_only: 5, web_only: 5, ...}
+  status: 'ready' | 'generating' | 'error';
+  errorMessage: string;
+  metadata: Record<string, unknown>;
+}
+
 // ── Golden Evaluation Set ──────────────────────────────
 
 /** 题目来源类型（nf5 spec §2.3） */

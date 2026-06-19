@@ -11,13 +11,19 @@
  * parameters, never from process.env or keyStore.
  */
 import { randomUUID } from "node:crypto";
-import { getSyncDb } from "./syncDb.js";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { getSyncDb, getEvalRunMetas } from "./syncDb.js";
 
 /** 本地时间 ISO-like 格式（不带 Z 后缀） */
 function localISO(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const offset = -d.getTimezoneOffset();
+  const sign = offset >= 0 ? "+" : "-";
+  const offH = pad(Math.floor(Math.abs(offset) / 60));
+  const offM = pad(Math.abs(offset) % 60);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${offH}:${offM}`;
 }
 import { logger } from "./logger.js";
 import type { AgentRunRequest, AgentRunResponse } from "./orchestrator.js";
@@ -57,7 +63,7 @@ export interface EvalResult {
   durationMs: number;
   // Raw outputs
   actualAnswer: string;
-  actualSources: string[];
+  actualSources: SourceCitation[];
   error?: string;
 
   // ── nf5 指标 ──
@@ -76,6 +82,9 @@ export interface EvalReport {
   configs: EvalConfigSummary[];
   questionCount: number;
   questionBreakdown: EvalResult[];
+  reportJsonPath?: string;
+  logPath?: string;
+  durationMs?: number;
 }
 
 export interface EvalConfigSummary {
@@ -114,17 +123,21 @@ interface GoldenQuestion {
 // ── Golden set loading ────────────────────────────────────
 
 /**
- * Load all questions from the metrics_golden_set table.
+ * Load questions from the metrics_golden_set table.
+ * @param evalSetId - optional filter by eval set ID; if omitted, loads all questions
  */
-export function loadGoldenSet(): GoldenQuestion[] {
+export function loadGoldenSet(evalSetId?: string): GoldenQuestion[] {
   const db = getSyncDb();
+  const whereClause = evalSetId ? "WHERE eval_set_id = ?" : "";
+  const params = evalSetId ? [evalSetId] : [];
   const rows = db.prepare(
     `SELECT id, agent, query, expected_answer, expected_sources, expected_articles,
             category, difficulty, source_type, expected_source, source_routing_rationale,
             must_include_facts, verified_by, context_chunk_ids
      FROM metrics_golden_set
+     ${whereClause}
      ORDER BY category, id`
-  ).all() as Array<{
+  ).all(...params) as Array<{
     id: string;
     agent: string;
     query: string;
@@ -192,22 +205,31 @@ export async function runEvaluation(
     agentFilter?: string;
     /** 每个 judge provider 的 API key（MiMo/DeepSeek/Gemini 各自独立） */
     judgeApiKeys?: Record<string, string>;
+    /** 可选：指定 eval set ID，只评估该 eval set 中的题目 */
+    evalSetId?: string;
+    /** 可选：指定 judge 配置（覆盖默认 2-judge 配置） */
+    judgeConfigs?: Array<{ providerId: string; modelId: string }>;
+    /** 进度回调：每完成一个题目时调用 */
+    onProgress?: (current: number, total: number, phase: string) => void;
   }
 ): Promise<EvalReport> {
   const maxConcurrency = options?.maxConcurrency ?? 3;
   const batchDelayMs = options?.batchDelayMs ?? 5000;
   const judgeApiKeys = options?.judgeApiKeys ?? {};
 
-  // Load golden set
-  let questions = loadGoldenSet();
+  // Load golden set (filtered by evalSetId if provided)
+  let questions = loadGoldenSet(options?.evalSetId);
   if (options?.agentFilter) {
     questions = questions.filter((q) => q.agent === options.agentFilter);
   }
 
   if (questions.length === 0) {
     logger.warn("[EvalRunner] No golden questions found. Seed the golden set first.");
+    const emptyNow = new Date();
+    const emptyPad = (n: number) => String(n).padStart(2, "0");
+    const emptyRunId = `eval-${emptyNow.getFullYear()}-${emptyPad(emptyNow.getMonth() + 1)}-${emptyPad(emptyNow.getDate())}T${emptyPad(emptyNow.getHours())}:${emptyPad(emptyNow.getMinutes())}:${emptyPad(emptyNow.getSeconds())}`;
     const report: EvalReport = {
-      runId: randomUUID(),
+      runId: emptyRunId,
       timestamp: localISO(),
       configs: configs.map((c) => ({
         label: c.label,
@@ -228,7 +250,10 @@ export async function runEvaluation(
   logger.info(`[EvalRunner] Starting evaluation: ${configs.length} configs x ${questions.length} questions`);
 
   const allResults: EvalResult[] = [];
-  const runId = randomUUID();
+  // nf5-2: datetime-based run ID (e.g., "eval-2026-06-18T11:03:41")
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const runId = `eval-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
   // Execute evaluations with controlled concurrency
   for (const config of configs) {
@@ -263,6 +288,10 @@ export async function runEvaluation(
         ragResults.set(r.question.id, r);
       }
 
+      // 报告进度：Phase 1 完成的题目数
+      const completedInPhase1 = ragResults.size;
+      options?.onProgress?.(completedInPhase1, questions.length, "检索生成");
+
       // 批次间延迟，避免触发 provider rate limit
       if (batchDelayMs > 0) {
         logger.info(`[EvalRunner] Batch done, waiting ${batchDelayMs}ms before next batch...`);
@@ -292,8 +321,11 @@ export async function runEvaluation(
     const retrievalBatchSize = 5;
     logger.info(`[EvalRunner] Phase 2: 检索指标评估，${retrievalBatchData.length} 题分批（每批 ${retrievalBatchSize} 题）`);
     const retrievalMetricsMap = retrievalBatchData.length > 0
-      ? await computeRetrievalMetricsBatch(retrievalBatchData, judgeApiKeys, 10, retrievalBatchSize)
+      ? await computeRetrievalMetricsBatch(retrievalBatchData, judgeApiKeys, 10, retrievalBatchSize, options?.judgeConfigs)
       : new Map();
+
+    // 报告进度：Phase 2 完成
+    options?.onProgress?.(questions.length, questions.length, "检索指标评估完成");
 
     // Phase 3: 批量语义指标评估（分批，每批 7 题）
     const semanticBatchSize = 7;
@@ -329,12 +361,16 @@ export async function runEvaluation(
       }
 
       if (batchData.length > 0) {
-        const batchResults = await computeSemanticMetricsBatch(batchData, judgeApiKeys);
+        const semanticOpts = options?.judgeConfigs ? { judgeConfigs: options.judgeConfigs } : undefined;
+        const batchResults = await computeSemanticMetricsBatch(batchData, judgeApiKeys, semanticOpts);
         for (const [id, metrics] of batchResults) {
           semanticMetricsMap.set(id, metrics);
         }
       }
     }
+
+    // 报告进度：Phase 3 完成
+    options?.onProgress?.(questions.length, questions.length, "语义指标评估完成");
 
     // Phase 4: 组装最终结果
     for (const question of questions) {
@@ -371,9 +407,10 @@ export async function runEvaluation(
       };
       const sourceRoutingAccuracy = computeSourceRoutingAccuracy(question.expectedSource, actualSourceFlags);
 
-      const allCandidateSources = [...new Set([...question.expectedSources, ...actualSources])];
+      const actualSourceTitles = actualSources.map(s => s.title);
+      const allCandidateSources = [...new Set([...question.expectedSources, ...actualSourceTitles])];
       const citedSources = extractCitedSourcesFromAnswer(actualAnswer, allCandidateSources);
-      const sourceAttributionAccuracy = computeSourceAttributionAccuracy(citedSources, actualSources);
+      const sourceAttributionAccuracy = computeSourceAttributionAccuracy(citedSources, actualSourceTitles);
 
       const conflictResolution = computeConflictResolution(
         question.sourceType, question.expectedSource,
@@ -409,6 +446,9 @@ export async function runEvaluation(
       saveSingleResult(result, runId, config);
       allResults.push(result);
 
+      // 报告进度：Phase 4 组装结果
+      options?.onProgress?.(allResults.length, questions.length, "组装评估结果");
+
       const recallStr = recallAtK !== undefined ? recallAtK.toFixed(2) : "N/A";
       const ndcgStr = ndcgAtK !== undefined ? ndcgAtK.toFixed(2) : "N/A";
       const status = response.ok ? "OK" : "MISS";
@@ -419,8 +459,7 @@ export async function runEvaluation(
   // Generate summary report
   const report = buildReport(runId, configs, questions.length, allResults);
 
-  // Save to database
-  saveReport(report);
+  // Note: results already saved by saveSingleResult() during evaluation, no need to saveReport() again
 
   logger.info(`[EvalRunner] Evaluation complete: ${allResults.length} results, report=${report.runId}`);
   return report;
@@ -523,7 +562,7 @@ function saveSingleResult(result: EvalResult, runId: string, config: EvalConfig)
         recall_at_k, mrr, ndcg_at_k, faithfulness, groundedness, actual_answer, actual_sources,
         answer_correctness, fact_coverage, source_routing_accuracy,
         source_attribution_accuracy, conflict_resolution, refusal_accuracy, kb_hit_rate)
-      VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, datetime('now','localtime'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       randomUUID(),
       result.goldenId,
@@ -561,6 +600,9 @@ export function getReports(): EvalReport[] {
   const rows = db.prepare(
     `SELECT DISTINCT run_id, timestamp FROM metrics_golden_runs ORDER BY timestamp DESC`
   ).all() as Array<{ run_id: string; timestamp: string }>;
+
+  // 加载 run 级文件路径元数据
+  const runMetas = getEvalRunMetas();
 
   const reports: EvalReport[] = [];
   for (const row of rows) {
@@ -600,7 +642,7 @@ export function getReports(): EvalReport[] {
         faithfulness: r.faithfulness,
         durationMs: configMeta.durationMs ?? 0,
         actualAnswer: r.actual_answer,
-        actualSources: parseJsonArray(r.actual_sources),
+        actualSources: parseJsonArray(r.actual_sources) as unknown as import("./evalRunner.js").SourceCitation[],
         answerCorrectness: r.answer_correctness ?? 0,
         factCoverage: r.fact_coverage ?? 0,
         sourceRoutingAccuracy: r.source_routing_accuracy ?? 0,
@@ -634,16 +676,60 @@ export function getReports(): EvalReport[] {
       };
     });
 
-    reports.push({
+    const meta = runMetas.get(row.run_id);
+    const report: EvalReport = {
       runId: row.run_id,
       timestamp: row.timestamp,
       configs: configSummaries,
-      questionCount: results.length,
+      questionCount: new Set(results.map(r => r.goldenId)).size,
       questionBreakdown: results,
-    });
+    };
+    if (meta?.reportJsonPath) report.reportJsonPath = meta.reportJsonPath;
+    if (meta?.logPath) report.logPath = meta.logPath;
+    if (meta?.durationMs) {
+      report.durationMs = meta.durationMs;
+    } else {
+      // 从 questionBreakdown 计算总耗时（取各 config 最大值之和）
+      const configDurations = new Map<string, number>();
+      for (const r of results) {
+        const cur = configDurations.get(r.configLabel) ?? 0;
+        configDurations.set(r.configLabel, cur + (r.durationMs ?? 0));
+      }
+      const totalDuration = [...configDurations.values()].reduce((a, b) => a + b, 0);
+      if (totalDuration > 0) report.durationMs = totalDuration;
+    }
+
+    // 如果 meta 没有路径，尝试从 eval-logs 目录搜索匹配文件
+    if (!report.reportJsonPath || !report.logPath) {
+      try {
+        const evalLogsDir = path.resolve(process.cwd(), "data", "eval-logs");
+        if (fs.existsSync(evalLogsDir)) {
+          const files = fs.readdirSync(evalLogsDir);
+          if (!report.reportJsonPath) {
+            const jsonFile = files.find(f => f.includes(row.run_id) && f.endsWith(".json"));
+            if (jsonFile) report.reportJsonPath = path.join(evalLogsDir, jsonFile);
+          }
+          if (!report.logPath) {
+            const logFile = files.find(f => f.includes(row.run_id) && f.endsWith(".log"));
+            if (logFile) report.logPath = path.join(evalLogsDir, logFile);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    reports.push(report);
   }
 
   return reports;
+}
+
+/**
+ * Delete an evaluation report by runId.
+ */
+export function deleteReport(runId: string): boolean {
+  const db = getSyncDb();
+  const result = db.prepare("DELETE FROM metrics_golden_runs WHERE run_id = ?").run(runId);
+  return result.changes > 0;
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -723,29 +809,32 @@ function extractAnswer(response: AgentRunResponse): string {
  * Extract source names from an agent response.
  * Combines knowledge citations and web search citations.
  */
-function extractSources(response: AgentRunResponse): string[] {
-  const sources: string[] = [];
+/** 单条引用信息（含可选 URL 供 web 结果点击跳转） */
+export interface SourceCitation {
+  title: string;
+  url?: string;
+  type: "knowledge" | "web";
+}
 
-  if (response.knowledgeCitations) {
-    for (const c of response.knowledgeCitations) {
-      sources.push(c.source);
-    }
-  }
+function extractSources(response: AgentRunResponse): SourceCitation[] {
+  const seen = new Set<string>();
+  const sources: SourceCitation[] = [];
 
-  if (response.webSearchCitations) {
-    for (const c of response.webSearchCitations) {
-      sources.push(c.title);
-    }
-  }
-
+  // 使用 mergedCitations（reranker 排序后的结果），保持原始顺序
   if (response.mergedCitations) {
     for (const c of response.mergedCitations) {
-      sources.push(c.title);
+      if (!seen.has(c.title)) {
+        seen.add(c.title);
+        // 根据 engine 判断类型：rag = knowledge, 其他 = web
+        const type: "knowledge" | "web" = c.engine === "rag" ? "knowledge" : "web";
+        const citation: SourceCitation = { title: c.title, type };
+        if (c.url) citation.url = c.url;
+        sources.push(citation);
+      }
     }
   }
 
-  // Deduplicate
-  return [...new Set(sources)];
+  return sources;
 }
 
 function buildErrorResult(

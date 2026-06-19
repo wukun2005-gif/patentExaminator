@@ -349,7 +349,7 @@ export function CaseSetupPage() {
   };
   const validateAppDate = (value: string) => {
     if (!value) return "申请日为必填项";
-    if (value > new Date().toISOString().slice(0, 10)) return "申请日不能晚于今日";
+    { const now = new Date(); const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; if (value > today) return "申请日不能晚于今日"; }
     return true;
   };
   const validatePriorityDate = (value: string) => {

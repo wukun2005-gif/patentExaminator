@@ -233,6 +233,8 @@ export async function multiJudgeDiscrete(
   options?: {
     providers?: string[];
     modelIds?: Record<string, string>;
+    /** judge 配置数组（优先于 providers + modelIds） */
+    judgeConfigs?: Array<{ providerId: string; modelId: string }>;
     defaultValue?: number;
     modelFallbacks?: Record<string, string[]>;
     enableModelFallback?: boolean;
@@ -284,6 +286,8 @@ export async function multiJudgeContinuous(
   options?: {
     providers?: string[];
     modelIds?: Record<string, string>;
+    /** judge 配置数组（优先于 providers + modelIds） */
+    judgeConfigs?: Array<{ providerId: string; modelId: string }>;
     defaultValue?: number;
     modelFallbacks?: Record<string, string[]>;
     enableModelFallback?: boolean;

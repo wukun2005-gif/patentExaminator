@@ -86,6 +86,8 @@ export interface AgentRunRequest {
   webSearchEnabled?: boolean | undefined;
   /** NF2: 是否启用 groundedness detection */
   groundednessEnabled?: boolean | undefined;
+  /** 自定义 LLM 调用超时（毫秒） */
+  timeoutMs?: number | undefined;
 }
 
 export interface AgentRunResponse {
@@ -1230,7 +1232,7 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
               let retryNf2ForCheck = nf2Citations;
               let retryNf2WebForCheck = nf2WebCitations;
 
-              if (!hasWebInGrounding && req.webSearchEnabled !== false) {
+              if (!hasWebInGrounding && req.webSearchEnabled) {
                 // grounding 全是 RAG → 第一次可能信息不充分 → 走 toolExecutor 允许 web search
                 logger.info(`[Orchestrator] grounding 无 web 结果，走 toolExecutor 重新生成（允许 web search）`);
 

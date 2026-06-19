@@ -41,7 +41,7 @@ export function getSyncDb(): Database.Database {
       store_name TEXT NOT NULL,
       record_id TEXT NOT NULL,
       data TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       PRIMARY KEY (store_name, record_id)
     );
 
@@ -52,7 +52,7 @@ export function getSyncDb(): Database.Database {
 
     CREATE TABLE IF NOT EXISTS metrics_runs (
       id            TEXT PRIMARY KEY,
-      timestamp     TEXT NOT NULL DEFAULT (datetime('now')),
+      timestamp     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       agent         TEXT NOT NULL,
       case_id       TEXT NOT NULL DEFAULT '',
       provider_id   TEXT NOT NULL,
@@ -92,7 +92,7 @@ export function getSyncDb(): Database.Database {
 
     CREATE TABLE IF NOT EXISTS metrics_golden_set (
       id            TEXT PRIMARY KEY,
-      created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       agent         TEXT NOT NULL,
       query         TEXT NOT NULL,
       expected_answer TEXT NOT NULL,
@@ -103,11 +103,23 @@ export function getSyncDb(): Database.Database {
       generated_by  TEXT DEFAULT ''
     );
 
+    CREATE TABLE IF NOT EXISTS metrics_eval_sets (
+      id            TEXT PRIMARY KEY,
+      name          TEXT NOT NULL DEFAULT '',
+      created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      updated_at    TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      question_count INTEGER NOT NULL DEFAULT 0,
+      source_type_distribution TEXT DEFAULT '{}',
+      status        TEXT NOT NULL DEFAULT 'ready',
+      error_message TEXT DEFAULT '',
+      metadata      TEXT DEFAULT '{}'
+    );
+
     CREATE TABLE IF NOT EXISTS metrics_golden_runs (
       id            TEXT PRIMARY KEY,
       golden_id     TEXT NOT NULL REFERENCES metrics_golden_set(id),
       run_id        TEXT,
-      timestamp     TEXT NOT NULL DEFAULT (datetime('now')),
+      timestamp     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       config_json   TEXT NOT NULL,
       recall_at_k   REAL DEFAULT 0,
       mrr           REAL DEFAULT 0,
@@ -117,11 +129,20 @@ export function getSyncDb(): Database.Database {
       actual_answer TEXT DEFAULT '',
       actual_sources TEXT DEFAULT '[]'
     );
+
+    CREATE TABLE IF NOT EXISTS metrics_eval_run_meta (
+      run_id            TEXT PRIMARY KEY,
+      report_json_path  TEXT DEFAULT '',
+      log_path          TEXT DEFAULT '',
+      duration_ms       INTEGER DEFAULT 0
+    );
   `);
 
   // ── 增量 schema 升级：为已有表添加新列 ──
   upgradeGoldenSetSchema(db);
   upgradeGoldenRunsSchema(db);
+  upgradeEvalSetsSchema(db);
+  upgradeEvalRunMetaSchema(db);
 
   logger.info(`Sync database initialized at ${DB_PATH}`);
   return db;
@@ -145,6 +166,7 @@ function upgradeGoldenSetSchema(db: Database.Database): void {
     { name: "relevance_grading",       def: "TEXT DEFAULT '[]'" },
     { name: "verified_by",             def: "TEXT DEFAULT 'auto'" },
     { name: "context_chunk_ids",       def: "TEXT DEFAULT '[]'" },
+    { name: "eval_set_id",             def: "TEXT DEFAULT ''" },
   ];
 
   for (const col of columnsToAdd) {
@@ -185,12 +207,62 @@ function upgradeGoldenRunsSchema(db: Database.Database): void {
 }
 
 /**
+ * 增量升级 metrics_eval_sets 表 — nf5-2 Phase 1
+ * 确保 eval_set_id 索引存在
+ */
+function upgradeEvalSetsSchema(db: Database.Database): void {
+  // 确保 eval_set_id 索引存在（用于按 eval set 查询 questions）
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_golden_set_eval_set_id ON metrics_golden_set(eval_set_id)`);
+  } catch { /* index may already exist */ }
+}
+
+/**
+ * 增量升级 metrics_eval_run_meta 表 — 添加 duration_ms 列
+ */
+function upgradeEvalRunMetaSchema(db: Database.Database): void {
+  // 先确保表存在
+  db.exec(`CREATE TABLE IF NOT EXISTS metrics_eval_run_meta (
+    run_id TEXT PRIMARY KEY, report_json_path TEXT DEFAULT '', log_path TEXT DEFAULT '', duration_ms INTEGER DEFAULT 0
+  )`);
+  const existingCols = new Set(
+    (db.prepare("PRAGMA table_info('metrics_eval_run_meta')").all() as Array<{ name: string }>)
+      .map((c) => c.name)
+  );
+  if (!existingCols.has("duration_ms")) {
+    db.exec(`ALTER TABLE metrics_eval_run_meta ADD COLUMN duration_ms INTEGER DEFAULT 0`);
+    logger.info(`[SyncDb] Added column metrics_eval_run_meta.duration_ms`);
+  }
+}
+
+/**
  * 获取 metrics 数据库实例
  * 返回与 getSyncDb() 相同的 SQLite 连接（所有表在同一个数据库中），
  * 但提供独立的语义名称以便 metrics 代码中更清晰地表达意图
  */
 export function getMetricsDb(): Database.Database {
   return getSyncDb();
+}
+
+/** 保存评估报告的文件路径和耗时（run 级元数据） */
+export function saveEvalRunMeta(runId: string, reportJsonPath: string, logPath: string, durationMs: number = 0): void {
+  const db = getSyncDb();
+  db.prepare(
+    `INSERT OR REPLACE INTO metrics_eval_run_meta (run_id, report_json_path, log_path, duration_ms) VALUES (?, ?, ?, ?)`
+  ).run(runId, reportJsonPath, logPath, durationMs);
+}
+
+/** 获取所有 run 的文件路径和耗时元数据 */
+export function getEvalRunMetas(): Map<string, { reportJsonPath: string; logPath: string; durationMs: number }> {
+  const db = getSyncDb();
+  const rows = db.prepare(`SELECT run_id, report_json_path, log_path, duration_ms FROM metrics_eval_run_meta`).all() as Array<{
+    run_id: string; report_json_path: string; log_path: string; duration_ms: number;
+  }>;
+  const map = new Map<string, { reportJsonPath: string; logPath: string; durationMs: number }>();
+  for (const r of rows) {
+    map.set(r.run_id, { reportJsonPath: r.report_json_path, logPath: r.log_path, durationMs: r.duration_ms ?? 0 });
+  }
+  return map;
 }
 
 /** 获取最后同步时间 */
@@ -210,7 +282,7 @@ function updateLastSyncTime(): void {
 /** 上传全部数据（批量 upsert） */
 export function uploadAllData(stores: Record<string, Array<{ id: string; data: unknown }>>): { uploaded: number } {
   const db = getSyncDb();
-  const upsert = db.prepare("INSERT OR REPLACE INTO sync_data (store_name, record_id, data, updated_at) VALUES (?, ?, ?, datetime('now'))");
+  const upsert = db.prepare("INSERT OR REPLACE INTO sync_data (store_name, record_id, data, updated_at) VALUES (?, ?, ?, datetime('now','localtime'))");
   const selectPrev = db.prepare("SELECT data FROM sync_data WHERE store_name = ? AND record_id = ?");
 
   let total = 0;

@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r54 · 2026-06-11</p>
+<p align="right">版本 v0.1.0-r55 · 2026-06-19</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -8,6 +8,7 @@
 
 | 版本 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|------|---------|----------|-------------|
+| v0.1.0-r55 | 2026-06-19 | docs/ 合并：§6.7 Metrics 体系全面扩充 — 删除已废弃功能（质量徽章/成本显示/反馈按钮/成本分析）；合并 metrics-design.md v3（维度×指标矩阵、8 指标定义、metrics_runs 表 schema、12 个 API 端点）；合并 golden-set-spec.md（M1-M10 指标详细定义、Multi-Judge 架构、Golden Set 结构、sourceType 矩阵）；合并 nf5-2（Eval Set CRUD schema + 6 API 端点 + 异步任务管理）；§6.7 拆分为 6.7.1-6.7.6 子章节 | DESIGN.md §6.7 | — |
 | v0.1.0-r54 | 2026-06-11 | 文档同步修复 — §3.3 ProviderId 从 5 家更新为 11 家（+gemini/qwen/bedrock/openrouter/opencode/volcengine）；ADR-005 同步更新；docs/ 目录 15 个文档审查：2 个 Coze 迁移文档加归档标注（coze-agent-architecture.md、system-specification.md 描述 B-038 前架构）；model-adaptation-plan.md 标注已合并到 master plan | DESIGN.md §3.3, §2 ADR-005, docs/ | — |
 | v0.1.0-r53 | 2026-06-11 | nf5: 离线评估指标计算 — 扩展 DB schema（golden_set 6 列 + golden_runs 9 列增量升级）、新增 multiJudge.ts（3-provider 并行打分 + majority vote/average 聚合）、evalMetrics.ts（10+ 指标：NDCG chunk 级、Recall、KB/Web Hit Rate、Faithfulness multi-judge、Answer Correctness、Fact Coverage、Article Accuracy、Source Routing/Attribution、Conflict Resolution、Refusal Accuracy）、evalRunner 集成新指标、goldenSetGenerator 支持 mustIncludeFacts/更长参考答案、metrics 路由新增报告详情端点、Dashboard 展示新指标列、44 个单元测试 | syncDb.ts, shared/src/types/metrics.ts, multiJudge.ts(新建), evalMetrics.ts(新建), evalRunner.ts, goldenSetGenerator.ts, metrics.ts, MetricsDashboard.tsx, evalMetrics.test.ts(新建), multiJudge.test.ts(新建) | — |
 | v0.1.0-r52 | 2026-06-10 | nf3: 聊天文件上传 — 新增 POST /api/chat/extract 端点（PDF/DOCX/TXT/HTML/图片提取），ChatPanel 添加 📎 附件按钮+chip 预览，ChatBubble 展示附件标签，ChatRequest/ChatMessage 新增 attachments 字段，orchestrator buildChatPrompt 注入附件内容到 prompt，图片附件支持 MultimodalPart 视觉模型 | shared/src/types/api.ts, shared/src/types/domain.ts, server/src/routes/chat-attachments.ts(新建), server/src/lib/orchestrator.ts, server/src/index.ts, client/src/features/chat/ChatPanel.tsx, client/src/features/chat/ChatBubble.tsx, client/src/styles/app.css | — |
@@ -1262,34 +1263,163 @@ Orchestrator (chat agent + webSearchEnabled)
 
 ### 6.7 Metrics 体系
 
-> 详见 `docs/metrics-design.md`
+> 详细设计：`docs/metrics-design.md`（v3）；离线评估规范：`docs/golden-set-spec.md`；Eval Set 接入：`docs/nf5-2-implementation-plan.md`
 
-#### 6.7.1 面向审查员
+**设计约束**：零人工标注预算，全部使用 LLM-as-Judge + 自动化指标；client 端只负责 UI 渲染。
 
-| 功能 | 说明 | 实现位置 |
-|------|------|---------|
-| 质量徽章 | Groundedness pass/partial/fail + 引用数 | ChatBubble.tsx |
-| 成本显示 | Token 用量 + 美元估算 | AppShell.tsx |
-| 健康状态 | Provider 成功率、延迟 | SettingsPage |
-| 反馈按钮 | like/dislike 上传 server | feedbackRepo.ts |
+**已删除功能**（metrics-design.md v3 确认）：质量徽章、成本显示、反馈按钮、成本分析、Online ranking/filtering — 用户要求删除。
 
-#### 6.7.2 面向开发者/管理员（Settings 第 5 tab）
+#### 6.7.1 维度 × 指标矩阵
+
+Dashboard 按 5 个维度展示指标，每个维度有适用的指标组合：
+
+| 维度 | 含义 | 示例 |
+|------|------|------|
+| A: LLM Provider | 大语言模型供应商+型号 | gemini:gemini-3.1-flash-lite, mimo:mimo-v2.5-pro |
+| B: Search Provider | Web 搜索引擎 | google, bing, baidu |
+| C: Reranker | 重排序模型 | BAAI/bge-reranker-v2-m3 |
+| D: Embedding | 向量化模型 | BAAI/bge-m3 |
+| E: 模型组合 | A+B+C+D 的完整 pipeline 配置 | gemini:xxx + google + bge-reranker + bge-m3 |
+
+| # | 指标 | A:LLM | B:Search | C:Reranker | D:Embedding | E:组合 |
+|---|------|:---:|:---:|:---:|:---:|:---:|
+| 1 | 调用次数 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 2 | 成功率 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 3 | 耗时 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 4 | Groundedness | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 5 | RAG 分数 | ❌ | ❌ | ✅ | ✅ | ✅ |
+| 6 | TTFT | ✅ | ❌ | ❌ | ❌ | ✅ |
+| 7 | Web 相关性 | ❌ | ✅ | ✅ | ❌ | ✅ |
+| 8 | 跨源相关性 | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+#### 6.7.2 Dashboard 功能（Settings 第 5 tab "性能指标"）
 
 | 功能 | 说明 |
 |------|------|
-| 概览卡片 | 总调用、成功率、Groundedness、总成本 |
-| 模型对比表 | 按 provider:model 聚合，可排序 |
-| 趋势图 | Groundedness / 成功率按天趋势 |
-| 延迟分布 | 堆叠条形图（各阶段耗时） |
-| 成本分析 | 按 Provider / Agent 分解 |
+| 概览卡片 | 总调用、成功率、平均 Groundedness |
+| 模型组合对比表（维度 E） | 每个 LLM+Search+Reranker+Embedding 组合一列，全部 8 个指标 |
+| 维度独立表 | LLM Provider（A，8 指标）、Search Provider（B，5 指标）、Reranker（C，6 指标）、Embedding Model（D，5 指标） |
+| 延迟分布 | p50/p90/p99 数字 + 堆叠条形图（LLM 等待 / Groundedness 检查 / 其他） |
+| Groundedness 趋势 | 按天的 SVG 折线图 |
+| 离线评估（可折叠） | Golden Set 管理 + Eval Set 管理 + 运行评估 + 查看报告 |
 
-#### 6.7.3 离线评估
+#### 6.7.3 离线评估（Golden Set + Eval Set）
 
-- **Golden Set**：60 题，3 个免费 LLM 各生成 20 题（MiMo 2.5 Pro / DeepSeek V4-Pro / Gemini 3.5-Flash）
-- **指标**：Recall@K、MRR、NDCG@K、Faithfulness（LLM-as-Judge）、延迟、成本
-- **流程**：用户选择模型配置 → 跑 60 题 → 生成对比报告
+**评估指标体系**（`docs/golden-set-spec.md` 定义）：
 
-#### 6.7.4 数据采集
+| # | 指标 | 类别 | 计算方式 | 需要 judge | 适用 sourceType |
+|---|------|------|---------|:---:|----------------|
+| M1 | NDCG@K | 检索排序 | DCG@K / IDCG@K | ✅ 实时 | 全部 |
+| M2 | Recall@K | 检索覆盖 | relevant_in_topK / total_relevant | ✅ 实时 | 全部 |
+| M3 | KB Hit Rate | 检索覆盖 | kb_only 题的 Recall@K | ✅ 实时 | kb_only |
+| M5 | Faithfulness | 生成忠实度 | 2 judge → claim 支持率 → average | ✅ | 全部（reference-free） |
+| M6 | Answer Correctness | 生成正确性 | 2 judge → 与 expectedAnswer 对比 → average | ✅ | 全部 |
+| M7 | Fact Coverage | 生成完整性 | 2 judge → mustIncludeFacts 覆盖率 → average | ✅ | 全部 |
+| M8 | Source Routing Accuracy | 路由准确性 | expectedSource == 实际源 | ❌ | 全部 |
+| M9 | Conflict Resolution Rate | 冲突处理 | 冲突题中正确选择权威源的比例 | ❌ | conflict |
+| M10 | Refusal Accuracy | 拒绝回答 | no_answer 题中正确拒绝的比例 | ❌ | no_answer |
+
+> **M4 Web Hit Rate 已删除**：Web 搜索质量通过端到端答案质量（M6 + M7）衡量，而非 chunk 级检索指标。
+
+**Multi-Judge 架构**：M5/M6/M7/M1-M3 均使用 2-3 个 LLM judge 独立打分，取算术平均。judge 模型复用系统已配置的 provider。
+
+**Golden Set 结构**：
+- `sourceType`：kb_only / web_only / cross_source / conflict / no_answer
+- `category`：新颖性 / 创造性 / 权利要求 / 形式缺陷 / 程序
+- `mustIncludeFacts`：M7 检查清单
+- `expectedAnswer`：M6 对比基准
+- `expectedSource`：M8 路由基准
+- 每个 provider 生成 7 题，3 provider 共 21 题（5×5 矩阵覆盖）
+
+**Eval Set 管理**（`docs/nf5-2-implementation-plan.md`）：
+
+| 操作 | API | 说明 |
+|------|-----|------|
+| 列出 | `GET /api/metrics/eval-sets` | 全部 eval sets |
+| 详情 | `GET /api/metrics/eval-sets/:id` | 含 questions |
+| 创建 | `POST /api/metrics/eval-sets` | 从 questions 数组 |
+| 重命名 | `PUT /api/metrics/eval-sets/:id` | 只改 name |
+| 删除 | `DELETE /api/metrics/eval-sets/:id` | 级联删除 |
+| 导入 | `POST /api/metrics/eval-sets/import-file` | JSON 文件导入 |
+
+**评估流程**：
+```
+用户在 Dashboard 点击"生成 Golden Set"（需 MiMo + DeepSeek + Gemini 三个 key）
+  → 21 题存入 metrics_golden_set
+
+用户选择 eval set + 模型配置，点击"开始评估"
+  → 对每个配置跑 RAG + chat Q&A（必须用实际 app 流程）
+  → 计算 M1-M10（按 sourceType 适用范围）
+  → 生成对比报告存入 metrics_golden_runs
+  → Dashboard 展示报告详情
+```
+
+**异步任务管理**（Phase 2）：生成和评估均异步执行，支持进度查询、取消、SSE 通知。
+
+#### 6.7.4 数据模型
+
+**metrics_runs 表**（在线指标采集）：
+
+```sql
+CREATE TABLE metrics_runs (
+  id              TEXT PRIMARY KEY,
+  timestamp       TEXT NOT NULL DEFAULT (datetime('now')),
+  agent           TEXT NOT NULL,
+  case_id         TEXT DEFAULT '',
+  provider_id     TEXT NOT NULL,
+  model_id        TEXT NOT NULL,
+  search_provider TEXT DEFAULT '',
+  reranker_type   TEXT DEFAULT '',
+  embedding_model TEXT DEFAULT '',
+  duration_ms     INTEGER DEFAULT 0,
+  ttft_ms         INTEGER DEFAULT 0,
+  tool_rounds     INTEGER DEFAULT 0,
+  input_tokens    INTEGER DEFAULT 0,
+  output_tokens   INTEGER DEFAULT 0,
+  total_tokens    INTEGER DEFAULT 0,
+  thinking_tokens INTEGER DEFAULT 0,
+  rag_citation_count  INTEGER DEFAULT 0,
+  top_citation_score  REAL DEFAULT 0,
+  reranker_top_score  REAL DEFAULT 0,
+  web_search_count    INTEGER DEFAULT 0,
+  web_search_rounds   INTEGER DEFAULT 0,
+  grounding_score     REAL DEFAULT -1,    -- -1 = 未检查
+  grounding_verdict   TEXT DEFAULT '',
+  removed_claims_count INTEGER DEFAULT 0,
+  success         INTEGER DEFAULT 1,
+  error_type      TEXT DEFAULT '',
+  error_code      TEXT DEFAULT '',
+  attempts_json   TEXT DEFAULT '[]',
+  timings_json    TEXT DEFAULT '{}',
+  experiment_id   TEXT DEFAULT '',
+  variant         TEXT DEFAULT ''
+);
+```
+
+**metrics_golden_set 表**：存储 Golden Set 题目（query + expectedAnswer + mustIncludeFacts + sourceType + category）。
+
+**metrics_golden_runs 表**：存储评估结果（recall_at_k + mrr + ndcg_at_k + faithfulness + groundedness + actual_answer）。
+
+**metrics_eval_sets 表**：Eval Set 管理（id + name + question_count + source_type_distribution + status）。
+
+#### 6.7.5 Metrics API 端点
+
+```
+GET  /api/metrics/summary          — 按 LLM+Search+Reranker+Embedding 聚合
+GET  /api/metrics/by-dimension     — 按单维度聚合（?dimension=provider_id 等）
+GET  /api/metrics/trends           — 时间序列
+GET  /api/metrics/latency          — 延迟分位数
+GET  /api/metrics/latency-breakdown — 延迟分解（LLM等待/Groundedness/其他）
+GET  /api/metrics/agents           — Agent 列表
+GET  /api/metrics/comparison       — 多配置对比
+POST /api/metrics/golden-set/generate — 生成 Golden Set
+GET  /api/metrics/golden-set       — 查询 Golden Set
+DELETE /api/metrics/golden-set     — 清空 Golden Set
+POST /api/metrics/eval/run         — 运行离线评估
+GET  /api/metrics/eval/reports     — 历史报告列表
+```
+
+#### 6.7.6 数据采集
 
 `MetricsCollector` 单例在 `orchestrator.runAgent()` 各阶段插入 `Date.now()` 计时，fire-and-forget 批量写入 `metrics_runs` 表。不修改任何现有逻辑，纯增量插桩。
 

@@ -45,12 +45,12 @@ interface MatrixCell {
 }
 
 /**
- * spec §4.4: sourceType × category 矩阵（21 个非零 cell）
+ * spec §4.4: sourceType × category 矩阵
  *
- * 分配策略：round-robin 分给 N 个 provider，每个 provider 7 题。
- * 如果 provider 不足 3 个，多余的 cell 分配给最后一个 provider。
+ * 默认 21 个非零 cell。支持通过 questionCount 参数裁剪或扩展。
+ * 分配策略：round-robin 分给 N 个 provider。
  */
-function buildMatrixAllocation(providerCount: number): MatrixCell[][] {
+function buildMatrixAllocation(providerCount: number, questionCount?: number): MatrixCell[][] {
   const ALL_CELLS: MatrixCell[] = [
     // R1: kb_only × 5 categories
     { sourceType: "kb_only", category: "新颖性" },
@@ -80,10 +80,29 @@ function buildMatrixAllocation(providerCount: number): MatrixCell[][] {
     { sourceType: "no_answer", category: "程序" },
   ];
 
+  // 根据 questionCount 裁剪或扩展
+  let cells = ALL_CELLS;
+  if (questionCount && questionCount > 0 && questionCount !== ALL_CELLS.length) {
+    if (questionCount < ALL_CELLS.length) {
+      // 裁剪：均匀采样，保留每个 sourceType 至少 1 个
+      const step = ALL_CELLS.length / questionCount;
+      cells = Array.from({ length: questionCount }, (_, i) => ALL_CELLS[Math.floor(i * step)]!);
+    } else {
+      // 扩展：重复 cell 直到达到目标数量
+      cells = [];
+      while (cells.length < questionCount) {
+        for (const cell of ALL_CELLS) {
+          if (cells.length >= questionCount) break;
+          cells.push(cell);
+        }
+      }
+    }
+  }
+
   // Round-robin 分配
   const allocation: MatrixCell[][] = Array.from({ length: providerCount }, () => []);
-  for (let i = 0; i < ALL_CELLS.length; i++) {
-    allocation[i % providerCount]!.push(ALL_CELLS[i]!);
+  for (let i = 0; i < cells.length; i++) {
+    allocation[i % providerCount]!.push(cells[i]!);
   }
 
   // 日志
@@ -204,12 +223,15 @@ export interface GoldenSetProviderConfig {
 /**
  * 从 server DB 直接读取 provider keys，解析出可用于 Golden Set 生成的 LLM 配置。
  * 无视 enabled 状态——只要有 key 就可用。
- * 规则：
+ *
+ * @param userProviderId - 用户指定的 provider ID（可选，不指定则使用默认规则）
+ * @param userModel - 用户指定的模型 ID（可选）
+ *
+ * 未指定时的默认规则：
  * - mimo → 直接使用（MiMo 自有端点）
- * - volcengine + doubao-flash → 火山自研 doubao-flash 模型
  * - volcengine + doubao-seed → 火山自研 doubao-seed 模型
  */
-export function resolveGoldenSetProviders(): GoldenSetProviderConfig[] {
+export function resolveGoldenSetProviders(userProviderId?: string, userModel?: string): GoldenSetProviderConfig[] {
   const db = getSyncDb();
   const settingsRow = db.prepare(
     "SELECT data FROM sync_data WHERE store_name = 'settings' AND record_id = 'app'"
@@ -245,6 +267,25 @@ export function resolveGoldenSetProviders(): GoldenSetProviderConfig[] {
     if (p.enableModelFallback) enableFallback[p.providerId] = true;
   }
 
+  // 用户指定了 provider → 只用该 provider
+  if (userProviderId) {
+    const apiKey = apiKeys[userProviderId];
+    if (!apiKey) {
+      logger.warn(`[GoldenSet] User specified provider "${userProviderId}" has no API key`);
+      return [];
+    }
+    const model = userModel || defaultModelIds[userProviderId] || "mimo-v2.5";
+    return [{
+      providerId: userProviderId as ProviderId,
+      model,
+      apiKey,
+      label: `${userProviderId}:${model}`,
+      ...(fallbacks[userProviderId] && { modelFallbacks: fallbacks[userProviderId] }),
+      ...(enableFallback[userProviderId] && { enableModelFallback: true }),
+    }];
+  }
+
+  // 未指定 → 默认规则
   const configs: GoldenSetProviderConfig[] = [];
 
   if (apiKeys["mimo"]) {
@@ -261,14 +302,6 @@ export function resolveGoldenSetProviders(): GoldenSetProviderConfig[] {
       model: "doubao-seed-code-preview-251028",
       apiKey: apiKeys["volcengine"],
       label: "doubao-seed",
-    });
-  }
-  // doubao-flash 从火山引擎 provider 取
-  if (apiKeys["volcengine"]) {
-    configs.push({
-      providerId: "volcengine", model: "doubao-seed-code-preview-251028", apiKey: apiKeys["volcengine"], label: "doubao-lite",
-      ...(fallbacks["volcengine"] && { modelFallbacks: fallbacks["volcengine"] }),
-      ...(enableFallback["volcengine"] && { enableModelFallback: true }),
     });
   }
 
@@ -296,7 +329,7 @@ function createGoldenSetTable(): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS metrics_golden_set (
       id            TEXT PRIMARY KEY,
-      created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       agent         TEXT NOT NULL,
       query         TEXT NOT NULL,
       expected_answer TEXT NOT NULL,
@@ -1014,6 +1047,7 @@ export async function generateGoldenSet(
   providerConfigs: GoldenSetProviderConfig[],
   searchApiKey?: string,
   searchProviderId?: string,
+  questionCount?: number,
 ): Promise<GoldenQuestion[]> {
   createGoldenSetTable();
 
@@ -1022,8 +1056,8 @@ export async function generateGoldenSet(
     return [];
   }
 
-  // spec §4.4: 矩阵分配（21 cells / N providers）
-  const allocation = buildMatrixAllocation(providerConfigs.length);
+  // spec §4.4: 矩阵分配（N cells / M providers）
+  const allocation = buildMatrixAllocation(providerConfigs.length, questionCount);
   const totalQuestions = allocation.flat().length;
   logger.info(`[GoldenSet] Generating ${totalQuestions} questions via matrix allocation (${providerConfigs.length} providers)`);
 

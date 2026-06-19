@@ -55,13 +55,15 @@ interface GoldenQuestionRow {
   context_chunk_ids: string;
 }
 
-function loadAllQuestions(): GoldenQuestionRow[] {
+function loadAllQuestions(evalSetId?: string): GoldenQuestionRow[] {
   const db = getSyncDb();
+  const where = evalSetId ? "WHERE eval_set_id = ?" : "";
+  const params = evalSetId ? [evalSetId] : [];
   return db.prepare(
     `SELECT id, query, expected_answer, expected_articles, category,
             source_type, must_include_facts, context_chunk_ids
-     FROM metrics_golden_set ORDER BY created_at`
-  ).all() as GoldenQuestionRow[];
+     FROM metrics_golden_set ${where} ORDER BY created_at`
+  ).all(...params) as GoldenQuestionRow[];
 }
 
 function safeParseJson<T>(json: string, fallback: T): T {
@@ -70,8 +72,8 @@ function safeParseJson<T>(json: string, fallback: T): T {
 
 // ── Expected Matrix (spec §4.4) ───────────────────────
 
-/** 21 个非零 cell 的 sourceType × category 组合 */
-const EXPECTED_MATRIX: Array<{ sourceType: string; category: string }> = [
+/** 21 个非零 cell 的 sourceType × category 组合（与 goldenSetGenerator.ts 一致） */
+const ALL_CELLS: Array<{ sourceType: string; category: string }> = [
   // R1: kb_only × 5 categories
   { sourceType: "kb_only", category: "新颖性" },
   { sourceType: "kb_only", category: "创造性" },
@@ -100,21 +102,44 @@ const EXPECTED_MATRIX: Array<{ sourceType: string; category: string }> = [
   { sourceType: "no_answer", category: "程序" },
 ];
 
-// ── Quality Checks ────────────────────────────────────
-
-function checkB1Count(questions: GoldenQuestionRow[]): CheckResult {
-  const passed = questions.length === 21;
-  return { passed, detail: `${questions.length}/21` };
+/**
+ * 根据题数动态构建期望矩阵（与 goldenSetGenerator.ts 的 buildMatrixAllocation 一致）。
+ * - questionCount < 21: 均匀采样，每个 sourceType 至少保留 1 个
+ * - questionCount > 21: 重复 cell 直到达到目标数量
+ * - questionCount == 21 或未指定: 使用全部 21 个 cell
+ */
+function buildExpectedMatrix(questionCount?: number): Array<{ sourceType: string; category: string }> {
+  if (!questionCount || questionCount === ALL_CELLS.length) return ALL_CELLS;
+  if (questionCount < ALL_CELLS.length) {
+    const step = ALL_CELLS.length / questionCount;
+    return Array.from({ length: questionCount }, (_, i) => ALL_CELLS[Math.floor(i * step)]!);
+  }
+  // 扩展
+  const cells: typeof ALL_CELLS = [];
+  while (cells.length < questionCount) {
+    for (const cell of ALL_CELLS) {
+      if (cells.length >= questionCount) break;
+      cells.push(cell);
+    }
+  }
+  return cells;
 }
 
-function checkB2Matrix(questions: GoldenQuestionRow[]): CheckResult {
+// ── Quality Checks ────────────────────────────────────
+
+function checkB1Count(questions: GoldenQuestionRow[], expectedCount: number): CheckResult {
+  const passed = questions.length === expectedCount;
+  return { passed, detail: `${questions.length}/${expectedCount}` };
+}
+
+function checkB2Matrix(questions: GoldenQuestionRow[], expectedMatrix: Array<{ sourceType: string; category: string }>): CheckResult {
   const covered = new Set<string>();
   for (const q of questions) {
     covered.add(`${q.source_type}|${q.category}`);
   }
 
   const missing: string[] = [];
-  for (const cell of EXPECTED_MATRIX) {
+  for (const cell of expectedMatrix) {
     const key = `${cell.sourceType}|${cell.category}`;
     if (!covered.has(key)) missing.push(key);
   }
@@ -123,8 +148,8 @@ function checkB2Matrix(questions: GoldenQuestionRow[]): CheckResult {
   return {
     passed,
     detail: passed
-      ? `${EXPECTED_MATRIX.length}/${EXPECTED_MATRIX.length} cells covered`
-      : `${EXPECTED_MATRIX.length - missing.length}/${EXPECTED_MATRIX.length} cells covered, missing: ${missing.join(", ")}`,
+      ? `${expectedMatrix.length}/${expectedMatrix.length} cells covered`
+      : `${expectedMatrix.length - missing.length}/${expectedMatrix.length} cells covered, missing: ${missing.join(", ")}`,
   };
 }
 
@@ -207,7 +232,7 @@ function buildRecommendation(
 ): string {
   // B1/B2 不通过 → 重跑 A.1
   if (!checks.B1_count.passed || !checks.B2_matrix.passed) {
-    return "REGENERATE_A1 — 题目数量或矩阵覆盖不合格";
+    return "REGENERATE_A1 — 评估用例数或矩阵覆盖不合格";
   }
   // 其他检查不通过 → 标记不可信
   const failedChecks = Object.entries(checks).filter(([_, v]) => !v.passed);
@@ -226,13 +251,23 @@ function buildRecommendation(
  *
  * @returns 质量报告（通过 / 不通过 + 具体问题清单）
  */
-export function evaluateGoldenSetQuality(): QualityReport {
-  const questions = loadAllQuestions();
-  logger.info(`[B Quality] Starting quality evaluation for ${questions.length} questions`);
+export function evaluateGoldenSetQuality(evalSetId?: string): QualityReport {
+  const questions = loadAllQuestions(evalSetId);
+
+  // 从 eval set 的 question_count 读取期望题数；没有 eval set 时用实际题数
+  let expectedCount = questions.length;
+  if (evalSetId) {
+    const db = getSyncDb();
+    const row = db.prepare("SELECT question_count FROM metrics_eval_sets WHERE id = ?").get(evalSetId) as { question_count: number } | undefined;
+    if (row && row.question_count > 0) expectedCount = row.question_count;
+  }
+
+  const expectedMatrix = buildExpectedMatrix(expectedCount);
+  logger.info(`[B Quality] Starting quality evaluation for ${questions.length} questions (expected=${expectedCount})${evalSetId ? ` (evalSet=${evalSetId})` : ""}`);
 
   const checks = {
-    B1_count: checkB1Count(questions),
-    B2_matrix: checkB2Matrix(questions),
+    B1_count: checkB1Count(questions, expectedCount),
+    B2_matrix: checkB2Matrix(questions, expectedMatrix),
     B3_query_quality: checkB3QueryQuality(questions),
     B4_answer_quality: checkB4AnswerQuality(questions),
     B5_facts_quality: checkB5FactsQuality(questions),
@@ -287,7 +322,7 @@ function collectFailingIds(report: QualityReport): Set<string> {
  * - golden-set-raw-{ts}.json：A.1 后的原始快照（全部题目，调试用）
  * - golden-set-{ts}.json：清理后的干净版（仅合格题目，用于 D 阶段评估）
  */
-export function cleanGoldenSet(report: QualityReport): { deleted: number; remaining: number } {
+export function cleanGoldenSet(report: QualityReport, evalSetId?: string): { deleted: number; remaining: number } {
   const failingIds = collectFailingIds(report);
 
   if (failingIds.size === 0) {
@@ -296,11 +331,17 @@ export function cleanGoldenSet(report: QualityReport): { deleted: number; remain
   }
 
   const db = getSyncDb();
-  const deleteStmt = db.prepare(`DELETE FROM metrics_golden_set WHERE id = ?`);
+  const deleteStmt = evalSetId
+    ? db.prepare(`DELETE FROM metrics_golden_set WHERE id = ? AND eval_set_id = ?`)
+    : db.prepare(`DELETE FROM metrics_golden_set WHERE id = ?`);
 
   const transaction = db.transaction(() => {
     for (const id of failingIds) {
-      deleteStmt.run(id);
+      if (evalSetId) {
+        deleteStmt.run(id, evalSetId);
+      } else {
+        deleteStmt.run(id);
+      }
     }
   });
 

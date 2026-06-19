@@ -151,7 +151,7 @@ dataRouter.post("/data/:store", express.json(), (req, res) => {
     const prev = db.prepare("SELECT data FROM sync_data WHERE store_name = ? AND record_id = ?").get(store, id) as { data: string } | undefined;
     if (prev) try { dataBefore = JSON.parse(prev.data); } catch { /* ignore */ }
 
-    db.prepare("INSERT OR REPLACE INTO sync_data (store_name, record_id, data, updated_at) VALUES (?, ?, ?, datetime('now'))")
+    db.prepare("INSERT OR REPLACE INTO sync_data (store_name, record_id, data, updated_at) VALUES (?, ?, ?, datetime('now','localtime'))")
       .run(store, id, JSON.stringify(data));
 
     // settings 更新时清除 orchestrator 缓存
@@ -188,7 +188,7 @@ dataRouter.put("/data/:store/:id", express.json(), (req, res) => {
     const prev = db.prepare("SELECT data FROM sync_data WHERE store_name = ? AND record_id = ?").get(store, id) as { data: string } | undefined;
     if (prev) try { dataBefore = JSON.parse(prev.data); } catch { /* ignore */ }
 
-    const result = db.prepare("UPDATE sync_data SET data = ?, updated_at = datetime('now') WHERE store_name = ? AND record_id = ?")
+    const result = db.prepare("UPDATE sync_data SET data = ?, updated_at = datetime('now','localtime') WHERE store_name = ? AND record_id = ?")
       .run(JSON.stringify(data), store, id);
 
     if (result.changes === 0) {
@@ -248,7 +248,7 @@ dataRouter.patch("/data/:store/:id", express.json(), (req, res) => {
       }
     }
 
-    db.prepare("INSERT OR REPLACE INTO sync_data (store_name, record_id, data, updated_at) VALUES (?, ?, ?, datetime('now'))")
+    db.prepare("INSERT OR REPLACE INTO sync_data (store_name, record_id, data, updated_at) VALUES (?, ?, ?, datetime('now','localtime'))")
       .run(store, id, JSON.stringify(merged));
 
     // settings 更新时清除 orchestrator 缓存
