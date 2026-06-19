@@ -1722,8 +1722,19 @@ metricsRouter.post("/metrics/eval/run-async", async (req, res) => {
           ctx.updateProgress(phase, current, total);
         };
 
+        // 开始捕获全部 server 日志（包括 ProviderAdapter 的 console.log）
+        const { startCapture, stopCapture } = await import("../lib/logger.js");
+        startCapture();
+
         const evalStartTime = Date.now();
-        const report = await runEvaluation(configs as never[], evalOptions);
+        let report;
+        let serverLogs = "";
+        try {
+          report = await runEvaluation(configs as never[], evalOptions);
+        } finally {
+          // 无论成功失败都停止捕获
+          serverLogs = stopCapture();
+        }
         const evalDurationMs = Date.now() - evalStartTime;
 
         // Save report JSON and eval summary to files
@@ -1773,6 +1784,11 @@ metricsRouter.post("/metrics/eval/run-async", async (req, res) => {
           const recallStr = r.recallAtK !== undefined ? r.recallAtK.toFixed(3) : "N/A";
           const ndcgStr = r.ndcgAtK !== undefined ? r.ndcgAtK.toFixed(3) : "N/A";
           logLines.push(`[${r.goldenId}] recall=${recallStr} ndcg=${ndcgStr} faith=${r.faithfulness.toFixed(3)} correct=${r.answerCorrectness.toFixed(3)} route=${r.sourceRoutingAccuracy.toFixed(3)} ${r.error ? `ERROR: ${r.error}` : ""}`);
+        }
+        // 追加完整 server 日志（LLM 请求/响应、rerank、tool 执行等）
+        if (serverLogs && serverLogs.trim().length > 0) {
+          logLines.push("", "=== Server Log (完整输出) ===");
+          logLines.push(serverLogs);
         }
         fs.writeFileSync(logPath, logLines.join("\n"), "utf-8");
 

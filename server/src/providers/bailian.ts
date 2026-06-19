@@ -4,11 +4,13 @@ import type { ProviderId } from "@shared/types/agents";
 import { logger } from "../lib/logger.js";
 
 /**
- * 百炼 thinking 模式模型：不支持 tool_choice=required/object，需降级为 auto。
- * 维护策略：遇到新 thinking 模型 HTTP 400 "tool_choice ... not support ... thinking mode" 时加入。
+ * 百炼不支持 tool_choice=required/object 的模型，需降级为 auto。
+ * 维护策略：遇到新模型 HTTP 400 "tool_choice ... not support" 或
+ * "function.arguments parameter must be in JSON format" 时加入。
  * 注：百炼非 thinking 模型收到 tool_choice=auto 无副作用，所以宁可多列不可遗漏。
  */
-const BAILIAN_THINKING_MODELS = new Set([
+const BAILIAN_TOOL_CHOICE_AUTO_ONLY = new Set([
+  // ── thinking 模式 ──
   // Qwen3.7
   "qwen3.7-max",
   "qwen3.7-max-2026-06-08",
@@ -26,6 +28,9 @@ const BAILIAN_THINKING_MODELS = new Set([
   "deepseek-r1-distill-qwen-32b",
   "deepseek-r1-distill-qwen-14b",
   "deepseek-r1-distill-qwen-7b",
+  // ── 非 thinking 但不支持 tool_choice=required 的模型 ──
+  // MiniMax-M2.5: 百炼返回 400 "function.arguments parameter must be in JSON format"
+  "MiniMax-M2.5",
 ]);
 
 export class BailianAdapter extends OpenAICompatibleAdapter {
@@ -33,10 +38,10 @@ export class BailianAdapter extends OpenAICompatibleAdapter {
   defaultBaseUrl = "https://ws-3vv2b1h4akmem3xz.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
 
   override async chat(req: ChatRequest): Promise<ChatResponse> {
-    // 百炼 thinking 模式不支持 tool_choice=required/object，降级为 auto
+    // 百炼部分模型不支持 tool_choice=required/object，降级为 auto
     // 非 thinking 模型收到 tool_choice=auto 无副作用，所以统一处理
-    if ((req.tool_choice === "required" || typeof req.tool_choice === "object") && BAILIAN_THINKING_MODELS.has(req.modelId)) {
-      logger.info(`[Bailian] thinking 模型 ${req.modelId} 不支持 tool_choice=${JSON.stringify(req.tool_choice)}，降级为 auto`);
+    if ((req.tool_choice === "required" || typeof req.tool_choice === "object") && BAILIAN_TOOL_CHOICE_AUTO_ONLY.has(req.modelId)) {
+      logger.info(`[Bailian] ${req.modelId} 不支持 tool_choice=${JSON.stringify(req.tool_choice)}，降级为 auto`);
       return super.chat({ ...req, tool_choice: "auto" });
     }
     return super.chat(req);
