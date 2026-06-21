@@ -26,6 +26,7 @@ function localISO(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${offH}:${offM}`;
 }
 import { logger } from "./logger.js";
+import { DEFAULT_JUDGE_CONFIGS } from "./multiJudge.js";
 import type { AgentRunRequest, AgentRunResponse } from "./orchestrator.js";
 import type { SourceType, ExpectedSource } from "../../../shared/src/types/metrics.js";
 import {
@@ -85,6 +86,7 @@ export interface EvalReport {
   reportJsonPath?: string;
   logPath?: string;
   durationMs?: number;
+  judgeConfigs?: Array<{ providerId: string; modelId: string }>;
 }
 
 export interface EvalConfigSummary {
@@ -456,8 +458,9 @@ export async function runEvaluation(
     }
   }
 
-  // Generate summary report
-  const report = buildReport(runId, configs, questions.length, allResults);
+  // Generate summary report (包含实际使用的 judge 配置)
+  const effectiveJudgeConfigs = options?.judgeConfigs ?? DEFAULT_JUDGE_CONFIGS;
+  const report = buildReport(runId, configs, questions.length, allResults, effectiveJudgeConfigs);
 
   // Note: results already saved by saveSingleResult() during evaluation, no need to saveReport() again
 
@@ -471,7 +474,8 @@ function buildReport(
   runId: string,
   configs: EvalConfig[],
   questionCount: number,
-  results: EvalResult[]
+  results: EvalResult[],
+  judgeConfigs?: Array<{ providerId: string; modelId: string }>
 ): EvalReport {
   const configSummaries: EvalConfigSummary[] = configs.map((config) => {
     const configResults = results.filter((r) => r.configLabel === config.label);
@@ -499,6 +503,7 @@ function buildReport(
     configs: configSummaries,
     questionCount,
     questionBreakdown: results,
+    ...(judgeConfigs ? { judgeConfigs } : {}),
   };
 }
 
@@ -686,6 +691,9 @@ export function getReports(): EvalReport[] {
     };
     if (meta?.reportJsonPath) report.reportJsonPath = meta.reportJsonPath;
     if (meta?.logPath) report.logPath = meta.logPath;
+    if (meta?.judgeConfigs) {
+      report.judgeConfigs = meta.judgeConfigs;
+    }
     if (meta?.durationMs) {
       report.durationMs = meta.durationMs;
     } else {
@@ -715,6 +723,19 @@ export function getReports(): EvalReport[] {
           }
         }
       } catch { /* ignore */ }
+    }
+
+    // 如果仍然没有 judgeConfigs，尝试从报告 JSON 文件读取，最后回退到默认配置
+    if (!report.judgeConfigs) {
+      if (report.reportJsonPath && fs.existsSync(report.reportJsonPath)) {
+        try {
+          const savedReport = JSON.parse(fs.readFileSync(report.reportJsonPath, "utf-8"));
+          if (savedReport?.judgeConfigs) report.judgeConfigs = savedReport.judgeConfigs;
+        } catch { /* ignore */ }
+      }
+      if (!report.judgeConfigs) {
+        report.judgeConfigs = DEFAULT_JUDGE_CONFIGS;
+      }
     }
 
     reports.push(report);

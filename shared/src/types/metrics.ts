@@ -215,6 +215,7 @@ export interface EvalReport {
   timestamp: string;
   configs: EvalConfigSummary[];
   questionBreakdown: EvalQuestionRow[];
+  judgeConfigs?: Array<{ providerId: string; modelId: string }>;
 }
 
 export interface EvalConfigSummary {

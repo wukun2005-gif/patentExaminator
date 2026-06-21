@@ -95,6 +95,7 @@ interface EvalReport {
   questionCount: number;
   reportJsonPath?: string;
   logPath?: string;
+  judgeConfigs?: Array<{ providerId: string; modelId: string }>;
 }
 
 interface ReportListItem {
@@ -104,6 +105,7 @@ interface ReportListItem {
   durationMs?: number;
   reportJsonPath?: string;
   logPath?: string;
+  judgeConfigs?: Array<{ providerId: string; modelId: string }>;
 }
 
 /** 单条引用信息（含可选 URL 供 web 结果点击跳转） */
@@ -1084,7 +1086,7 @@ export function OfflineEvalPanel() {
               {selectedReport.logPath && <div>📋 日志文件: {selectedReport.logPath}</div>}
             </div>
           )}
-          <p>评估用例数: {selectedReport.questionCount} | 时间: {formatLocalTime(selectedReport.timestamp)}</p>
+          <p>评估用例数: {selectedReport.questionCount} | 时间: {formatLocalTime(selectedReport.timestamp)}{selectedReport.judgeConfigs && selectedReport.judgeConfigs.length > 0 && <> | Judge: {selectedReport.judgeConfigs.map(j => `${j.providerId}/${j.modelId}`).join(" + ")}</>}</p>
           <div className="metrics-table-wrap">
             <table className="metrics-table">
               <thead>
@@ -1103,7 +1105,9 @@ export function OfflineEvalPanel() {
               <tbody>
                 {selectedReport.configs.map((c) => (
                   <tr key={c.label}>
-                    <td style={{ fontSize: 12, whiteSpace: "pre-line" }}>{c.label.split(" + ").join("\n")}</td>
+                    <td style={{ fontSize: 12, whiteSpace: "pre-line" }}>
+                      {c.label.split(" + ").join("\n")}{selectedReport.judgeConfigs && selectedReport.judgeConfigs.length > 0 ? `\njudge: ${selectedReport.judgeConfigs.map(j => `${j.providerId} / ${j.modelId}`).join(" + ")}` : ""}
+                    </td>
                     <td>{c.avgRecall.toFixed(3)}</td>
                     <td>{c.avgNdcg.toFixed(3)}</td>
                     <td>{c.avgFaithfulness.toFixed(3)}</td>
@@ -1140,13 +1144,28 @@ export function OfflineEvalPanel() {
                 <tr>
                   {compareMode && <th>选择</th>}
                   <th>ID</th>
+                  <th>评估模型</th>
+                  <th>Judge</th>
                   <th>时间</th>
                   <th>耗时</th>
                   <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {evalReports.map((r) => (
+                {evalReports.map((r) => {
+                  // 从 config_json 提取评估模型（第一段 label，取 provider/model 部分）
+                  let evalModel = "-";
+                  try {
+                    const cfg = JSON.parse(r.config_json);
+                    if (cfg?.label) {
+                      const parts = cfg.label.split(" + ");
+                      evalModel = parts[0] ?? "-"; // e.g. "bailian / MiniMax-M2.5"
+                    }
+                  } catch { /* ignore */ }
+                  const judgeLabel = r.judgeConfigs && r.judgeConfigs.length > 0
+                    ? r.judgeConfigs.map(j => `${j.providerId}/${j.modelId}`).join(" + ")
+                    : "default";
+                  return (
                   <tr key={r.id}>
                     {compareMode && (
                       <td>
@@ -1158,6 +1177,8 @@ export function OfflineEvalPanel() {
                       </td>
                     )}
                     <td style={{ fontSize: 12, fontFamily: "monospace" }} title={r.id}>{r.id}</td>
+                    <td style={{ fontSize: 12 }} title={evalModel}>{evalModel}</td>
+                    <td style={{ fontSize: 12 }}>{judgeLabel}</td>
                     <td>{formatLocalTime(r.timestamp)}</td>
                     <td style={{ fontSize: 12 }}>{r.durationMs ? formatDuration(r.durationMs) : "-"}</td>
                     <td>
@@ -1172,7 +1193,8 @@ export function OfflineEvalPanel() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

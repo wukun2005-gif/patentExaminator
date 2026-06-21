@@ -1,5 +1,7 @@
 # Offline Evaluation Metrics — 专利复审 RAG 离线评估规范
 
+> **📋 已合并到 [DESIGN.md §6.7.3](../DESIGN.md#673-离线评估golden-set--eval-set)**（2026-06-19）。核心指标定义（M1-M10）、Golden Set 结构、Multi-Judge 架构已整合到设计文档。本文档保留作为详细参考。
+
 ---
 
 ## 1. 目标与动机
@@ -42,17 +44,16 @@
 | M5 | **Faithfulness** | 生成忠实度 | 2 judge → claim 支持率 → average | ✅ | ❌ reference-free | 全部 |
 | M6 | **Answer Correctness** | 生成正确性 | 2 judge → 与 expectedAnswer 对比 → average | ✅ | ✅ expectedAnswer | 全部 |
 | M7 | **Fact Coverage** | 生成完整性 | 2 judge → mustIncludeFacts 覆盖率 → average | ✅ | ✅ mustIncludeFacts | 全部 |
-| M8 | **Article Accuracy** | 生成准确性 | expectedArticles 被引用比例 | ❌ | ✅ expectedArticles | 全部 |
-| M9 | **Source Routing Accuracy** | 路由准确性 | expectedSource == 实际源 | ❌ | ✅ expectedSource | 全部 |
-| M10 | **Conflict Resolution Rate** | 冲突处理 | 冲突题中正确选择权威源的比例 | ❌ | ✅ sourceType | conflict |
-| M11 | **Refusal Accuracy** | 拒绝回答 | no_answer 题中正确拒绝的比例 | ❌ | ✅ sourceType | no_answer |
+| M8 | **Source Routing Accuracy** | 路由准确性 | expectedSource == 实际源 | ❌ | ✅ expectedSource | 全部 |
+| M9 | **Conflict Resolution Rate** | 冲突处理 | 冲突题中正确选择权威源的比例 | ❌ | ✅ sourceType | conflict |
+| M10 | **Refusal Accuracy** | 拒绝回答 | no_answer 题中正确拒绝的比例 | ❌ | ✅ sourceType | no_answer |
 
 > **⚠️ M4 Web Hit Rate 已删除**
 >
 > Web 搜索是非确定性的——今天搜"专利法第二十二条"可能找到知乎文章，下个月可能找到专利局官网。
 > 不存在稳定的 "relevant chunk set" 可以作为 ground truth，因此 chunk 级检索指标（NDCG/Recall）不适用于 web 搜索。
 >
-> **Web 搜索质量通过端到端答案质量衡量**（M6 Answer Correctness + M7 Fact Coverage + M8 Article Accuracy），
+> **Web 搜索质量通过端到端答案质量衡量**（M6 Answer Correctness + M7 Fact Coverage），
 > 而非 chunk 级检索指标。这是 Copilot、Perplexity 等跨源系统的通用做法。
 
 ### 2.2 指标详细定义
@@ -115,7 +116,6 @@ Recall@K = (top-K 中 LLM judge 判定 grade ≥ 2 的 citation 数) / (LLM judg
 > Web 搜索是非确定性的，无法预计算 ground truth chunk 集。Web 搜索质量通过端到端答案质量衡量：
 > - M6 Answer Correctness：答案是否正确
 > - M7 Fact Coverage：关键事实是否覆盖
-> - M8 Article Accuracy：法条引用是否准确
 >
 > 这是 Copilot、Perplexity 等跨源系统的通用做法——不通过匹配特定 URL 来衡量 web 搜索，而是通过最终答案质量来衡量。
 
@@ -173,22 +173,7 @@ Recall@K = (top-K 中 LLM judge 判定 grade ≥ 2 的 citation 数) / (LLM judg
 
 ---
 
-#### M8: Article Accuracy（法条引用准确性）
-
-**为什么选这个指标**：专利复审必须引用准确的法条。错误引用比不引用更危险。
-
-**公式**：
-```
-Article Accuracy = 生成答案中引用的法条 ∩ expectedArticles / |expectedArticles|
-```
-
-**输入数据**：chat Q&A 输出的答案 + `expectedArticles` 字段
-
-**计算方式**：确定性计算，不需要 judge
-
----
-
-#### M9: Source Routing Accuracy（来源路由准确性）
+#### M8: Source Routing Accuracy（来源路由准确性）
 
 **为什么选这个指标**：系统需要判断答案来自 KB 还是 web，路由错误会导致检索失败。
 
@@ -201,7 +186,7 @@ Source Routing Accuracy = 路由正确的题目数 / 总题目数
 
 ---
 
-#### M10: Conflict Resolution Rate（冲突处理率）
+#### M9: Conflict Resolution Rate（冲突处理率）
 
 **为什么选这个指标**：当 KB 和 web 给出矛盾答案时，系统应优先选择权威来源（KB）。
 
@@ -214,7 +199,7 @@ Conflict Resolution Rate = 冲突题中正确选择 KB 的数量 / 冲突题总�
 
 ---
 
-#### M11: Refusal Accuracy（拒绝回答准确率）
+#### M10: Refusal Accuracy（拒绝回答准确率）
 
 **为什么选这个指标**：对于没有可靠答案的问题，系统应拒绝回答而非编造。这是防幻觉的最后一道防线。
 
@@ -233,20 +218,19 @@ Refusal Accuracy = no_answer 题中正确拒绝的数量 / no_answer 题总数
 |--------|------|----------------|------|
 | **P0** | M1 NDCG@5 | kb_only | KB 检索排序是最核心的 RAG 质量指标 |
 | **P0** | M5 Faithfulness | 全部 | 幻觉是最严重的质量问题 |
-| **P0** | M9 Source Routing | 全部 | 路由错误直接导致检索失败 |
+| **P0** | M8 Source Routing | 全部 | 路由错误直接导致检索失败 |
 | **P1** | M2 Recall@10 | kb_only | KB 检索覆盖率 |
 | **P1** | M3 KB Hit Rate | kb_only | KB 检索质量分源监控 |
 | **P1** | M6 Answer Correctness | 全部 | 端到端答案质量（web 搜索质量的核心衡量） |
 | **P1** | M7 Fact Coverage | 全部 | 关键事实遗漏 |
-| **P1** | M8 Article Accuracy | 全部 | 法条引用准确性 |
-| **P2** | M10 Conflict Resolution | conflict | 冲突处理能力 |
-| **P2** | M11 Refusal Accuracy | no_answer | 拒绝回答能力（防幻觉最后防线） |
+| **P2** | M9 Conflict Resolution | conflict | 冲突处理能力 |
+| **P2** | M10 Refusal Accuracy | no_answer | 拒绝回答能力（防幻觉最后防线） |
 
 ### 2.4 指标与 judge 的关系
 
 | 指标类型 | judge 时机 | 说明 |
 |----------|-----------|------|
-| **确定性指标**（M8-M11） | 不需要 judge | 用 golden set 的预计算数据直接计算 |
+| **确定性指标**（M8-M10） | 不需要 judge | 用 golden set 的预计算数据直接计算 |
 | **检索质量指标**（M1-M3） | 评估阶段实时调用 judge | 对每个 citation（KB chunk + web result）实时评估相关性 |
 | **语义指标**（M5, M6, M7） | 评估阶段实时调用 judge | 对比 RAG 输出和参考数据 |
 
@@ -293,12 +277,11 @@ Refusal Accuracy = no_answer 题中正确拒绝的数量 / no_answer 题总数
 | `query` | string | 所有指标 | A.1 | 评估的输入问题 |
 | `category` | enum | 分组统计 | A.1 | 按 category 分组看指标 |
 | `difficulty` | enum | 分组统计 | A.1 | 按 difficulty 分组看指标 |
-| `sourceType` | enum | M3/M9/M10/M11 | A.1 | 决定该题评估哪些指标 |
+| `sourceType` | enum | M3/M8/M9/M10 | A.1 | 决定该题评估哪些指标 |
 | `agent` | string | 分组统计 | A.1 | Phase 1 固定为 "chat" |
 | `expectedAnswer` | string | **M6** Answer Correctness | A.1 | RAG 输出的对比基准 |
 | `mustIncludeFacts` | string[] | **M7** Fact Coverage | A.1 | 关键事实点覆盖检查 |
-| `expectedArticles` | string[] | **M8** Article Accuracy | A.1 | 法条引用检查 |
-| `expectedSource` | enum | **M9** Source Routing | A.1 | 路由正确性检查 |
+| `expectedSource` | enum | **M8** Source Routing | A.1 | 路由正确性检查 |
 | `sourceRoutingRationale` | string | — | A.1 | 解释为什么选这个源（辅助理解，不参与指标计算） |
 | `expectedSources` | string[] | — | A.1 | 文件名/URL 列表（辅助理解，不参与指标计算） |
 | `generatedBy` | string | — | A.1 | 记录哪个 provider 生成 |
@@ -312,11 +295,11 @@ Refusal Accuracy = no_answer 题中正确拒绝的数量 / no_answer 题总数
 
 | sourceType | 检索指标（citation 级） | 答案指标（端到端） | 说明 |
 |------------|-------------------|-------------------|------|
-| `kb_only` | M1, M2, M3 | M5, M6, M7, M8, M9 | 纯 KB 场景：检索 + 答案都评估 |
-| `web_only` | M1, M2 | M5, M6, M7, M8, M9 | 纯 Web 场景：评估 web citation 质量 |
-| `cross_source` | M1, M2 | M5, M6, M7, M8, M9 | 综合场景：评估混合 citation 质量 |
-| `conflict` | M1, M2 | M9, M10 | 冲突处理场景：评估路由 + 冲突解决 |
-| `no_answer` | M1, M2 | M9, M11 | 拒绝回答场景：评估拒绝准确性 |
+| `kb_only` | M1, M2, M3 | M5, M6, M7, M8 | 纯 KB 场景：检索 + 答案都评估 |
+| `web_only` | M1, M2 | M5, M6, M7, M8 | 纯 Web 场景：评估 web citation 质量 |
+| `cross_source` | M1, M2 | M5, M6, M7, M8 | 综合场景：评估混合 citation 质量 |
+| `conflict` | M1, M2 | M8, M9 | 冲突处理场景：评估路由 + 冲突解决 |
+| `no_answer` | M1, M2 | M8, M10 | 拒绝回答场景：评估拒绝准确性 |
 
 > **所有 sourceType 都评估检索指标（M1/M2）**
 >
@@ -363,7 +346,7 @@ Phase 1 分四个阶段执行：
 ┌─────────────────────────────────────────────────────────────┐
 │ A.1 生成 Golden Set                                          │
 │ 产出：21 题 + 参考答案                                        │
-│ 为指标服务：M5-M11 的输入数据                                   │
+│ 为指标服务：M5-M10 的输入数据                                   │
 ├─────────────────────────────────────────────────────────────┤
 │ B Golden Set 质量评估                                         │
 │ 产出：质量报告（题目是否合格）                                   │
@@ -375,7 +358,7 @@ Phase 1 分四个阶段执行：
 ├─────────────────────────────────────────────────────────────┤
 │ D 用 Golden Set 评估模型                                      │
 │ 产出：评估报告（各项指标分数）                                    │
-│ 计算指标：M1-M3（实时评估）+ M5-M11（按 sourceType）            │
+│ 计算指标：M1-M3（实时评估）+ M5-M10（按 sourceType）            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -445,9 +428,8 @@ Phase 1 分四个阶段执行：
 | `query` | 所有 | 评估输入 |
 | `expectedAnswer` | M6 | Answer Correctness 的对比基准 |
 | `mustIncludeFacts` | M7 | Fact Coverage 的检查清单 |
-| `expectedArticles` | M8 | Article Accuracy 的对比基准 |
-| `expectedSource` | M9 | Source Routing 的对比基准 |
-| `sourceType` | M3/M9/M10/M11 | 决定该题评估哪些指标 |
+| `expectedSource` | M8 | Source Routing 的对比基准 |
+| `sourceType` | M3/M8/M9/M10 | 决定该题评估哪些指标 |
 | `contextChunkIds` | 调试 | 记录生成时使用的 chunk IDs（调试用，不参与指标计算） |
 
 **Token 消耗**：~21 次 LLM 调用，~2 万 tokens
@@ -544,13 +526,11 @@ D 阶段评估的目的是 **eval app 中用户配置的模型组合和 chat que
 3. 计算指标：
    ┌─────────────────────────────────────────────────────┐
    │ 确定性指标（直接计算，不需要 judge）                     │
-   │ ├─ M8 Article Accuracy：expectedArticles 对比          │
+   │ ├─ M8 Source Routing：expectedSource 对比实际           │
    │ │   （全部 sourceType）                                │
-   │ ├─ M9 Source Routing：expectedSource 对比实际           │
-   │ │   （全部 sourceType）                                │
-   │ ├─ M10 Conflict Resolution：冲突题路由正确率            │
+   │ ├─ M9 Conflict Resolution：冲突题路由正确率            │
    │ │   （仅 conflict）                                    │
-   │ └─ M11 Refusal Accuracy：no_answer 题拒绝率            │
+   │ └─ M10 Refusal Accuracy：no_answer 题拒绝率            │
    │     （仅 no_answer）                                    │
    ├─────────────────────────────────────────────────────┤
    │ 检索质量指标（LLM judge 实时评估，全部 sourceType）       │
@@ -587,10 +567,9 @@ D 阶段评估的目的是 **eval app 中用户配置的模型组合和 chat que
 | M5 Faithfulness | RAG 答案 + 检索上下文 | 全部 | 评估时（judge） |
 | M6 Answer Correctness | RAG 答案 + `expectedAnswer`（A.1 产出） | 全部 | 评估时（judge） |
 | M7 Fact Coverage | RAG 答案 + `mustIncludeFacts`（A.1 产出） | 全部 | 评估时（judge） |
-| M8 Article Accuracy | RAG 答案 + `expectedArticles`（A.1 产出） | 全部 | 评估时 |
-| M9 Source Routing | `expectedSource`（A.1 产出）+ RAG 实际源 | 全部 | 评估时 |
-| M10 Conflict Resolution | `sourceType == "conflict"`（A.1 产出）+ RAG 路由 | conflict | 评估时 |
-| M11 Refusal Accuracy | `sourceType == "no_answer"`（A.1 产出）+ RAG 回答 | no_answer | 评估时 |
+| M8 Source Routing | `expectedSource`（A.1 产出）+ RAG 实际源 | 全部 | 评估时 |
+| M9 Conflict Resolution | `sourceType == "conflict"`（A.1 产出）+ RAG 路由 | conflict | 评估时 |
+| M10 Refusal Accuracy | `sourceType == "no_answer"`（A.1 产出）+ RAG 回答 | no_answer | 评估时 |
 
 > **M1/M2 适用于所有 sourceType**：
 > - kb_only：评估 KB chunks 与 query 的相关性

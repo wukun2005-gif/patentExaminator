@@ -1029,8 +1029,8 @@ metricsRouter.get("/metrics/eval/reports", async (_req, res) => {
       ORDER BY REPLACE(timestamp, 'T', ' ') DESC LIMIT 20
     `).all() as ReportRow[];
 
-    // 加载 run 级元数据（耗时、文件路径）
-    let metaMap = new Map<string, { durationMs: number; reportJsonPath: string; logPath: string }>();
+    // 加载 run 级元数据（耗时、文件路径、judge 配置）
+    let metaMap = new Map<string, { durationMs: number; reportJsonPath: string; logPath: string; judgeConfigs?: Array<{ providerId: string; modelId: string }> }>();
     try {
       const { getEvalRunMetas } = await import("../lib/syncDb.js");
       metaMap = getEvalRunMetas();
@@ -1074,8 +1074,23 @@ metricsRouter.get("/metrics/eval/reports", async (_req, res) => {
         } catch { /* ignore */ }
       }
 
-      return { ...r, durationMs, reportJsonPath, logPath };
+      // judgeConfigs: 优先从 meta 读，否则从报告 JSON 读
+      let judgeConfigs = meta?.judgeConfigs;
+      if (!judgeConfigs && reportJsonPath && fs.existsSync(reportJsonPath)) {
+        try {
+          const reportData = JSON.parse(fs.readFileSync(reportJsonPath, "utf-8"));
+          if (reportData?.judgeConfigs) judgeConfigs = reportData.judgeConfigs;
+        } catch { /* ignore */ }
+      }
+
+      return { ...r, durationMs, reportJsonPath, logPath, judgeConfigs };
     });
+
+    // 对没有 judgeConfigs 的报告回退到默认配置
+    const { DEFAULT_JUDGE_CONFIGS } = await import("../lib/multiJudge.js");
+    for (const r of enriched) {
+      if (!r.judgeConfigs) r.judgeConfigs = DEFAULT_JUDGE_CONFIGS;
+    }
     res.json(enriched);
   } catch (err) {
     res.status(500).json({ error: errMsg(err) });
@@ -1792,10 +1807,10 @@ metricsRouter.post("/metrics/eval/run-async", async (req, res) => {
         }
         fs.writeFileSync(logPath, logLines.join("\n"), "utf-8");
 
-        // 持久化 run 级文件路径和耗时到数据库（非关键，失败不影响评估结果）
+        // 持久化 run 级文件路径、耗时和 judge 配置到数据库（非关键，失败不影响评估结果）
         try {
           const { saveEvalRunMeta } = await import("../lib/syncDb.js");
-          saveEvalRunMeta(report.runId, reportJsonPath, logPath, evalDurationMs);
+          saveEvalRunMeta(report.runId, reportJsonPath, logPath, evalDurationMs, report.judgeConfigs);
         } catch (metaErr) {
           logLines.push(`\n⚠️ 保存 run 元数据失败: ${metaErr instanceof Error ? metaErr.message : String(metaErr)}`);
           fs.writeFileSync(logPath, logLines.join("\n"), "utf-8");

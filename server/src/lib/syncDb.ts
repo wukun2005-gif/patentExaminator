@@ -218,7 +218,7 @@ function upgradeEvalSetsSchema(db: Database.Database): void {
 }
 
 /**
- * 增量升级 metrics_eval_run_meta 表 — 添加 duration_ms 列
+ * 增量升级 metrics_eval_run_meta 表 — 添加 duration_ms、judge_configs 列
  */
 function upgradeEvalRunMetaSchema(db: Database.Database): void {
   // 先确保表存在
@@ -233,6 +233,10 @@ function upgradeEvalRunMetaSchema(db: Database.Database): void {
     db.exec(`ALTER TABLE metrics_eval_run_meta ADD COLUMN duration_ms INTEGER DEFAULT 0`);
     logger.info(`[SyncDb] Added column metrics_eval_run_meta.duration_ms`);
   }
+  if (!existingCols.has("judge_configs")) {
+    db.exec(`ALTER TABLE metrics_eval_run_meta ADD COLUMN judge_configs TEXT DEFAULT ''`);
+    logger.info(`[SyncDb] Added column metrics_eval_run_meta.judge_configs`);
+  }
 }
 
 /**
@@ -244,23 +248,31 @@ export function getMetricsDb(): Database.Database {
   return getSyncDb();
 }
 
-/** 保存评估报告的文件路径和耗时（run 级元数据） */
-export function saveEvalRunMeta(runId: string, reportJsonPath: string, logPath: string, durationMs: number = 0): void {
+/** 保存评估报告的文件路径、耗时和 judge 配置（run 级元数据） */
+export function saveEvalRunMeta(
+  runId: string, reportJsonPath: string, logPath: string, durationMs: number = 0,
+  judgeConfigs?: Array<{ providerId: string; modelId: string }>
+): void {
   const db = getSyncDb();
+  const judgeConfigsJson = judgeConfigs ? JSON.stringify(judgeConfigs) : "";
   db.prepare(
-    `INSERT OR REPLACE INTO metrics_eval_run_meta (run_id, report_json_path, log_path, duration_ms) VALUES (?, ?, ?, ?)`
-  ).run(runId, reportJsonPath, logPath, durationMs);
+    `INSERT OR REPLACE INTO metrics_eval_run_meta (run_id, report_json_path, log_path, duration_ms, judge_configs) VALUES (?, ?, ?, ?, ?)`
+  ).run(runId, reportJsonPath, logPath, durationMs, judgeConfigsJson);
 }
 
-/** 获取所有 run 的文件路径和耗时元数据 */
-export function getEvalRunMetas(): Map<string, { reportJsonPath: string; logPath: string; durationMs: number }> {
+/** 获取所有 run 的文件路径、耗时和 judge 配置元数据 */
+export function getEvalRunMetas(): Map<string, { reportJsonPath: string; logPath: string; durationMs: number; judgeConfigs?: Array<{ providerId: string; modelId: string }> }> {
   const db = getSyncDb();
-  const rows = db.prepare(`SELECT run_id, report_json_path, log_path, duration_ms FROM metrics_eval_run_meta`).all() as Array<{
-    run_id: string; report_json_path: string; log_path: string; duration_ms: number;
+  const rows = db.prepare(`SELECT run_id, report_json_path, log_path, duration_ms, judge_configs FROM metrics_eval_run_meta`).all() as Array<{
+    run_id: string; report_json_path: string; log_path: string; duration_ms: number; judge_configs: string;
   }>;
-  const map = new Map<string, { reportJsonPath: string; logPath: string; durationMs: number }>();
+  const map = new Map<string, { reportJsonPath: string; logPath: string; durationMs: number; judgeConfigs?: Array<{ providerId: string; modelId: string }> }>();
   for (const r of rows) {
-    map.set(r.run_id, { reportJsonPath: r.report_json_path, logPath: r.log_path, durationMs: r.duration_ms ?? 0 });
+    let judgeConfigs: Array<{ providerId: string; modelId: string }> | undefined;
+    if (r.judge_configs) {
+      try { judgeConfigs = JSON.parse(r.judge_configs); } catch { /* ignore */ }
+    }
+    map.set(r.run_id, { reportJsonPath: r.report_json_path, logPath: r.log_path, durationMs: r.duration_ms ?? 0, ...(judgeConfigs ? { judgeConfigs } : {}) });
   }
   return map;
 }
