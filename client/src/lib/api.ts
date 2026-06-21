@@ -1,6 +1,12 @@
 const API_BASE = "/api";
 
-export async function fetchModels(providerId: string, apiKey: string, baseUrl?: string): Promise<string[]> {
+export interface ModelFetchResult {
+  models: string[];
+  /** modelId → supportsFunctionCalling */
+  modelCapabilities: Record<string, boolean>;
+}
+
+export async function fetchModels(providerId: string, apiKey: string, baseUrl?: string): Promise<ModelFetchResult> {
   const params = new URLSearchParams({ apiKey });
   if (baseUrl) params.set("baseUrl", baseUrl);
   const url = `${API_BASE}/providers/${encodeURIComponent(providerId)}/models?${params.toString()}`;
@@ -9,8 +15,8 @@ export async function fetchModels(providerId: string, apiKey: string, baseUrl?: 
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
   }
-  const data = (await res.json()) as { models: string[] };
-  return data.models;
+  const data = (await res.json()) as { models: string[]; modelCapabilities?: Record<string, boolean> };
+  return { models: data.models, modelCapabilities: data.modelCapabilities ?? {} };
 }
 
 /** 验证单个模型是否可用（发送轻量 chat 请求） */

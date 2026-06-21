@@ -230,8 +230,8 @@ describe("OpenAICompatibleAdapter.listModels()", () => {
 
     const adapter = new TestAdapter();
     const models = await adapter.listModels("test-key");
-    expect(models).toContain("model-a");
-    expect(models).toContain("model-b");
+    expect(models.map(m => m.id)).toContain("model-a");
+    expect(models.map(m => m.id)).toContain("model-b");
   });
 
   it("throws on 401 without retry", async () => {

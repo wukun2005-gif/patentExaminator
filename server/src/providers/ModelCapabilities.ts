@@ -27,6 +27,9 @@ export interface ModelCapabilities {
   /** 是否支持视觉/图片输入 */
   supportsVision: boolean;
 
+  /** 是否支持 function calling（tools/tool_choice） */
+  supportsFunctionCalling: boolean;
+
   /** 系统提示传递方式 */
   systemPromptMode: "message" | "parameter" | "none";
 

@@ -124,12 +124,17 @@ export interface ChatResponse {
   toolCalls?: ToolCall[];
 }
 
+export interface ModelListing {
+  id: string;
+  supportsFunctionCalling: boolean;
+}
+
 export interface ProviderAdapter {
   id: ProviderId;
   defaultBaseUrl: string;
   supportedModels(): string[];
   chat(req: ChatRequest): Promise<ChatResponse>;
-  listModels(apiKey: string, customBaseUrl?: string): Promise<string[]>;
+  listModels(apiKey: string, customBaseUrl?: string): Promise<ModelListing[]>;
 }
 
 /**
@@ -152,7 +157,7 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
 
   abstract supportedModels(): string[];
 
-  async listModels(apiKey: string, customBaseUrl?: string): Promise<string[]> {
+  async listModels(apiKey: string, customBaseUrl?: string): Promise<ModelListing[]> {
     const base = customBaseUrl || this.baseUrl || this.defaultBaseUrl;
     const url = `${base}/models`;
     const MAX_RETRIES = 2;
@@ -181,7 +186,7 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
         const ids = data.data.map((m) => m.id).filter((id) => isTextModel(id));
         // Verify each model is actually callable (API may list models that return 404 on chat)
         const verified = await this.verifyModels(ids, apiKey, base);
-        return verified.sort();
+        return verified.sort((a, b) => a.id.localeCompare(b.id));
       } catch (e) {
         if (e instanceof Error && (e.message.includes("401") || e.message.includes("403"))) {
           throw e;
@@ -196,13 +201,13 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
   }
 
   /** Verify models are callable by sending a lightweight chat request to each. */
-  private async verifyModels(modelIds: string[], apiKey: string, baseUrl: string): Promise<string[]> {
+  private async verifyModels(modelIds: string[], apiKey: string, baseUrl: string): Promise<ModelListing[]> {
     const CONCURRENCY = 3;
     const TIMEOUT_MS = 10_000;
-    const verified: string[] = [];
+    const verified: ModelListing[] = [];
     const queue = [...modelIds];
 
-    const check = async (modelId: string): Promise<string | null> => {
+    const check = async (modelId: string): Promise<ModelListing | null> => {
       try {
         const res = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
@@ -218,7 +223,9 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
           logger.warn(`[listModels:verify] ${this.id}/${modelId}: HTTP ${res.status} — ${body.slice(0, 200)}`);
           return null;
         }
-        return modelId;
+        // 测试 function calling 支持
+        const supportsFc = await this.testFunctionCalling(modelId, apiKey, baseUrl);
+        return { id: modelId, supportsFunctionCalling: supportsFc };
       } catch (e) {
         logger.warn(`[listModels:verify] ${this.id}/${modelId}: ${e instanceof Error ? e.message : String(e)}`);
         return null;
@@ -239,6 +246,69 @@ export abstract class OpenAICompatibleAdapter implements ProviderAdapter {
     await Promise.all(workers);
     logger.info(`[listModels] ${this.id}: ${modelIds.length} returned by API, ${verified.length} verified callable`);
     return verified;
+  }
+
+  /** 测试模型是否支持 function calling */
+  private async testFunctionCalling(modelId: string, apiKey: string, baseUrl: string): Promise<boolean> {
+    const TIMEOUT_MS = 15_000;
+    const tools = [{
+      type: "function" as const,
+      function: {
+        name: "web_search",
+        description: "搜索互联网获取最新信息",
+        parameters: { type: "object" as const, properties: { query: { type: "string" as const } } },
+      },
+    }];
+    const messages = [{ role: "user" as const, content: "search today news" }];
+
+    // Step 1: 尝试 tool_choice=required（强制调用，最可靠）
+    try {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: modelId, messages, max_tokens: 100, tool_choice: "required", tools }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (res.ok) {
+        const data = await res.json() as { choices?: Array<{ message?: { tool_calls?: unknown[] } }> };
+        const hasToolCalls = data.choices?.[0]?.message?.tool_calls != null && data.choices[0].message.tool_calls.length > 0;
+        if (hasToolCalls) {
+          logger.info(`[listModels:fc-test] ${this.id}/${modelId}: ✅ tool_choice=required 成功`);
+          return true;
+        }
+      } else {
+        const body = await res.text().catch(() => "");
+        logger.info(`[listModels:fc-test] ${this.id}/${modelId}: tool_choice=required HTTP ${res.status} — ${body.slice(0, 150)}`);
+      }
+    } catch (e) {
+      logger.info(`[listModels:fc-test] ${this.id}/${modelId}: tool_choice=required 异常 — ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    // Step 2: 降级到 tool_choice=auto（部分模型不支持 required 但支持 auto）
+    try {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: modelId, messages, max_tokens: 100, tool_choice: "auto", tools }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (res.ok) {
+        const data = await res.json() as { choices?: Array<{ message?: { tool_calls?: unknown[] } }> };
+        const hasToolCalls = data.choices?.[0]?.message?.tool_calls != null && data.choices[0].message.tool_calls.length > 0;
+        if (hasToolCalls) {
+          logger.info(`[listModels:fc-test] ${this.id}/${modelId}: ✅ tool_choice=auto 成功`);
+          return true;
+        }
+        logger.info(`[listModels:fc-test] ${this.id}/${modelId}: ❌ tool_choice=auto 无 tool_calls`);
+      } else {
+        const body = await res.text().catch(() => "");
+        logger.info(`[listModels:fc-test] ${this.id}/${modelId}: tool_choice=auto HTTP ${res.status} — ${body.slice(0, 150)}`);
+      }
+    } catch (e) {
+      logger.info(`[listModels:fc-test] ${this.id}/${modelId}: tool_choice=auto 异常 — ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    return false;
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {

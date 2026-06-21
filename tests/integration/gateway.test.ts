@@ -3,7 +3,7 @@ import { ProviderRegistry } from "@server/providers/registry";
 import { clearAll } from "@server/security/keyStore";
 import { sanitizeText } from "@server/security/sanitize";
 import { aiRunRequestSchema } from "@server/lib/schemas";
-import type { ProviderAdapter, ChatRequest, ChatResponse } from "@server/providers/ProviderAdapter";
+import type { ProviderAdapter, ChatRequest, ChatResponse, ModelListing } from "@server/providers/ProviderAdapter";
 import type { ProviderId } from "@shared/types/agents";
 
 // Mock adapter for testing
@@ -37,8 +37,8 @@ class MockAdapter implements ProviderAdapter {
     return response;
   }
 
-  async listModels(): Promise<string[]> {
-    return ["mock-model"];
+  async listModels(): Promise<ModelListing[]> {
+    return [{ id: "mock-model", supportsFunctionCalling: true }];
   }
 }
 
@@ -62,7 +62,7 @@ class FailingAdapter implements ProviderAdapter {
     throw error;
   }
 
-  async listModels(): Promise<string[]> {
+  async listModels(): Promise<ModelListing[]> {
     return [];
   }
 }
@@ -108,7 +108,7 @@ class SequenceAdapter implements ProviderAdapter {
     return { text: behavior.text ?? "success", rawResponse: {} };
   }
 
-  async listModels(): Promise<string[]> { return ["mock"]; }
+  async listModels(): Promise<ModelListing[]> { return [{ id: "mock", supportsFunctionCalling: true }]; }
 
   getCallCount(): number { return this.callCount; }
 }
@@ -149,7 +149,7 @@ describe("ProviderRegistry", () => {
       id: "kimi",
       defaultBaseUrl: "https://mock.api",
       supportedModels: () => ["test"],
-      async listModels(_apiKey: string): Promise<string[]> { return ["test"]; },
+      async listModels(_apiKey: string): Promise<ModelListing[]> { return [{ id: "test", supportsFunctionCalling: true }]; },
       async chat(_req: ChatRequest): Promise<ChatResponse> {
         callCount++;
         if (callCount <= 2) {

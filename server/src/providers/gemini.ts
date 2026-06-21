@@ -1,5 +1,5 @@
 import type { ProviderId } from "@shared/types/agents";
-import type { ProviderAdapter, ChatRequest, ChatResponse, ToolCall } from "./ProviderAdapter.js";
+import type { ProviderAdapter, ChatRequest, ChatResponse, ToolCall, ModelListing } from "./ProviderAdapter.js";
 import { resolveMaxTokens, learnThinkingCapability } from "./ProviderAdapter.js";
 import { getModelCapabilities } from "./model-capabilities-registry.js";
 import { logger } from "../lib/logger.js";
@@ -77,7 +77,7 @@ export class GeminiAdapter implements ProviderAdapter {
     return DEFAULT_MODELS;
   }
 
-  async listModels(apiKey: string): Promise<string[]> {
+  async listModels(apiKey: string): Promise<ModelListing[]> {
     const url = `${GEMINI_BASE_URL}/models`;
     const res = await fetch(url, {
       headers: { "x-goog-api-key": apiKey },
@@ -92,8 +92,8 @@ export class GeminiAdapter implements ProviderAdapter {
     const data = await res.json() as { models: GeminiModel[] };
     const models = data.models
       .filter(isTextModel)
-      .map(m => getModelId(m))
-      .sort();
+      .map(m => ({ id: getModelId(m), supportsFunctionCalling: true } as ModelListing))
+      .sort((a, b) => a.id.localeCompare(b.id));
 
     return models;
   }

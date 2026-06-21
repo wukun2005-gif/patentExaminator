@@ -50,7 +50,13 @@ settingsRouter.get("/providers/:providerId/models", async (req, res) => {
 
   try {
     const models = await adapter.listModels(apiKey, baseUrl);
-    res.json({ providerId, models });
+    // 返回模型列表 + function calling 支持信息
+    const modelIds = models.map(m => m.id);
+    const modelCapabilities = models.reduce<Record<string, boolean>>((acc, m) => {
+      acc[m.id] = m.supportsFunctionCalling;
+      return acc;
+    }, {});
+    res.json({ providerId, models: modelIds, modelCapabilities });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     res.status(502).json({ error: message });

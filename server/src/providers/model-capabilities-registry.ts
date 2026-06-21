@@ -198,6 +198,7 @@ const DEFAULT_CAPABILITIES: ModelCapabilities = {
   temperature: { supported: true, range: [0, 2] },
   supportsStructuredOutput: false,
   supportsVision: false,
+  supportsFunctionCalling: true,
   systemPromptMode: "message",
 };
 
@@ -370,6 +371,7 @@ export function getModelInfo(modelId: string): ModelInfo {
     isReasoning: caps.isReasoning,
     supportsVision: caps.supportsVision,
     supportsStructuredOutput: caps.supportsStructuredOutput,
+    supportsFunctionCalling: caps.supportsFunctionCalling,
   };
 }
 

@@ -29,8 +29,12 @@ const BAILIAN_TOOL_CHOICE_AUTO_ONLY = new Set([
   "deepseek-r1-distill-qwen-14b",
   "deepseek-r1-distill-qwen-7b",
   // ── 非 thinking 但不支持 tool_choice=required 的模型 ──
-  // MiniMax-M2.5: 百炼返回 400 "function.arguments parameter must be in JSON format"
-  "MiniMax-M2.5",
+  // MiniMax-M2.5 已移至 BAILIAN_NO_FUNCTION_CALLING（完全不支持 function calling）
+]);
+
+/** 完全不支持 function calling 的模型（tools 必须移除，否则 400） */
+const BAILIAN_NO_FUNCTION_CALLING = new Set<string>([
+  // MiniMax-M2.5 已于 2026-06-20 验证支持 function calling（百炼已修复）
 ]);
 
 export class BailianAdapter extends OpenAICompatibleAdapter {
@@ -38,6 +42,12 @@ export class BailianAdapter extends OpenAICompatibleAdapter {
   defaultBaseUrl = "https://ws-3vv2b1h4akmem3xz.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
 
   override async chat(req: ChatRequest): Promise<ChatResponse> {
+    // MiniMax-M2.5 等模型完全不支持 function calling，必须移除 tools
+    if (req.tools && req.tools.length > 0 && BAILIAN_NO_FUNCTION_CALLING.has(req.modelId)) {
+      logger.info(`[Bailian] ${req.modelId} 不支持 function calling，移除 tools`);
+      const { tools: _, tool_choice: __, ...rest } = req;
+      return super.chat(rest);
+    }
     // 百炼部分模型不支持 tool_choice=required/object，降级为 auto
     // 非 thinking 模型收到 tool_choice=auto 无副作用，所以统一处理
     if ((req.tool_choice === "required" || typeof req.tool_choice === "object") && BAILIAN_TOOL_CHOICE_AUTO_ONLY.has(req.modelId)) {

@@ -1485,6 +1485,17 @@
   font-size: var(--pex-font-size-tiny);
 }
 
+.fallback-no-fc-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #f97316;
+  color: #fff;
+  border-radius: var(--pex-radius-sm);
+  font-size: var(--pex-font-size-tiny);
+  font-weight: var(--pex-font-weight-medium);
+  margin-left: 4px;
+}
+
 .add-provider select {
   padding: 8px 12px;
   border: 1px dashed var(--pex-color-text-disabled);

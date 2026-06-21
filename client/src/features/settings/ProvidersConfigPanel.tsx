@@ -61,6 +61,8 @@ export function ProvidersConfigPanel() {
   const [loadingModels, setLoadingModels] = useState<string | null>(null);
   const [modelError, setModelError] = useState<Record<string, string>>({});
   const [verifiedModels, setVerifiedModels] = useState<Record<string, Set<string>>>({});
+  /** providerId → (modelId → supportsFunctionCalling) */
+  const [fcSupportMap, setFcSupportMap] = useState<Record<string, Record<string, boolean>>>({});
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
   const dragItem = useRef<{ providerId: string; index: number } | null>(null);
   const dragOverItem = useRef<{ providerId: string; index: number } | null>(null);
@@ -252,8 +254,11 @@ export function ProvidersConfigPanel() {
     const preset = PRESET_MODEL_PROVIDERS.find((p) => p.id === id);
     const base = provider.baseUrl ?? preset?.baseUrl;
     try {
-      const models = await fetchModels(id, provider.apiKeyRef, base);
+      const fetchResult = await fetchModels(id, provider.apiKeyRef, base);
       if (!isMountedRef.current) return;
+      const models = fetchResult.models;
+      // 存储 function calling 支持信息
+      setFcSupportMap((prev) => ({ ...prev, [id]: fetchResult.modelCapabilities }));
       if (models.length > 0) {
         // BUG-FIX: 永远保留用户选择的 defaultModelId，不覆盖
         const userDefaultId = provider.defaultModelId ?? "";
@@ -500,6 +505,7 @@ export function ProvidersConfigPanel() {
                                     {isVerified === true && <span className="fallback-verified-badge" title="已验证可用">✓</span>}
                                     {isVerified === false && <span className="fallback-unverified-badge" title="验证失败（可能临时不可用）">⚠</span>}
                                     {isVerified === null && loadingModels === preset.id && <span className="fallback-verifying-badge" title="验证中…">⏳</span>}
+                                    {fcSupportMap[preset.id]?.[model] === false && <span className="fallback-no-fc-badge" title="不支持 function calling，无法调用联网搜索等工具">⚠ 无工具调用</span>}
                                   </span>
                                 </td>
                                 <td className="fallback-table__meta-col">

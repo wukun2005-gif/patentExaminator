@@ -16,6 +16,7 @@ export interface ModelInfo {
   isReasoning?: boolean;
   supportsVision?: boolean;
   supportsStructuredOutput?: boolean;
+  supportsFunctionCalling?: boolean;
 }
 
 export interface ProviderConnection {

@@ -2,7 +2,7 @@
 // Reference: https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
 
 import type { ProviderId } from "@shared/types/agents";
-import type { ProviderAdapter, ChatRequest, ChatResponse } from "./ProviderAdapter.js";
+import type { ProviderAdapter, ChatRequest, ChatResponse, ModelListing } from "./ProviderAdapter.js";
 import { resolveMaxTokens, learnThinkingCapability } from "./ProviderAdapter.js";
 import { getModelCapabilities } from "./model-capabilities-registry.js";
 
@@ -35,10 +35,10 @@ export class BedrockAdapter implements ProviderAdapter {
     return DEFAULT_MODELS;
   }
 
-  async listModels(apiKey: string): Promise<string[]> {
+  async listModels(apiKey: string): Promise<ModelListing[]> {
     // Bedrock OpenAI-compatible API uses /models endpoint
     const url = `${this.baseUrl}/models`;
-    
+
     const res = await fetch(url, {
       method: "GET",
       headers: {
@@ -56,7 +56,7 @@ export class BedrockAdapter implements ProviderAdapter {
     const data = await res.json() as { data?: Array<{ id: string }>; models?: Array<{ id: string }> };
     // OpenAI-compatible format: { data: [{ id: "model-id" }] }
     const models = data.data ?? data.models ?? [];
-    return models.map(m => m.id).filter(Boolean);
+    return models.map(m => ({ id: m.id, supportsFunctionCalling: true } as ModelListing)).filter(m => m.id);
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
