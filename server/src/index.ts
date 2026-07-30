@@ -13,6 +13,7 @@ import { agentRouter } from "./routes/agent.js";
 import { metricsRouter } from "./routes/metrics.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { chatAttachmentsRouter } from "./routes/chat-attachments.js";
+import { demoRouter } from "./routes/demo.js";
 import { logger } from "./lib/logger.js";
 import { closeSyncDb } from "./lib/syncDb.js";
 import path from "path";
@@ -43,8 +44,8 @@ app.use((_req, res, next) => {
   next();
 });
 
-// 确保所有响应使用 UTF-8 编码
-app.use((_req, res, next) => {
+// 确保 API 响应使用 UTF-8 编码（仅 /api 路由；全局设置会破坏 client 静态文件的 Content-Type）
+app.use("/api", (_req, res, next) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   next();
 });
@@ -100,6 +101,7 @@ app.use("/api", agentRouter);
 app.use("/api", chatAttachmentsRouter);
 app.use("/api", metricsRouter);
 app.use("/api", notificationsRouter);
+app.use("/api", requireLocalhost, demoRouter);
 
 // Serve client static files if dist exists
 const clientDist = path.resolve(__dirname, "../../client/dist");

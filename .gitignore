@@ -38,6 +38,7 @@ scripts/
 .kiro/
 .trae/
 .windsurfrules
+.workbuddy/
 .github/
 
 opencode.json

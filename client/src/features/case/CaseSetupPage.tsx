@@ -345,7 +345,8 @@ export function CaseSetupPage() {
   };
   const validateAppNumber = (value: string) => {
     if (!value || value.trim().length === 0) return true;
-    return /^(CN)?\d{9,13}[A-Z]?$/.test(value.trim()) || "申请号格式不正确";
+    // 支持标准写法：12–13 位数字 + 可选".校验位"后缀（如 202410567890.1）
+    return /^(CN)?\d{9,13}[A-Z]?(\.[\dXx]{1,2})?$/.test(value.trim()) || "申请号格式不正确";
   };
   const validateAppDate = (value: string) => {
     if (!value) return "申请日为必填项";

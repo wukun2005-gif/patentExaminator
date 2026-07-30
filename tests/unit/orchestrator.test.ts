@@ -21,7 +21,8 @@ vi.mock("@server/security/keyStore.js", () => ({
 
 vi.mock("@server/lib/hybridSearch.js", () => ({
   hybridSearch: vi.fn().mockReturnValue([]),
-  mmrDiversityRank: vi.fn().mockReturnValue([])
+  mmrDiversityRank: vi.fn().mockReturnValue([]),
+  reciprocalRankFusion: vi.fn().mockReturnValue([])
 }));
 
 vi.mock("@server/lib/knowledgeDb.js", () => ({

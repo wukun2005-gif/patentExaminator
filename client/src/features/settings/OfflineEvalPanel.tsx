@@ -1078,7 +1078,7 @@ export function OfflineEvalPanel() {
 
       {/* Selected Report Detail */}
       {selectedReport && (
-        <div className="offline-eval__section" ref={reportDetailRef}>
+        <div className="offline-eval__section" ref={reportDetailRef} data-testid="eval-report-detail">
           <h4>评估结果</h4>
           {(selectedReport.reportJsonPath || selectedReport.logPath) && (
             <div style={{ marginBottom: 12, padding: 8, background: "var(--color-bg-subtle, #f5f5f5)", borderRadius: 6, fontSize: 12, fontFamily: "monospace" }}>
@@ -1253,7 +1253,7 @@ export function OfflineEvalPanel() {
 
       {/* Analysis View */}
       {analysisData && (
-        <div className="offline-eval__section">
+        <div className="offline-eval__section" data-testid="eval-analysis-detail">
           <h4>
             分析报告 — {analysisData.runId}
             <button

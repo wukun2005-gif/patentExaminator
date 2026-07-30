@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Link, useParams, useLocation } from "react-router-dom";
 import { ModeBanner } from "./ModeBanner";
+import { DemoOverlay } from "./DemoOverlay";
 import { ChatPanel } from "../features/chat/ChatPanel";
 import { ToastContainer } from "./ToastContainer";
 import { useCaseStore } from "../store";
@@ -40,6 +41,7 @@ export function AppShell({ children }: AppShellProps) {
   const { caseId } = useParams<{ caseId: string }>();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [demoPlaying, setDemoPlaying] = useState(false);
   const [, setHoveredItem] = useState<string | null>(null);
   const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
   const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -105,10 +107,19 @@ export function AppShell({ children }: AppShellProps) {
         )}
         <ModeBanner />
         <nav className="app-shell__topnav">
+          <button
+            type="button"
+            className="btn-link"
+            onClick={() => setDemoPlaying(true)}
+            title="一键演示：基于真实案件数据自动巡游全部功能，不调用任何外部 API"
+            data-testid="btn-demo-start"
+          >
+            ▶ 演示
+          </button>
           <button type="button" className="btn-link" onClick={showGuide}>
             引导
           </button>
-          <Link to="/settings">设置</Link>
+          <Link to="/settings" data-testid="nav-settings">设置</Link>
         </nav>
       </header>
       <div className="app-shell__body">
@@ -132,6 +143,7 @@ export function AppShell({ children }: AppShellProps) {
                 to="/cases/new"
                 className={location.pathname === "/cases/new" ? "active" : ""}
                 title="新建案件"
+                data-testid="nav-new-case"
               >
                 <span className="sidebar-nav__icon">＋</span>
                 {!sidebarCollapsed && "新建案件"}
@@ -140,6 +152,7 @@ export function AppShell({ children }: AppShellProps) {
                 to="/cases"
                 className={location.pathname === "/cases" ? "active" : ""}
                 title="案件历史"
+                data-testid="nav-cases"
               >
                 <span className="sidebar-nav__icon">📋</span>
                 {!sidebarCollapsed && "案件历史"}
@@ -157,6 +170,7 @@ export function AppShell({ children }: AppShellProps) {
                       location.pathname === `/cases/${caseId}/${item.path}` ? "active" : ""
                     }
                     title={sidebarCollapsed ? item.label : undefined}
+                    data-testid={`nav-${item.path}`}
                     onMouseEnter={() => handleItemHover(item.path)}
                     onMouseLeave={handleItemLeave}
                   >
@@ -197,6 +211,7 @@ export function AppShell({ children }: AppShellProps) {
         {caseId && <ChatPanel />}
       </div>
       <ToastContainer />
+      {demoPlaying && <DemoOverlay onStop={() => setDemoPlaying(false)} />}
     </div>
   );
 }

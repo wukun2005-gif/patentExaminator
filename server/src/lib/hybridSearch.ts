@@ -146,7 +146,7 @@ function searchBM25(query: string, topK: number = 10): Array<{ id: string; score
 }
 
 /** Reciprocal Rank Fusion：融合多个排序列表 */
-function reciprocalRankFusion(
+export function reciprocalRankFusion(
   rankings: Array<Array<{ id: string; score: number }>>,
   k: number = RRF_K
 ): Array<{ id: string; score: number }> {

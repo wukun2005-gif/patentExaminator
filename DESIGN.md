@@ -1,6 +1,6 @@
 # 专利复审 AI 助手 v0.1.0 详细设计文档
 
-<p align="right">版本 v0.1.0-r55 · 2026-06-19</p>
+<p align="right">版本 v0.1.0-r56 · 2026-07-19</p>
 
 > 本文档面向后续维护者与开发者，描述 v0.1.0 的架构设计、关键决策、领域模型与实现约束。与 `PRD.md`（做什么）和 `DEVELOPMENT_PLAN.md`（怎么做）互为补充；如有冲突，以 PRD 为准。
 
@@ -8,6 +8,7 @@
 
 | 版本 | 日期 | 变更摘要 | 影响范围 | 关联 commit |
 |------|------|---------|----------|-------------|
+| v0.1.0-r56 | 2026-07-19 | HyDE 假设性文档嵌入（仅 chat agent）— 集成业界标准方案 arXiv:2212.10496 解决 RAG 回声问题（库中与 query 同形的问句 chunk 与 query 的 embedding 完全相同、cosine=1.0，挤占含答案 chunk）：LLM 生成 ~150 字假设答案 → 与原 query 同批 embed（一次 HTTP）→ 双腿各自动态阈值过滤 → RRF 融合；生成失败/内容过短自动降级原逻辑；BM25/reranker/其他 agent 行为不变；maxTokens 基数 1500（经框架 resolveMaxTokens ×4 后 reasoning 模型实得 6000，覆盖 thinking 模型 reasoning_tokens 消耗 + 正文，避免 finishReason=length 空内容）；新增 9 个单元测试 | hyde.ts(新建), orchestrator.ts, hybridSearch.ts, hyde.test.ts(新建), orchestrator.test.ts | — |
 | v0.1.0-r55 | 2026-06-19 | docs/ 合并：§6.7 Metrics 体系全面扩充 — 删除已废弃功能（质量徽章/成本显示/反馈按钮/成本分析）；合并 metrics-design.md v3（维度×指标矩阵、8 指标定义、metrics_runs 表 schema、12 个 API 端点）；合并 golden-set-spec.md（M1-M10 指标详细定义、Multi-Judge 架构、Golden Set 结构、sourceType 矩阵）；合并 nf5-2（Eval Set CRUD schema + 6 API 端点 + 异步任务管理）；§6.7 拆分为 6.7.1-6.7.6 子章节 | DESIGN.md §6.7 | — |
 | v0.1.0-r54 | 2026-06-11 | 文档同步修复 — §3.3 ProviderId 从 5 家更新为 11 家（+gemini/qwen/bedrock/openrouter/opencode/volcengine）；ADR-005 同步更新；docs/ 目录 15 个文档审查：2 个 Coze 迁移文档加归档标注（coze-agent-architecture.md、system-specification.md 描述 B-038 前架构）；model-adaptation-plan.md 标注已合并到 master plan | DESIGN.md §3.3, §2 ADR-005, docs/ | — |
 | v0.1.0-r53 | 2026-06-11 | nf5: 离线评估指标计算 — 扩展 DB schema（golden_set 6 列 + golden_runs 9 列增量升级）、新增 multiJudge.ts（3-provider 并行打分 + majority vote/average 聚合）、evalMetrics.ts（10+ 指标：NDCG chunk 级、Recall、KB/Web Hit Rate、Faithfulness multi-judge、Answer Correctness、Fact Coverage、Article Accuracy、Source Routing/Attribution、Conflict Resolution、Refusal Accuracy）、evalRunner 集成新指标、goldenSetGenerator 支持 mustIncludeFacts/更长参考答案、metrics 路由新增报告详情端点、Dashboard 展示新指标列、44 个单元测试 | syncDb.ts, shared/src/types/metrics.ts, multiJudge.ts(新建), evalMetrics.ts(新建), evalRunner.ts, goldenSetGenerator.ts, metrics.ts, MetricsDashboard.tsx, evalMetrics.test.ts(新建), multiJudge.test.ts(新建) | — |
@@ -1160,7 +1161,9 @@ RAG 管线在 orchestrator 中实现，分为 5 个阶段：
 ```mermaid
 flowchart TD
     Q["用户查询"] --> QE["① Query Expansion"]
+    QE --> HYDE["①.5 HyDE 假设答案生成（仅 chat agent）"]
     QE --> ES["② Embedding 向量搜索"]
+    HYDE --> ES
     QE --> HS["③ Multi-Query + Hybrid Search"]
     ES --> MERGE["合并去重"]
     HS --> MERGE
@@ -1176,8 +1179,15 @@ flowchart TD
 - 法条知识图谱扩展：基于 `ARTICLE_GRAPH` 结构，命中某法条关键词时自动扩展到关联法条（如命中"新颖性"时扩展到"创造性"、"三步法"）
 - 三者串联：`expandQueryFull()` = crossLanguage → legalSynonyms → articleGraph
 
-**阶段 2：Embedding 向量搜索**（orchestrator.ts 第 733-769 行）
+**阶段 1.5：HyDE 假设性文档生成**（`server/src/lib/hyde.ts`，仅 chat agent，arXiv:2212.10496）
+- LLM 将 query 改写成 ~150 字"假设答案"（答案文体），解决回声问题：库中与 query 同形的问句 chunk 与原 query 的 embedding 完全相同（cosine=1.0），会把含答案的 chunk 挤出 top-K
+- 业界标准零样本方案（LangChain/LlamaIndex 内置同款）；生成文本仅用于检索，不展示给用户
+- 失败/异常/生成内容 <20 字时返回 null，降级为纯原 query 向量检索
+- 仅 chat agent 启用（`hydeConfig` 仅 chat 路径由 runAgent 传入），其余 agent 行为不变
+
+**阶段 2：Embedding 向量搜索**（orchestrator.ts）
 - 远程 Embedding API 生成查询向量，与知识库全量向量做 cosine similarity
+- HyDE 启用时：原 query 与假设答案放同一批 embed（一次 HTTP 请求），两路排序各自过动态阈值后用 RRF 融合（保留原 query 腿做对冲，Query2doc arXiv:2303.07678 证明保留原始信号更稳）
 - 动态阈值：top-15 后用 `topScore × 0.7` 过滤（绝对最低 0.1）
 - Embedding 未配置时降级为纯 BM25
 

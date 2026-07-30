@@ -9,6 +9,7 @@
  */
 import { logger } from "./logger.js";
 import type { ChatRequest } from "../providers/ProviderAdapter.js";
+import type { HydeConfig } from "./hyde.js";
 import type { MultimodalPart } from "../../../shared/src/types/domain.js";
 import { sanitizeText } from "../security/sanitize.js";
 import { extractJsonFromText } from "./jsonExtractor.js";
@@ -753,7 +754,8 @@ async function enhanceWithKnowledge(
   agentType: string,
   knowledgeEnabled: boolean = false,
   embeddingConfig?: { baseUrl: string; apiKey: string; modelId: string },
-  rerankerConfig?: { baseUrl: string; apiKey: string; modelId: string }
+  rerankerConfig?: { baseUrl: string; apiKey: string; modelId: string },
+  hydeConfig?: HydeConfig
 ): Promise<{ prompt: string; citations: Array<{ source: string; score: number; excerpt: string }> }> {
   try {
     if (!knowledgeEnabled) {
@@ -762,7 +764,7 @@ async function enhanceWithKnowledge(
     }
     logger.info(`[RAG] === 知识库增强开始 === agent=${agentType}, query="${query}"`);
 
-    const { hybridSearch, mmrDiversityRank } = await import("./hybridSearch.js");
+    const { hybridSearch, mmrDiversityRank, reciprocalRankFusion } = await import("./hybridSearch.js");
     const { getAllChunks, getAllVectors, getChunksWithParent } = await import("./knowledgeDb.js");
     const { expandQueryFull, generateMultiQueries } = await import("./queryExpand.js");
 
@@ -783,6 +785,15 @@ async function enhanceWithKnowledge(
     const expandedQuery = expandQueryFull(query);
     logger.info(`[RAG] [Step 1] Query expansion: "${query}" → "${expandedQuery}"`);
 
+    // Step 1.5: HyDE 假设性文档生成（仅调用方传入 hydeConfig 时启用，当前仅 chat agent）
+    // arXiv:2212.10496：LLM 生成假设答案，用答案文体的向量补充检索，
+    // 解决 query 与库中同形问句 chunk 的"回声"问题（相同文本 embedding 相同、cosine=1.0 挤占答案）
+    let hydeDoc: string | null = null;
+    if (hydeConfig && embeddingConfig) {
+      const { generateHydeDocument } = await import("./hyde.js");
+      hydeDoc = await generateHydeDocument(expandedQuery, hydeConfig);
+    }
+
     // Step 2: Embedding Search（动态 threshold：top-K + 相对 threshold）
     const vectorScores: Array<{ chunkId: string; score: number }> = [];
     if (embeddingConfig) {
@@ -791,31 +802,53 @@ async function enhanceWithKnowledge(
         const { createRemoteEmbedder } = await import("../routes/knowledge.js");
         const emb = createRemoteEmbedder(embeddingConfig);
         logger.info(`[RAG] [Step 2] Embedding query: model=${emb.modelId}, vectorMap=${vectorMap.size} vectors`);
-        const qVec = (await emb.embed([expandedQuery]))[0];
+        // HyDE: 原 query 与假设答案放同一批 embed（一次 HTTP 请求），两路排序各自过动态阈值后 RRF 融合
+        const embedInputs = hydeDoc ? [expandedQuery, hydeDoc] : [expandedQuery];
+        const embedVecs = await emb.embed(embedInputs);
+        const qVec = embedVecs[0];
+        const hydeVec = hydeDoc ? embedVecs[1] : undefined;
         if (qVec) {
-          const allScores: Array<{ chunkId: string; score: number }> = [];
-          for (const [chunkId, vec] of vectorMap) {
-            let dot = 0, normA = 0, normB = 0;
-            for (let i = 0; i < qVec.length; i++) {
-              dot += (qVec[i] ?? 0) * (vec.vector[i] ?? 0);
-              normA += (qVec[i] ?? 0) * (qVec[i] ?? 0);
-              normB += (vec.vector[i] ?? 0) * (vec.vector[i] ?? 0);
+          const cosineScores = (qv: number[]): Array<{ chunkId: string; score: number }> => {
+            const scores: Array<{ chunkId: string; score: number }> = [];
+            for (const [chunkId, vec] of vectorMap) {
+              let dot = 0, normA = 0, normB = 0;
+              for (let i = 0; i < qv.length; i++) {
+                dot += (qv[i] ?? 0) * (vec.vector[i] ?? 0);
+                normA += (qv[i] ?? 0) * (qv[i] ?? 0);
+                normB += (vec.vector[i] ?? 0) * (vec.vector[i] ?? 0);
+              }
+              scores.push({ chunkId, score: dot / (Math.sqrt(normA) * Math.sqrt(normB)) });
             }
-            const score = dot / (Math.sqrt(normA) * Math.sqrt(normB));
-            allScores.push({ chunkId, score });
-          }
-          allScores.sort((a, b) => b.score - a.score);
+            scores.sort((a, b) => b.score - a.score);
+            return scores;
+          };
 
           // 动态 threshold：取 top-K，然后用相对 threshold 过滤低质量结果
           const TOP_K = 15;
           const RELATIVE_THRESHOLD = 0.7; // 相对于最高分
-          const topScore = allScores[0]?.score ?? 0;
-          const minScore = topScore * RELATIVE_THRESHOLD;
-          const filtered = allScores
-            .filter((s) => s.score >= minScore && s.score >= 0.1) // 绝对最低 0.1
-            .slice(0, TOP_K);
-          vectorScores.push(...filtered);
-          logger.info(`[RAG] [Step 2] Vector search: ${allScores.length} 全部 → ${vectorScores.length} 结果 (dynamic threshold, top=${topScore.toFixed(4)}, min=${minScore.toFixed(4)})`);
+          const filterTopK = (ranked: Array<{ chunkId: string; score: number }>) => {
+            const topScore = ranked[0]?.score ?? 0;
+            const minScore = topScore * RELATIVE_THRESHOLD;
+            return ranked
+              .filter((s) => s.score >= minScore && s.score >= 0.1) // 绝对最低 0.1
+              .slice(0, TOP_K);
+          };
+
+          const allScores = cosineScores(qVec);
+          const filtered = filterTopK(allScores);
+          if (hydeVec) {
+            const hydeAllScores = cosineScores(hydeVec);
+            const hydeFiltered = filterTopK(hydeAllScores);
+            const fused = reciprocalRankFusion([
+              filtered.map((s) => ({ id: s.chunkId, score: s.score })),
+              hydeFiltered.map((s) => ({ id: s.chunkId, score: s.score })),
+            ]).slice(0, TOP_K);
+            vectorScores.push(...fused.map((f) => ({ chunkId: f.id, score: f.score })));
+            logger.info(`[RAG] [Step 2] Vector search (HyDE 双腿 RRF): query腿 ${filtered.length} + hyde腿 ${hydeFiltered.length} → fused ${vectorScores.length} 结果 (queryTop=${(allScores[0]?.score ?? 0).toFixed(4)}, hydeTop=${(hydeAllScores[0]?.score ?? 0).toFixed(4)})`);
+          } else {
+            vectorScores.push(...filtered);
+            logger.info(`[RAG] [Step 2] Vector search: ${allScores.length} 全部 → ${vectorScores.length} 结果 (dynamic threshold, top=${(allScores[0]?.score ?? 0).toFixed(4)}, min=${((allScores[0]?.score ?? 0) * RELATIVE_THRESHOLD).toFixed(4)})`);
+          }
         }
       } catch (embErr) {
         logger.warn(`[RAG] [Step 2] Embedding 失败，降级到纯 BM25: ${embErr}`);
@@ -1050,8 +1083,21 @@ export async function runAgent(req: AgentRunRequest): Promise<AgentRunResponse> 
     const query = extractQuery(req.agent, req.request);
     logger.info(`[Orchestrator] agent=${req.agent}, 提取检索 query="${query.slice(0, 80)}${query.length > 80 ? "..." : ""}", knowledgeEnabled=${req.knowledgeEnabled}, shouldUseRag=${shouldUseRag}`);
     const ragStart = Date.now();
+    // HyDE（arXiv:2212.10496）仅对 chat agent 启用：LLM 生成假设答案，用答案文体的向量
+    // 补充检索，解决 query 与库中同形问句 chunk 的"回声"问题；其余 agent 行为不变
+    const hydeConfig: HydeConfig | undefined = req.agent === "chat"
+      ? {
+          ...(req.apiKey !== undefined && { apiKey: req.apiKey }),
+          ...(req.providerPreference !== undefined && { providerPreference: req.providerPreference }),
+          ...(req.modelId !== undefined && { modelId: req.modelId }),
+          ...(req.modelFallbacks !== undefined && { modelFallbacks: req.modelFallbacks }),
+          ...(req.enableModelFallback !== undefined && { enableModelFallback: req.enableModelFallback }),
+          ...(req.providerBaseUrls !== undefined && { providerBaseUrls: req.providerBaseUrls }),
+          ...(req.signal !== undefined && { signal: req.signal }),
+        }
+      : undefined;
     const { prompt: enhancedUserPrompt, citations } = shouldUseRag
-      ? await enhanceWithKnowledge(promptParts.user, query, req.agent, true, req.knowledgeEmbedding, req.knowledgeReranker)
+      ? await enhanceWithKnowledge(promptParts.user, query, req.agent, true, req.knowledgeEmbedding, req.knowledgeReranker, hydeConfig)
       : { prompt: promptParts.user, citations: [] };
     timings.ragSearchMs = Date.now() - ragStart;
 
