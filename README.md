@@ -2,6 +2,14 @@
 
 > AI 辅助发明专利复审的 Web 工具 — RAG + Web Search + Groundedness 三重知识增强 · 内置离线评估平台持续监控质量
 
+<p align="center">
+  <img src="assets/demo.gif" alt="专利复审 AI 助手演示" width="800">
+</p>
+
+<p align="center">
+  📺 完整 Demo 视频：<a href="https://www.bilibili.com/video/BV1qo3s6hESm/">https://www.bilibili.com/video/BV1qo3s6hESm/</a>
+</p>
+
 目标用户：发明专利复审实质审查员。本工具辅助完成审查意见解析、申请人答辩映射、复审事实复核和逐条回应草稿生成，所有 AI 输出为候选事实整理，需审查员确认。
 
 ---
