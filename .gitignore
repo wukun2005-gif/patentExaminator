@@ -43,6 +43,9 @@ scripts/
 
 opencode.json
 
+# README local preview (dev-only)
+readme_preview.html
+
 # Docs (local only, entire directory)
 docs/
 
